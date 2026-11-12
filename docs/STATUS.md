@@ -82,6 +82,13 @@ Last updated: 2026-11-12.
 
 ## Next
 
+0. **Paused 2026-11-12** (network outage). The project was renamed to turno (ADR 0009). Research on
+   agent-agnostic support and the open-source release is saved outside the repo in
+   `~/Documents/wimodev/research_notes/Turno open source y multiagente/`; the synthesized report
+   is still to be written (see `~/Documents/wimodev/REANUDAR.md`). Its outcome feeds new ADRs:
+   license, vendor terms and opt-in fallback, agent adapters, CI hardening (Node 22/24/26,
+   SHA-pinned actions, staged npm publishing, no cache or project code in the publish job).
+
 1. **Cutover** (needs the owner, live sessions must close): `migrate`, `mcp import --write
    --move-secrets`, `mcp install`, `mcpd start`, disable plugin stdio servers covered by the
    manifest, `mcp sync`, `profile repair` to regenerate launchers and links, swap `~/.local/bin/claudio`, `ui install`
