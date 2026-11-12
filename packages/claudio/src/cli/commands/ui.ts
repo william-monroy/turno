@@ -5,13 +5,13 @@ import { paths, tildify } from "../../core/paths.js";
 import { NERD } from "../../statusline/render.js";
 import { codePoints } from "../../ui/cmap.js";
 import { type FontSource, checkFonts, fontSource, installFonts, userFontDir } from "../../ui/fonts.js";
-import { currentStatusLine, isClaudioStatusLine, setStatusLine, withNerdTerminals, writeText } from "../../ui/settings.js";
+import { currentStatusLine, isClaudioStatusLine, setStatusLine, withNerdTerminals } from "../../ui/settings.js";
+import { Journal } from "../../core/journal.js";
 import { BUILTIN_SYMBOLS, currentTerminal } from "../../ui/terminal-id.js";
 import { TERMINALS, type Terminal, detectNerdTerminals, fontOf, installed, isNerdFamily, terminal } from "../../ui/terminals.js";
 import { type Command, type Io, fail, paint } from "../io.js";
 import { findOnPath } from "../launch.js";
 import { isLegacyScript } from "./doctor.js";
-import { stamp } from "./setup.js";
 
 const USAGE = `Usage:
   claudio ui status                  font, status line and icons, terminal by terminal
@@ -28,7 +28,7 @@ release Orca ships) into your user font folder,
 points the statusLine of the hub settings.json (shared by every profile) at
 \`claudio statusline\`, and records in config.toml which terminals already use a Nerd Font,
 so \`icons = "auto"\` draws Nerd icons there and Unicode ones elsewhere. Every file it changes
-is backed up first under ~/.local/state/claudio/backups/<stamp>/ui/.`;
+is backed up first under ~/.local/state/claudio/backups/<stamp>/, and claudio undo puts it back.`;
 
 interface Options {
   terminals: string[];
@@ -162,7 +162,7 @@ async function install(args: string[], io: Io): Promise<number> {
   const platform = process.platform;
   const targets = chosenTerminals(o.terminals, env, platform); // validate before changing anything
   const p = paths(env);
-  const backups = join(p.backupsDir, stamp(), "ui");
+  const journal = new Journal(env, `ui install ${args.join(" ")}`.trim(), o.dryRun);
   const dry = o.dryRun ? " (dry run)" : "";
   let source: FontSource | undefined;
 
@@ -171,7 +171,7 @@ async function install(args: string[], io: Io): Promise<number> {
     const dir = userFontDir(env, platform);
     if (!dir) io.out(`font: no user font folder on ${platform}; install ${source.family} by hand from ${source.files[0]!.url}`);
     else {
-      const results = await installFonts(source, { dir, force: o.force, dryRun: o.dryRun, platform, env });
+      const results = await installFonts(source, { dir, force: o.force, dryRun: o.dryRun, platform, env, journal });
       for (const r of results) {
         const what = {
           kept: "already installed",
@@ -188,14 +188,11 @@ async function install(args: string[], io: Io): Promise<number> {
   }
 
   if (o.statusline) {
-    const r = setStatusLine(join(p.hub, "settings.json"), statusLineCommand(env), {
-      dryRun: o.dryRun,
-      backupDir: join(backups, "claude"),
-    });
+    const r = setStatusLine(join(p.hub, "settings.json"), statusLineCommand(env), journal);
     if (!r.changed) io.out(`statusline: ${tildify(r.file, env)} already runs \`${r.after.command}\``);
     else {
       io.out(`statusline: ${tildify(r.file, env)} now runs \`${r.after.command}\` every ${r.after.refreshInterval} s${dry}`);
-      if (r.before) io.out(`statusline: it ran \`${r.before.command}\`${r.backup ? `; backup in ${tildify(r.backup, env)}` : ""}`);
+      if (r.before) io.out(`statusline: it ran \`${r.before.command}\``);
     }
   }
 
@@ -217,7 +214,7 @@ async function install(args: string[], io: Io): Promise<number> {
       continue;
     }
     const was = t.read?.(before);
-    if (!o.dryRun) writeText(file, after, join(backups, t.id));
+    journal.write(file, after);
     io.out(`${t.name}: font ${was ? `${was} -> ` : ""}${family} in ${tildify(file, env)}${dry}`);
   }
 
@@ -239,15 +236,21 @@ async function install(args: string[], io: Io): Promise<number> {
     if (merged.length) io.out(`config: no config.toml yet; claudio migrate records nerd_terminals = [${merged.join(", ")}]`);
   } else if (merged.join() !== [...current].sort().join()) {
     const text = existsSync(p.configFile) ? readFileSync(p.configFile, "utf8") : "";
-    if (!o.dryRun) writeText(p.configFile, withNerdTerminals(text, merged), join(backups, "config"));
+    journal.write(p.configFile, withNerdTerminals(text, merged));
     io.out(`config: nerd_terminals = [${merged.join(", ")}] in ${tildify(p.configFile, env)}${dry}`);
   }
+  const hint = journal.hint();
+  if (hint) io.out(hint);
   return 0;
 }
 
 export const command: Command = {
-  summary: "install the status line font and set up the claudio look of Claude Code",
+  summary: "the status line, its font and icons in every terminal",
   usage: USAGE,
+  subcommands: {
+    status: {},
+    install: { flags: ["--terminal", "--no-font", "--no-statusline", "--force", "--dry-run"] },
+  },
   async run(args, io) {
     const [sub, ...rest] = args;
     if (sub === "status" || sub === undefined) return status(io);

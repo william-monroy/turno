@@ -1,10 +1,10 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { isValidProfileName, parseConfig } from "../../core/config.js";
 import { paths, tildify } from "../../core/paths.js";
 import { type Command, type Io, fail } from "../io.js";
 import { detectNerdTerminals } from "../../ui/terminals.js";
-import { stamp } from "./setup.js";
+import { Journal } from "../../core/journal.js";
 
 /** What the bash tool kept in ~/.config/claudio/proyectos and navegador. */
 export interface LegacyConfig {
@@ -82,7 +82,7 @@ function read(file: string): string | undefined {
 }
 
 /** Copy files from a legacy state folder when missing or older at the destination. */
-function copyState(from: string, to: string, filter: (name: string) => boolean, dryRun: boolean): number {
+function copyState(from: string, to: string, filter: (name: string) => boolean, journal: Journal): number {
   let entries: string[];
   try {
     entries = readdirSync(from);
@@ -100,10 +100,7 @@ function copyState(from: string, to: string, filter: (name: string) => boolean, 
     } catch {
       continue;
     }
-    if (!dryRun) {
-      mkdirSync(to, { recursive: true });
-      copyFileSync(src, dst);
-    }
+    journal.write(dst, readFileSync(src));
     copied++;
   }
   return copied;
@@ -113,6 +110,7 @@ export function migrate(io: Io, opts: { dryRun?: boolean; force?: boolean } = {}
   const p = paths(io.env);
   const legacyDir = p.legacyConfig;
   const prefix = opts.dryRun ? "(dry run) " : "";
+  const journal = new Journal(io.env, "migrate", Boolean(opts.dryRun));
   if (!existsSync(legacyDir)) {
     io.out(`Nothing to migrate: ${tildify(legacyDir, io.env)} does not exist.`);
     return 0;
@@ -134,18 +132,8 @@ export function migrate(io: Io, opts: { dryRun?: boolean; force?: boolean } = {}
     const toml = legacyToToml(legacy, chromeDir, detectNerdTerminals(io.env));
     parseConfig(toml, p.configFile, io.env); // never write a file claudio cannot read back
     for (const w of legacy.warnings) io.out(`  ! ${w}`);
-    if (exists) {
-      const backup = join(p.backupsDir, stamp());
-      if (!opts.dryRun) {
-        mkdirSync(backup, { recursive: true });
-        copyFileSync(p.configFile, join(backup, "config.toml"));
-      }
-      io.out(`${prefix}backed up config.toml to ${tildify(backup, io.env)}/`);
-    }
-    if (!opts.dryRun) {
-      mkdirSync(p.config, { recursive: true });
-      writeFileSync(p.configFile, toml);
-    }
+    journal.write(p.configFile, toml);
+    if (exists) io.out(`${prefix}backed up config.toml (claudio undo ${journal.stamp} puts it back)`);
     const nBrowsers = Object.keys(legacy.browsers).length;
     io.out(
       `${prefix}+ ${tildify(p.configFile, io.env)}: ${legacy.projects.length} project rules, ${nBrowsers} browser settings` +
@@ -157,11 +145,12 @@ export function migrate(io: Io, opts: { dryRun?: boolean; force?: boolean } = {}
       io.out("");
     }
   }
-  const usage = copyState(join(legacyDir, "uso"), p.usageDir, (n) => n.endsWith(".json"), Boolean(opts.dryRun));
-  const exhausted = copyState(join(legacyDir, "agotadas"), p.exhaustedDir, isValidProfileName, Boolean(opts.dryRun));
-  const plan = copyState(join(legacyDir, "plan"), p.planDir, isValidProfileName, Boolean(opts.dryRun));
+  const usage = copyState(join(legacyDir, "uso"), p.usageDir, (n) => n.endsWith(".json"), journal);
+  const exhausted = copyState(join(legacyDir, "agotadas"), p.exhaustedDir, isValidProfileName, journal);
+  const plan = copyState(join(legacyDir, "plan"), p.planDir, isValidProfileName, journal);
   io.out(`${prefix}+ state: ${usage} usage snapshots, ${exhausted} exhausted marks, ${plan} plans copied to ${tildify(p.state, io.env)}/`);
   io.out("Legacy files were left untouched.");
+  if (journal.used) io.out(`undo with: claudio undo ${journal.stamp}`);
   return 0;
 }
 

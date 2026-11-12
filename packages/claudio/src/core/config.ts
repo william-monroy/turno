@@ -26,6 +26,8 @@ export interface Config {
   icons: "auto" | "nerd" | "unicode";
   /** Terminals whose font draws Nerd Font icons (set by `claudio ui install`), for `auto` icons. */
   nerdTerminals: string[];
+  /** Look for new claudio releases once a day (`update_check = false` turns it off). */
+  updateCheck: boolean;
   profiles: Record<string, ProfileConfig>;
   projects: ProjectRule[];
   open: { chromeDir: string };
@@ -62,6 +64,7 @@ export function parseConfig(text: string, file = "config.toml", env: NodeJS.Proc
   const cfg: Config = {
     icons: "auto",
     nerdTerminals: [],
+    updateCheck: true,
     profiles: {},
     projects: [],
     open: { chromeDir: p.chromeProfilesDir },
@@ -83,6 +86,11 @@ export function parseConfig(text: string, file = "config.toml", env: NodeJS.Proc
       throw new ConfigError(file, "nerd_terminals must be an array of terminal names");
     }
     cfg.nerdTerminals = nerd as string[];
+  }
+
+  if (raw.update_check !== undefined) {
+    if (typeof raw.update_check !== "boolean") throw new ConfigError(file, "update_check must be true or false");
+    cfg.updateCheck = raw.update_check;
   }
 
   const profiles = raw.profiles ?? {};

@@ -86,7 +86,7 @@ export async function execCommand(cmd: string, args: string[], env: NodeJS.Proce
 export async function launchProfile(name: string, args: string[], io: Io): Promise<number> {
   const file = launcherPath(name, io.env);
   if (!file) {
-    throw new UsageError(`no profile '${name}' (claudio status lists them; claudio setup ${name} creates it)`);
+    throw new UsageError(`no profile '${name}' (claudio profile list shows them; claudio profile add ${name} creates it)`);
   }
   return execLauncher(file, args, io.env);
 }

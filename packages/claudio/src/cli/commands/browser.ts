@@ -20,7 +20,7 @@ interface IdentityInfo {
   inUse: boolean;
 }
 
-interface BrowserModule {
+export interface BrowserModule {
   ENGINES: readonly string[];
   listIdentities(env: NodeJS.ProcessEnv): IdentityInfo[];
   addIdentity(id: string, env: NodeJS.ProcessEnv): IdentityInfo;
@@ -42,7 +42,7 @@ interface BrowserModule {
 const NOT_INSTALLED = `the browser package (@claudio/browser) is not installed or not built.
 Install it next to claudio (it is an optional dependency) and run its build, then try again.`;
 
-async function loadBrowser(): Promise<BrowserModule | undefined> {
+export async function loadBrowser(): Promise<BrowserModule | undefined> {
   const spec = "@claudio/browser";
   try {
     return (await import(spec)) as BrowserModule;
@@ -115,8 +115,9 @@ async function bench(mod: BrowserModule, args: string[], io: Io): Promise<number
 }
 
 export const command: Command = {
-  summary: "stealth browser identities (login once, reuse from every session) and engine bench",
+  summary: "browser engine bench against bot detectors (identities live in claudio identity)",
   usage: USAGE,
+  subcommands: { bench: { flags: ["--engine", "--url", "--no-detectors", "--json"] } },
   async run(args, io) {
     const [sub, ...rest] = args;
     if (!sub) return fail(USAGE);
@@ -134,7 +135,7 @@ export const command: Command = {
   },
 };
 
-async function dispatch(mod: BrowserModule, sub: string, rest: string[], io: Io): Promise<number> {
+export async function dispatch(mod: BrowserModule, sub: string, rest: string[], io: Io): Promise<number> {
   switch (sub) {
     case "identities":
     case "list": {

@@ -58,7 +58,7 @@ interface Window {
   resets_at?: number;
 }
 
-interface UsageSnapshot {
+export interface UsageSnapshot {
   rate_limits?: { five_hour?: Window; seven_day?: Window };
   updated_at?: number;
 }
@@ -113,12 +113,12 @@ export function agoText(ts: number, now = Date.now() / 1000): string {
   return `${Math.floor(d / 86400)} d ago`;
 }
 
-interface Account {
+export interface Account {
   email: string;
   plan: string;
 }
 
-async function account(profile: string, env: NodeJS.ProcessEnv): Promise<Account> {
+export async function account(profile: string, env: NodeJS.ProcessEnv): Promise<Account> {
   const s = await authStatus(profile, env);
   if (!s) return { email: "?", plan: "?" };
   if (!s.loggedIn) return { email: "not logged in", plan: "" };

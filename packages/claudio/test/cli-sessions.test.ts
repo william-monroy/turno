@@ -56,6 +56,7 @@ describe("sessions", () => {
     session(a, { name: "feature" });
     sb.write(`.local/state/claudio/run/${a}`, "work\n");
     session(b);
+    sb.write(`.config/claudio/run/${b}`, "lab\n"); // started by a bash launcher
     session(c, { entrypoint: "claude-desktop" });
     session(d);
     const stale = sb.write(`.local/state/claudio/run/${d}`, "work\n");
@@ -69,13 +70,13 @@ describe("sessions", () => {
     const byPid = Object.fromEntries(list.map((s) => [s.pid, s]));
     expect(list).toHaveLength(4);
     expect(byPid[a]).toMatchObject({ profile: "work", source: "record", name: "feature" });
-    expect(byPid[b]).toMatchObject({ profile: "personal", source: "system" });
+    expect(byPid[b]).toMatchObject({ profile: "lab", source: "record" });
     expect(byPid[c]).toMatchObject({ source: "desktop" });
     expect(byPid[c]!.profile).toBeUndefined();
     expect(byPid[d]).toMatchObject({ profile: "personal", source: "system" });
     expect(existsSync(deadRecord)).toBe(false);
 
-    expect([...busyProfiles(sb.env, config)].sort()).toEqual(["personal", "work"]);
+    expect([...busyProfiles(sb.env, config)].sort()).toEqual(["lab", "personal", "work"]);
     expect(profileBusy("work", sb.env, config)).toBe(true);
     expect(profileBusy("other", sb.env, config)).toBe(false);
   });

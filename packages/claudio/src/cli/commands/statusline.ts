@@ -187,7 +187,7 @@ export function collect(data: StatusData, env: NodeJS.ProcessEnv, now = Date.now
   try {
     config = loadConfig(env);
   } catch {
-    config = { icons: "auto", nerdTerminals: [], profiles: {}, projects: [], open: { chromeDir: "" }, mcpd: { port: 47821 } };
+    config = { icons: "auto", nerdTerminals: [], updateCheck: true, profiles: {}, projects: [], open: { chromeDir: "" }, mcpd: { port: 47821 } };
   }
   const p = paths(env);
   const cache = join(p.state, "cache");

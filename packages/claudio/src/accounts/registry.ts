@@ -1,3 +1,4 @@
+import type { Journal } from "../core/journal.js";
 import { mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve, sep } from "node:path";
 import { parse, stringify } from "smol-toml";
@@ -166,8 +167,12 @@ export function formatRegistry(reg: Registry, env: NodeJS.ProcessEnv = process.e
  * Rewrite accounts.toml from a registry. The whole file is regenerated (atomically), so
  * comments and formatting of a hand-edited file are not preserved.
  */
-export function saveRegistry(reg: Registry, env: NodeJS.ProcessEnv = process.env): string {
+export function saveRegistry(reg: Registry, env: NodeJS.ProcessEnv = process.env, journal?: Journal): string {
   const file = paths(env).accountsFile;
+  if (journal) {
+    journal.write(file, formatRegistry(reg, env));
+    return file;
+  }
   mkdirSync(dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
   writeFileSync(tmp, formatRegistry(reg, env));

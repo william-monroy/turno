@@ -1,9 +1,10 @@
 import { execFile } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { loadConfig } from "../../core/config.js";
 import { type StdioServer, loadManifest, parseManifest } from "../../core/manifest.js";
+import { Journal } from "../../core/journal.js";
 import { paths, profileDir, tildify } from "../../core/paths.js";
 import { listProfiles } from "../../core/profiles.js";
 import { type Command, type Io, fail, paint } from "../io.js";
@@ -11,30 +12,35 @@ import { type Command, type Io, fail, paint } from "../io.js";
 const run = promisify(execFile);
 
 const USAGE = `Usage:
-  claudio mcp list                          servers in mcp.toml and where they run
+  claudio mcp list [--json]                 servers in mcp.toml and where they run
   claudio mcp sync [profile...] [--dry-run] [--force]
                                             write the gateway entries into each profile config
   claudio mcp import [--write] [--force] [--move-secrets]
                                             draft mcp.toml from the current ~/.claude.json servers
   claudio mcp install [server...]           install declared packages (no npx at every start)
   claudio mcp refresh [server...]           forget cached tool lists (relearned on next use)
-  claudio mcp doctor                        find servers that bypass the gateway`;
+  claudio mcp doctor                        find servers that bypass the gateway
+  claudio mcp daemon <start|stop|restart|status|logs|run>
+                                            the gateway daemon (claudio mcpd is the same)`;
 
-function stamp(): string {
-  return new Date().toISOString().replace(/[-:]/g, "").replace(/\..+/, "").replace("T", "-");
-}
-
-function backupFile(file: string, env: NodeJS.ProcessEnv, label: string): string {
-  const dir = join(paths(env).backupsDir, stamp());
-  mkdirSync(dir, { recursive: true });
-  const dest = join(dir, label);
-  copyFileSync(file, dest);
-  return dest;
-}
-
-async function list(io: Io): Promise<number> {
+async function list(io: Io, json = false): Promise<number> {
   const m = loadManifest(io.env);
   const names = Object.keys(m.servers).sort();
+  if (json) {
+    io.out(
+      JSON.stringify(
+        names.map((n) => {
+          const s = m.servers[n]!;
+          return s.kind === "remote"
+            ? { name: n, kind: "remote", url: s.url, proxy: Boolean(s.proxy), profiles: s.profiles }
+            : { name: n, kind: "stdio", command: s.builtin ? `builtin ${s.builtin}` : s.command, scope: s.scope, exclusive: Boolean(s.exclusive), idleSeconds: s.idle, profiles: s.profiles, package: s.package ?? null, variants: Object.keys(s.variants) };
+        }),
+        null,
+        2,
+      ),
+    );
+    return 0;
+  }
   if (!names.length) {
     io.out(`no servers in ${tildify(paths(io.env).mcpFile, io.env)} (claudio mcp import)`);
     return 0;
@@ -101,6 +107,7 @@ async function sync(args: string[], io: Io): Promise<number> {
   const managed = readManaged(p.mcpdManaged);
   const busy = await busySet(io);
   let skipped = 0;
+  const journal = new Journal(io.env, `mcp sync ${args.join(" ")}`.trim(), dryRun);
   for (const t of targets(io, only)) {
     const label = `${t.profile} (${tildify(t.file, io.env)})`;
     if (busy.has(t.profile) && !force && !dryRun) {
@@ -109,8 +116,9 @@ async function sync(args: string[], io: Io): Promise<number> {
       continue;
     }
     const wanted = profileServers(manifest, t.profile, port, token);
-    if (existsSync(t.file) && !dryRun) backupFile(t.file, io.env, `${t.profile}.claude.json`);
+    const before = journal.save(t.file);
     const res = syncConfigFile(t.file, wanted, managed[t.file] ?? [], { dryRun });
+    journal.settle(before);
     if (!dryRun) managed[t.file] = Object.keys(wanted);
     const parts = [
       res.added.length ? `added ${res.added.join(", ")}` : "",
@@ -122,6 +130,8 @@ async function sync(args: string[], io: Io): Promise<number> {
   }
   if (!dryRun) writeManaged(p.mcpdManaged, managed);
   if (!dryRun) io.out("New sessions pick this up; open sessions keep their old servers until restarted.");
+  const hint = journal.hint();
+  if (hint) io.out(hint);
   return skipped ? 1 : 0;
 }
 
@@ -172,10 +182,10 @@ async function importCmd(args: string[], io: Io): Promise<number> {
     return 0;
   }
   if (existsSync(p.mcpFile) && !args.includes("--force")) return fail(`${tildify(p.mcpFile, io.env)} exists; use --force (it is backed up)`);
-  if (existsSync(p.mcpFile)) io.err(`  backup: ${backupFile(p.mcpFile, io.env, "mcp.toml")}`);
-  mkdirSync(p.config, { recursive: true });
-  writeFileSync(p.mcpFile, report.toml, { mode: 0o600 });
+  const journal = new Journal(io.env, "mcp import --write");
+  journal.write(p.mcpFile, report.toml, 0o600);
   io.out(`wrote ${tildify(p.mcpFile, io.env)}`);
+  io.out(journal.hint()!);
   return 0;
 }
 
@@ -225,47 +235,67 @@ async function refresh(args: string[], io: Io): Promise<number> {
   return 0;
 }
 
-async function doctor(io: Io): Promise<number> {
+export interface Bypass {
+  /** Plugin stdio servers that start in every session. */
+  plugins: { plugin: string; name: string; command: string; toolPrefix: string }[];
+  /** Stdio servers configured directly in the hub config, and whether mcp.toml has them. */
+  direct: { name: string; inManifest: boolean }[];
+}
+
+/** Local servers that do not go through mcpd. */
+export async function bypassingServers(env: NodeJS.ProcessEnv): Promise<Bypass> {
   const { pluginServers } = await import("../../mcpd/importer.js");
-  const p = paths(io.env);
-  const manifest = loadManifest(io.env);
-  let issues = 0;
-  const plugins = pluginServers(p.hub);
-  const stdio = plugins.filter((s) => s.transport === "stdio");
-  if (stdio.length) {
-    io.out(paint(io, "Plugin servers that start in every session (they bypass mcpd):", "1"));
-    for (const s of stdio) io.out(`  ${s.plugin}/${s.name}: ${s.command}  (tools ${s.toolPrefix}*)`);
-    io.out("  Disable the plugin, or keep it if you need it everywhere. To keep its tools through mcpd,");
-    io.out(`  declare [server.plugin_<plugin>_<name>] in mcp.toml so tool names stay the same.`);
-    issues += stdio.length;
-  }
+  const p = paths(env);
+  const manifest = loadManifest(env);
+  const plugins = pluginServers(p.hub)
+    .filter((s) => s.transport === "stdio")
+    .map((s) => ({ plugin: s.plugin, name: s.name, command: String(s.command), toolPrefix: s.toolPrefix }));
   let hub: Record<string, unknown> = {};
   try {
     hub = JSON.parse(readFileSync(p.hubConfig, "utf8")) as Record<string, unknown>;
   } catch {
     /* no hub config */
   }
-  const direct = Object.entries((hub.mcpServers as Record<string, Record<string, unknown>>) ?? {}).filter(
-    ([, e]) => typeof e.command === "string",
-  );
+  const direct = Object.entries((hub.mcpServers as Record<string, Record<string, unknown>>) ?? {})
+    .filter(([, e]) => typeof e.command === "string")
+    .map(([name]) => ({ name, inManifest: Boolean(manifest.servers[name]) }));
+  return { plugins, direct };
+}
+
+async function doctor(io: Io): Promise<number> {
+  const { plugins, direct } = await bypassingServers(io.env);
+  if (plugins.length) {
+    io.out(paint(io, "Plugin servers that start in every session (they bypass mcpd):", "1"));
+    for (const s of plugins) io.out(`  ${s.plugin}/${s.name}: ${s.command}  (tools ${s.toolPrefix}*)`);
+    io.out("  Disable the plugin, or keep it if you need it everywhere. To keep its tools through mcpd,");
+    io.out(`  declare [server.plugin_<plugin>_<name>] in mcp.toml so tool names stay the same.`);
+  }
   if (direct.length) {
     io.out(paint(io, "Stdio servers still configured directly in the hub config:", "1"));
-    for (const [name] of direct) io.out(`  ${name}${manifest.servers[name] ? " (in mcp.toml: run claudio mcp sync)" : " (not in mcp.toml: claudio mcp import)"}`);
-    issues += direct.length;
+    for (const d of direct) io.out(`  ${d.name}${d.inManifest ? " (in mcp.toml: run claudio mcp sync)" : " (not in mcp.toml: claudio mcp import)"}`);
   }
-  if (!issues) io.out("Every local server goes through mcpd.");
-  return issues ? 1 : 0;
+  if (!plugins.length && !direct.length) io.out("Every local server goes through mcpd.");
+  return plugins.length + direct.length ? 1 : 0;
 }
 
 export const command: Command = {
-  summary: "manage MCP servers behind the gateway",
+  summary: "MCP servers behind the lazy gateway, and the gateway daemon itself",
   usage: USAGE,
+  subcommands: {
+    list: { flags: ["--json"] },
+    sync: { args: ["profile"], flags: ["--dry-run", "--force"] },
+    import: { flags: ["--write", "--force", "--move-secrets"] },
+    install: { args: ["server"] },
+    refresh: { args: ["server"] },
+    doctor: {},
+    daemon: { args: ["any"] },
+  },
   async run(args, io) {
     const [sub, ...rest] = args;
     switch (sub) {
       case "list":
       case undefined:
-        return list(io);
+        return list(io, rest.includes("--json"));
       case "sync":
         return sync(rest, io);
       case "import":
@@ -274,6 +304,8 @@ export const command: Command = {
         return install(rest, io);
       case "refresh":
         return refresh(rest, io);
+      case "daemon":
+        return (await import("./mcpd.js")).command.run(rest, io);
       case "doctor":
         return doctor(io);
       default:

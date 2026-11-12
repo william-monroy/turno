@@ -16,6 +16,7 @@ export function sandbox(): Sandbox {
     PATH: process.env.PATH,
     HOME: home,
     TMPDIR: process.env.TMPDIR,
+    CLAUDIO_NO_UPDATE_CHECK: "1",
   };
   return {
     home,

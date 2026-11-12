@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { findOnPath } from "../cli/launch.js";
+import type { Journal } from "../core/journal.js";
 
 export interface FontFile {
   file: string;
@@ -92,6 +93,8 @@ export interface InstallOptions {
   fetch?: typeof fetch;
   platform?: NodeJS.Platform;
   env?: NodeJS.ProcessEnv;
+  /** Records each file before it is written, for `claudio undo`. */
+  journal?: Journal;
 }
 
 export type FontAction = "copied" | "downloaded" | "kept" | "skipped";
@@ -126,9 +129,11 @@ export async function installFonts(source: FontSource, opts: InstallOptions): Pr
     const { buf, downloaded } = await bytesOf(source, check, opts.fetch ?? fetch);
     if (sha256(buf) !== check.sha256) throw new Error(`${check.file}: checksum mismatch, nothing written for it`);
     mkdirSync(opts.dir, { recursive: true });
+    opts.journal?.save(check.target);
     const tmp = `${check.target}.${process.pid}.tmp`;
     writeFileSync(tmp, buf, { mode: 0o644 });
     renameSync(tmp, check.target);
+    opts.journal?.settle(check.target);
     results.push({ ...check, action: downloaded ? "downloaded" : "copied" });
   }
   const wrote = results.some((r) => r.action === "copied" || r.action === "downloaded");

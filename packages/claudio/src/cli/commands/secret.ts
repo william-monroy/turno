@@ -1,7 +1,9 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { storeKeychainSecret } from "../../core/secrets.js";
-import { type Command, fail } from "../io.js";
+import { readFileSync } from "node:fs";
+import { paths, tildify } from "../../core/paths.js";
+import { type Command, type Io, fail } from "../io.js";
 
 const run = promisify(execFile);
 
@@ -9,6 +11,7 @@ const USAGE = `Usage:
   claudio secret set <service>     read a value from stdin and store it in the Keychain
   claudio secret has <service>     exit 0 when the Keychain item exists
   claudio secret rm <service>      delete the Keychain item
+  claudio secret list [--json]     every keychain: reference in mcp.toml and whether it is stored
 
 Reference it in mcp.toml as "keychain:<service>". Values are never printed.`;
 
@@ -44,11 +47,47 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString("utf8").replace(/\r?\n$/, "");
 }
 
+async function exists(service: string): Promise<boolean> {
+  try {
+    // Without -w: this reads the item's attributes, never its value.
+    await run("security", ["find-generic-password", "-s", service], { timeout: 10_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** keychain:<service> references in mcp.toml. */
+export function keychainRefs(text: string): string[] {
+  return [...new Set([...text.matchAll(/"keychain:([^"\\]+)"/g)].map((m) => m[1]!))].sort();
+}
+
+async function list(args: string[], io: Io): Promise<number> {
+  const json = args.includes("--json");
+  let text = "";
+  try {
+    text = readFileSync(paths(io.env).mcpFile, "utf8");
+  } catch {
+    text = "";
+  }
+  const refs = keychainRefs(text);
+  const found = await Promise.all(refs.map((r) => exists(r)));
+  if (json) {
+    io.out(JSON.stringify(refs.map((r, i) => ({ service: r, stored: found[i] })), null, 2));
+    return 0;
+  }
+  if (!refs.length) io.out(`no keychain: references in ${tildify(paths(io.env).mcpFile, io.env)}`);
+  for (const [i, r] of refs.entries()) io.out(`${found[i] ? "stored " : "MISSING"}  keychain:${r}${found[i] ? "" : `  (claudio secret set ${r})`}`);
+  return found.every(Boolean) ? 0 : 1;
+}
+
 export const command: Command = {
   summary: "store MCP secrets in the macOS Keychain",
   usage: USAGE,
+  subcommands: { set: { args: ["any"] }, has: { args: ["any"] }, rm: { args: ["any"] }, list: { flags: ["--json"] } },
   async run(args, io) {
     const [sub, service] = args;
+    if (sub === "list" || sub === undefined) return list(args.slice(1), io);
     if (!service) return fail(USAGE);
     switch (sub) {
       case "set": {

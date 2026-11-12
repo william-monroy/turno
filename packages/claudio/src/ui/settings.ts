@@ -1,5 +1,5 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import type { Journal } from "../core/journal.js";
 
 export interface StatusLine {
   type: "command";
@@ -49,34 +49,15 @@ export interface WriteResult {
   changed: boolean;
   before?: StatusLine;
   after: StatusLine;
-  backup?: string;
 }
 
-/** Atomic write that follows a symlink, so profiles that link to the hub keep linking. */
-function writeThrough(file: string, text: string, backupDir?: string): string | undefined {
-  const target = real(file);
-  let backup: string | undefined;
-  if (backupDir && existsSync(target)) {
-    mkdirSync(backupDir, { recursive: true });
-    backup = join(backupDir, basename(target));
-    copyFileSync(target, backup);
-  }
-  mkdirSync(dirname(target), { recursive: true });
-  const tmp = `${target}.${process.pid}.tmp`;
-  writeFileSync(tmp, text);
-  renameSync(tmp, target);
-  return backup;
-}
-
-export function setStatusLine(file: string, command: string, opts: { dryRun?: boolean; backupDir?: string } = {}): WriteResult {
+export function setStatusLine(file: string, command: string, journal: Journal): WriteResult {
   const settings = readSettings(file);
   const before = settings.statusLine as StatusLine | undefined;
   const after = wantedStatusLine(command, before);
   const changed = JSON.stringify(before) !== JSON.stringify(after);
   const result: WriteResult = { file: real(file), changed, after, ...(before ? { before } : {}) };
-  if (!changed || opts.dryRun) return result;
-  const backup = writeThrough(file, `${JSON.stringify({ ...settings, statusLine: after }, null, 2)}\n`, opts.backupDir);
-  if (backup) result.backup = backup;
+  if (changed) journal.write(file, `${JSON.stringify({ ...settings, statusLine: after }, null, 2)}\n`);
   return result;
 }
 
@@ -103,8 +84,4 @@ export function withNerdTerminals(text: string, ids: string[]): string {
   while (at > 0 && lines[at - 1]!.trim() === "") at--;
   lines.splice(at, 0, line);
   return lines.join("\n");
-}
-
-export function writeText(file: string, text: string, backupDir?: string): string | undefined {
-  return writeThrough(file, text, backupDir);
 }

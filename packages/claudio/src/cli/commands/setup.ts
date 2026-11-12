@@ -24,10 +24,16 @@ export const PER_ACCOUNT = [
   "daemon.log",
   "daemon-auth-cooldown",
   "daemon-auth-status.json",
+  "daemon.lock",
+  "daemon.status.json",
+  "feedback",
   "jobs",
   "policy-limits.json",
   "policy-limits.json.stamp.json",
+  "policy-limits.json.signature.json",
   "remote-settings.json",
+  "remote-settings.json.signature.json",
+  "remote-settings.json.synced-at",
   "mcp-needs-auth-cache.json",
   "stats-cache.json",
   "telemetry",
@@ -44,6 +50,7 @@ export const RESERVED = new Set([
   "open", "migrate", "doctor", "statusline", "handoff", "mcp", "mcpd", "secret", "accounts", "browser", "ui", "help", "version",
   "cuenta", "resolver", "sesiones", "uso", "agotada", "disponible", "limite", "abrir", "sync-mcp",
   "profile", "navegador",
+  "run", "limit", "session", "identity", "config", "undo", "upgrade", "completion", "__complete", "__update-check",
 ]);
 
 export function checkName(name: string): void {
@@ -51,11 +58,8 @@ export function checkName(name: string): void {
   if (RESERVED.has(name)) fail(`'${name}' is reserved`);
 }
 
-/** Local "YYYYMMDD-HHMMSS". */
-export function stamp(d = new Date()): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
-}
+export { stamp } from "../../core/journal.js";
+import { stamp } from "../../core/journal.js";
 
 function lstat(path: string) {
   try {

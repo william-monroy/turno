@@ -54,7 +54,25 @@ describe("usage", () => {
 });
 
 describe("status", () => {
-  it("reports account, shared links and unclassified items", async () => {
+  it("shows this folder, each profile with its usage, sessions, mcpd and the look", async () => {
+    sb.write(".local/state/claudio/usage/work.json", JSON.stringify({ updated_at: 100, rate_limits: { five_hour: { used_percentage: 42 } } }));
+    const io = fakeIo(sb.env);
+    expect(await status.run([], io)).toBe(0);
+    const out = io.lines.join("\n");
+    expect(out).toMatch(/^claudio \d+\.\d+\.\d+/);
+    expect(out).toMatch(/profiles +personal/);
+    expect(out).toMatch(/work +5h .* 42%/);
+    expect(out).toContain("alice@example.com · max");
+    expect(out).toContain("mcpd      not running");
+    const json = fakeIo(sb.env);
+    await status.run(["--json"], json);
+    const data = JSON.parse(json.lines.join("\n"));
+    expect(data.profiles.find((p: { name: string }) => p.name === "work").fiveHour.used).toBe(42);
+  });
+});
+
+describe("doctor shared links", () => {
+  it("reports local copies, missing links and unclassified items, and --fix relinks them", async () => {
     mkdirSync(join(sb.home, ".claude/projects"), { recursive: true });
     sb.write(".claude/CLAUDE.md", "x\n");
     symlinkSync(join(sb.home, ".claude/projects"), join(sb.home, ".claude-work/projects"));
@@ -62,19 +80,19 @@ describe("status", () => {
     sb.write(".claude-work/history.jsonl", "");
     sb.write(".claude-work/mystery", "");
     const io = fakeIo(sb.env);
-    await status.run([], io);
+    await doctor(io);
     expect(io.lines).toEqual(
       expect.arrayContaining([
-        "▸ work (~/.claude-work)",
-        "  account: alice@example.com · Acme · max",
-        "  ! skills is a local copy, not shared (claudio setup work links it)",
-        "  ! missing link for CLAUDE.md (claudio setup work)",
-        "  shared with ~/.claude: 1",
-        "  ? mystery is new and unclassified: decide whether to share it",
-        "  account: not logged in (claude-personal auth login)",
+        "warn  profile work: skills is a local copy, not shared  [fix: claudio profile repair work]",
+        "warn  profile work: missing link for CLAUDE.md  [fix: claudio profile repair work]",
+        "info  profile work: mystery is new and unclassified: decide whether to share it",
       ]),
     );
     expect(io.lines.some((l) => l.includes("history.jsonl"))).toBe(false);
+    const fixed = fakeIo(sb.env);
+    await doctor(fixed, { fix: true });
+    expect(fixed.lines).toContain("$ claudio profile repair work");
+    expect(fixed.lines.some((l) => l.includes("skills is a local copy"))).toBe(false);
   });
 });
 

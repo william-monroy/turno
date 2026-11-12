@@ -23,12 +23,24 @@ export function defaultIo(): Io {
   };
 }
 
+/** What a positional argument holds, for shell completion. */
+export type ArgKind = "profile" | "profile-or-auto" | "dir" | "identity" | "server" | "stamp" | "terminal" | "key" | "shell" | "any";
+
+/** Completion data of a command or subcommand. */
+export interface Completion {
+  args?: ArgKind[];
+  /** Long flags, with the leading dashes. */
+  flags?: string[];
+}
+
 /** A command module: `export const command: Command = { ... }`. */
-export interface Command {
+export interface Command extends Completion {
   /** One line for `claudio help`. */
   summary: string;
   usage: string;
   hidden?: boolean;
+  /** Subcommand names (visible ones) with their completion data. */
+  subcommands?: Record<string, Completion>;
   run(args: string[], io: Io): Promise<number>;
 }
 

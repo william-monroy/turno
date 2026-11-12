@@ -54,14 +54,18 @@ describe("migrate", () => {
     expect(io.lines.some((l) => l.includes("3 project rules, 2 browser settings"))).toBe(true);
   });
 
-  it("refuses to replace config.toml without --force, and backs it up with it", () => {
+  it("refuses to replace config.toml without --force, and backs it up with it", async () => {
     sb.write(".config/claudio/config.toml", 'system = "old"\n');
     expect(() => migrate(fakeIo(sb.env))).toThrow(/--force/);
     migrate(fakeIo(sb.env), { force: true });
     expect(loadConfig(sb.env).system).toBe("personal");
     const backups = join(sb.home, ".local/state/claudio/backups");
     const [stamp] = readdirSync(backups);
-    expect(readFileSync(join(backups, stamp!, "config.toml"), "utf8")).toBe('system = "old"\n');
+    expect(readFileSync(join(backups, stamp!, "files", "0-config.toml"), "utf8")).toBe('system = "old"\n');
+    // claudio undo is the rollback of a migration.
+    const { listJournals, undoJournal } = await import("../src/core/journal.js");
+    undoJournal(listJournals(sb.env)[0]!, sb.env);
+    expect(readFileSync(join(sb.home, ".config/claudio/config.toml"), "utf8")).toBe('system = "old"\n');
   });
 
   it("changes nothing on a dry run", () => {

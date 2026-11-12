@@ -54,15 +54,20 @@ export function parseProcStart(text: string): { utc: number; local: number } | u
 export function recordProfile(pid: number, procStart: string | undefined, env: NodeJS.ProcessEnv = process.env): string | undefined {
   const start = parseProcStart(procStart ?? "");
   if (!start) return undefined;
-  const file = join(paths(env).runDir, String(pid));
-  try {
-    const mtime = statSync(file).mtimeMs;
-    if (Math.min(Math.abs(mtime - start.utc), Math.abs(mtime - start.local)) >= 120_000) return undefined;
-    const name = readFileSync(file, "utf8").trim();
-    return isValidProfileName(name) ? name : undefined;
-  } catch {
-    return undefined;
+  const p = paths(env);
+  // Sessions started by the bash launchers keep their records in the legacy folder.
+  for (const dir of [p.runDir, join(p.legacyConfig, "run")]) {
+    const file = join(dir, String(pid));
+    try {
+      const mtime = statSync(file).mtimeMs;
+      if (Math.min(Math.abs(mtime - start.utc), Math.abs(mtime - start.local)) >= 120_000) continue;
+      const name = readFileSync(file, "utf8").trim();
+      if (isValidProfileName(name)) return name;
+    } catch {
+      /* not in this folder */
+    }
   }
+  return undefined;
 }
 
 /** Remove run records of processes that have ended. */
