@@ -7,6 +7,7 @@ import { exhaustedUntil } from "../../core/exhausted.js";
 import { paths } from "../../core/paths.js";
 import { profileFromConfigDir } from "../../core/profiles.js";
 import { resolveProfile } from "../../core/resolve.js";
+import { nerdHere } from "../../ui/terminal-id.js";
 import { NAMED_COLORS, PILL_DEFAULTS, type RenderInput, type StatusData, type Window, render, turnsLeft } from "../../statusline/render.js";
 import type { Command, Io } from "../io.js";
 
@@ -178,7 +179,7 @@ function sessionCost(cache: string, sessionId: string | undefined, transcript: s
 export function useNerd(config: Config, env: NodeJS.ProcessEnv): boolean {
   if (config.icons === "nerd") return true;
   if (config.icons === "unicode") return false;
-  return ["Orca", "WarpTerminal", "WezTerm", "ghostty"].includes(env.TERM_PROGRAM ?? "");
+  return nerdHere(env, config.nerdTerminals);
 }
 
 export function collect(data: StatusData, env: NodeJS.ProcessEnv, now = Date.now() / 1000): RenderInput {
@@ -186,7 +187,7 @@ export function collect(data: StatusData, env: NodeJS.ProcessEnv, now = Date.now
   try {
     config = loadConfig(env);
   } catch {
-    config = { icons: "auto", profiles: {}, projects: [], open: { chromeDir: "" }, mcpd: { port: 47821 } };
+    config = { icons: "auto", nerdTerminals: [], profiles: {}, projects: [], open: { chromeDir: "" }, mcpd: { port: 47821 } };
   }
   const p = paths(env);
   const cache = join(p.state, "cache");

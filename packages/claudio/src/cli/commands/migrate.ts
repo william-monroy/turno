@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { isValidProfileName, parseConfig } from "../../core/config.js";
 import { paths, tildify } from "../../core/paths.js";
 import { type Command, type Io, fail } from "../io.js";
+import { detectNerdTerminals } from "../../ui/terminals.js";
 import { stamp } from "./setup.js";
 
 /** What the bash tool kept in ~/.config/claudio/proyectos and navegador. */
@@ -50,7 +51,7 @@ export function parseLegacy(proyectos: string, navegador: string): LegacyConfig 
 const q = (s: string) => JSON.stringify(s);
 
 /** config.toml text for a legacy config. */
-export function legacyToToml(legacy: LegacyConfig, chromeDir?: string): string {
+export function legacyToToml(legacy: LegacyConfig, chromeDir?: string, nerdTerminals: string[] = []): string {
   const out: string[] = ["# Imported from the bash claudio by `claudio migrate`."];
   for (const key of ["system", "default", "fallback"] as const) {
     const v = legacy[key];
@@ -61,6 +62,7 @@ export function legacyToToml(legacy: LegacyConfig, chromeDir?: string): string {
     if (["auto", "nerd", "unicode"].includes(legacy.icons)) out.push(`icons = ${q(legacy.icons)}`);
     else legacy.warnings.push(`skipped iconos '${legacy.icons}' (expected auto, nerd or unicode)`);
   }
+  if (nerdTerminals.length) out.push(`nerd_terminals = [${nerdTerminals.map(q).join(", ")}]`);
   if (chromeDir) out.push("", "[open]", `chrome_dir = ${q(chromeDir)}`);
   for (const [name, browser] of Object.entries(legacy.browsers).sort()) {
     out.push("", `[profiles.${name}]`, `browser = ${q(browser)}`);
@@ -128,7 +130,8 @@ export function migrate(io: Io, opts: { dryRun?: boolean; force?: boolean } = {}
     const legacy = parseLegacy(proyectos ?? "", navegador ?? "");
     const legacyChrome = join(legacyDir, "chrome");
     const chromeDir = existsSync(legacyChrome) ? tildify(legacyChrome, io.env) : undefined;
-    const toml = legacyToToml(legacy, chromeDir);
+    // The old status line drew Nerd icons in Warp; keep that wherever a Nerd Font is set.
+    const toml = legacyToToml(legacy, chromeDir, detectNerdTerminals(io.env));
     parseConfig(toml, p.configFile, io.env); // never write a file claudio cannot read back
     for (const w of legacy.warnings) io.out(`  ! ${w}`);
     if (exists) {

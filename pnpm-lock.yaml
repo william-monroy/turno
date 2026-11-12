@@ -150,6 +150,11 @@ importers:
       '@claudio/browser':
         specifier: workspace:*
         version: link:../browser
+      '@claudio/fonts':
+        specifier: workspace:*
+        version: link:../fonts
+
+  packages/fonts: {}
 
 packages:
 

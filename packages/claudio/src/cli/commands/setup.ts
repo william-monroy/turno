@@ -41,7 +41,7 @@ export const PER_ACCOUNT = [
 /** Names a profile cannot take: every command, alias and legacy word. */
 export const RESERVED = new Set([
   "auto", "which", "resolve", "sessions", "usage", "exhausted", "available", "hook", "setup", "status",
-  "open", "migrate", "doctor", "statusline", "handoff", "mcp", "mcpd", "secret", "accounts", "browser", "help", "version",
+  "open", "migrate", "doctor", "statusline", "handoff", "mcp", "mcpd", "secret", "accounts", "browser", "ui", "help", "version",
   "cuenta", "resolver", "sesiones", "uso", "agotada", "disponible", "limite", "abrir", "sync-mcp",
   "profile", "navegador",
 ]);

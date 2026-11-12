@@ -7,6 +7,8 @@ import { listProfiles } from "../../core/profiles.js";
 import { type Command, type Io, paint } from "../io.js";
 import { findOnPath } from "../launch.js";
 import { MARKER, isGenerated } from "../launchers.js";
+import { FALLBACK, checkFonts, userFontDir } from "../../ui/fonts.js";
+import { currentStatusLine, isClaudioStatusLine } from "../../ui/settings.js";
 
 type Level = "ok" | "warn" | "fail" | "info";
 
@@ -101,13 +103,25 @@ export async function doctor(io: Io): Promise<number> {
   const binClaudio = join(p.bin, "claudio");
   if (isLegacyScript(binClaudio)) check("info", `${tildify(binClaudio, env)} is still the legacy bash script`);
 
+  const settings = join(p.hub, "settings.json");
+  const line = currentStatusLine(settings);
+  if (isClaudioStatusLine(line)) check("ok", "status line: claudio statusline");
+  else check("info", `status line: ${line ? `\`${line.command}\`` : "none"} in ${tildify(settings, env)} (claudio ui install)`);
+  const fontDir = userFontDir(env);
+  if (fontDir) {
+    const fonts = checkFonts(FALLBACK, fontDir);
+    const have = fonts.filter((f) => f.state === "installed").length;
+    if (have === fonts.length) check("ok", `font: ${FALLBACK.family} installed`);
+    else check("info", `font: ${FALLBACK.family} ${have}/${fonts.length} files in ${tildify(fontDir, env)} (claudio ui install)`);
+  }
+
   const mcpd = await mcpdStatus(env, config);
   check(mcpd.level, mcpd.text);
   return failed ? 1 : 0;
 }
 
 export const command: Command = {
-  summary: "check the environment (node, claude, Chrome, config, launchers, mcpd)",
+  summary: "check the environment (node, claude, Chrome, config, launchers, status line, font, mcpd)",
   usage: "Usage: claudio doctor\n\nExits 1 when a hard check fails.",
   async run(_args, io) {
     return doctor(io);

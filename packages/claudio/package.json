@@ -24,7 +24,8 @@
     "smol-toml": "1.9.1"
   },
   "optionalDependencies": {
-    "@claudio/browser": "workspace:*"
+    "@claudio/browser": "workspace:*",
+    "@claudio/fonts": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

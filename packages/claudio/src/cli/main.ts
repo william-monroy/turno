@@ -29,6 +29,7 @@ const COMMANDS: Record<string, () => Promise<{ command: Command }>> = {
   secret: () => import("./commands/secret.js"),
   accounts: () => import("./commands/accounts.js"),
   browser: () => import("./commands/browser.js"),
+  ui: () => import("./commands/ui.js"),
 };
 
 const ALIASES: Record<string, string[]> = {

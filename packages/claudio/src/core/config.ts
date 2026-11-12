@@ -24,6 +24,8 @@ export interface Config {
   /** Profile used when the assigned one is marked exhausted. */
   fallback?: string;
   icons: "auto" | "nerd" | "unicode";
+  /** Terminals whose font draws Nerd Font icons (set by `claudio ui install`), for `auto` icons. */
+  nerdTerminals: string[];
   profiles: Record<string, ProfileConfig>;
   projects: ProjectRule[];
   open: { chromeDir: string };
@@ -59,6 +61,7 @@ export function parseConfig(text: string, file = "config.toml", env: NodeJS.Proc
   const p = paths(env);
   const cfg: Config = {
     icons: "auto",
+    nerdTerminals: [],
     profiles: {},
     projects: [],
     open: { chromeDir: p.chromeProfilesDir },
@@ -73,6 +76,13 @@ export function parseConfig(text: string, file = "config.toml", env: NodeJS.Proc
       throw new ConfigError(file, "icons must be auto, nerd or unicode");
     }
     cfg.icons = icons;
+  }
+  const nerd = raw.nerd_terminals;
+  if (nerd !== undefined) {
+    if (!Array.isArray(nerd) || nerd.some((t) => typeof t !== "string")) {
+      throw new ConfigError(file, "nerd_terminals must be an array of terminal names");
+    }
+    cfg.nerdTerminals = nerd as string[];
   }
 
   const profiles = raw.profiles ?? {};

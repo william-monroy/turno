@@ -8,13 +8,14 @@ const files = execFileSync("git", ["ls-files", "--cached", "--others", "--exclud
 }).split("\n").filter(Boolean);
 const bad = [];
 for (const file of files) {
-  let text;
+  let buf;
   try {
-    text = readFileSync(file, "utf8");
+    buf = readFileSync(file);
   } catch {
     continue;
   }
-  if (text.includes(EM_DASH)) bad.push(file);
+  if (buf.includes(0)) continue; // binary (fonts, images)
+  if (buf.toString("utf8").includes(EM_DASH)) bad.push(file);
 }
 if (bad.length) {
   console.error(`em dash found in:\n  ${bad.join("\n  ")}`);
