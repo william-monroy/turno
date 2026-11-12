@@ -4,3 +4,8 @@ coverage/
 *.log
 .DS_Store
 .env
+
+# Copied in by prepack for the npm tarball
+packages/claudio/README.md
+packages/claudio/LICENSE
+*.tgz

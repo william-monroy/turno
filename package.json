@@ -4,12 +4,21 @@
   "description": "Multi-account Claude Code on macOS: shared context, a lazy MCP gateway, stealth browser identities and an accounts bridge.",
   "license": "MIT",
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "packageManager": "pnpm@12.2.1",
   "scripts": {
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
     "typecheck": "pnpm -r run typecheck",
-    "check": "pnpm typecheck && pnpm test && node scripts/no-em-dash.mjs"
+    "check": "pnpm typecheck && pnpm test && node scripts/no-em-dash.mjs",
+    "changeset": "changeset",
+    "version-packages": "changeset version && pnpm install --lockfile-only",
+    "pack:check": "pnpm build && node scripts/pack-check.mjs",
+    "release": "pnpm check && pnpm pack:check && changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^3.0.3"
   }
 }

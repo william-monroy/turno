@@ -1,6 +1,7 @@
 {
   "name": "@claudio/browser",
   "version": "0.1.0",
+  "private": true,
   "description": "Stealth browser MCP server with persistent per-identity Chrome profiles, built on patchright-core.",
   "license": "MIT",
   "type": "module",
@@ -20,10 +21,11 @@
     "claudio-browser-mcp": "dist/bin/mcp.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/**/*.map"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && chmod +x dist/bin/mcp.js",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/bin/mcp.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
@@ -35,5 +37,9 @@
     "@types/node": "^26.6.6",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

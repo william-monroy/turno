@@ -1,7 +1,16 @@
 {
   "name": "claudio",
   "version": "0.1.0",
-  "description": "Multi-account Claude Code on macOS with a lazy, shared MCP gateway.",
+  "private": true,
+  "description": "Several Claude Code accounts on one machine: shared context, per-folder accounts, a lazy MCP gateway and a status line.",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "mcp",
+    "cli",
+    "multi-account",
+    "statusline"
+  ],
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -12,24 +21,36 @@
   },
   "files": [
     "dist",
-    "templates"
+    "!dist/**/*.map",
+    "CHANGELOG.md",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && chmod +x dist/cli/main.js",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/cli/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepack": "pnpm run build && cp ../../README.md ../../LICENSE ."
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
     "smol-toml": "1.9.1"
   },
   "optionalDependencies": {
-    "@claudio/browser": "workspace:*",
-    "@claudio/fonts": "workspace:*"
+    "@claudio/browser": "workspace:^",
+    "@claudio/fonts": "workspace:^"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }
