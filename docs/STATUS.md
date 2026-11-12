@@ -51,12 +51,9 @@ Last updated: 2026-11-12.
 
 ## Next
 
-1. **Dry run on the owner's machine without cutover**: build, link as `claudio-next`, run
-   `claudio-next migrate --dry-run`, `claudio-next mcp import`, `claudio-next mcp sync
-   --dry-run`, compare with the live setup.
-2. **Cutover** (needs the owner, live sessions must close): `migrate`, `mcp import --write
+1. **Cutover** (needs the owner, live sessions must close): `migrate`, `mcp import --write
    --move-secrets`, `mcp install`, `mcpd start`, disable plugin stdio servers covered by the
    manifest, `mcp sync`, `setup` to regenerate launchers, swap `~/.local/bin/claudio`, point
    the status line and the StopFailure hook at the new CLI (or install the plugin).
-3. Measure: RSS of MCP processes before and after with the same open sessions.
-4. Packaging for others: npm names (deferred, ADR 0004), a Homebrew formula, CI.
+2. Measure: RSS of MCP processes before and after with the same open sessions.
+3. Packaging for others: npm names (deferred, ADR 0004), a Homebrew formula, CI.
