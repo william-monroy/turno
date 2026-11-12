@@ -25,7 +25,7 @@ export class DescriptionCache {
   constructor(private readonly dir: string) {}
 
   private file(key: string): string {
-    return join(this.dir, `${key.replace(/[^A-Za-z0-9_.-]/g, "_")}.json`);
+    return join(this.dir, `${key.replace(/[^A-Za-z0-9_.@-]/g, "_")}.json`);
   }
 
   get(key: string, fp: string): ServerDescription | undefined {

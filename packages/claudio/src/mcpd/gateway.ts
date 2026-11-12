@@ -117,6 +117,8 @@ class ClientSession implements ClientHandle {
     const manager = this.gw.manager;
     try {
       if (method === "initialize") {
+        const caps = (m.params as { capabilities?: Record<string, unknown> } | undefined)?.capabilities;
+        if (caps) this.ctx.clientCapabilities = caps;
         const d = await manager.describe(this);
         this.reply(id, {
           result: {

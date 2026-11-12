@@ -17,6 +17,8 @@ export interface ClientContext {
   pid?: number;
   cwd?: string;
   sessionId: string;
+  /** What the downstream client declared in initialize (elicitation, roots, ...). */
+  clientCapabilities?: Record<string, unknown>;
 }
 
 export interface ClientHandle extends ClientPort {
@@ -333,13 +335,22 @@ export class InstanceManager {
   }
 }
 
-/** Resolve a command against an installed package (claudio mcp install) or PATH. */
-export function resolveCommand(server: StdioServer, command: string, serversDir: string): string {
+/**
+ * Resolve a command against an installed package (claudio mcp install). A declared package
+ * that is not installed yet runs through `npx -y -p <package> <command>` so it still works.
+ */
+export function resolveCommand(
+  server: StdioServer,
+  command: string,
+  args: string[],
+  serversDir: string,
+): { command: string; args: string[] } {
   if (server.package) {
     const local = join(serversDir, server.name, "node_modules", ".bin", command);
-    if (existsSync(local)) return local;
+    if (existsSync(local)) return { command: local, args };
+    return { command: "npx", args: ["-y", "-p", server.package, command, ...args] };
   }
-  return command;
+  return { command, args };
 }
 
 export async function resolvedEnv(server: StdioServer, variant: string, resolve: SecretResolver): Promise<Record<string, string>> {

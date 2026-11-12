@@ -54,9 +54,10 @@ export class DefaultConnector implements Connector {
     }
     const launch = effectiveLaunch(server, variant);
     const env = { ...(this.opts.baseEnv ?? {}), ...(await resolveRecord(launch.env, this.opts.resolve)) };
+    const resolved = resolveCommand(server, launch.command, launch.args, this.opts.serversDir);
     const transport = new StdioClientTransport({
-      command: resolveCommand(server, launch.command, this.opts.serversDir),
-      args: launch.args,
+      command: resolved.command,
+      args: resolved.args,
       env,
       cwd: launch.cwd ?? workdir,
       stderr: "pipe",
