@@ -36,8 +36,18 @@ Last updated: 2026-11-12.
 - `claudio browser login` has not been exercised with a real sign-in yet.
 - The design doc says `claudio-navegador` stays as a symlink; `setup` rewrites it as a marked
   copy of `claudio-open` instead. Same effect.
-- Statusline latency: Node start is about 40 to 60 ms per render; fine for now, worth
-  measuring against the Python version after cutover.
+
+## Dry run against a real setup (2026-11-12, read only)
+
+- `migrate --dry-run` produced the expected rules, fallback and Chrome profile directory. The
+  legacy config had no `color` lines (the old status line hard-coded them), so pill colors must
+  be added to `config.toml` at cutover to keep the same look.
+- `mcp import` found 4 stdio servers and 6 remote ones; secrets were detected in one stdio env
+  and two remote headers. Fixed: with several bins, the importer now picks the one npx runs.
+- `mcp sync --dry-run` planned gateway entries for every profile and the hub config.
+- `mcp doctor` showed that the two heaviest browser servers come from plugins and start in
+  every session; declaring them as `session` servers in mcp.toml is the main memory win.
+- Status line: 55 ms per render, same as the Python version (53 ms).
 
 ## Next
 

@@ -125,13 +125,21 @@ async function sync(args: string[], io: Io): Promise<number> {
   return skipped ? 1 : 0;
 }
 
+/** The bin npx would run: the only one, else the one named after the package. */
+export function pickBin(pkg: string, bin: string | Record<string, string>): string | undefined {
+  const base = pkg.replace(/^@[^/]+\//, "");
+  if (typeof bin === "string") return base;
+  const names = Object.keys(bin);
+  if (names.length === 1) return names[0];
+  return names.find((n) => n === base) ?? names.find((n) => n.includes("mcp"));
+}
+
 async function binOf(pkg: string): Promise<string | undefined> {
   try {
     const { stdout } = await run("npm", ["view", pkg, "bin", "--json"], { timeout: 20_000 });
     const bin = JSON.parse(stdout || "null") as string | Record<string, string> | null;
     if (!bin) return undefined;
-    if (typeof bin === "string") return pkg.replace(/^@[^/]+\//, "");
-    return Object.keys(bin)[0];
+    return pickBin(pkg, bin);
   } catch {
     return undefined;
   }

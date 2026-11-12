@@ -107,3 +107,12 @@ describe("importer", () => {
     expect(report.literalSecrets).toEqual(["s.API_TOKEN"]);
   });
 });
+
+describe("pickBin", () => {
+  it("follows the npx rule", async () => {
+    const { pickBin } = await import("../src/cli/commands/mcp.js");
+    expect(pickBin("chrome-devtools-mcp", { "chrome-devtools": "a", "chrome-devtools-mcp": "b" })).toBe("chrome-devtools-mcp");
+    expect(pickBin("@calcom/cal-mcp", { "cal-mcp-demo": "a" })).toBe("cal-mcp-demo");
+    expect(pickBin("@scope/thing", "bin.js")).toBe("thing");
+  });
+});
