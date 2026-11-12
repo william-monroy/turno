@@ -56,17 +56,18 @@ Last updated: 2026-11-12.
   every session; declaring them as `session` servers in mcp.toml is the main memory win.
 - Status line: 55 ms per render, same as the Python version (53 ms). Same input, side by side
   in Warp mode: same layout and icons.
-- `ui status` / `ui install --dry-run`: Warp is on MesloLGS NF 2.3.3, which has every icon
-  but draws the context, lines-changed and model icons differently from Orca. VS Code and Cursor
-  terminals are on `monospace` (Unicode icons there until `--terminal vscode,cursor`).
+- `ui install --terminal all --no-statusline` ran on the real machine: MesloLGS Nerd Font 3.4.0
+  is in `~/Library/Fonts` (macOS lists the family) and Warp (was MesloLGS NF 2.3.3), VS Code and
+  Cursor (were `monospace`) use it, one changed line per file, backups under
+  `backups/<stamp>/ui/`. No config.toml was written: `migrate` records `nerd_terminals`. Until
+  the cutover the Python status line still draws Nerd icons only in Orca and Warp.
 
 ## Next
 
 1. **Cutover** (needs the owner, live sessions must close): `migrate`, `mcp import --write
    --move-secrets`, `mcp install`, `mcpd start`, disable plugin stdio servers covered by the
-   manifest, `mcp sync`, `setup` to regenerate launchers, swap `~/.local/bin/claudio`, `ui install --terminal warp`
-   (installs MesloLGS Nerd Font 3.4.0 and moves Warp off MesloLGS NF 2.3.3, which draws
-   several icons differently from Orca), point the StopFailure hook at the
+   manifest, `mcp sync`, `setup` to regenerate launchers, swap `~/.local/bin/claudio`, `ui install`
+   (font and terminals are done; this switches the statusLine to claudio), point the StopFailure hook at the
    new CLI (or install the plugin).
 2. Measure: RSS of MCP processes before and after with the same open sessions.
 3. Packaging for others: npm names (deferred, ADR 0004), a Homebrew formula, CI.

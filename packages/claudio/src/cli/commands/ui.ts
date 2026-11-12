@@ -132,6 +132,7 @@ async function status(io: Io): Promise<number> {
   }
   const here = currentTerminal(env);
   const nerdList = config?.nerdTerminals ?? [];
+  const premigrate = !existsSync(p.configFile) && ["proyectos", "navegador"].some((f) => existsSync(join(p.legacyConfig, f)));
   const shown = TERMINALS.filter((t) => t.id === here || installed(t, env, platform));
   for (const [i, t] of shown.entries()) {
     const font = fontOf(t, env, platform);
@@ -142,7 +143,7 @@ async function status(io: Io): Promise<number> {
     else if (t.manual) line += "font set in the app";
     else line += "default font";
     line += nerd ? `, ${ok("Nerd icons")}` : `, Unicode icons`;
-    if (!nerd && isNerdFamily(font)) line += " (claudio ui install records it)";
+    if (!nerd && isNerdFamily(font)) line += ` (claudio ${premigrate ? "migrate" : "ui install"} records it)`;
     else if (!nerd && t.write) line += ` (claudio ui install --terminal ${t.id})`;
     else if (!nerd && t.manual) line += ` (${t.manual}, then add "${t.id}" to nerd_terminals)`;
     else if (nerd && t.write && font !== undefined && font !== source.family) {
@@ -232,7 +233,11 @@ async function install(args: string[], io: Io): Promise<number> {
     return 1;
   }
   const merged = [...new Set([...current, ...detected])].sort();
-  if (merged.join() !== [...current].sort().join()) {
+  const legacy = ["proyectos", "navegador"].some((f) => existsSync(join(p.legacyConfig, f)));
+  if (!existsSync(p.configFile) && legacy) {
+    // A config.toml written now would make `claudio migrate` refuse; migrate detects the same list.
+    if (merged.length) io.out(`config: no config.toml yet; claudio migrate records nerd_terminals = [${merged.join(", ")}]`);
+  } else if (merged.join() !== [...current].sort().join()) {
     const text = existsSync(p.configFile) ? readFileSync(p.configFile, "utf8") : "";
     if (!o.dryRun) writeText(p.configFile, withNerdTerminals(text, merged), join(backups, "config"));
     io.out(`config: nerd_terminals = [${merged.join(", ")}] in ${tildify(p.configFile, env)}${dry}`);

@@ -239,6 +239,18 @@ describe("claudio ui", () => {
     expect(io2.lines.join("\n")).toContain("Nerd icons (claudio ui install --terminal warp switches it to MesloLGS Nerd Font)");
   });
 
+  it("leaves config.toml to migrate while the legacy config is still there", async () => {
+    sb.write(".config/claudio/proyectos", "work ~/code\n");
+    sb.write(".warp/settings.toml", '[appearance.text]\nfont_name = "Hack"\n');
+    const io = fakeIo(sb.env);
+    expect(await ui.run(["install", "--no-statusline", "--terminal", "warp"], io)).toBe(0);
+    expect(io.lines.join("\n")).toContain("config: no config.toml yet; claudio migrate records nerd_terminals = [warp]");
+    expect(() => lstatSync(join(sb.home, ".config/claudio/config.toml"))).toThrow();
+    const status = fakeIo(sb.env);
+    await ui.run(["status"], status);
+    expect(status.lines.join("\n")).toContain("Warp: font MesloLGS Nerd Font, Unicode icons (claudio migrate records it)");
+  });
+
   it("rejects unknown terminals and options", async () => {
     await expect(ui.run(["install", "--terminal", "nope"], fakeIo(sb.env))).rejects.toThrow(/unknown terminal/);
     await expect(ui.run(["install", "--what"], fakeIo(sb.env))).rejects.toThrow(/unknown option/);
