@@ -25,3 +25,7 @@ The design lives in `docs/design/`, and every non-obvious choice is recorded in
   server in `packages/claudio/test/fixtures/`.
 - Record decisions as ADRs (`docs/decisions/NNNN-title.md`: context, decision, consequences).
 - Update `docs/STATUS.md` at the end of each work session.
+- A user-visible change adds a changeset (`pnpm changeset`); see `docs/RELEASING.md`.
+- New commands go in `cli/registry.ts`; keep old names as aliases there. Writes to user files go
+  through `core/journal.ts` so `claudio undo` can revert them. Read commands take `--json`,
+  write commands take `--dry-run` (shared flags in `cli/args.ts`).

@@ -15,12 +15,12 @@ and close this one, use the switch-account skill instead.
 
 1. **Profile.** It is the argument (`/fork-session personal`) or what the user said. Any claudio
    profile works, and so does `auto` (the profile assigned to the project). The same profile as the
-   current one is fine: the fork is a different session. If they did not say, run `claudio handoff`
+   current one is fine: the fork is a different session. If they did not say, run `claudio session handoff`
    with no argument to list the profiles, and ask only when more than one choice is reasonable.
 2. **The command.** Run:
 
    ```bash
-   claudio handoff <profile> --fork --copy
+   claudio session handoff <profile> --fork --copy
    ```
 
    It prints `cd <folder> && claudio <profile> --resume <id> --fork-session` and copies it. Repeat

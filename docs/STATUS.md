@@ -31,11 +31,24 @@ Last updated: 2026-11-12.
   font. Guide: [ui.md](ui.md).
 - **Plugin** (`plugins/claudio`): rate-limit hook, `switch-account` and `fork-session` skills,
   and a local marketplace manifest at the repository root.
+- **Command tree** (ADR 0006): `profile`, `limit`, `session`, `identity`, `run`, `mcp daemon`,
+  plus `config`, `undo`, `completion`, `version`, `upgrade`; the 0.1 and Spanish names stay as
+  aliases in `cli/registry.ts`. Shared flags (`--json` on reads, `--dry-run` on writes, `-n`,
+  `--watch`, `--until`), a sectioned help, `status` as a one-screen summary, `doctor` with every
+  check and `--fix`, shell completion fed by each command's declared arguments.
+- **Journal and undo** (ADR 0008): every write to a user file goes through `core/journal.ts`;
+  `claudio undo <stamp|last>` restores, skips files changed since, and can be undone itself.
+  This is the `migrate --rollback` of the design.
+- **Versions and updates** (ADR 0007, [RELEASING.md](RELEASING.md)): Changesets, CI and release
+  workflows (npm with provenance), `scripts/pack-check.mjs`, `claudio upgrade` per install
+  method with `--finish` (launchers, changelog), a daily background update check. Packages stay
+  `private` until the owner picks the npm name (`claudio` and `claudio-cli` are taken).
 
 ## Known gaps
 
-- `migrate --rollback <stamp>` from design section 9 is not implemented. Backups exist under
-  `~/.local/state/claudio/backups/<stamp>/` and can be restored by hand.
+- Backups written before the journal (the 2026-11-12 `ui install`) have no `journal.json`;
+  `undo --list` shows them as restore-by-hand.
+- `accounts.toml` is regenerated on write (comments are not kept); config.toml edits keep them.
 - Delegated "read" tasks get the same tool patterns as writes; the read-only promise is in the
   prompt only. Enforcing it needs read-only patterns per account in `accounts.toml`.
 - Headless stealth browsing is detectable from the user agent and storage partitioning
@@ -61,13 +74,22 @@ Last updated: 2026-11-12.
   Cursor (were `monospace`) use it, one changed line per file, backups under
   `backups/<stamp>/ui/`. No config.toml was written: `migrate` records `nerd_terminals`. Until
   the cutover the Python status line still draws Nerd icons only in Orca and Warp.
+- `doctor` on the real machine (read only): the four profiles miss the `keybindings.json` link and
+  run bash launchers (`profile repair` at the cutover fixes both); four stdio servers in the hub
+  config and two plugin servers bypass mcpd. Files Claude Code added since (`daemon.lock`,
+  `daemon.status.json`, `feedback`, the `*.signature.json` and `synced-at` files) are classified
+  as per account.
 
 ## Next
 
 1. **Cutover** (needs the owner, live sessions must close): `migrate`, `mcp import --write
    --move-secrets`, `mcp install`, `mcpd start`, disable plugin stdio servers covered by the
-   manifest, `mcp sync`, `setup` to regenerate launchers, swap `~/.local/bin/claudio`, `ui install`
+   manifest, `mcp sync`, `profile repair` to regenerate launchers and links, swap `~/.local/bin/claudio`, `ui install`
    (font and terminals are done; this switches the statusLine to claudio), point the StopFailure hook at the
    new CLI (or install the plugin).
 2. Measure: RSS of MCP processes before and after with the same open sessions.
-3. Packaging for others: npm names (deferred, ADR 0004), a Homebrew formula, CI.
+3. Publishing (needs the owner): npm scope and names, GitHub repository, trusted publisher;
+   then drop `private` (docs/RELEASING.md). Later: a Homebrew tap over the npm tarball.
+4. Phase 3 of the command proposal: the Claude Code plugin with slash commands, exhaustion
+   warnings and auto handoff, external `claudio-<x>` subcommands, export and import, Linux
+   secrets and service.

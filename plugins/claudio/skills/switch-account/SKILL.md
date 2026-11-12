@@ -13,12 +13,12 @@ launched from, and a worktree does not count.
 ## Steps
 
 1. **Target profile.** It is the argument (`/switch-account work`) or what the user said. If they
-   did not say, run `claudio handoff` with no argument: it lists the profiles and the current one.
+   did not say, run `claudio session handoff` with no argument: it lists the profiles and the current one.
    Ask only when more than one choice is reasonable.
 2. **The command.** Run:
 
    ```bash
-   claudio handoff <profile> --copy
+   claudio session handoff <profile> --copy
    ```
 
    It prints `cd <folder> && claudio <profile> --resume <id>` and copies it to the clipboard.

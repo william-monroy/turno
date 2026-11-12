@@ -15,8 +15,9 @@ claudio ui install --terminal current   # the same, and set the font in this ter
 claudio ui status                       # check font, status line and every installed terminal
 ```
 
-`install` does three things. Each is safe to repeat, and every file it changes is backed up
-first under `~/.local/state/claudio/backups/<stamp>/ui/`:
+`install` does three things. Each is safe to repeat, and every file it changes (fonts included)
+is recorded first under `~/.local/state/claudio/backups/<stamp>/`; `claudio undo <stamp>` puts
+everything back:
 
 1. **Font.** It copies MesloLGS Nerd Font 3.4.0 (Regular, Bold, Italic, Bold Italic) into
    your user font folder: `~/Library/Fonts` on macOS, `~/.local/share/fonts` on Linux, where it also runs

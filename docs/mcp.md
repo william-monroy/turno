@@ -76,8 +76,8 @@ Servers that come from Claude Code plugins start in every session and bypass mcp
 ## Troubleshooting
 
 ```sh
-claudio mcpd status          # running servers, clients, memory
-claudio mcpd logs -n 100     # gateway log
+claudio mcp daemon status    # running servers, clients, memory (claudio mcpd works too)
+claudio mcp daemon logs -n 100  # gateway log
 ls ~/.local/state/claudio/logs/   # one stderr log per server (and variant)
 claudio mcp refresh <name>   # forget a cached tool list
 ```
