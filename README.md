@@ -42,6 +42,7 @@ Requirements: macOS, Node 22.15 or newer, Claude Code (`claude` on PATH), pnpm.
 git clone <this repository> claudio && cd claudio
 pnpm install && pnpm build
 ln -s "$PWD/packages/claudio/dist/cli/main.js" ~/.local/bin/claudio
+claudio ui install    # status line font (MesloLGS Nerd Font) and the claudio status line
 claudio doctor
 ```
 
@@ -87,6 +88,7 @@ opens with its account.
 | `claudio open [profile] <url>` | open a link; claude.ai links use that profile's Chrome profile |
 | `claudio handoff <p> [--fork]` | the command to continue or fork this session under another profile |
 | `claudio statusline` | two-row status line: account, usage, context, cache, branch, model, real cost |
+| `claudio ui status`, `claudio ui install [--terminal <ids>]` | install the status line font, point Claude Code at the status line, set terminal fonts |
 | `claudio mcp ...`, `claudio mcpd ...`, `claudio secret ...` | the MCP gateway (below) |
 | `claudio browser ...` | stealth browser identities and benchmark |
 | `claudio accounts ...` | the accounts registry for the bridge |
@@ -175,14 +177,24 @@ every call goes to an audit log (`claudio accounts log`).
 
 ## Status line
 
-```json
-"statusLine": { "type": "command", "command": "claudio statusline" }
+![The claudio status line with Nerd Font icons, after a fallback switch, and with Unicode icons](docs/assets/statusline.png)
+
+```sh
+claudio ui install                     # font + statusLine in the shared settings.json
+claudio ui install --terminal current  # also set the font in this terminal (Warp, VS Code, Cursor, Alacritty)
+claudio ui status                      # what each installed terminal will draw
 ```
 
 Row 1: profile and plan, 5 h and weekly usage of that account (the freshest any session has
-seen), context, prompt cache, estimated turns left, and a warning when a fallback is active or
-the folder belongs to another profile. Row 2: project and worktree, branch, lines changed, model
-and effort, and the real API-equivalent cost of the conversation including subagents.
+seen) with time to reset, context, estimated turns left, and a warning when a fallback is active
+or the folder belongs to another profile. Row 2: project and worktree, branch, lines changed,
+model and effort, and the real API-equivalent cost of the conversation including subagents.
+
+The icons come from a Nerd Font. claudio ships MesloLGS Nerd Font 3.4.0 (`packages/fonts`), the
+same Nerd Fonts release and icon size as Orca's terminal, and `claudio ui install` copies it into
+your user font folder; terminals that ship the symbols
+(Ghostty, WezTerm, kitty) need nothing. Where no Nerd Font is set the line falls back to Unicode
+icons by itself. Details: [docs/ui.md](docs/ui.md).
 
 ## Files
 
