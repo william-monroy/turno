@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
-/** A throwaway HOME with the env claudio reads. Never touches the real home. */
+/** A throwaway HOME with the env turno reads. Never touches the real home. */
 export interface Sandbox {
   home: string;
   env: NodeJS.ProcessEnv;
@@ -11,7 +11,7 @@ export interface Sandbox {
 }
 
 export function sandbox(): Sandbox {
-  const home = realpathSync(mkdtempSync(join(tmpdir(), "claudio-test-")));
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "turno-test-")));
   const env: NodeJS.ProcessEnv = {
     PATH: process.env.PATH,
     HOME: home,

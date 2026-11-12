@@ -4,8 +4,8 @@ Date: 2026-11-12. Status: accepted (publishing waits for the owner).
 
 ## Context
 
-Other people will install claudio, so it needs versions they can trust and a way to update
-that does not depend on how they installed it. claudio is Node with optional packages (the
+Other people will install turno, so it needs versions they can trust and a way to update
+that does not depend on how they installed it. turno is Node with optional packages (the
 browser server, the fonts), runs on macOS and Linux, and writes files outside its install
 (launchers, settings, config) that must follow an upgrade.
 
@@ -29,19 +29,19 @@ Options considered:
   packages" pull request, and merging it publishes to npm with provenance through npm trusted
   publishing (OIDC, no long-lived token). `scripts/pack-check.mjs` checks every tarball first:
   required files present, no tests, sources, maps or env files, no local home paths, size cap.
-- The packages stay `"private": true` until the owner picks the npm name: `claudio` and
-  `claudio-cli` are taken on npm, so it will be a scope (for example `@<scope>/claudio`). The
-  command stays `claudio` whatever the package is called.
-- `claudio version` and `claudio --version` read package.json. `claudio upgrade` detects the
+- The packages stay `"private": true` until the owner picks the npm name: `turno` and
+  `turno-cli` are taken on npm, so it will be a scope (for example `@<scope>/turno`). The
+  command stays `turno` whatever the package is called.
+- `turno version` and `turno --version` read package.json. `turno upgrade` detects the
   install (npm, pnpm, yarn, bun, volta, or a git checkout) and runs the matching command, then
-  runs `claudio upgrade --finish` from the new version: it rewrites launchers (they bake the
-  path of claudio, which some package managers change per version), checks the config and
+  runs `turno upgrade --finish` from the new version: it rewrites launchers (they bake the
+  path of turno, which some package managers change per version), checks the config and
   prints the CHANGELOG entries since the version recorded in `state/version`. `doctor` flags a
   version mismatch and `doctor --fix` finishes it.
 - Update notice: interactive commands (never the hot paths: status line, hooks, launchers,
   `auto`, `open`) start a background registry check at most once a day and mention a newer
   version once a day on stderr. The request sends only the package name. It is off for
-  private copies, in CI, with `CLAUDIO_NO_UPDATE_CHECK` or `NO_UPDATE_NOTIFIER`, and with
+  private copies, in CI, with `TURNO_NO_UPDATE_CHECK` or `NO_UPDATE_NOTIFIER`, and with
   `update_check = false` in config.toml. `--channel next` follows prereleases.
 
 ## Consequences

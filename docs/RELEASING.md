@@ -1,7 +1,7 @@
 # Versions and releases
 
-claudio follows semantic versioning per package (`claudio`, `@claudio/browser`,
-`@claudio/fonts`). Why this setup: [ADR 0007](decisions/0007-versions-and-updates.md).
+turno follows semantic versioning per package (`turno`, `turno-browser`,
+`turno-fonts`). Why this setup: [ADR 0007](decisions/0007-versions-and-updates.md).
 
 ## Every change
 
@@ -14,7 +14,7 @@ pnpm changeset          # pick the packages, the bump (patch, minor, major) and 
 - **patch**: fixes, no new behavior.
 - **minor**: new commands, flags or config keys; old names keep working.
 - **major**: anything a user must act on: a removed command or key, a changed file layout.
-  The changeset says what to do, and `claudio upgrade --finish` migrates what it can.
+  The changeset says what to do, and `turno upgrade --finish` migrates what it can.
 
 ## A release
 
@@ -28,16 +28,16 @@ Releases come from CI, never from a laptop:
    provenance and tags them.
 
 `pnpm pack:check` runs the tarball check locally. Prereleases: `pnpm changeset pre enter next`,
-then releases go to the `next` dist-tag (`claudio upgrade --channel next` follows them);
+then releases go to the `next` dist-tag (`turno upgrade --channel next` follows them);
 `pnpm changeset pre exit` ends it.
 
 ## Before the first publish
 
 The packages are `"private": true` until these are done (they need the owner):
 
-1. Pick the npm name. `claudio` and `claudio-cli` are taken, so use a scope you own:
-   `@<scope>/claudio`, `@<scope>/claudio-browser`, `@<scope>/claudio-fonts`. Rename the
-   packages and the imports of the optional ones (`@claudio/browser`, `@claudio/fonts`).
+1. Pick the npm name. `turno` and `turno-cli` are taken, so use a scope you own:
+   `@<scope>/turno`, `@<scope>/turno-browser`, `@<scope>/turno-fonts`. Rename the
+   packages and the imports of the optional ones (`turno-browser`, `turno-fonts`).
 2. Create the GitHub repository, add `repository`, `homepage` and `bugs` to each package.json,
    and pin the workflow actions to commit SHAs (or let Dependabot do it).
 3. On npmjs.com, add the repository and `release.yml` as the trusted publisher of each package.
@@ -45,8 +45,8 @@ The packages are `"private": true` until these are done (they need the owner):
 
 ## How users update
 
-`claudio upgrade` updates with the tool that installed claudio (npm, pnpm, yarn, bun, volta) or
-pulls and rebuilds a git checkout, then `claudio upgrade --finish` rewrites the launchers and
-shows the changelog since the previous version. `claudio upgrade --check` only asks the
+`turno upgrade` updates with the tool that installed turno (npm, pnpm, yarn, bun, volta) or
+pulls and rebuilds a git checkout, then `turno upgrade --finish` rewrites the launchers and
+shows the changelog since the previous version. `turno upgrade --check` only asks the
 registry. Interactive commands mention a new version at most once a day; `update_check = false`
-in config.toml or `CLAUDIO_NO_UPDATE_CHECK=1` turns that off.
+in config.toml or `TURNO_NO_UPDATE_CHECK=1` turns that off.

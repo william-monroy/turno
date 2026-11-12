@@ -28,5 +28,5 @@ jobs:
       - run: pnpm check
         env:
           # The end-to-end test needs a signed-in claude; CI skips it.
-          CLAUDIO_SKIP_E2E: "1"
+          TURNO_SKIP_E2E: "1"
       - run: node scripts/pack-check.mjs

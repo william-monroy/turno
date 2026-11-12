@@ -4,7 +4,7 @@ Last updated: 2026-11-12.
 
 ## Done
 
-- **Core** (`packages/claudio/src/core`): XDG paths, `config.toml` and `mcp.toml` parsing,
+- **Core** (`packages/turno/src/core`): XDG paths, `config.toml` and `mcp.toml` parsing,
   profile discovery, folder resolution with fallback, exhausted marks, rate-limit parsing,
   Keychain secrets, live sessions and busy profiles.
 - **CLI**: every command of the original bash tool, in English, with the Spanish names kept as
@@ -15,21 +15,21 @@ Last updated: 2026-11-12.
   LaunchAgent, `mcp sync | import | install | refresh | doctor | list`, `secret`, and the
   `lsof` fallback that finds the client PID when a session sends none. An end-to-end test drives
   the real `claude mcp list` through the gateway (skipped when `claude` is missing; set
-  `CLAUDIO_SKIP_E2E=1` to skip it).
-- **Stealth browser** (`packages/browser`): `claudio-browser-mcp` over Patchright's own MCP
+  `TURNO_SKIP_E2E=1` to skip it).
+- **Stealth browser** (`packages/browser`): `turno-browser-mcp` over Patchright's own MCP
   entry, identities, `login`, `bench`. Findings in ADR 0005.
 - **Accounts bridge**: registry, audit log, enforced headless delegation, the `accounts`
-  builtin with elicitation for writes, `claudio accounts`.
-- **Status line** (`claudio statusline`) and **handoff** (`claudio handoff`), replacing the
+  builtin with elicitation for writes, `turno accounts`.
+- **Status line** (`turno statusline`) and **handoff** (`turno handoff`), replacing the
   Python status line and the two shell helpers.
-- **Look of Claude Code** (`claudio ui`, `packages/fonts`): bundles MesloLGS Nerd Font 3.4.0
+- **Look of Claude Code** (`turno ui`, `packages/fonts`): bundles MesloLGS Nerd Font 3.4.0
   with pinned checksums. That is the Nerd Fonts release Orca ships, so the icons match Orca's
   shapes and full size. It installs the font per user, points the shared `statusLine` at
-  `claudio statusline`, sets the font in Warp, VS Code, Cursor and Alacritty when asked, and
+  `turno statusline`, sets the font in Warp, VS Code, Cursor and Alacritty when asked, and
   records Nerd-capable terminals in `nerd_terminals`, so `icons = "auto"` never draws empty
   boxes. `migrate` records them too. A test checks every status line icon against the bundled
   font. Guide: [ui.md](ui.md).
-- **Plugin** (`plugins/claudio`): rate-limit hook, `switch-account` and `fork-session` skills,
+- **Plugin** (`plugins/turno`): rate-limit hook, `switch-account` and `fork-session` skills,
   and a local marketplace manifest at the repository root.
 - **Command tree** (ADR 0006): `profile`, `limit`, `session`, `identity`, `run`, `mcp daemon`,
   plus `config`, `undo`, `completion`, `version`, `upgrade`; the 0.1 and Spanish names stay as
@@ -37,12 +37,12 @@ Last updated: 2026-11-12.
   `--watch`, `--until`), a sectioned help, `status` as a one-screen summary, `doctor` with every
   check and `--fix`, shell completion fed by each command's declared arguments.
 - **Journal and undo** (ADR 0008): every write to a user file goes through `core/journal.ts`;
-  `claudio undo <stamp|last>` restores, skips files changed since, and can be undone itself.
+  `turno undo <stamp|last>` restores, skips files changed since, and can be undone itself.
   This is the `migrate --rollback` of the design.
 - **Versions and updates** (ADR 0007, [RELEASING.md](RELEASING.md)): Changesets, CI and release
-  workflows (npm with provenance), `scripts/pack-check.mjs`, `claudio upgrade` per install
+  workflows (npm with provenance), `scripts/pack-check.mjs`, `turno upgrade` per install
   method with `--finish` (launchers, changelog), a daily background update check. Packages stay
-  `private` until the owner picks the npm name (`claudio` and `claudio-cli` are taken).
+  `private` until the owner picks the npm name (`turno` and `turno-cli` are taken).
 
 ## Known gaps
 
@@ -53,9 +53,9 @@ Last updated: 2026-11-12.
   prompt only. Enforcing it needs read-only patterns per account in `accounts.toml`.
 - Headless stealth browsing is detectable from the user agent and storage partitioning
   (ADR 0005). Headed is the default.
-- `claudio browser login` has not been exercised with a real sign-in yet.
+- `turno browser login` has not been exercised with a real sign-in yet.
 - The design doc says `claudio-navegador` stays as a symlink; `setup` rewrites it as a marked
-  copy of `claudio-open` instead. Same effect.
+  copy of `turno-open` instead. Same effect.
 
 ## Dry run against a real setup (2026-11-12, read only)
 
@@ -85,11 +85,11 @@ Last updated: 2026-11-12.
 1. **Cutover** (needs the owner, live sessions must close): `migrate`, `mcp import --write
    --move-secrets`, `mcp install`, `mcpd start`, disable plugin stdio servers covered by the
    manifest, `mcp sync`, `profile repair` to regenerate launchers and links, swap `~/.local/bin/claudio`, `ui install`
-   (font and terminals are done; this switches the statusLine to claudio), point the StopFailure hook at the
+   (font and terminals are done; this switches the statusLine to turno), point the StopFailure hook at the
    new CLI (or install the plugin).
 2. Measure: RSS of MCP processes before and after with the same open sessions.
 3. Publishing (needs the owner): npm scope and names, GitHub repository, trusted publisher;
    then drop `private` (docs/RELEASING.md). Later: a Homebrew tap over the npm tarball.
 4. Phase 3 of the command proposal: the Claude Code plugin with slash commands, exhaustion
-   warnings and auto handoff, external `claudio-<x>` subcommands, export and import, Linux
+   warnings and auto handoff, external `turno-<x>` subcommands, export and import, Linux
    secrets and service.

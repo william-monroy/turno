@@ -1,5 +1,5 @@
 {
-  "name": "@claudio/browser",
+  "name": "turno-browser",
   "version": "0.1.0",
   "private": true,
   "description": "Stealth browser MCP server with persistent per-identity Chrome profiles, built on patchright-core.",
@@ -18,7 +18,7 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "claudio-browser-mcp": "dist/bin/mcp.js"
+    "turno-browser-mcp": "dist/bin/mcp.js"
   },
   "files": [
     "dist",

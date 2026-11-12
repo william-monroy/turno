@@ -1,0 +1,17 @@
+{
+  "description": "When a turn stops because the account hit its usage limit, record the profile as exhausted until the reset time so `turno auto` picks the fallback profile.",
+  "hooks": {
+    "StopFailure": [
+      {
+        "matcher": "rate_limit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v turno >/dev/null 2>&1 && turno hook rate-limit || true",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

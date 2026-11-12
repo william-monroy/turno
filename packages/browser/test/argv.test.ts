@@ -9,19 +9,19 @@ beforeEach(() => {
 });
 afterEach(() => sb.cleanup());
 
-const fakeTemp = () => "/tmp/claudio-browser-test";
+const fakeTemp = () => "/tmp/turno-browser-test";
 
 describe("buildArgv", () => {
   it("adds the chrome channel and a temporary profile without an identity", () => {
     const b = buildArgv([], { env: sb.env, makeTempDir: fakeTemp });
-    expect(b.args).toEqual(["--browser", "chrome", "--user-data-dir", "/tmp/claudio-browser-test/profile"]);
-    expect(b.tempDir).toBe("/tmp/claudio-browser-test");
+    expect(b.args).toEqual(["--browser", "chrome", "--user-data-dir", "/tmp/turno-browser-test/profile"]);
+    expect(b.tempDir).toBe("/tmp/turno-browser-test");
     expect(b.identity).toBeUndefined();
   });
 
   it("uses the identity dir under the data dir", () => {
     const b = buildArgv(["--identity", "school"], { env: sb.env, makeTempDir: fakeTemp });
-    const dir = join(sb.home, ".local", "share", "claudio", "browser", "identities", "school");
+    const dir = join(sb.home, ".local", "share", "turno", "browser", "identities", "school");
     expect(b.args).toEqual(["--browser", "chrome", "--user-data-dir", dir]);
     expect(b.identity).toBe("school");
     expect(b.tempDir).toBeUndefined();
@@ -30,7 +30,7 @@ describe("buildArgv", () => {
   it("honors XDG_DATA_HOME and the --identity=<id> form", () => {
     const env = { ...sb.env, XDG_DATA_HOME: join(sb.home, "xdg") };
     const b = buildArgv(["--identity=bank"], { env });
-    expect(b.userDataDir).toBe(join(sb.home, "xdg", "claudio", "browser", "identities", "bank"));
+    expect(b.userDataDir).toBe(join(sb.home, "xdg", "turno", "browser", "identities", "bank"));
   });
 
   it("never adds headless, viewport or init-script flags", () => {

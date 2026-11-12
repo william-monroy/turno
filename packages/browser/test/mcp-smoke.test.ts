@@ -8,7 +8,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
- * Starts the built `claudio-browser-mcp` over stdio and lists its tools. Listing tools does
+ * Starts the built `turno-browser-mcp` over stdio and lists its tools. Listing tools does
  * not launch Chrome, so this stays offline and headless-safe. It guards the internal
  * patchright-core entry path (ADR 0003) against upgrades.
  */
@@ -46,11 +46,11 @@ async function listTools(args: string[]): Promise<string[]> {
   }
 }
 
-describe("claudio-browser-mcp", () => {
+describe("turno-browser-mcp", () => {
   it("serves the Playwright MCP tools for an identity without launching Chrome", async () => {
     const names = await listTools(["--identity", "school"]);
     expect(names).toEqual(expect.arrayContaining(["browser_navigate", "browser_snapshot", "browser_click", "browser_console_messages"]));
-    const dir = join(sb.home, ".local", "share", "claudio", "browser", "identities", "school");
+    const dir = join(sb.home, ".local", "share", "turno", "browser", "identities", "school");
     expect(existsSync(dir)).toBe(true);
     expect(readdirSync(dir)).toEqual([]);
   });
@@ -58,10 +58,10 @@ describe("claudio-browser-mcp", () => {
   it("removes its temporary profile on exit when no identity is given", async () => {
     const names = await listTools([]);
     expect(names.length).toBeGreaterThan(10);
-    for (let i = 0; i < 50 && readdirSync(join(sb.home, "tmp")).some((n) => n.startsWith("claudio-browser-")); i++) {
+    for (let i = 0; i < 50 && readdirSync(join(sb.home, "tmp")).some((n) => n.startsWith("turno-browser-")); i++) {
       await new Promise((r) => setTimeout(r, 100));
     }
-    expect(readdirSync(join(sb.home, "tmp")).filter((n) => n.startsWith("claudio-browser-"))).toEqual([]);
+    expect(readdirSync(join(sb.home, "tmp")).filter((n) => n.startsWith("turno-browser-"))).toEqual([]);
   });
 
   it("exits with an error for an invalid identity", () => {

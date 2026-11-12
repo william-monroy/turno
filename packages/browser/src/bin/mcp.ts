@@ -5,7 +5,7 @@ import { type BuiltArgv, buildArgv } from "../argv.js";
 import { mcpEntryPath } from "../patchright.js";
 
 /**
- * claudio-browser-mcp [--identity <id>] [playwright-mcp flags]
+ * turno-browser-mcp [--identity <id>] [playwright-mcp flags]
  *
  * Runs the Patchright build of the Playwright MCP program in this process with stealth
  * defaults (ADR 0005). Speaks MCP over stdio unless `--port` is given.
@@ -15,7 +15,7 @@ let built: BuiltArgv;
 try {
   built = buildArgv(process.argv.slice(2));
 } catch (err) {
-  process.stderr.write(`claudio-browser-mcp: ${(err as Error).message}\n`);
+  process.stderr.write(`turno-browser-mcp: ${(err as Error).message}\n`);
   process.exit(2);
 }
 

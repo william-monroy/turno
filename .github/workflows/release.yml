@@ -28,7 +28,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
         env:
-          CLAUDIO_SKIP_E2E: "1"
+          TURNO_SKIP_E2E: "1"
       - uses: changesets/action@v1
         with:
           version: pnpm version-packages
@@ -37,4 +37,4 @@ jobs:
           title: "chore(release): version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CLAUDIO_SKIP_E2E: "1"
+          TURNO_SKIP_E2E: "1"

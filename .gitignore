@@ -6,6 +6,6 @@ coverage/
 .env
 
 # Copied in by prepack for the npm tarball
-packages/claudio/README.md
-packages/claudio/LICENSE
+packages/turno/README.md
+packages/turno/LICENSE
 *.tgz

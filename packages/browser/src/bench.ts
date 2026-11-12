@@ -7,7 +7,7 @@ import { paths } from "./paths.js";
 import { resolveFrom } from "./patchright.js";
 
 /**
- * `claudio browser bench`: runs several browser engines against public bot detectors and the
+ * `turno browser bench`: runs several browser engines against public bot detectors and the
  * user's own URLs, so engine choices rest on measurements (ADR 0003, 0005).
  */
 
@@ -82,7 +82,7 @@ async function importResolved(name: string): Promise<Record<string, unknown>> {
 }
 
 async function persistentChrome(chromium: LaunchableChromium, headless: boolean): Promise<Session> {
-  const dir = mkdtempSync(join(tmpdir(), "claudio-bench-"));
+  const dir = mkdtempSync(join(tmpdir(), "turno-bench-"));
   try {
     const ctx = await chromium.launchPersistentContext(dir, { channel: "chrome", headless, viewport: null });
     return {

@@ -1,5 +1,5 @@
 {
-  "name": "claudio-monorepo",
+  "name": "turno-monorepo",
   "private": true,
   "description": "Multi-account Claude Code on macOS: shared context, a lazy MCP gateway, stealth browser identities and an accounts bridge.",
   "license": "MIT",

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { assertIdentityId, identityDir } from "./identities.js";
 
 /**
- * Turns `claudio-browser-mcp [--identity <id>] [playwright-mcp flags]` into the argv for the
+ * Turns `turno-browser-mcp [--identity <id>] [playwright-mcp flags]` into the argv for the
  * Patchright MCP program, adding stealth defaults the user did not set (see ADR 0005):
  *
  * - `--browser chrome`: the installed Google Chrome, not a bundled Chromium.
@@ -65,7 +65,7 @@ export function extractIdentity(args: string[]): { identity?: string; rest: stri
 }
 
 export function defaultTempDir(): string {
-  return mkdtempSync(join(tmpdir(), "claudio-browser-"));
+  return mkdtempSync(join(tmpdir(), "turno-browser-"));
 }
 
 export function buildArgv(rawArgs: string[], options: BuildOptions = {}): BuiltArgv {

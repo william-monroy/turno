@@ -38,7 +38,7 @@ describe("identity store", () => {
     expect(listIdentities(sb.env)).toEqual([]);
     const info = addIdentity("school", sb.env);
     addIdentity("bank", sb.env);
-    expect(info.dir).toBe(join(sb.home, ".local", "share", "claudio", "browser", "identities", "school"));
+    expect(info.dir).toBe(join(sb.home, ".local", "share", "turno", "browser", "identities", "school"));
     expect(listIdentities(sb.env).map((i) => i.id)).toEqual(["bank", "school"]);
     removeIdentity("school", sb.env);
     expect(existsSync(info.dir)).toBe(false);
@@ -46,7 +46,7 @@ describe("identity store", () => {
   });
 
   it("ignores folders that are not valid ids", () => {
-    mkdirSync(join(sb.home, ".local", "share", "claudio", "browser", "identities", "Not Valid"), { recursive: true });
+    mkdirSync(join(sb.home, ".local", "share", "turno", "browser", "identities", "Not Valid"), { recursive: true });
     expect(listIdentities(sb.env)).toEqual([]);
   });
 });
@@ -77,7 +77,7 @@ describe("manifestSnippet", () => {
     expect(manifestSnippet("school")).toBe(
       [
         "[server.browser-school]",
-        'command = "claudio-browser-mcp"',
+        'command = "turno-browser-mcp"',
         'args = ["--identity", "school"]',
         'scope = "shared"',
         "exclusive = true",

@@ -1,0 +1,15 @@
+{
+  "name": "turno",
+  "version": "0.1.0",
+  "description": "Companion plugin for the turno CLI: marks a profile exhausted when it hits its usage limit, and hands a session over to another profile or forks it.",
+  "author": {
+    "name": "William Frank Monroy Mamani"
+  },
+  "license": "MIT",
+  "keywords": [
+    "accounts",
+    "profiles",
+    "rate-limit",
+    "sessions"
+  ]
+}

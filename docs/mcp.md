@@ -8,14 +8,14 @@ Every profile's `.claude.json` lists local MCP servers as HTTP entries pointing 
   "url": "http://127.0.0.1:47821/mcp/calendar",
   "headers": {
     "Authorization": "Bearer <token>",
-    "X-Claudio-Profile": "work",
-    "X-Claudio-Pid": "${CLAUDIO_SESSION_PID:-0}",
-    "X-Claudio-Cwd": "${PWD:-}"
+    "X-Turno-Profile": "work",
+    "X-Turno-Pid": "${TURNO_SESSION_PID:-0}",
+    "X-Turno-Cwd": "${PWD:-}"
   }
 }
 ```
 
-`claudio mcp sync` writes these. Claude Code expands the `${...}` values when it connects, so
+`turno mcp sync` writes these. Claude Code expands the `${...}` values when it connects, so
 mcpd learns which session (launcher PID) and folder each connection comes from.
 
 ## mcp.toml reference
@@ -24,9 +24,9 @@ mcpd learns which session (launcher PID) and folder each connection comes from.
 [server.<name>]
 command = "server-bin"            # stdio server
 args = ["--flag"]
-env = { TOKEN = "keychain:claudio/name/token", REGION = "eu", OTHER = "env:SOME_VAR" }
+env = { TOKEN = "keychain:turno/name/token", REGION = "eu", OTHER = "env:SOME_VAR" }
 cwd = "/abs/path"                 # default: project root (project), session folder (session), home (shared)
-package = "server-pkg@1.2.3"      # optional: `claudio mcp install` pins it; until then npx runs it
+package = "server-pkg@1.2.3"      # optional: `turno mcp install` pins it; until then npx runs it
 scope = "shared"                  # shared | project | session (default shared)
 idle = "30m"                      # stop after this long without calls (default 30m shared, 20m others)
 exclusive = false                 # one client session at a time (shared scope only)
@@ -34,16 +34,16 @@ lease = "5m"                      # exclusive: how long an idle holder keeps it
 profiles = ["*"]                  # which profiles get this server
 
 [server.<name>.variant.<profile>] # what changes for one profile (a different account)
-env = { TOKEN = "keychain:claudio/name/token-work" }
+env = { TOKEN = "keychain:turno/name/token-work" }
 
 [server.<remote>]
 url = "https://example.com/mcp"
-headers = { Authorization = "keychain:claudio/remote/auth" }   # secret headers: proxied by mcpd
+headers = { Authorization = "keychain:turno/remote/auth" }   # secret headers: proxied by mcpd
 ```
 
 Values starting with `keychain:` are read with `security find-generic-password -s <service> -w`
 when the server starts; `env:` reads mcpd's own environment. Store a secret with
-`claudio secret set <service>` (input is hidden, never printed).
+`turno secret set <service>` (input is hidden, never printed).
 
 ## Choosing a scope
 
@@ -70,14 +70,14 @@ mcpd. With secret headers it is proxied, so the secret stays in the Keychain.
 ## Plugin servers
 
 Servers that come from Claude Code plugins start in every session and bypass mcpd.
-`claudio mcp doctor` lists them. To route one through mcpd, disable the plugin and declare
+`turno mcp doctor` lists them. To route one through mcpd, disable the plugin and declare
 `[server.plugin_<plugin>_<name>]` so tool names stay the same.
 
 ## Troubleshooting
 
 ```sh
-claudio mcp daemon status    # running servers, clients, memory (claudio mcpd works too)
-claudio mcp daemon logs -n 100  # gateway log
-ls ~/.local/state/claudio/logs/   # one stderr log per server (and variant)
-claudio mcp refresh <name>   # forget a cached tool list
+turno mcp daemon status    # running servers, clients, memory (turno mcpd works too)
+turno mcp daemon logs -n 100  # gateway log
+ls ~/.local/state/turno/logs/   # one stderr log per server (and variant)
+turno mcp refresh <name>   # forget a cached tool list
 ```

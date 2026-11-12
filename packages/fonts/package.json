@@ -1,8 +1,8 @@
 {
-  "name": "@claudio/fonts",
+  "name": "turno-fonts",
   "version": "0.1.0",
   "private": true,
-  "description": "MesloLGS Nerd Font 3.4.0, the font the claudio status line icons are drawn with, bundled with checksums.",
+  "description": "MesloLGS Nerd Font 3.4.0, the font the turno status line icons are drawn with, bundled with checksums.",
   "license": "SEE LICENSE IN LICENSE.txt",
   "type": "module",
   "main": "index.js",

@@ -33,7 +33,7 @@ export { type LoginOptions, loginIdentity } from "./login.js";
 export { mcpEntryPath } from "./patchright.js";
 export { paths } from "./paths.js";
 
-/** Absolute path of the `claudio-browser-mcp` executable script of this install. */
+/** Absolute path of the `turno-browser-mcp` executable script of this install. */
 export function mcpBinPath(): string {
   return fileURLToPath(new URL("./bin/mcp.js", import.meta.url));
 }
@@ -43,7 +43,7 @@ export function manifestSnippet(id: string): string {
   assertIdentityId(id);
   return [
     `[server.browser-${id}]`,
-    `command = "claudio-browser-mcp"`,
+    `command = "turno-browser-mcp"`,
     `args = ["--identity", "${id}"]`,
     `scope = "shared"`,
     `exclusive = true`,

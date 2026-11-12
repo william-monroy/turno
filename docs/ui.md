@@ -1,6 +1,6 @@
-# The claudio look of Claude Code
+# The turno look of Claude Code
 
-claudio changes one part of the Claude Code interface: the status line under the prompt. It
+turno changes one part of the Claude Code interface: the status line under the prompt. It
 draws account, usage, context, cache, model and cost in two rows, with icons from a Nerd Font.
 The reference look is Orca's terminal, which draws them with Nerd Fonts 3.4.0 at full size;
 the bundled font gives every other terminal that same look.
@@ -10,24 +10,24 @@ the bundled font gives every other terminal that same look.
 ## Set it up
 
 ```sh
-claudio ui install                      # font, statusLine, nerd_terminals
-claudio ui install --terminal current   # the same, and set the font in this terminal
-claudio ui status                       # check font, status line and every installed terminal
+turno ui install                      # font, statusLine, nerd_terminals
+turno ui install --terminal current   # the same, and set the font in this terminal
+turno ui status                       # check font, status line and every installed terminal
 ```
 
 `install` does three things. Each is safe to repeat, and every file it changes (fonts included)
-is recorded first under `~/.local/state/claudio/backups/<stamp>/`; `claudio undo <stamp>` puts
+is recorded first under `~/.local/state/turno/backups/<stamp>/`; `turno undo <stamp>` puts
 everything back:
 
 1. **Font.** It copies MesloLGS Nerd Font 3.4.0 (Regular, Bold, Italic, Bold Italic) into
    your user font folder: `~/Library/Fonts` on macOS, `~/.local/share/fonts` on Linux, where it also runs
    `fc-cache`. No admin password is needed. Every file is checked against its pinned SHA-256
    before it is written. A file with the same name and other contents is left alone unless you
-   pass `--force`. Without the `@claudio/fonts` package the same files are downloaded from the
+   pass `--force`. Without the `turno-fonts` package the same files are downloaded from the
    [Nerd Fonts v3.4.0 tag](https://github.com/ryanoasis/nerd-fonts/tree/v3.4.0/patched-fonts/Meslo/S)
    and checked against the same checksums.
 2. **Status line.** It sets `statusLine` in the hub `~/.claude/settings.json`. Every profile
-   links to that file, so one change covers them all. The command is the `claudio` on your PATH
+   links to that file, so one change covers them all. The command is the `turno` on your PATH
    and the line refreshes every 30 s. Keys you added yourself, such as `padding`, are kept.
    `--no-statusline` skips this step.
 3. **Icons per terminal.** It records in `config.toml` which terminals already use a Nerd Font
@@ -48,12 +48,12 @@ Restart open terminals after the first install so they pick up the new font.
 | Terminal (macOS) | with a Nerd Font | nothing: Settings > Profiles > Text > Font, then add `"apple-terminal"` |
 | Ghostty, WezTerm, kitty, Orca | always (they ship the symbols) | nothing needed |
 
-`--terminal` takes `current`, `all` (every installed terminal claudio can edit) or a comma list
-of ids: `warp`, `vscode`, `cursor`, `alacritty`. claudio recognizes the terminal from
-`TERM_PROGRAM` and similar variables. VS Code and Cursor both report `vscode`, and claudio tells
+`--terminal` takes `current`, `all` (every installed terminal turno can edit) or a comma list
+of ids: `warp`, `vscode`, `cursor`, `alacritty`. turno recognizes the terminal from
+`TERM_PROGRAM` and similar variables. VS Code and Cursor both report `vscode`, and turno tells
 them apart by Cursor's own variables.
 
-A terminal that already uses another Nerd Font keeps Nerd icons; `claudio ui status` suggests
+A terminal that already uses another Nerd Font keeps Nerd icons; `turno ui status` suggests
 `--terminal <id>` when its font is not the bundled one, because older Nerd Fonts (2.x, such as
 the MesloLGS NF that powerlevel10k installs) draw several icons differently: the context
 gauge, lines changed and model chip among them. Avoid the `Mono` variants too: they shrink
