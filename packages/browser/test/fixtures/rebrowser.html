@@ -1,0 +1,39 @@
+<!-- Trimmed from https://bot-detector.rebrowser.net/ (headless Chrome 157, 2026-11-12). -->
+<html><head><title>rebrowser-bot-detector</title></head><body>
+<table id="detections-table">
+            <thead>
+                <tr>
+                    <th>Test name</th>
+                    <th>Time since load</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody><tr><td><span class="text-nowrap">⚪️ dummyFn</span></td><td><span class="text-nowrap">0.1 ms</span></td><td>
+        Call <code>window.dummyFn()</code> to test if you can access main world objects.
+        
+      </td></tr><tr><td><span class="text-nowrap">🟢 runtimeEnableLeak</span></td><td><span class="text-nowrap">2.8 ms</span></td><td>
+        No leak detected.
+        
+      </td></tr><tr><td><span class="text-nowrap">🟡 viewport</span></td><td><span class="text-nowrap">4.7 ms</span></td><td>
+        Viewport has default Playwright values. Use <code>viewport: null</code> in options.
+        
+          <pre>{
+  "width": 1280,
+  "height": 720
+}</pre>
+        
+      </td></tr><tr><td><span class="text-nowrap">🟢 navigatorWebdriver</span></td><td><span class="text-nowrap">4.8 ms</span></td><td>
+        No webdriver presented.
+        
+      </td></tr><tr><td><span class="text-nowrap">🔴 headless</span></td><td><span class="text-nowrap">195.3 ms</span></td><td>
+        
+        🔴 HeadlessChrome is in the user agent or navigator.userAgentData.brands.
+          <pre>{
+  "screen": "1280x720"
+}</pre>
+        
+      </td></tr><tr><td><span class="text-nowrap">🔴 storagePartitioning</span></td><td><span class="text-nowrap">652.3 ms</span></td><td>
+        An iframe from this site, nested in a frame from another site, can read this page&#39;s localStorage: third-party storage partitioning is turned off.
+      </td></tr></tbody>
+</table>
+</body></html>
