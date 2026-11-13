@@ -1,15 +1,22 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import type { AgentId } from "../agents/index.js";
 import type { Config } from "./config.js";
 import { isValidProfileName } from "./config.js";
 import { paths, profileDir } from "./paths.js";
 
+/** The agent a profile runs: from config.toml, else Claude Code. */
+export function agentOf(name: string, config: Config): AgentId {
+  return config.profiles[name]?.agent ?? "claude";
+}
+
 /**
  * A profile is a ~/.claude-<name> directory that has its claude-<name> launcher, or a
- * profile declared in config.toml. Other folders matching the pattern (for example a
- * place to keep shared skills) are not accounts.
+ * profile declared in config.toml (the only way for agents other than Claude Code). Other
+ * folders matching the pattern (for example a place to keep shared skills) are not accounts.
+ * With `agent`, only that agent's profiles.
  */
-export function listProfiles(config: Config, env: NodeJS.ProcessEnv = process.env): string[] {
+export function listProfiles(config: Config, env: NodeJS.ProcessEnv = process.env, agent?: AgentId): string[] {
   const p = paths(env);
   const found = new Set<string>(Object.keys(config.profiles));
   let entries: string[] = [];
@@ -30,7 +37,7 @@ export function listProfiles(config: Config, env: NodeJS.ProcessEnv = process.en
     }
     if (existsSync(join(p.bin, `claude-${name}`))) found.add(name);
   }
-  return [...found].sort();
+  return [...found].filter((n) => !agent || agentOf(n, config) === agent).sort();
 }
 
 export function profileExists(name: string, config: Config, env: NodeJS.ProcessEnv = process.env): boolean {

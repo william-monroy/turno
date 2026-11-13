@@ -3,7 +3,7 @@ import { launchProfile } from "../launch.js";
 import { command as auto } from "./auto.js";
 
 export const command: Command = {
-  summary: "open Claude Code with a profile (turno <profile> is the short form), or auto",
+  summary: "open a profile with its agent (turno <profile> is the short form), or auto",
   usage: "Usage: turno run <profile|auto> [claude args]\n\nEverything after the profile goes to claude, for example: turno run work --resume",
   args: ["profile-or-auto"],
   async run(args, io) {

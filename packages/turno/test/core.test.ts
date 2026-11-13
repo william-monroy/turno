@@ -28,7 +28,7 @@ describe("config", () => {
       "x",
       sb.env,
     );
-    expect(c.profiles.work).toEqual({ browser: "default", color: 25 });
+    expect(c.profiles.work).toEqual({ agent: "claude", browser: "default", color: 25 });
     expect(c.projects[0]).toEqual({ path: join(sb.home, "code/acme"), profile: "work" });
     expect(c.fallback).toBe("work");
   });

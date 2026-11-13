@@ -63,7 +63,8 @@ export function buildHandoff(target: string, fork: boolean, env: NodeJS.ProcessE
   const sid = env.CLAUDE_CODE_SESSION_ID;
   if (!sid) fail("CLAUDE_CODE_SESSION_ID is empty; run this from inside a Claude Code session");
   const config = loadConfig(env);
-  const profiles = listProfiles(config, env);
+  // A Claude Code session continues only under another Claude Code profile.
+  const profiles = listProfiles(config, env, "claude");
   if (target !== "auto" && !profiles.includes(target)) fail(`no profile '${target}'; available: ${[...profiles, "auto"].join(", ")}`);
   const cfg = env.CLAUDE_CONFIG_DIR || paths(env).hub;
   const transcript = findTranscript(cfg, sid!);
@@ -101,7 +102,7 @@ export const command: Command = {
     const target = args.find((a) => !a.startsWith("--"));
     if (!target) {
       const config = loadConfig(io.env);
-      io.out(`profiles: ${[...listProfiles(config, io.env), "auto"].join(" ")}`);
+      io.out(`profiles: ${[...listProfiles(config, io.env, "claude"), "auto"].join(" ")}`);
       io.out(`current: ${profileFromConfigDir(io.env.CLAUDE_CONFIG_DIR, config, io.env) ?? "(none)"}`);
       io.err(USAGE);
       return 2;

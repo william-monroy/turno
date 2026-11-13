@@ -2,11 +2,13 @@ import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { type AgentId, adapter, mcpFileFor } from "../../agents/index.js";
+import { gatewaySnippet, isSnippetAgent, SNIPPET_AGENTS } from "../../agents/snippets.js";
 import { loadConfig } from "../../core/config.js";
 import { type StdioServer, loadManifest, parseManifest } from "../../core/manifest.js";
 import { Journal } from "../../core/journal.js";
 import { paths, profileDir, tildify } from "../../core/paths.js";
-import { listProfiles } from "../../core/profiles.js";
+import { agentOf, listProfiles } from "../../core/profiles.js";
 import { type Command, type Io, fail, paint } from "../io.js";
 
 const run = promisify(execFile);
@@ -15,6 +17,9 @@ const USAGE = `Usage:
   turno mcp list [--json]                 servers in mcp.toml and where they run
   turno mcp sync [profile...] [--dry-run] [--force]
                                             write the gateway entries into each profile config
+                                            (Claude Code, Codex, Copilot and Cursor profiles)
+  turno mcp config --agent <agent> [--profile <p>]
+                                            print the gateway entries for ${SNIPPET_AGENTS.join(", ")}
   turno mcp import [--write] [--force] [--move-secrets]
                                             draft mcp.toml from the current ~/.claude.json servers
   turno mcp install [server...]           install declared packages (no npx at every start)
@@ -66,20 +71,30 @@ async function list(io: Io, json = false): Promise<number> {
 interface Target {
   profile: string;
   file: string;
+  agent: AgentId;
 }
 
 function targets(io: Io, only: string[]): Target[] {
   const p = paths(io.env);
   const config = loadConfig(io.env);
   const out: Target[] = [];
+  let cursorDone = false;
   for (const name of listProfiles(config, io.env)) {
     if (only.length && !only.includes(name)) continue;
-    out.push({ profile: name, file: join(profileDir(name, io.env), ".claude.json") });
+    const agent = agentOf(name, config);
+    if (adapter(agent).sharedMcpFile) {
+      // One file for every Cursor profile: entries route by the launcher's environment.
+      if (cursorDone) continue;
+      cursorDone = true;
+      out.push({ profile: "", file: mcpFileFor(name, agent, io.env), agent });
+      continue;
+    }
+    out.push({ profile: name, file: agent === "claude" ? join(profileDir(name, io.env), ".claude.json") : mcpFileFor(name, agent, io.env), agent });
   }
   // The hub config belongs to the system profile (plain `claude`).
   const hubProfile = config.system ?? "default";
   if ((!only.length || only.includes(hubProfile) || only.includes("hub")) && existsSync(p.hubConfig)) {
-    out.push({ profile: hubProfile, file: p.hubConfig });
+    out.push({ profile: hubProfile, file: p.hubConfig, agent: "claude" });
   }
   return out;
 }
@@ -98,7 +113,7 @@ async function sync(args: string[], io: Io): Promise<number> {
   const dryRun = args.includes("--dry-run");
   const force = args.includes("--force");
   const only = args.filter((a) => !a.startsWith("--"));
-  const { profileServers, readManaged, syncConfigFile, writeManaged } = await import("../../mcpd/sync.js");
+  const { profileServers, readManaged, syncCodexToml, syncConfigFile, syncJsonServers, writeManaged } = await import("../../mcpd/sync.js");
   const { ensureToken, mcpdPort } = await import("../../mcpd/daemon.js");
   const manifest = loadManifest(io.env);
   const token = ensureToken(io.env);
@@ -109,15 +124,21 @@ async function sync(args: string[], io: Io): Promise<number> {
   let skipped = 0;
   const journal = new Journal(io.env, `mcp sync ${args.join(" ")}`.trim(), dryRun);
   for (const t of targets(io, only)) {
-    const label = `${t.profile} (${tildify(t.file, io.env)})`;
-    if (busy.has(t.profile) && !force && !dryRun) {
+    const label = `${t.profile || `${adapter(t.agent).label} profiles`} (${tildify(t.file, io.env)})`;
+    if (t.profile && busy.has(t.profile) && !force && !dryRun) {
       io.out(`${paint(io, "skip", "33")} ${label}: has open sessions; close them or use --force`);
       skipped++;
       continue;
     }
-    const wanted = profileServers(manifest, t.profile, port, token);
+    const wanted = profileServers(manifest, t.profile, port, token, t.agent);
     const before = journal.save(t.file);
-    const res = syncConfigFile(t.file, wanted, managed[t.file] ?? [], { dryRun });
+    const prev = managed[t.file] ?? [];
+    const res =
+      t.agent === "codex"
+        ? syncCodexToml(t.file, wanted, prev, { dryRun })
+        : t.agent === "claude"
+          ? syncConfigFile(t.file, wanted, prev, { dryRun })
+          : syncJsonServers(t.file, "mcpServers", wanted, prev, { dryRun });
     journal.settle(before);
     if (!dryRun) managed[t.file] = Object.keys(wanted);
     const parts = [
@@ -127,12 +148,38 @@ async function sync(args: string[], io: Io): Promise<number> {
       res.foreign.length ? `left alone ${res.foreign.join(", ")}` : "",
     ].filter(Boolean);
     io.out(`${paint(io, dryRun ? "plan" : res.changed ? "sync" : "same", res.changed ? "32" : "2")} ${label}${parts.length ? `: ${parts.join("; ")}` : ""}`);
+    if (t.agent === "cursor" && res.added.length && !dryRun) {
+      io.out(`  Cursor asks to approve new servers once: cursor-agent mcp enable <name> (${res.added.join(", ")})`);
+    }
   }
   if (!dryRun) writeManaged(p.mcpdManaged, managed);
   if (!dryRun) io.out("New sessions pick this up; open sessions keep their old servers until restarted.");
   const hint = journal.hint();
   if (hint) io.out(hint);
   return skipped ? 1 : 0;
+}
+
+async function config(args: string[], io: Io): Promise<number> {
+  const { parseFlags, str } = await import("../args.js");
+  const p = parseFlags(args, { agent: { type: "string" }, profile: { type: "string" } }, 0);
+  const agent = str(p, "agent");
+  if (!agent || !isSnippetAgent(agent)) {
+    return fail(`usage: turno mcp config --agent <${SNIPPET_AGENTS.join("|")}> [--profile <p>]\n(Claude Code, Codex, Copilot and Cursor profiles get their entries from turno mcp sync)`);
+  }
+  const cfg = loadConfig(io.env);
+  const profile = str(p, "profile") ?? cfg.default ?? "default";
+  const manifest = loadManifest(io.env);
+  const { servesProfile } = await import("../../core/manifest.js");
+  const servers = Object.entries(manifest.servers)
+    .filter(([, def]) => servesProfile(def, profile) && !(def.kind === "remote" && !def.proxy))
+    .map(([name]) => name);
+  if (!servers.length) return fail(`no gateway servers for profile ${profile} in mcp.toml`);
+  const { mcpdPort } = await import("../../mcpd/daemon.js");
+  const s = gatewaySnippet(agent, servers, mcpdPort(io.env), profile);
+  io.out(`# ${s.file}`);
+  for (const n of s.notes) io.out(`# ${n}`);
+  io.out(s.text.trimEnd());
+  return 0;
 }
 
 /** The bin npx would run: the only one, else the one named after the package. */
@@ -284,6 +331,7 @@ export const command: Command = {
   subcommands: {
     list: { flags: ["--json"] },
     sync: { args: ["profile"], flags: ["--dry-run", "--force"] },
+    config: { flags: ["--agent", "--profile"] },
     import: { flags: ["--write", "--force", "--move-secrets"] },
     install: { args: ["server"] },
     refresh: { args: ["server"] },
@@ -298,6 +346,8 @@ export const command: Command = {
         return list(io, rest.includes("--json"));
       case "sync":
         return sync(rest, io);
+      case "config":
+        return config(rest, io);
       case "import":
         return importCmd(rest, io);
       case "install":

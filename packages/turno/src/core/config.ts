@@ -1,14 +1,23 @@
 import { readFileSync } from "node:fs";
 import { parse } from "smol-toml";
+import { type AgentId, AGENT_IDS, isAgentId } from "../agents/index.js";
 import { expandHome, paths } from "./paths.js";
 
 export type BrowserMode = "chrome" | "default";
 
 export interface ProfileConfig {
+  /** The coding agent this profile runs (ADR 0013); Claude Code when unset. */
+  agent: AgentId;
   /** How `turno open` shows claude.ai links: an isolated Chrome profile or the default browser. */
   browser: BrowserMode;
   /** Status line pill color (name or 256-color code). */
   color?: string | number;
+}
+
+/** Default and fallback profiles of an agent other than Claude Code (`[agents.<id>]`). */
+export interface AgentRoles {
+  default?: string;
+  fallback?: string;
 }
 
 export interface ProjectRule {
@@ -29,6 +38,8 @@ export interface Config {
   /** Look for new turno releases once a day (`update_check = false` turns it off). */
   updateCheck: boolean;
   profiles: Record<string, ProfileConfig>;
+  /** `[agents.codex]` and friends; Claude Code uses the top-level default and fallback. */
+  agents: Partial<Record<AgentId, AgentRoles>>;
   projects: ProjectRule[];
   open: { chromeDir: string };
   mcpd: { port: number };
@@ -66,6 +77,7 @@ export function parseConfig(text: string, file = "config.toml", env: NodeJS.Proc
     nerdTerminals: [],
     updateCheck: true,
     profiles: {},
+    agents: {},
     projects: [],
     open: { chromeDir: p.chromeProfilesDir },
     mcpd: { port: 47821 },
@@ -106,7 +118,24 @@ export function parseConfig(text: string, file = "config.toml", env: NodeJS.Proc
     if (color !== undefined && typeof color !== "string" && typeof color !== "number") {
       throw new ConfigError(file, `profiles.${name}.color must be a name or a number`);
     }
-    cfg.profiles[name] = { browser, ...(color !== undefined ? { color } : {}) };
+    const agent = v.agent ?? "claude";
+    if (!isAgentId(agent)) throw new ConfigError(file, `profiles.${name}.agent must be one of ${AGENT_IDS.join(", ")}`);
+    cfg.profiles[name] = { agent, browser, ...(color !== undefined ? { color } : {}) };
+  }
+
+  const agents = raw.agents ?? {};
+  if (typeof agents !== "object" || Array.isArray(agents)) throw new ConfigError(file, "[agents] must be a table");
+  for (const [id, value] of Object.entries(agents as Record<string, unknown>)) {
+    if (!isAgentId(id) || id === "claude") {
+      throw new ConfigError(file, `[agents.${id}]: use one of ${AGENT_IDS.filter((a) => a !== "claude").join(", ")} (Claude Code uses the top-level default and fallback)`);
+    }
+    const v = (value ?? {}) as Record<string, unknown>;
+    const roles: AgentRoles = {};
+    const d = str(v.default, file, `agents.${id}.default`);
+    const f = str(v.fallback, file, `agents.${id}.fallback`);
+    if (d) roles.default = d;
+    if (f) roles.fallback = f;
+    cfg.agents[id] = roles;
   }
 
   const projects = raw.projects ?? [];

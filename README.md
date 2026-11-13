@@ -96,12 +96,12 @@ changes, and prints the `turno undo <stamp>` that puts them back.
 | Command | What it does |
 |---|---|
 | `turno <profile> [args]`, `turno run <profile\|auto> [args]` | Claude Code with that account (replaces the process, args pass through) |
-| `turno auto` | the profile assigned to the current folder (and the fallback, if you set one) |
+| `turno auto [--agent codex]` | the profile assigned to the current folder (and the fallback, if you set one) |
 | `turno profile list\|add\|repair\|remove\|which\|assign\|unassign` | the accounts, and which folders use each |
 | `turno limit show [--watch]\|set <p> [--until \| --for]\|clear <p>` | usage windows, and exhausted marks (used by the optional fallback) |
 | `turno session list\|handoff <p> [--fork]` | open sessions, and the command to continue or fork this one under another profile |
 | `turno open [profile] <url>` | open a link; claude.ai links use that profile's Chrome profile |
-| `turno mcp list\|sync\|import\|install\|refresh\|doctor\|daemon ...` | the MCP gateway (below) |
+| `turno mcp list\|sync\|config\|import\|install\|refresh\|doctor\|daemon ...` | the MCP gateway (below), and entries for other agents |
 | `turno identity list\|add\|remove\|login\|prefer\|log` | service accounts for the bridge and browser identities |
 | `turno secret set\|has\|rm\|list` | MCP secrets in the macOS Keychain |
 | `turno browser bench` | how automation-fingerprint test pages see each browser engine |
@@ -194,6 +194,21 @@ Add `[server.accounts]` with `builtin = "accounts"` to `mcp.toml`. Sessions then
 `accounts_list` and `accounts_delegate`. A delegated task runs headless in the owning profile
 with only that account's tools allowed; write tasks need your confirmation in the client, and
 every call goes to an audit log (`turno identity log`).
+
+## Other agents
+
+Codex CLI, GitHub Copilot CLI and Cursor CLI profiles work the same way: one folder and one
+login per account, a launcher, folder rules and the MCP gateway.
+
+```sh
+turno profile add cx --agent codex   # ~/.codex-cx and the codex-cx command
+codex-cx login
+turno mcp sync cx
+turno auto --agent codex
+```
+
+opencode, Gemini CLI, Goose, Crush, Droid and Kiro can use the gateway too: `turno mcp config
+--agent <name>` prints their entries. Details and caveats: [docs/agents.md](docs/agents.md).
 
 ## Companion plugin
 

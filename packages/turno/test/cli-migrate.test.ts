@@ -39,7 +39,7 @@ describe("migrate", () => {
     expect(c.default).toBe("personal");
     expect(c.fallback).toBe("work");
     expect(c.icons).toBe("nerd");
-    expect(c.profiles).toEqual({ personal: { browser: "default" }, work: { browser: "chrome" } });
+    expect(c.profiles).toEqual({ personal: { agent: "claude", browser: "default" }, work: { agent: "claude", browser: "chrome" } });
     expect(c.projects).toEqual([
       { path: join(sb.home, "code/acme"), profile: "work" },
       { path: "/opt/shared code", profile: "work" },

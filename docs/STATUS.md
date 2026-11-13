@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-11-12.
+Last updated: 2026-11-13.
 
 ## Done
 
@@ -42,7 +42,24 @@ Last updated: 2026-11-12.
 - **Versions and updates** (ADR 0007, [RELEASING.md](RELEASING.md)): Changesets, CI and release
   workflows (npm with provenance), `scripts/pack-check.mjs`, `turno upgrade` per install
   method with `--finish` (launchers, changelog), a daily background update check. Packages stay
-  `private` until the owner picks the npm name (`turno` and `turno-cli` are taken).
+  `private` until the owner settles the name and publishing (see Next).
+- **Open-source groundwork** (2026-11-13, from the research report in
+  `~/Documents/wimodev/reports/Turno open source y multiagente.md`):
+  - Apache-2.0 with NOTICE, REUSE metadata, font icon-set attributions, `THIRD_PARTY_NOTICES.md`
+    and a license allow list in `pnpm check` (ADR 0010).
+  - CONTRIBUTING, Code of Conduct (Covenant 3.0), SECURITY with the security model, GOVERNANCE,
+    AI policy, SUPPORT, issue forms, pull request template; `AGENTS.md` holds the agent rules and
+    `CLAUDE.md` imports it; a `commit-msg` hook (`pnpm hooks`).
+  - Release pipeline split into version, build, publish and tag jobs; SHA-pinned actions,
+    zizmor, Scorecard, Dependabot, Harden-Runner; Node 22/24/26 and `engines >=22.11`; pnpm
+    release-age, trust and engine policies; `DO_NOT_TRACK` honored (ADR 0011).
+  - README disclaimers (not affiliated, vendor terms, no warranty, update check), `fallback`
+    documented as opt-in, the browser described without "stealth" and with an acceptable use
+    section (ADR 0012).
+- **Other agents** (ADR 0013, [agents.md](agents.md)): Codex, Copilot and Cursor profiles with
+  their launchers, per-agent folder rules and defaults, gateway entries per format (token kept in
+  the environment for all three), `turno mcp config` snippets for opencode, Gemini CLI, Goose,
+  Crush, Droid and Kiro. End-to-end tests drive the real Codex and Cursor CLIs in a sandbox.
 
 ## Known gaps
 
@@ -54,6 +71,9 @@ Last updated: 2026-11-12.
 - Headless stealth browsing is detectable from the user agent and storage partitioning
   (ADR 0005). Headed is the default.
 - `turno browser login` has not been exercised with a real sign-in yet.
+- Copilot CLI profiles follow its documentation only (not installed here). Codex cross-account
+  resume through the shared `sessions` folder is untested with two ChatGPT accounts. Cursor's
+  per-profile login relies on the undocumented `AGENT_CLI_CREDENTIAL_STORE=file`.
 - The design doc says `claudio-navegador` stays as a symlink; `setup` rewrites it as a marked
   copy of `turno-open` instead. Same effect.
 
@@ -82,19 +102,24 @@ Last updated: 2026-11-12.
 
 ## Next
 
-0. **Paused 2026-11-12** (network outage). The project was renamed to turno (ADR 0009). Research on
-   agent-agnostic support and the open-source release is saved outside the repo in
-   `~/Documents/wimodev/research_notes/Turno open source y multiagente/`; the synthesized report
-   is still to be written (see `~/Documents/wimodev/REANUDAR.md`). Its outcome feeds new ADRs:
-   license, vendor terms and opt-in fallback, agent adapters, CI hardening (Node 22/24/26,
-   SHA-pinned actions, staged npm publishing, no cache or project code in the publish job).
+0. **Before any public release** (needs the owner, some need a lawyer):
+   - The name: TURNO is a registered US trademark (serial 97091315, reg. 7151919, TidyDaily,
+     classes 9 and 42). Confirm in USPTO TSDR, search MARCANET (IMPI) for Mexico, and get advice
+     before reserving the GitHub organization, the npm organization or a domain.
+   - A lawyer's read of the README vendor terms notice and the browser acceptable use section.
+   - `OWNER` placeholders in `.github/ISSUE_TEMPLATE/config.yml` and
+     `packages/browser/README.md` (`pack:check` fails on them once a package is public), the
+     backup administrator in GOVERNANCE.md, the code of conduct contact.
+   - Optional later: VHS demo, Starlight docs site (English root, Spanish quick start and FAQ,
+     llms.txt), Homebrew tap, OpenSSF Best Practices badge, GitHub Sponsors.
 
 1. **Cutover** (needs the owner, live sessions must close): `migrate`, `mcp import --write
    --move-secrets`, `mcp install`, `mcpd start`, disable plugin stdio servers covered by the
    manifest, `mcp sync`, `profile repair` to regenerate launchers and links, swap `~/.local/bin/claudio`, `ui install`
    (font and terminals are done; this switches the statusLine to turno), point the StopFailure hook at the
    new CLI (or install the plugin).
-2. Measure: RSS of MCP processes before and after with the same open sessions.
+2. Measure: RSS of MCP processes before and after with the same open sessions, and put the
+   number in the README (no competing gateway publishes one).
 3. Publishing (needs the owner): npm scope and names, GitHub repository, trusted publisher;
    then drop `private` (docs/RELEASING.md). Later: a Homebrew tap over the npm tarball.
 4. Phase 3 of the command proposal: the Claude Code plugin with slash commands, exhaustion

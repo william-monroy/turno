@@ -2,9 +2,11 @@ import { spawn } from "node:child_process";
 import { accessSync, constants as fsConstants, statSync } from "node:fs";
 import { constants } from "node:os";
 import { delimiter, join } from "node:path";
+import type { AgentId } from "../agents/index.js";
 import { isValidProfileName } from "../core/config.js";
 import { paths } from "../core/paths.js";
 import { type Io, UsageError } from "./io.js";
+import { launcherName, profileAgent } from "./launchers.js";
 
 function executable(file: string): boolean {
   try {
@@ -27,10 +29,10 @@ export function findOnPath(cmd: string, env: NodeJS.ProcessEnv = process.env): s
   return undefined;
 }
 
-/** Path of a profile's launcher when it exists and is executable. */
-export function launcherPath(name: string, env: NodeJS.ProcessEnv = process.env): string | undefined {
+/** Path of a profile's launcher (claude-<name>, codex-<name>, ...) when it exists and is executable. */
+export function launcherPath(name: string, env: NodeJS.ProcessEnv = process.env, agent: AgentId = profileAgent(name, env)): string | undefined {
   if (!isValidProfileName(name)) return undefined;
-  const file = join(paths(env).bin, `claude-${name}`);
+  const file = join(paths(env).bin, launcherName(name, agent));
   return executable(file) ? file : undefined;
 }
 

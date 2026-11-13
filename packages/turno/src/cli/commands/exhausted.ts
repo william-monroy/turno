@@ -31,7 +31,7 @@ export const command: Command = {
       until = Math.floor(Date.now() / 1000) + 5 * 3600;
     }
     markExhausted(name, until, io.env);
-    io.out(`${name} exhausted until ${formatUntil(until)}; its projects open with the fallback`);
+    io.out(`${name} exhausted until ${formatUntil(until)}; its projects open with the fallback, if one is set`);
     return 0;
   },
 };

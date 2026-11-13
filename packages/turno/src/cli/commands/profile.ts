@@ -1,11 +1,12 @@
 import { existsSync, statSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
+import { adapter, agentProfileDir, isAgentId, AGENT_IDS } from "../../agents/index.js";
 import { editConfig } from "../../core/config-edit.js";
 import { type Config, loadConfig } from "../../core/config.js";
 import { exhaustedUntil } from "../../core/exhausted.js";
 import { Journal } from "../../core/journal.js";
 import { expandHome, paths, profileDir, tildify } from "../../core/paths.js";
-import { listProfiles } from "../../core/profiles.js";
+import { agentOf, listProfiles } from "../../core/profiles.js";
 import { resolveProfile } from "../../core/resolve.js";
 import { addArrayTable, ensureTable, removeArrayTables, removeTable, setValue } from "../../core/toml-edit.js";
 import { NAMED_COLORS } from "../../statusline/render.js";
@@ -13,7 +14,7 @@ import { DRY_RUN, JSON_FLAG, bool, parseFlags, printJson, str } from "../args.js
 import { group } from "../group.js";
 import { type Io, fail } from "../io.js";
 import { launcherPath } from "../launch.js";
-import { isGenerated } from "../launchers.js";
+import { isGenerated, launcherName } from "../launchers.js";
 import { checkName, setupProfiles } from "./setup.js";
 import { authStatus } from "./usage.js";
 
@@ -30,13 +31,17 @@ export function parseColor(v: string): string | number {
 
 export async function profilesData(env: NodeJS.ProcessEnv, config: Config, withAccounts = true) {
   const names = listProfiles(config, env);
-  const auth = withAccounts ? await Promise.all(names.map((n) => authStatus(n, env))) : [];
+  // Account details come from `claude auth status`; other agents show whether they are set up.
+  const auth = withAccounts ? await Promise.all(names.map((n) => (agentOf(n, config) === "claude" ? authStatus(n, env) : undefined))) : [];
   return names.map((name, i) => {
     const s = auth[i];
+    const agent = agentOf(name, config);
+    const dir = agentProfileDir(name, agent, env);
     return {
       name,
-      dir: tildify(profileDir(name, env), env),
-      setUp: existsSync(profileDir(name, env)) && Boolean(launcherPath(name, env)),
+      agent,
+      dir: tildify(dir, env),
+      setUp: existsSync(dir) && Boolean(launcherPath(name, env, agent)),
       ...(withAccounts ? { email: s?.loggedIn ? (s.email ?? null) : null, plan: s?.loggedIn ? (s.subscriptionType ?? null) : null } : {}),
       color: config.profiles[name]?.color ?? null,
       browser: config.profiles[name]?.browser ?? "chrome",
@@ -61,7 +66,13 @@ async function list(args: string[], io: Io): Promise<number> {
   }
   const w = Math.max(...rows.map((r) => r.name.length));
   for (const r of rows) {
-    const who = r.setUp ? (r.email ? `${r.email}${r.plan ? ` · ${r.plan}` : ""}` : "not logged in") : `not set up (turno profile repair ${r.name})`;
+    const who = r.setUp
+      ? r.agent !== "claude"
+        ? `${adapter(r.agent).label} (${launcherName(r.name, r.agent)})`
+        : r.email
+          ? `${r.email}${r.plan ? ` · ${r.plan}` : ""}`
+          : "not logged in"
+      : `not set up (turno profile repair ${r.name})`;
     const extra = [r.roles.join(", "), r.projects ? `${r.projects} projects` : "", r.exhaustedUntil ? "exhausted" : ""].filter(Boolean).join(" · ");
     io.out(`${r.name.padEnd(w)}  ${who}${extra ? `  (${extra})` : ""}`);
   }
@@ -69,10 +80,12 @@ async function list(args: string[], io: Io): Promise<number> {
 }
 
 async function add(args: string[], io: Io): Promise<number> {
-  const p = parseFlags(args, { color: { type: "string" }, browser: { type: "string" }, ...DRY_RUN }, 1);
+  const p = parseFlags(args, { color: { type: "string" }, browser: { type: "string" }, agent: { type: "string" }, ...DRY_RUN }, 1);
   const name = p.positionals[0];
-  if (!name) return fail("usage: turno profile add <name> [--color <c>] [--browser chrome|default]");
+  if (!name) return fail("usage: turno profile add <name> [--agent claude|codex|copilot|cursor] [--color <c>] [--browser chrome|default]");
   checkName(name);
+  const agent = str(p, "agent") ?? "claude";
+  if (!isAgentId(agent)) fail(`--agent must be one of ${AGENT_IDS.join(", ")}`);
   const color = str(p, "color");
   const browser = str(p, "browser");
   if (browser && browser !== "chrome" && browser !== "default") fail("--browser must be chrome or default");
@@ -81,18 +94,25 @@ async function add(args: string[], io: Io): Promise<number> {
   const table = `profiles.${name}`;
   const { changed } = editConfig(io.env, journal, (t) => {
     let text = ensureTable(t, table);
+    if (agent !== "claude") text = setValue(text, table, "agent", agent);
     if (color) text = setValue(text, table, "color", parseColor(color));
     if (browser) text = setValue(text, table, "browser", browser);
     return text;
   });
   io.out(`${changed ? "+" : "="} [${table}] in ${tildify(paths(io.env).configFile, io.env)}${dry ? " (dry run)" : ""}`);
   if (dry) {
-    io.out(`(dry run) would set up ${tildify(profileDir(name, io.env), io.env)} and the claude-${name} command`);
+    io.out(`(dry run) would set up ${tildify(agentProfileDir(name, agent, io.env), io.env)} and the ${launcherName(name, agent)} command`);
     return 0;
   }
   setupProfiles([name], io);
   io.out("");
-  io.out(`Next: run claude-${name} and sign in with /login. turno profile list shows the account.`);
+  const login: Record<string, string> = {
+    claude: `run claude-${name} and sign in with /login`,
+    codex: `run codex-${name} login`,
+    copilot: `run copilot-${name} and sign in with /login`,
+    cursor: `run cursor-agent-${name} login`,
+  };
+  io.out(`Next: ${login[agent]}. turno profile list shows the profile.`);
   const hint = journal.hint();
   if (hint) io.out(hint);
   return 0;
@@ -123,12 +143,13 @@ async function remove(args: string[], io: Io): Promise<number> {
     rules = r.removed;
     return r.text;
   });
-  const launcher = launcherPath(name, io.env);
+  const agent = agentOf(name, config);
+  const launcher = launcherPath(name, io.env, agent);
   if (launcher && isGenerated(launcher)) journal.remove(launcher);
   const d = dry ? " (dry run)" : "";
   io.out(`- [profiles.${name}] and ${rules} project rules from config.toml${d}`);
   if (launcher) io.out(`- ${tildify(launcher, io.env)}${d}`);
-  io.out(`${tildify(profileDir(name, io.env), io.env)} stays (sign-in, history); delete it by hand when you no longer need it.`);
+  io.out(`${tildify(agentProfileDir(name, agent, io.env), io.env)} stays (sign-in, history); delete it by hand when you no longer need it.`);
   const hint = journal.hint();
   if (hint) io.out(hint);
   return 0;
@@ -170,8 +191,14 @@ async function assign(args: string[], io: Io): Promise<number> {
   const dry = bool(p, "dry-run");
   const journal = new Journal(io.env, `profile assign ${tildify(dir, io.env)} ${name}`, dry);
   const shown = tildify(dir, io.env);
+  // One rule per folder and agent: a Codex rule does not replace the folder's Claude Code rule.
+  const agent = agentOf(name, config);
   editConfig(io.env, journal, (t) => {
-    const r = removeArrayTables(t, "projects", (e) => resolvePath(expandHome(e.path ?? "", io.env)) === dir);
+    const r = removeArrayTables(
+      t,
+      "projects",
+      (e) => resolvePath(expandHome(e.path ?? "", io.env)) === dir && agentOf(e.profile ?? "", config) === agent,
+    );
     return addArrayTable(r.text, "projects", { path: shown, profile: name });
   });
   io.out(`${shown} -> ${name}${dry ? " (dry run)" : ""}`);
@@ -207,10 +234,10 @@ export const command = group(
   {
     list: { summary: "each profile, its account and roles", synopsis: "[--json]", flags: ["--json"], run: list },
     add: {
-      summary: "declare a profile in config.toml and set up ~/.claude-<name> and claude-<name>",
-      synopsis: "<name> [--color <c>] [--browser chrome|default] [--dry-run]",
+      summary: "declare a profile in config.toml and set up its folder and launcher (claude-<name>, codex-<name>, ...)",
+      synopsis: "<name> [--agent claude|codex|copilot|cursor] [--color <c>] [--browser chrome|default] [--dry-run]",
       args: ["any"],
-      flags: ["--color", "--browser", "--dry-run"],
+      flags: ["--agent", "--color", "--browser", "--dry-run"],
       run: add,
     },
     repair: { summary: "relink shared folders and rewrite launchers (all profiles by default)", synopsis: "[profile...]", args: ["profile"], run: repair },

@@ -1,6 +1,6 @@
 import { loadConfig } from "../../core/config.js";
 import { clearExhausted, exhaustedUntil, markExhausted } from "../../core/exhausted.js";
-import { listProfiles } from "../../core/profiles.js";
+import { agentOf, listProfiles } from "../../core/profiles.js";
 import { formatUntil } from "../../core/resolve.js";
 import { DRY_RUN, JSON_FLAG, WATCH, bool, parseFlags, printJson, str } from "../args.js";
 import { group } from "../group.js";
@@ -18,8 +18,10 @@ export function parseDuration(text: string): number | undefined {
 
 /** Usage of every profile as data, for --json and turno status. */
 export async function limitsData(env: NodeJS.ProcessEnv, withAccounts = true) {
-  const profiles = listProfiles(loadConfig(env), env);
-  const accounts = withAccounts ? await Promise.all(profiles.map((p) => account(p, env))) : [];
+  const config = loadConfig(env);
+  const profiles = listProfiles(config, env);
+  // Usage windows and accounts come from Claude Code; other agents show only exhausted marks.
+  const accounts = withAccounts ? await Promise.all(profiles.map((p) => (agentOf(p, config) === "claude" ? account(p, env) : undefined))) : [];
   return profiles.map((p, i) => {
     const snap = usageSnapshot(p, env);
     const limits = snap.rate_limits ?? {};
@@ -27,7 +29,8 @@ export async function limitsData(env: NodeJS.ProcessEnv, withAccounts = true) {
       w ? { used: Number(w.used_percentage) || 0, resetsAt: typeof w.resets_at === "number" ? w.resets_at : null } : null;
     return {
       profile: p,
-      ...(withAccounts ? { email: accounts[i]!.email, plan: accounts[i]!.plan } : {}),
+      agent: agentOf(p, config),
+      ...(withAccounts ? { email: accounts[i]?.email ?? null, plan: accounts[i]?.plan ?? null } : {}),
       exhaustedUntil: exhaustedUntil(p, env) ?? null,
       fiveHour: win(limits.five_hour),
       week: win(limits.seven_day),
@@ -71,7 +74,7 @@ async function set(args: string[], io: Io): Promise<number> {
     until = Math.floor(Date.now() / 1000) + d;
   }
   if (!bool(p, "dry-run")) markExhausted(name, until, io.env);
-  io.out(`${name} exhausted until ${formatUntil(until)}; its projects open with the fallback${bool(p, "dry-run") ? " (dry run)" : ""}`);
+  io.out(`${name} exhausted until ${formatUntil(until)}; its projects open with the fallback, if one is set${bool(p, "dry-run") ? " (dry run)" : ""}`);
   return 0;
 }
 
@@ -89,7 +92,7 @@ export const command = group(
   {
     show: { summary: "5 h and weekly usage of each account, as bars", synopsis: "[--watch] [--json]", flags: ["--watch", "--json"], run: show },
     set: {
-      summary: "mark a profile exhausted (default for 5 h); its projects open with the fallback",
+      summary: "mark a profile exhausted (default for 5 h); its projects open with the fallback, if one is set",
       synopsis: '<profile> [--until "YYYY-MM-DD HH:MM" | --for 2h] [--dry-run]',
       args: ["profile"],
       flags: ["--until", "--for", "--dry-run"],

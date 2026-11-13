@@ -1,7 +1,10 @@
 import { accessSync, chmodSync, constants, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { type AgentId, adapter, agentHub, agentProfileDir } from "../agents/index.js";
+import { loadConfig } from "../core/config.js";
 import { paths } from "../core/paths.js";
+import { agentOf } from "../core/profiles.js";
 import { UsageError } from "./io.js";
 
 /** Every launcher turno writes carries this line; only marked files are ever overwritten. */
@@ -63,8 +66,51 @@ export function shPath(p: string, env: NodeJS.ProcessEnv = process.env): string 
   return `"${esc(p)}"`;
 }
 
-/** Text of the claude-<name> launcher. */
-export function launcherText(name: string, env: NodeJS.ProcessEnv = process.env): string {
+/** The agent of a profile according to config.toml (Claude Code when the config is missing or broken). */
+export function profileAgent(name: string, env: NodeJS.ProcessEnv = process.env): AgentId {
+  try {
+    return agentOf(name, loadConfig(env));
+  } catch {
+    return "claude";
+  }
+}
+
+/** File name of a profile's launcher in ~/.local/bin: claude-<name>, codex-<name>, ... */
+export function launcherName(name: string, agent: AgentId = "claude"): string {
+  return `${adapter(agent).launcherPrefix}${name}`;
+}
+
+/** Text of the launcher of an agent other than Claude Code. */
+function agentLauncherText(name: string, agent: AgentId, env: NodeJS.ProcessEnv): string {
+  const a = adapter(agent);
+  const p = paths(env);
+  const dir = shPath(agentProfileDir(name, agent, env), env);
+  const hubDirs = a.sharedDirs.map((d) => shPath(join(agentHub(agent, env), d), env));
+  const run = shPath(p.runDir, env);
+  const runFile = run.slice(0, -1) + '/$$"';
+  return [
+    "#!/bin/sh",
+    `# ${MARKER}: ${a.label} with the "${name}" account.`,
+    `export ${a.homeEnv}=${dir}`,
+    `export TURNO_PROFILE="${name}"`,
+    `export TURNO_AGENT="${agent}"`,
+    "export TURNO_SESSION_PID=$$",
+    ...a.launcherEnv,
+    ...(a.tokenFromEnv
+      ? ["# The MCP gateway token, read by the agent from the environment (never written to its config).", `TURNO_MCPD_TOKEN="$(cat ${shPath(p.mcpdToken, env)} 2>/dev/null)"`, "export TURNO_MCPD_TOKEN"]
+      : []),
+    ...(hubDirs.length ? ["# If a cleanup removed an empty hub folder, the profile symlink would dangle.", `mkdir -p ${hubDirs.join(" ")}`] : []),
+    `export BROWSER=${shPath(join(p.bin, "turno-open"), env)}`,
+    "# exec keeps the PID, so turno sessions knows which account each session uses.",
+    `mkdir -p ${run} && echo ${name} >${runFile} 2>/dev/null`,
+    `exec ${a.command} "$@"`,
+    "",
+  ].join("\n");
+}
+
+/** Text of a profile's launcher: claude-<name> by default, or the launcher of `agent`. */
+export function launcherText(name: string, env: NodeJS.ProcessEnv = process.env, agent: AgentId = "claude"): string {
+  if (agent !== "claude") return agentLauncherText(name, agent, env);
   const p = paths(env);
   const dirs = SHARED_DIRS.map((d) => shPath(join(p.hub, d), env)).join(" ");
   const run = shPath(p.runDir, env);
@@ -95,10 +141,10 @@ function writeScript(file: string, text: string): void {
   chmodSync(file, 0o755);
 }
 
-/** Write <bin>/claude-<name>. Refuses to overwrite a file turno did not generate. */
-export function writeLauncher(name: string, env: NodeJS.ProcessEnv = process.env): string {
-  const file = join(paths(env).bin, `claude-${name}`);
-  writeScript(file, launcherText(name, env));
+/** Write the profile's launcher (claude-<name>, codex-<name>, ...). Refuses to overwrite a file turno did not generate. */
+export function writeLauncher(name: string, env: NodeJS.ProcessEnv = process.env, agent: AgentId = profileAgent(name, env)): string {
+  const file = join(paths(env).bin, launcherName(name, agent));
+  writeScript(file, launcherText(name, env, agent));
   return file;
 }
 

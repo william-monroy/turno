@@ -1,10 +1,13 @@
 import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, renameSync, rmSync, rmdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { type AgentId, adapter, agentHub, agentProfileDir } from "../../agents/index.js";
 import { isValidProfileName, loadConfig } from "../../core/config.js";
+import { setValue } from "../../core/toml-edit.js";
 import { paths, profileDir, tildify } from "../../core/paths.js";
+import { agentOf } from "../../core/profiles.js";
 import { profileBusy } from "../../core/sessions.js";
 import { type Command, type Io, fail } from "../io.js";
-import { SHARED_DIRS, turnoCommand, writeHelperLaunchers, writeLauncher } from "../launchers.js";
+import { SHARED_DIRS, launcherName, turnoCommand, writeHelperLaunchers, writeLauncher } from "../launchers.js";
 
 export { SHARED_DIRS };
 
@@ -70,8 +73,8 @@ function lstat(path: string) {
 }
 
 /** Make <dir>/<item> a symlink to the hub, moving a local copy aside. */
-function linkItem(dir: string, item: string, aside: string, io: Io): void {
-  const target = join(paths(io.env).hub, item);
+function linkItem(dir: string, item: string, aside: string, io: Io, hub = paths(io.env).hub): void {
+  const target = join(hub, item);
   const path = join(dir, item);
   const st = lstat(path);
   if (st?.isSymbolicLink()) {
@@ -117,13 +120,62 @@ export interface SetupOptions {
   turno?: string;
 }
 
+/**
+ * Codex profiles: seed config.toml from the hub once, and always store the login in the
+ * profile (`cli_auth_credentials_store = "file"`), so each CODEX_HOME has its own account.
+ */
+function prepareCodex(dir: string, io: Io): void {
+  const file = join(dir, "config.toml");
+  let text = "";
+  if (existsSync(file)) text = readFileSync(file, "utf8");
+  else {
+    const hubFile = join(agentHub("codex", io.env), "config.toml");
+    if (existsSync(hubFile)) {
+      text = readFileSync(hubFile, "utf8");
+      io.out("  + config.toml from ~/.codex (the login is not copied)");
+    }
+  }
+  const next = setValue(text, undefined, "cli_auth_credentials_store", "file");
+  if (next !== text || !existsSync(file)) {
+    writeFileSync(file, next, { mode: 0o600 });
+    io.out('  + cli_auth_credentials_store = "file" (the login stays in this profile)');
+  }
+  chmodSync(file, 0o600);
+}
+
+/** Profile of an agent other than Claude Code: its directory, hub links, config, launcher. */
+function setupAgentProfile(name: string, agent: AgentId, io: Io): void {
+  const a = adapter(agent);
+  const hub = agentHub(agent, io.env);
+  const dir = agentProfileDir(name, agent, io.env);
+  const aside = join(dir, `.aside-${stamp()}`);
+  io.out(`▸ ${name} (${a.label}) → ${tildify(dir, io.env)}`);
+  mkdirSync(dir, { recursive: true });
+  chmodSync(dir, 0o700);
+  for (const item of a.sharedDirs) {
+    mkdirSync(join(hub, item), { recursive: true });
+    linkItem(dir, item, aside, io, hub);
+  }
+  for (const item of a.sharedFiles) {
+    if (existsSync(join(hub, item))) linkItem(dir, item, aside, io, hub);
+  }
+  if (agent === "codex") prepareCodex(dir, io);
+  writeLauncher(name, io.env, agent);
+  io.out(`  + command ${launcherName(name, agent)}`);
+}
+
 export function setupProfiles(names: string[], io: Io, opts: SetupOptions = {}): void {
   if (names.length === 0) fail("usage: turno setup <profile>...");
   for (const name of names) checkName(name);
   const p = paths(io.env);
-  if (!existsSync(p.hub)) fail(`the hub ${p.hub} does not exist`);
   const config = loadConfig(io.env);
   for (const name of names) {
+    const agent = agentOf(name, config);
+    if (agent !== "claude") {
+      setupAgentProfile(name, agent, io);
+      continue;
+    }
+    if (!existsSync(p.hub)) fail(`the hub ${p.hub} does not exist`);
     const dir = profileDir(name, io.env);
     const aside = join(dir, `.aside-${stamp()}`);
     io.out(`▸ ${name} → ${tildify(dir, io.env)}`);
@@ -148,7 +200,7 @@ export function setupProfiles(names: string[], io: Io, opts: SetupOptions = {}):
       chmodSync(history, 0o600);
       io.out("  + history.jsonl (initial copy; the ↑ history cannot be shared)");
     }
-    writeLauncher(name, io.env);
+    writeLauncher(name, io.env, "claude");
     io.out(`  + command claude-${name}`);
   }
   for (const written of writeHelperLaunchers(io.env, opts.turno ?? turnoCommand())) io.out(`+ command ${written}`);

@@ -133,7 +133,7 @@ export function renderUsage(profiles: string[], accounts: Record<string, Account
     out.push(paint(io, `${p}  ${email}${plan ? ` · ${plan}` : ""}`, "1"));
     const exhausted = exhaustedUntil(p, io.env);
     if (exhausted !== undefined && exhausted > now) {
-      out.push(paint(io, `  marked exhausted: its projects use the fallback until ${shortTime(exhausted)}`, "2"));
+      out.push(paint(io, `  marked exhausted: its projects use the fallback (if set) until ${shortTime(exhausted)}`, "2"));
     }
     const data = usageSnapshot(p, io.env);
     const limits = data.rate_limits ?? {};
@@ -171,7 +171,7 @@ export const command: Command = {
   ].join("\n"),
   async run(args, io) {
     const watch = args.includes("--watch");
-    const profiles = listProfiles(loadConfig(io.env), io.env);
+    const profiles = listProfiles(loadConfig(io.env), io.env, "claude");
     const list = await Promise.all(profiles.map((p) => account(p, io.env)));
     const accounts = Object.fromEntries(profiles.map((p, i) => [p, list[i]!]));
     if (!watch) {

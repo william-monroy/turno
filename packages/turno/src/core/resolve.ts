@@ -1,9 +1,11 @@
 import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { sep } from "node:path";
+import type { AgentId } from "../agents/index.js";
 import type { Config } from "./config.js";
 import { exhaustedUntil } from "./exhausted.js";
 import { tildify } from "./paths.js";
+import { agentOf } from "./profiles.js";
 
 export interface Resolution {
   /** Profile to launch now ("" means plain claude). */
@@ -55,20 +57,26 @@ export function formatUntil(epochSeconds: number): string {
   });
 }
 
-/** Which profile a folder uses: the longest matching project rule, else the default; fallback when exhausted. */
+/**
+ * Which profile of `agent` a folder uses: the longest matching project rule among that agent's
+ * profiles, else the agent's default; its fallback when the assigned profile is exhausted.
+ */
 export function resolveProfile(
   cwd: string,
   config: Config,
   env: NodeJS.ProcessEnv = process.env,
   roots: string[] = candidateRoots(cwd),
+  agent: AgentId = "claude",
 ): Resolution {
+  const roles = agent === "claude" ? { default: config.default, fallback: config.fallback } : (config.agents[agent] ?? {});
   let best: { profile: string; root: string } | undefined;
   for (const rule of config.projects) {
+    if (agentOf(rule.profile, config) !== agent) continue;
     const root = real(rule.path);
     const hit = roots.some((c) => c === root || c.startsWith(root + sep));
     if (hit && (!best || root.length > best.root.length)) best = { profile: rule.profile, root };
   }
-  const assigned = best ? best.profile : (config.default ?? "");
+  const assigned = best ? best.profile : (roles.default ?? "");
   const reason = best ? `project ${tildify(best.root, env)}` : "folder without a rule";
 
   let chosen = assigned;
@@ -76,7 +84,7 @@ export function resolveProfile(
   let until: number | undefined;
   if (assigned) {
     until = exhaustedUntil(assigned, env);
-    const fallback = config.fallback;
+    const fallback = roles.fallback;
     if (until !== undefined && fallback && fallback !== assigned && exhaustedUntil(fallback, env) === undefined) {
       chosen = fallback;
       note = `exhausted until ${formatUntil(until)}`;
