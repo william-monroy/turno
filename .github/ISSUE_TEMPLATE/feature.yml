@@ -1,0 +1,27 @@
+name: Feature request
+description: Propose a new command, config key, agent or behavior. Wait for the `accepted` label before opening a pull request.
+labels: [enhancement, triage]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do, and what gets in the way today? Your own words, please.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you propose
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: This adds an agent, changes the config format, the security model, or breaks a command (it needs an `rfc` issue and an ADR).

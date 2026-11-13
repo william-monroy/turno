@@ -1,0 +1,72 @@
+name: Bug report
+description: Something in turno does not work as documented.
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Run `turno doctor` first; it fixes or explains many problems.
+        Security issues go to SECURITY.md, not here.
+  - type: input
+    id: version
+    attributes:
+      label: turno version
+      description: Output of `turno version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: package
+    attributes:
+      label: Affected part
+      options:
+        - CLI (profiles, rules, limits, sessions)
+        - MCP gateway (mcpd)
+        - Status line
+        - Accounts bridge
+        - Browser (turno-browser)
+        - Fonts and terminals (turno ui)
+        - Plugin
+        - Install or upgrade
+    validations:
+      required: true
+  - type: input
+    id: agent
+    attributes:
+      label: Agent and its version
+      placeholder: "Claude Code 2.x, Codex CLI 0.1xx, ..."
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: OS and Node version
+      placeholder: "macOS 26.1, Node 24.11"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      value: |
+        1.
+        2.
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `turno doctor` and relevant logs
+      render: text
+  - type: checkboxes
+    id: redacted
+    attributes:
+      label: Before sending
+      options:
+        - label: I removed tokens, Keychain values, emails and personal paths from everything above.
+          required: true
