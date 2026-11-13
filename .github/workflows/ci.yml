@@ -5,21 +5,34 @@ on:
     branches: [main]
   pull_request:
 
-permissions:
-  contents: read
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:
+    name: check (${{ matrix.os }}, node ${{ matrix.node }})
     strategy:
       fail-fast: false
       matrix:
         os: [macos-latest, ubuntu-latest]
-        node: [20, 22, 24]
+        # Every Node line that is LTS (active or maintenance) at release time.
+        node: [22, 24, 26]
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read # check out the code
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        if: runner.os == 'Linux'
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
@@ -30,3 +43,37 @@ jobs:
           # The end-to-end test needs a signed-in claude; CI skips it.
           TURNO_SKIP_E2E: "1"
       - run: node scripts/pack-check.mjs
+
+  pull-request:
+    name: pull request rules
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # check out the code and diff it against the base
+      pull-requests: read # dependency review reads the pull request
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Title follows Conventional Commits
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: node scripts/commit-msg.mjs --title "$TITLE"
+      - name: Source changes carry a changeset
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-changeset') }}
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE"...HEAD)
+          if echo "$changed" | grep -q '^packages/[^/]*/src/' && ! echo "$changed" | grep -q '^\.changeset/.*\.md$'; then
+            echo "::error::This pull request changes packages/*/src but adds no changeset. Run pnpm changeset, or label it no-changeset if users will not notice."
+            exit 1
+          fi
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: moderate
+          deny-licenses: GPL-2.0-only, GPL-2.0-or-later, GPL-3.0-only, GPL-3.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later, SSPL-1.0

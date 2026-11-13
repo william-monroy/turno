@@ -1,7 +1,20 @@
 # Versions and releases
 
-turno follows semantic versioning per package (`turno`, `turno-browser`,
-`turno-fonts`). Why this setup: [ADR 0007](decisions/0007-versions-and-updates.md).
+turno follows semantic versioning per package (`turno`, `turno-browser`, `turno-fonts`).
+Why this setup: [ADR 0007](decisions/0007-versions-and-updates.md) and, for the release
+pipeline, [ADR 0011](decisions/0011-release-pipeline-and-supply-chain.md).
+
+## Version policy
+
+- **0.x for now.** While the version starts with 0, a minor release (0.3 to 0.4) may break a
+  command, a flag or a config key; patches never do. Every deprecation warns at run time for at
+  least one minor release before it goes away, and old command names stay as aliases.
+- **1.0** comes when the command tree, the config format (`config.toml`, `mcp.toml`) and the
+  agent adapter interface are stable. From then on, breaking changes need a major version.
+- **Node**: every line that is LTS (active or maintenance) when a release ships. Today that
+  is 22, 24 and 26; `engines` says `>=22.11` (the floor of Changesets 3). CI tests all three
+  on macOS and Linux. A Node line leaves the matrix, and `engines`, in the first minor release
+  after its end of life.
 
 ## Every change
 
@@ -12,41 +25,82 @@ pnpm changeset          # pick the packages, the bump (patch, minor, major) and 
 ```
 
 - **patch**: fixes, no new behavior.
-- **minor**: new commands, flags or config keys; old names keep working.
-- **major**: anything a user must act on: a removed command or key, a changed file layout.
-  The changeset says what to do, and `turno upgrade --finish` migrates what it can.
+- **minor**: new commands, flags or config keys; old names keep working. In 0.x, also breaking
+  changes, with a changeset that says what to do.
+- **major**: after 1.0, anything a user must act on: a removed command or key, a changed file
+  layout. The changeset says what to do, and `turno upgrade --finish` migrates what it can.
+
+CI fails a pull request that touches `packages/*/src` without a changeset, unless it carries
+the `no-changeset` label. The title of the pull request must follow Conventional Commits,
+because pull requests are squash-merged and the title becomes the commit.
 
 ## A release
 
-Releases come from CI, never from a laptop:
+Releases come from CI, never from a laptop. `.github/workflows/release.yml` runs on every push
+to `main`, in four jobs:
 
-1. Merging to `main` runs `.github/workflows/release.yml`. With pending changesets, it opens a
-   pull request "chore(release): version packages" that bumps versions and writes each
-   `CHANGELOG.md`.
-2. Merging that pull request runs the workflow again: `pnpm check`, `scripts/pack-check.mjs`
-   on every tarball, then `changeset publish`, which publishes the new versions to npm with
-   provenance and tags them.
+1. **version**: with pending changesets, Changesets opens or updates the pull request
+   "chore(release): version packages", which bumps versions and writes each `CHANGELOG.md`.
+   It cannot publish.
+2. **build** (after that pull request is merged): `pnpm check`, `pnpm pack:check`, then
+   `scripts/release-plan.mjs` packs every public package whose version is not on npm yet and
+   writes a CycloneDX SBOM per package. The tarballs go up as a workflow artifact. This job
+   has no `id-token` and no secrets.
+3. **publish**: in the protected `npm` environment, downloads the tarballs, attests them
+   (`actions/attest-build-provenance`) and runs `npm publish <tarball> --provenance` for each,
+   dependencies first. It does not check out the repository, install anything or use a cache,
+   so no project or dependency code runs where the publish token lives.
+4. **tag**: creates the `name@version` git tags and GitHub releases, with the SBOM attached.
+
+npm trusted publishing stages every version: it is scanned, then waits for a maintainer to
+approve it on npmjs.com with 2FA before it becomes installable. A stolen OIDC token can at
+most stage a version nobody approves.
 
 `pnpm pack:check` runs the tarball check locally. Prereleases: `pnpm changeset pre enter next`,
 then releases go to the `next` dist-tag (`turno upgrade --channel next` follows them);
 `pnpm changeset pre exit` ends it.
 
+## Supply chain
+
+- Workflows: `permissions: {}` at the top and the minimum per job, every action pinned to a
+  full commit SHA (Dependabot keeps them current), `persist-credentials: false`, no
+  `pull_request_target`, no cache in the release workflow, Harden-Runner in audit mode.
+  `zizmor.yml` lints the workflows on every change to `.github/`; `scorecard.yml` runs the
+  OpenSSF Scorecard weekly.
+- Dependencies: pnpm waits three days before installing a newly published version
+  (`minimumReleaseAge`), refuses a version that lost its provenance (`trustPolicy:
+  no-downgrade`) and refuses an unsupported Node (`engineStrict`). Dependabot opens one grouped
+  pull request a week per ecosystem, with a three-day cooldown. `scripts/licenses.mjs` fails on
+  licenses outside the allow list; the dependency review action does the same for pull requests.
+- Commits: `pnpm hooks` installs a `commit-msg` hook that enforces Conventional Commits and
+  rejects attribution trailers and the em dash.
+
 ## Before the first publish
 
 The packages are `"private": true` until these are done (they need the owner):
 
-1. Pick the npm name. `turno` and `turno-cli` are taken, so use a scope you own:
-   `@<scope>/turno`, `@<scope>/turno-browser`, `@<scope>/turno-fonts`. Rename the
-   packages and the imports of the optional ones (`turno-browser`, `turno-fonts`).
-2. Create the GitHub repository, add `repository`, `homepage` and `bugs` to each package.json,
-   and pin the workflow actions to commit SHAs (or let Dependabot do it).
-3. On npmjs.com, add the repository and `release.yml` as the trusted publisher of each package.
-4. Remove `"private": true` and add a changeset; the next release publishes.
+1. Settle the name. `turno` is free on npm, but the word is a registered US trademark in
+   classes 9 and 42 (see `docs/STATUS.md`); get legal advice before reserving the GitHub
+   organization, the npm organization and a domain.
+2. Create the GitHub repository; add `repository`, `homepage` and `bugs` to each
+   package.json; replace `OWNER` in `.github/ISSUE_TEMPLATE/config.yml`; turn on private
+   vulnerability reporting, Discussions (with an "Español" category), secret scanning with push
+   protection, the open pull request limit, the "require actions pinned to a SHA" policy, and
+   branch protection on `main` (pull request, passing `ci`, no force push).
+3. Create the `npm` environment in the repository settings, limited to `main`, with the owner
+   as required reviewer.
+4. On npmjs.com: an organization if a scope is used, a trusted publisher per package pointing at
+   `release.yml` and the `npm` environment, "require 2FA and disallow tokens" for publishing,
+   a passkey on the account, and no classic or granular tokens left.
+5. Name the backup administrator in `GOVERNANCE.md` and set the code of conduct contact.
+6. Remove `"private": true` and add a changeset; the next release publishes.
 
 ## How users update
 
 `turno upgrade` updates with the tool that installed turno (npm, pnpm, yarn, bun, volta) or
 pulls and rebuilds a git checkout, then `turno upgrade --finish` rewrites the launchers and
 shows the changelog since the previous version. `turno upgrade --check` only asks the
-registry. Interactive commands mention a new version at most once a day; `update_check = false`
-in config.toml or `TURNO_NO_UPDATE_CHECK=1` turns that off.
+registry. Interactive commands mention a new version at most once a day. The check sends only
+the package name, and it is off in CI, outside a terminal, with `update_check = false` in
+config.toml, or with any of `TURNO_NO_UPDATE_CHECK=1`, `NO_UPDATE_NOTIFIER=1` or
+`DO_NOT_TRACK=1`.

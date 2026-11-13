@@ -14,7 +14,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.11"
   },
   "bin": {
     "turno": "dist/cli/main.js"

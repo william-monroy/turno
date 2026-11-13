@@ -1,4 +1,5 @@
-// Fails when any tracked text file contains an em dash (U+2014). Project rule.
+// Fails when any tracked text file contains an em dash (U+2014). Project rule. License texts
+// under LICENSES/ are third-party legal text and stay verbatim.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
@@ -8,6 +9,7 @@ const files = execFileSync("git", ["ls-files", "--cached", "--others", "--exclud
 }).split("\n").filter(Boolean);
 const bad = [];
 for (const file of files) {
+  if (file.startsWith("LICENSES/")) continue;
   let buf;
   try {
     buf = readFileSync(file);

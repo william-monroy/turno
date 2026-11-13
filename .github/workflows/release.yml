@@ -1,40 +1,151 @@
 name: release
 
-# On main, Changesets either opens a "Version packages" pull request (bumps versions and
-# writes CHANGELOG.md from the pending changesets) or, once that request is merged,
-# publishes the new versions to npm with provenance through npm trusted publishing.
+# Three jobs, so the one that can publish never runs project code (the lesson of the
+# 2026-05 Mini Shai-Hulud attack):
+#   version  with pending changesets, opens or updates the "Version packages" pull request.
+#   build    after that pull request is merged: checks, packs every unpublished package,
+#            writes an SBOM per package, uploads them as an artifact. No id-token, no secrets.
+#   publish  downloads the tarballs, attests them and publishes with npm trusted publishing.
+#            No checkout, no install, no cache, runs in the protected "npm" environment.
+#            Trusted publishing stages each version; a maintainer approves it on npmjs.com.
+#   tag      creates the git tags and GitHub releases of what was published.
 on:
   push:
     branches: [main]
 
-concurrency: release-${{ github.ref }}
+permissions: {}
 
-permissions:
-  contents: write
-  pull-requests: write
-  id-token: write
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  release:
-    runs-on: macos-latest
+  version:
+    name: version pull request
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the version commit to the changeset-release branch
+      pull-requests: write # open or update the version pull request
+    outputs:
+      has-changesets: ${{ steps.changesets.outputs.has-changesets }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-          cache: pnpm
-          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - id: changesets
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          version-script: pnpm version-packages
+          commit-message: "chore(release): version packages"
+          pr-title: "chore(release): version packages"
+          create-github-releases: false
+          push-git-tags: false
+
+  build:
+    name: check and pack
+    needs: version
+    if: needs.version.outputs.has-changesets == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # check out the code
+    outputs:
+      count: ${{ steps.plan.outputs.count }}
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
         env:
           TURNO_SKIP_E2E: "1"
-      - uses: changesets/action@v1
+      - run: pnpm pack:check
+      - id: plan
+        run: node scripts/release-plan.mjs release
+      - if: steps.plan.outputs.count != '0'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          version: pnpm version-packages
-          publish: pnpm release
-          commit: "chore(release): version packages"
-          title: "chore(release): version packages"
+          name: release
+          path: release/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: publish to npm
+    needs: build
+    if: needs.build.outputs.count != '0'
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      id-token: write # npm trusted publishing and provenance
+      attestations: write # build provenance attestation of the tarballs
+      contents: read # read the artifact
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: release
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: release/*.tgz
+      - name: Publish the tarballs (dependencies first)
+        working-directory: release
+        run: |
+          for row in $(jq -c '.[]' plan.json); do
+            tarball=$(jq -r .tarball <<<"$row")
+            tag=$(jq -r .tag <<<"$row")
+            npm publish "$tarball" --provenance --access public --tag "$tag"
+          done
+
+  tag:
+    name: git tags and releases
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create tags and releases
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: release
+      - name: Tag and release what was published
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TURNO_SKIP_E2E: "1"
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        working-directory: release
+        run: |
+          for row in $(jq -c '.[]' plan.json); do
+            name=$(jq -r .name <<<"$row")
+            version=$(jq -r .version <<<"$row")
+            tag=$(jq -r .tag <<<"$row")
+            flags=()
+            if [ "$tag" != latest ]; then flags+=(--prerelease); fi
+            gh api "repos/$REPO/git/refs" -f "ref=refs/tags/$name@$version" -f "sha=$SHA"
+            gh release create "$name@$version" --repo "$REPO" --verify-tag "${flags[@]}" \
+              --title "$name $version" --notes "See CHANGELOG.md of $name. SBOM attached." "${name}-${version}.cdx.json"
+          done

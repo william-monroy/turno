@@ -15,7 +15,7 @@ import { main } from "../src/cli/main.js";
 import { loadConfig } from "../src/core/config.js";
 import { Journal, listJournals, undoJournal } from "../src/core/journal.js";
 import { addArrayTable, ensureTable, removeArrayTables, removeTable, removeValue, setValue } from "../src/core/toml-edit.js";
-import { fetchLatest, registryUrl, updateChecksOff, updateNotice } from "../src/core/update.js";
+import { envOptOut, fetchLatest, registryUrl, updateChecksOff, updateNotice } from "../src/core/update.js";
 import { compareVersions, detectInstall, packageInfo, upgradeCommand } from "../src/core/version.js";
 import { fakeCommand, fakeIo } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -244,6 +244,15 @@ describe("versions and upgrades", () => {
     expect(upgradeCommand({ method: "npm", root: "/x" }, "@x/turno", "1.2.3")).toEqual([["npm", "install", "--global", "@x/turno@1.2.3"]]);
     expect(upgradeCommand({ method: "source", root: "/r/p", repo: "/r" }, "turno", "latest")![0]).toEqual(["git", "-C", "/r", "pull", "--ff-only"]);
     expect(registryUrl({}, "@x/turno", "latest")).toBe("https://registry.npmjs.org/@x%2Fturno/latest");
+  });
+
+  it("honors the common opt-out variables for update checks", () => {
+    expect(envOptOut({})).toBeUndefined();
+    expect(envOptOut({ TURNO_NO_UPDATE_CHECK: "1" })).toBe("turned off by the environment");
+    expect(envOptOut({ NO_UPDATE_NOTIFIER: "1" })).toBe("turned off by the environment");
+    expect(envOptOut({ DO_NOT_TRACK: "1" })).toBe("turned off by the environment");
+    expect(envOptOut({ DO_NOT_TRACK: "0" })).toBeUndefined();
+    expect(envOptOut({ CI: "true" })).toBe("running in CI");
   });
 
   it("checks the registry, caches the answer and mentions a newer version once a day", async () => {

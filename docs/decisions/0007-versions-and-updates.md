@@ -29,8 +29,8 @@ Options considered:
   packages" pull request, and merging it publishes to npm with provenance through npm trusted
   publishing (OIDC, no long-lived token). `scripts/pack-check.mjs` checks every tarball first:
   required files present, no tests, sources, maps or env files, no local home paths, size cap.
-- The packages stay `"private": true` until the owner picks the npm name: `turno` and
-  `turno-cli` are taken on npm, so it will be a scope (for example `@<scope>/turno`). The
+- The packages stay `"private": true` until the owner picks the npm name: `claudio` and
+  `claudio-cli` were taken on npm (ADR 0009 later settled on `turno`, which is free). The
   command stays `turno` whatever the package is called.
 - `turno version` and `turno --version` read package.json. `turno upgrade` detects the
   install (npm, pnpm, yarn, bun, volta, or a git checkout) and runs the matching command, then

@@ -32,15 +32,26 @@ function writeUpdateState(env: NodeJS.ProcessEnv, s: UpdateState): void {
   writeFileSync(file(env), `${JSON.stringify(s)}\n`);
 }
 
+const truthy = (v: string | undefined): boolean => v !== undefined && v !== "" && v !== "0" && v.toLowerCase() !== "false";
+
+/** Why the environment turns update checks off: TURNO_NO_UPDATE_CHECK, NO_UPDATE_NOTIFIER, DO_NOT_TRACK, CI. */
+export function envOptOut(env: NodeJS.ProcessEnv): string | undefined {
+  if (truthy(env.TURNO_NO_UPDATE_CHECK) || truthy(env.NO_UPDATE_NOTIFIER) || truthy(env.DO_NOT_TRACK)) {
+    return "turned off by the environment";
+  }
+  if (truthy(env.CI)) return "running in CI";
+  return undefined;
+}
+
 /**
  * Why update checks are off, or undefined when they run. Off for unpublished (private)
- * copies, in CI, with TURNO_NO_UPDATE_CHECK or NO_UPDATE_NOTIFIER, and with
+ * copies, in CI, with TURNO_NO_UPDATE_CHECK, NO_UPDATE_NOTIFIER or DO_NOT_TRACK, and with
  * `update_check = false` in config.toml.
  */
 export function updateChecksOff(env: NodeJS.ProcessEnv, configured = true): string | undefined {
   if (packageInfo().private) return "this copy is not published to a registry";
-  if (env.TURNO_NO_UPDATE_CHECK || env.NO_UPDATE_NOTIFIER) return "turned off by the environment";
-  if (env.CI) return "running in CI";
+  const off = envOptOut(env);
+  if (off) return off;
   if (!configured) return "update_check = false in config.toml";
   return undefined;
 }
