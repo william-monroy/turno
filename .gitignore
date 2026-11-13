@@ -8,4 +8,7 @@ coverage/
 # Copied in by prepack for the npm tarball
 packages/turno/README.md
 packages/turno/LICENSE
+packages/turno/NOTICE
+packages/browser/LICENSE
+packages/browser/NOTICE
 *.tgz

@@ -1,0 +1,17 @@
+# Machine-readable licensing (https://reuse.software). `uvx reuse lint` checks it.
+version = 1
+
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 William Frank Monroy Mamani"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = ["packages/fonts/fonts/**", "packages/fonts/LICENSE.txt"]
+precedence = "override"
+SPDX-FileCopyrightText = [
+  "2009, 2010, 2013 Andre Berg",
+  "2014 Ryan L McIntyre",
+]
+SPDX-License-Identifier = "Apache-2.0 AND OFL-1.1 AND MIT AND CC-BY-4.0"

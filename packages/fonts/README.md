@@ -18,4 +18,4 @@ The files are byte for byte the ones in
 
 Meslo LG is Copyright 2009, 2010, 2013 André Berg, under the Apache License 2.0. The Nerd Fonts
 icons and patcher are under the SIL Open Font License 1.1 and the MIT License. Both texts are in
-[LICENSE.txt](LICENSE.txt). The fonts keep their own licenses; the rest of turno is MIT.
+[LICENSE.txt](LICENSE.txt). The fonts keep their own licenses; the rest of turno is under the Apache License 2.0.

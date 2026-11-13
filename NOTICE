@@ -1,0 +1,18 @@
+turno
+Copyright 2026 William Frank Monroy Mamani
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The turno-fonts package redistributes MesloLGS Nerd Font 3.4.0: Meslo LG,
+Copyright 2009, 2010, 2013 Andre Berg, under the Apache License 2.0, patched with
+the Nerd Fonts icon sets, which carry their own licenses (SIL OFL 1.1, MIT,
+CC BY 4.0, Apache 2.0). The full texts and attributions are in
+packages/fonts/LICENSE.txt.
+
+Third-party npm dependencies are installed from the registry with their own
+licenses; THIRD_PARTY_NOTICES.md lists them.
+
+turno is an independent project. It is not affiliated with, endorsed by or
+sponsored by Anthropic, OpenAI, GitHub, Google, Anysphere or any other vendor
+whose tools it can launch. Product names are used only to say what turno works
+with.

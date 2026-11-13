@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Stealth browser MCP server with persistent per-identity Chrome profiles, built on patchright-core.",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -22,12 +22,15 @@
   },
   "files": [
     "dist",
-    "!dist/**/*.map"
+    "!dist/**/*.map",
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/bin/mcp.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepack": "pnpm run build && cp ../../LICENSE ../../NOTICE ."
   },
   "dependencies": {
     "patchright-core": "1.64.3"

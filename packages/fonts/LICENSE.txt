@@ -143,3 +143,37 @@ INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
 DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
+
+
+------------------------------------------------------------------------
+Icon sets patched into the fonts (Nerd Fonts 3.4.0 license audit)
+------------------------------------------------------------------------
+
+The Nerd Fonts glyphs come from these projects, each under its own license
+(https://github.com/ryanoasis/nerd-fonts/blob/v3.4.0/license-audit.md):
+
+| Project                                | License         |
+| -------------------------------------- | --------------- |
+| Codicons (Microsoft)                   | CC BY 4.0       |
+| Devicons                               | MIT             |
+| Font Awesome (Fonticons, Inc.)         | CC BY 4.0       |
+| Font Awesome Extension                 | MIT             |
+| Font Logos                             | Unlicense       |
+| IEC Power Symbols                      | MIT             |
+| Material Design Icons                  | Apache 2.0      |
+| Seti-UI (modified)                     | MIT             |
+| Octicons (GitHub)                      | MIT             |
+| Pomicons                               | SIL OFL 1.1     |
+| Powerline Extra Symbols                | MIT             |
+| Powerline Symbols                      | Free license    |
+| Weather Icons                          | SIL OFL 1.1     |
+
+Attribution for the CC BY 4.0 sets: the Font Awesome icons are by Fonticons,
+Inc. (https://fontawesome.com), and the Codicons are by Microsoft Corporation
+(https://github.com/microsoft/vscode-codicons). Both are used unmodified apart
+from the Nerd Fonts patching (scaling and placement in the Private Use Area),
+under the Creative Commons Attribution 4.0 International license
+(https://creativecommons.org/licenses/by/4.0/).
+
+Meslo LG itself is a customized version of Apple's Menlo, which derives from
+Bitstream Vera Sans Mono (Copyright 2003 Bitstream, Inc.).
