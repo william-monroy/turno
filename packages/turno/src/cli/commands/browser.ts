@@ -115,7 +115,7 @@ async function bench(mod: BrowserModule, args: string[], io: Io): Promise<number
 }
 
 export const command: Command = {
-  summary: "browser engine bench against bot detectors (identities live in turno identity)",
+  summary: "how automation-fingerprint test pages see each browser engine (identities live in turno identity)",
   usage: USAGE,
   subcommands: { bench: { flags: ["--engine", "--url", "--no-detectors", "--json"] } },
   async run(args, io) {

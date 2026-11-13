@@ -2,7 +2,7 @@
   "name": "turno-browser",
   "version": "0.1.0",
   "private": true,
-  "description": "Stealth browser MCP server with persistent per-identity Chrome profiles, built on patchright-core.",
+  "description": "Browser MCP server that drives your installed Chrome with a persistent profile per identity, built on patchright-core.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -24,7 +24,8 @@
     "dist",
     "!dist/**/*.map",
     "LICENSE",
-    "NOTICE"
+    "NOTICE",
+    "README.md"
   ],
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/bin/mcp.js",

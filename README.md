@@ -1,12 +1,12 @@
 # turno
 
 Run several Claude Code accounts on one Mac as if they were one: shared conversations, memory,
-skills and plugins, per-folder account rules, automatic fallback when an account hits its usage
-limit, and one local gateway that starts each MCP server once instead of once per session.
+skills and plugins, a rule for which of your accounts each folder uses, and one local gateway
+that starts each MCP server once instead of once per session.
 
 ```
 turno work                  # Claude Code logged into the "work" account
-turno auto                  # the account assigned to this folder (fallback if exhausted)
+turno auto                  # the account assigned to this folder
 turno status                # this folder, every account and its usage, sessions, mcpd
 turno limit show --watch    # 5 h and weekly usage of every account, live
 ```
@@ -23,20 +23,22 @@ turno fixes both:
 - **Profiles.** Each account gets `~/.claude-<name>` with its own credentials and history, and
   symlinks to the shared hub (`~/.claude`) for projects, plans, skills, plugins, agents and
   settings. `turno <name> --resume <id>` continues any session with any account.
-- **Rules.** `config.toml` maps folders to profiles. `turno auto` picks the right one and, when
-  that account is out of quota, a fallback until the reset time.
+- **Rules.** `config.toml` maps folders to profiles, and `turno auto` picks the right one. An
+  optional `fallback` (off unless you set it) names the profile to open while the assigned one
+  is marked exhausted; see [Vendor terms](#vendor-terms) before you turn it on.
 - **mcpd.** A small HTTP gateway on `127.0.0.1` that every profile's MCP entries point to. It
   answers `initialize` and the tool lists from a cache, starts a server only when a tool is called,
   shares one process between sessions where that is safe, and stops it when idle.
-- **Stealth browser.** `turno-browser-mcp` is the Playwright MCP server built on Patchright, a
-  patched Playwright that portals detect far less, with persistent per-identity profiles.
+- **Browser with real profiles** (optional package). `turno-browser-mcp` is the Playwright MCP
+  server built on Patchright, driving your installed Chrome with a persistent profile per
+  identity, so the sites you sign into once stay signed in.
 - **Accounts bridge.** A builtin MCP server that lets a session in one profile delegate a task to
   a service account (a Linear workspace, a mail connector) that only another profile is logged
   into, with confirmation for anything that writes.
 
 ## Install
 
-Requirements: macOS (Linux works for everything but the Keychain and the LaunchAgent), Node 22.15
+Requirements: macOS (Linux works for everything but the Keychain and the LaunchAgent), Node 22.11
 or newer, Claude Code (`claude` on PATH).
 
 From the source (pnpm needed):
@@ -70,7 +72,7 @@ turno status                                # who is logged in where, and their 
 ```toml
 system = "personal"     # account the plain `claude` command uses
 default = "personal"    # profile for folders without a rule
-fallback = "work"       # used while the assigned profile is exhausted
+# fallback = "work"     # optional, off unless set: opened while the assigned profile is exhausted
 
 [profiles.work]
 color = "violet"        # status line pill
@@ -94,15 +96,15 @@ changes, and prints the `turno undo <stamp>` that puts them back.
 | Command | What it does |
 |---|---|
 | `turno <profile> [args]`, `turno run <profile\|auto> [args]` | Claude Code with that account (replaces the process, args pass through) |
-| `turno auto` | the profile assigned to the current folder, with fallback |
+| `turno auto` | the profile assigned to the current folder (and the fallback, if you set one) |
 | `turno profile list\|add\|repair\|remove\|which\|assign\|unassign` | the accounts, and which folders use each |
-| `turno limit show [--watch]\|set <p> [--until \| --for]\|clear <p>` | usage windows, and exhausted marks that move projects to the fallback |
+| `turno limit show [--watch]\|set <p> [--until \| --for]\|clear <p>` | usage windows, and exhausted marks (used by the optional fallback) |
 | `turno session list\|handoff <p> [--fork]` | open sessions, and the command to continue or fork this one under another profile |
 | `turno open [profile] <url>` | open a link; claude.ai links use that profile's Chrome profile |
 | `turno mcp list\|sync\|import\|install\|refresh\|doctor\|daemon ...` | the MCP gateway (below) |
 | `turno identity list\|add\|remove\|login\|prefer\|log` | service accounts for the bridge and browser identities |
 | `turno secret set\|has\|rm\|list` | MCP secrets in the macOS Keychain |
-| `turno browser bench` | stealth browser engines against bot detectors |
+| `turno browser bench` | how automation-fingerprint test pages see each browser engine |
 | `turno ui status\|install` | the status line, its font and icons in every terminal |
 | `turno status` | one screen: this folder, profiles and usage, sessions, mcpd, the look |
 | `turno doctor [--fix]` | check everything and repair what is safe to repair |
@@ -162,17 +164,24 @@ different accounts of the same service. Details in [docs/mcp.md](docs/mcp.md).
 The gateway listens on `127.0.0.1` only, requires a bearer token (mode 600 file), and rejects any
 request with an `Origin` header, so a web page cannot reach it.
 
-## Stealth browser
+## Browser with real profiles
 
 ```sh
-turno identity add browser:school  # create an identity and print its mcp.toml entry
+npm install --global turno-browser   # optional: only if you want it
+turno identity add browser:school    # create an identity and print its mcp.toml entry
 turno identity login browser:school  # sign in by hand once; cookies persist
 turno browser bench --url https://portal.example.edu
 ```
 
-It uses the installed Google Chrome, headed, with a persistent profile per identity and no init
-scripts. Read [ADR 0005](docs/decisions/0005-stealth-browser-defaults.md) for what it does and
-does not hide. Use it only with your own accounts and within each site's terms.
+It drives the installed Google Chrome, headed, with a persistent profile per identity and no
+injected scripts, so an agent works in the same browser and session you would use yourself.
+Read [ADR 0005](docs/decisions/0005-stealth-browser-defaults.md) for the settings and what they
+do and do not change.
+
+**Acceptable use.** Use it with your own accounts, on sites whose terms allow automated access
+by you, and at a human pace. Do not use it to get around access controls, paywalls, CAPTCHAs or
+rate limits, to scrape at scale, or to access accounts that are not yours. You are responsible
+for how you use it; see [Disclaimers](#disclaimers).
 
 ## Accounts bridge
 
@@ -188,7 +197,8 @@ every call goes to an audit log (`turno identity log`).
 
 ## Companion plugin
 
-`plugins/turno` adds the hook that marks a profile exhausted when it hits its limit, plus the
+`plugins/turno` adds the hook that marks a profile exhausted when it hits its limit (it only
+changes which profile opens next if you set a `fallback`), plus the
 `switch-account` and `fork-session` skills. Install it from this repository:
 
 ```
@@ -216,6 +226,48 @@ same Nerd Fonts release and icon size as Orca's terminal, and `turno ui install`
 your user font folder; terminals that ship the symbols
 (Ghostty, WezTerm, kitty) need nothing. Where no Nerd Font is set the line falls back to Unicode
 icons by itself. Details: [docs/ui.md](docs/ui.md).
+
+## Disclaimers
+
+### Not affiliated
+
+turno is an independent open-source project. It is not affiliated with, endorsed by or
+sponsored by Anthropic, OpenAI, GitHub, Google, Anysphere or any other vendor. Claude, Claude
+Code, Codex, Copilot, Cursor and Gemini are trademarks of their owners; turno uses the names
+only to say which tools it works with. turno runs the vendors' own, unmodified command-line
+tools.
+
+### Vendor terms
+
+Each account you add is yours and stays bound by its vendor's terms; turno does not change
+them. turno never reads, stores or forwards your login tokens, and it does not proxy model
+traffic: every agent logs in by itself, in its own directory. Before you use several accounts:
+
+- Check that your plan allows it, and use each account for what its terms allow (for example,
+  a work account for work).
+- The `fallback` setting is off by default. It chooses which of your own accounts opens a
+  folder while another is marked exhausted. Vendors' usage policies forbid creating or using
+  accounts to get around usage limits or safeguards, so read your plan's terms before you set
+  it, and do not use it for that.
+
+### No warranty
+
+turno is provided "as is", without warranty of any kind (Apache License 2.0, sections 7 and 8).
+It edits agent config files and launches programs as your user; every write keeps a backup
+that `turno undo` restores.
+
+### Update check
+
+Interactive commands ask the npm registry for a newer version at most once a day, sending only
+the package name. Turn it off with `update_check = false` in config.toml, `DO_NOT_TRACK=1`,
+`NO_UPDATE_NOTIFIER=1` or `TURNO_NO_UPDATE_CHECK=1`; it is also off in CI and outside a
+terminal. turno sends no other data anywhere.
+
+## Contributing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md), the [Code of Conduct](CODE_OF_CONDUCT.md) and the
+[AI policy](AI_POLICY.md). Security issues: [SECURITY.md](SECURITY.md). Governance:
+[GOVERNANCE.md](GOVERNANCE.md).
 
 ## Files
 

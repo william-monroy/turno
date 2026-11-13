@@ -39,6 +39,7 @@ for (const dir of readdirSync(join(root, "packages"))) {
     const buf = readFileSync(existsSync(join(cwd, f)) ? join(cwd, f) : join(root, f));
     bytes += buf.length;
     if (!buf.includes(0) && buf.toString("utf8").includes(home)) fail(pkg.name, `${f} contains a local home path`);
+    if (!pkg.private && !buf.includes(0) && buf.toString("utf8").includes("github.com/OWNER/")) fail(pkg.name, `${f} still links to the OWNER placeholder repository`);
   }
   for (const bin of Object.values(typeof pkg.bin === "string" ? { x: pkg.bin } : (pkg.bin ?? {}))) {
     if (has.has(bin) && !readFileSync(join(cwd, bin), "utf8").startsWith("#!/usr/bin/env node")) fail(pkg.name, `${bin} has no node shebang`);
