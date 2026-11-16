@@ -1,5 +1,6 @@
+import { accessSync, chmodSync, constants, mkdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { delimiter, dirname, isAbsolute, join, relative, sep } from "node:path";
 
 /**
  * Every path turno touches, derived from HOME and the XDG variables so tests can run
@@ -88,4 +89,93 @@ export function expandHome(p: string, env: NodeJS.ProcessEnv = process.env): str
   if (p === "~") return home;
   if (p.startsWith("~/")) return join(home, p.slice(2));
   return p;
+}
+
+/** Mode of every directory turno creates under its own config, state and data roots. */
+export const PRIVATE_DIR_MODE = 0o700;
+/** Mode of every file turno writes under those roots (logs, accounts.toml, audit log, mcpd.port). */
+export const PRIVATE_FILE_MODE = 0o600;
+
+/** turno's own roots (config, state, data): what `ensurePrivateDir` locks down. */
+export function privateRoots(env: NodeJS.ProcessEnv = process.env): string[] {
+  const p = paths(env);
+  return [p.config, p.state, p.data];
+}
+
+function within(file: string, root: string): boolean {
+  const rel = relative(root, file);
+  return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+}
+
+/** The turno root (config, state or data) that holds `file`, if any. */
+function rootOf(file: string, env: NodeJS.ProcessEnv): string | undefined {
+  return privateRoots(env).find((root) => within(file, root));
+}
+
+/** True when `file` is one of turno's roots or lies inside one. */
+export function isPrivatePath(file: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  return rootOf(file, env) !== undefined;
+}
+
+/** Roots already checked by this process (tests switch HOME, so the key is the path). */
+const lockedRoots = new Set<string>();
+
+function lockRoot(root: string): void {
+  if (lockedRoots.has(root)) return;
+  // Parents such as ~/.config keep the default mode; only turno's own folder is private.
+  mkdirSync(dirname(root), { recursive: true });
+  try {
+    mkdirSync(root, { mode: PRIVATE_DIR_MODE });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+  }
+  const st = statSync(root);
+  if ((st.mode & 0o777) !== PRIVATE_DIR_MODE && st.uid === process.getuid?.()) chmodSync(root, PRIVATE_DIR_MODE);
+  lockedRoots.add(root);
+}
+
+/**
+ * Create `dir` (and its parents) for turno's own state. Inside turno's config, state and data
+ * roots every folder is created 0700, and an existing root with a wider mode is narrowed to
+ * 0700 the first time a process uses it. Other folders are created with the default mode.
+ * Returns `dir`.
+ */
+export function ensurePrivateDir(dir: string, env: NodeJS.ProcessEnv = process.env): string {
+  const root = rootOf(dir, env);
+  if (!root) {
+    mkdirSync(dir, { recursive: true });
+    return dir;
+  }
+  lockRoot(root);
+  // Recursive mkdir applies the mode to every folder it creates, the root included if it vanished.
+  mkdirSync(dir, { recursive: true, mode: PRIVATE_DIR_MODE });
+  return dir;
+}
+
+/** Forget which roots were checked (tests). */
+export function resetPrivateDirCache(): void {
+  lockedRoots.clear();
+}
+
+/** The first executable called `name` on the PATH of `env`, or undefined. */
+export function findOnPath(name: string, env: NodeJS.ProcessEnv = process.env): string | undefined {
+  if (name.includes("/")) {
+    try {
+      accessSync(name, constants.X_OK);
+      return name;
+    } catch {
+      return undefined;
+    }
+  }
+  for (const dir of (env.PATH ?? "").split(delimiter)) {
+    if (!dir) continue;
+    const file = join(dir, name);
+    try {
+      accessSync(file, constants.X_OK);
+      if (statSync(file).isFile()) return file;
+    } catch {
+      /* next */
+    }
+  }
+  return undefined;
 }

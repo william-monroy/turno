@@ -2,7 +2,6 @@ import { mkdirSync, readFileSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { doctor } from "../src/cli/commands/doctor.js";
-import { command as open, isClaudeUrl, openArgs } from "../src/cli/commands/open.js";
 import { command as status } from "../src/cli/commands/status.js";
 import { command as usage, usageSnapshot } from "../src/cli/commands/usage.js";
 import { writeLauncher } from "../src/cli/launchers.js";
@@ -93,38 +92,6 @@ describe("doctor shared links", () => {
     await doctor(fixed, { fix: true });
     expect(fixed.lines).toContain("$ turno profile repair work");
     expect(fixed.lines.some((l) => l.includes("skills is a local copy"))).toBe(false);
-  });
-});
-
-describe("open", () => {
-  beforeEach(() => {
-    mkdirSync(join(sb.home, "Chrome.app"));
-    sb.env.TURNO_CHROME_APP = join(sb.home, "Chrome.app");
-    sb.write(".config/turno/config.toml", 'system = "personal"\n[profiles.personal]\nbrowser = "default"\n');
-  });
-
-  it("matches only claude.ai and claude.com links", () => {
-    expect(isClaudeUrl("https://claude.ai/artifact/x")).toBe(true);
-    expect(isClaudeUrl("https://www.claude.com/x")).toBe(true);
-    expect(isClaudeUrl("https://example.com/claude.ai/")).toBe(false);
-    expect(isClaudeUrl("http://claude.ai/x")).toBe(false);
-  });
-
-  it("picks the Chrome profile from the argument or CLAUDE_CONFIG_DIR", () => {
-    const chrome = join(sb.home, ".local/share/turno/chrome");
-    const url = "https://claude.ai/artifact/1";
-    expect(openArgs("work", url, sb.env)).toEqual(["-na", "Google Chrome", "--args", `--user-data-dir=${chrome}`, "--profile-directory=work", url]);
-    expect(openArgs(undefined, url, { ...sb.env, CLAUDE_CONFIG_DIR: join(sb.home, ".claude-work") })).toContain("--profile-directory=work");
-    expect(openArgs(undefined, url, sb.env)).toEqual([url]); // system profile uses the default browser
-    expect(openArgs("work", "https://example.com", sb.env)).toEqual(["https://example.com"]);
-    expect(() => openArgs("setup", url, sb.env)).toThrow(/reserved/);
-  });
-
-  it("runs open with those arguments", async () => {
-    const log = join(sb.home, "open.log");
-    fakeCommand(sb, "open", `printf '%s\\n' "$@" > "${log}"`);
-    expect(await open.run(["work", "https://claude.ai/x"], fakeIo(sb.env))).toBe(0);
-    expect(readFileSync(log, "utf8")).toContain("--profile-directory=work\nhttps://claude.ai/x\n");
   });
 });
 

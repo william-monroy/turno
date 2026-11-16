@@ -1,7 +1,7 @@
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { basename, dirname, join } from "node:path";
-import { paths } from "./paths.js";
+import { PRIVATE_FILE_MODE, ensurePrivateDir, isPrivatePath, paths } from "./paths.js";
 
 /**
  * Every command that changes a file the user owns records it in a journal first:
@@ -35,6 +35,16 @@ export function stamp(d = new Date()): string {
 }
 
 const MANIFEST = "journal.json";
+
+/** Automatic pruning when a new backup is written: older than 30 days, newest 10 always kept. */
+export const PRUNE_DEFAULT_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+export const PRUNE_DEFAULT_KEEP = 10;
+
+function writeManifest(dir: string, m: JournalManifest): void {
+  const file = join(dir, MANIFEST);
+  writeFileSync(file, `${JSON.stringify(m, null, 2)}\n`, { mode: PRIVATE_FILE_MODE });
+  chmodSync(file, PRIVATE_FILE_MODE);
+}
 
 function digest(file: string): string {
   try {
@@ -77,6 +87,8 @@ export class Journal {
     command: string,
     /** Dry runs record nothing and write nothing. */
     readonly dryRun = false,
+    /** Stamps the automatic pruning must not touch (the journal an undo reads from). */
+    private protect: string[] = [],
   ) {
     const root = paths(env).backupsDir;
     let s = stamp();
@@ -101,8 +113,11 @@ export class Journal {
       if (!st.isFile()) throw new Error(`${target} is not a regular file; turno only journals files`);
       entry.mode = st.mode & 0o777;
       entry.backup = join("files", `${this.manifest.entries.length}-${basename(target)}`);
-      mkdirSync(join(this.dir, "files"), { recursive: true });
-      copyFileSync(target, join(this.dir, entry.backup));
+      ensurePrivateDir(join(this.dir, "files"), this.env);
+      // The copy may hold secrets (a config with a literal token): 0600 inside 0700 folders.
+      const copy = join(this.dir, entry.backup);
+      copyFileSync(target, copy);
+      chmodSync(copy, PRIVATE_FILE_MODE);
     }
     this.manifest.entries.push(entry);
     this.flush();
@@ -119,16 +134,27 @@ export class Journal {
     this.flush();
   }
 
+  private flushed = false;
+
   private flush(): void {
-    mkdirSync(this.dir, { recursive: true });
-    writeFileSync(join(this.dir, MANIFEST), `${JSON.stringify(this.manifest, null, 2)}\n`);
+    ensurePrivateDir(this.dir, this.env);
+    writeManifest(this.dir, this.manifest);
+    if (!this.flushed) {
+      this.flushed = true;
+      try {
+        pruneJournals(this.env, { exclude: [this.stamp, ...this.protect] });
+      } catch {
+        /* pruning is housekeeping: never let it break the command that writes */
+      }
+    }
   }
 
   /** Save, then write atomically through symlinks so linked profiles keep linking. */
   write(file: string, data: string | Buffer, mode?: number): void {
     if (this.dryRun) return;
     const target = this.save(file);
-    let keep = mode;
+    // turno's own files (config.toml, mcp.toml, accounts.toml) are private whatever mode they had.
+    let keep = mode ?? (isPrivatePath(target, this.env) ? PRIVATE_FILE_MODE : undefined);
     if (keep === undefined) {
       try {
         keep = statSync(target).mode & 0o777;
@@ -136,6 +162,7 @@ export class Journal {
         keep = undefined;
       }
     }
+    if (isPrivatePath(target, this.env)) ensurePrivateDir(dirname(target), this.env);
     atomicWrite(target, data, keep);
     this.settle(target);
   }
@@ -202,7 +229,7 @@ export function undoJournal(
   const dryRun = Boolean(opts.dryRun);
   const m = info.manifest;
   if (!m) throw new Error(`${info.stamp} was written before journals existed; restore it by hand from ${info.dir}`);
-  const journal = new Journal(env, `undo ${info.stamp}`, dryRun);
+  const journal = new Journal(env, `undo ${info.stamp}`, dryRun, [info.stamp]);
   const steps: UndoStep[] = [];
   for (const e of [...m.entries].reverse()) {
     if (!opts.force && e.wrote && digest(e.path) !== e.wrote) {
@@ -219,7 +246,79 @@ export function undoJournal(
   }
   if (!dryRun) {
     m.undoneBy = journal.stamp;
-    writeFileSync(join(info.dir, MANIFEST), `${JSON.stringify(m, null, 2)}\n`);
+    writeManifest(info.dir, m);
   }
   return { steps, journal };
+}
+
+/** When a journal was written: its manifest, else its stamp (local time), else the folder mtime. */
+export function journalTime(info: JournalInfo): number {
+  const created = info.manifest ? Date.parse(info.manifest.created) : Number.NaN;
+  if (!Number.isNaN(created)) return created;
+  const m = /^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/.exec(info.stamp);
+  if (m) return new Date(+m[1]!, +m[2]! - 1, +m[3]!, +m[4]!, +m[5]!, +m[6]!).getTime();
+  try {
+    return statSync(info.dir).mtimeMs;
+  } catch {
+    return Date.now();
+  }
+}
+
+/**
+ * The first file a journal can still put back cleanly: not undone, and the file holds exactly
+ * what the command left there. Its backup is then the only copy of what was there before.
+ */
+export function liveEntry(info: JournalInfo): JournalEntry | undefined {
+  const m = info.manifest;
+  if (!m || m.undoneBy) return undefined;
+  return m.entries.find((e) => e.wrote !== undefined && digest(e.path) === e.wrote);
+}
+
+export interface PruneOptions {
+  /** Prune journals older than this (default 30 days). */
+  olderThanMs?: number;
+  /** Always keep this many newest journals (default 10). */
+  keep?: number;
+  dryRun?: boolean;
+  now?: number;
+  /** Stamps never pruned (the journal being written). */
+  exclude?: string[];
+}
+
+export interface PruneResult {
+  pruned: string[];
+  /** Old enough to prune but kept: still the live undo point of `path`. */
+  kept: { stamp: string; path: string }[];
+}
+
+/**
+ * Delete old backup folders. The newest `keep` stay, and so does any journal that is still the
+ * live undo point of a file (see liveEntry): pruning it would lose the only copy of what that
+ * file held before a change the user has not undone.
+ */
+export function pruneJournals(env: NodeJS.ProcessEnv = process.env, opts: PruneOptions = {}): PruneResult {
+  const olderThan = opts.olderThanMs ?? PRUNE_DEFAULT_AGE_MS;
+  const keep = opts.keep ?? PRUNE_DEFAULT_KEEP;
+  const now = opts.now ?? Date.now();
+  const exclude = new Set(opts.exclude ?? []);
+  const result: PruneResult = { pruned: [], kept: [] };
+  for (const info of listJournals(env).slice(keep)) {
+    if (exclude.has(info.stamp) || now - journalTime(info) < olderThan) continue;
+    const live = liveEntry(info);
+    if (live) {
+      result.kept.push({ stamp: info.stamp, path: live.path });
+      continue;
+    }
+    if (!opts.dryRun) rmSync(info.dir, { recursive: true, force: true });
+    result.pruned.push(info.stamp);
+  }
+  return result;
+}
+
+/** Parse an age such as 30d, 12h, 2w, 90m or a bare number of days. */
+export function parseAge(text: string): number {
+  const m = /^(\d+)\s*([smhdw]?)$/.exec(text.trim());
+  if (!m) throw new Error(`invalid age ${JSON.stringify(text)}: use a number with s, m, h, d or w (30d)`);
+  const unit = { s: 1, m: 60, h: 3600, d: 86400, w: 604800, "": 86400 }[m[2] as "s" | "m" | "h" | "d" | "w" | ""];
+  return Number(m[1]) * unit * 1000;
 }
