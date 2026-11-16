@@ -21,7 +21,8 @@ export interface Snippet {
 }
 
 const url = (port: number, name: string) => `http://127.0.0.1:${port}/mcp/${encodeURIComponent(name)}`;
-const TOKEN_ENV = 'Start the agent with TURNO_MCPD_TOKEN set, e.g. in your shell profile: export TURNO_MCPD_TOKEN="$(cat ~/.local/state/turno/mcpd.token)"';
+/** How the profile's own token (ADR 0023) reaches an agent that expands variables. */
+const tokenEnv = (file: string) => `Start the agent with TURNO_MCPD_TOKEN set to this profile's token, e.g. in your shell profile: export TURNO_MCPD_TOKEN="$(cat ${file})"`;
 
 function headers(profile: string, token: string): Record<string, string> {
   return { Authorization: `Bearer ${token}`, "X-Turno-Profile": profile };
@@ -31,7 +32,14 @@ function json(v: unknown): string {
   return `${JSON.stringify(v, null, 2)}\n`;
 }
 
-export function gatewaySnippet(agent: SnippetAgent, servers: string[], port: number, profile: string): Snippet {
+export function gatewaySnippet(
+  agent: SnippetAgent,
+  servers: string[],
+  port: number,
+  profile: string,
+  tokenFile = `~/.local/state/turno/mcpd-tokens/${profile}.token`,
+): Snippet {
+  const TOKEN_ENV = tokenEnv(tokenFile);
   const each = <T>(f: (name: string) => T): Record<string, T> => Object.fromEntries(servers.map((n) => [n, f(n)]));
   switch (agent) {
     case "opencode":
@@ -57,7 +65,7 @@ export function gatewaySnippet(agent: SnippetAgent, servers: string[], port: num
           "    enabled: true",
           "    timeout: 300",
           "    headers:",
-          '      Authorization: "Bearer <paste the token from ~/.local/state/turno/mcpd.token>"',
+          `      Authorization: "Bearer <paste the token from ${tokenFile}>"`,
           `      X-Turno-Profile: ${profile}`,
         );
       }

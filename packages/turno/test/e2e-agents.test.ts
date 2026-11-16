@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseManifest } from "../src/core/manifest.js";
 import { type RunningDaemon, startDaemon } from "../src/mcpd/daemon.js";
 import { profileServers, syncCodexToml, syncJsonServers } from "../src/mcpd/sync.js";
+import { profileToken } from "../src/mcpd/tokens.js";
 import { hasBinary, networkE2e, realBinEnv, skipE2e } from "./helpers/e2e.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
@@ -42,7 +43,8 @@ describe("other agents against mcpd", () => {
       const env = realBinEnv(sb, {
         CURSOR_CONFIG_DIR: join(sb.home, ".cursor-cur"),
         AGENT_CLI_CREDENTIAL_STORE: "file",
-        TURNO_MCPD_TOKEN: token,
+        // What the cursor-cur launcher reads from its token file (ADR 0023).
+        TURNO_MCPD_TOKEN: profileToken(token, "cur"),
         TURNO_PROFILE: "cur",
         TURNO_SESSION_PID: String(process.pid),
       });

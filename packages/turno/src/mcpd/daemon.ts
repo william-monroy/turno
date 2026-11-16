@@ -55,7 +55,7 @@ function defaultWarn(message: string): void {
  * folder). `read` returns it or undefined; `ensure` creates it when missing; `rotate` always
  * writes a new one. On read the file is checked with fstat: a mode wider than 600 is fixed (or
  * reported when it cannot be), and a file owned by another user is reported. The token is
- * never printed. Per-profile tokens, when they come, derive from this one.
+ * never printed. Per-profile tokens derive from this one (mcpd/tokens.ts, ADR 0023).
  */
 export function masterToken(env: NodeJS.ProcessEnv = process.env, mode: TokenMode = "ensure", warn: (message: string) => void = defaultWarn): string | undefined {
   const file = paths(env).mcpdToken;

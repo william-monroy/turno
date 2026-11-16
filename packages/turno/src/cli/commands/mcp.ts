@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { type AgentId, adapter, mcpFileFor } from "../../agents/index.js";
 import { gatewaySnippet, isSnippetAgent, SNIPPET_AGENTS } from "../../agents/snippets.js";
-import { type Config, loadConfig } from "../../core/config.js";
+import { type Config, isValidProfileName, loadConfig } from "../../core/config.js";
 import { Journal } from "../../core/journal.js";
 import { type StdioServer, loadManifest, parseManifest, servesProfile } from "../../core/manifest.js";
 import { paths, profileDir, tildify } from "../../core/paths.js";
@@ -164,7 +164,8 @@ async function sync(args: string[], io: Io): Promise<number> {
   const { profileServers, readManaged, syncCodexToml, syncConfigFile, syncJsonServers, writeManaged } = await import("../../mcpd/sync.js");
   const { ensureToken, mcpdPort, readToken } = await import("../../mcpd/daemon.js");
   const manifest = loadManifest(io.env);
-  // A dry run never creates the token; without one, entries show a placeholder.
+  // A dry run never creates the token; without one, entries show a placeholder. Entries get
+  // each profile's own token derived from this master token (ADR 0023), never the master.
   const token = dryRun ? (readToken(io.env) ?? "<token>") : ensureToken(io.env);
   const port = mcpdPort(io.env);
   const p = paths(io.env);
@@ -214,6 +215,7 @@ async function sync(args: string[], io: Io): Promise<number> {
     }
   }
   if (!dryRun && JSON.stringify(managed) !== managedBefore) writeManaged(p.mcpdManaged, managed);
+  await syncTokenFiles(io, config, only, token, dryRun);
   if (!dryRun && changed) io.out("New sessions pick this up; open sessions keep their old servers until restarted.");
   const hint = changed && !dryRun ? journal.hint() : undefined;
   if (hint) io.out(hint);
@@ -221,6 +223,30 @@ async function sync(args: string[], io: Io): Promise<number> {
     io.err(`${paint(io, "warning", "33")}: mcpd is not running, so these profiles have no local MCP servers until you run: turno mcp daemon start`);
   }
   return skipped ? 1 : 0;
+}
+
+/**
+ * Agents that read the gateway token from the environment (Codex, Copilot, Cursor) get it from
+ * a private file per profile that their launcher reads (ADR 0023). Written even for profiles
+ * with open sessions: those already hold their token, and the next launch needs the new one.
+ */
+async function syncTokenFiles(io: Io, config: Config, only: string[], master: string, dryRun: boolean): Promise<void> {
+  const { profileToken, readProfileTokenFile, writeProfileTokenFile } = await import("../../mcpd/tokens.js");
+  const { isGenerated, launcherName } = await import("../launchers.js");
+  const changed: string[] = [];
+  const oldLaunchers: string[] = [];
+  for (const name of listProfiles(config, io.env)) {
+    if (only.length && !only.includes(name)) continue;
+    const agent = agentOf(name, config);
+    if (!adapter(agent).tokenFromEnv) continue;
+    if (dryRun ? readProfileTokenFile(name, io.env) !== profileToken(master, name) : writeProfileTokenFile(name, master, io.env)) changed.push(name);
+    const launcher = join(paths(io.env).bin, launcherName(name, agent));
+    if (isGenerated(launcher) && !readFileSync(launcher, "utf8").includes("mcpd-tokens/")) oldLaunchers.push(name);
+  }
+  if (changed.length) io.out(`${paint(io, dryRun ? "plan" : "token", "32")} ${dryRun ? "would write" : "wrote"} the gateway token of ${changed.join(", ")} for their launchers`);
+  for (const name of oldLaunchers) {
+    io.err(`${paint(io, "warning", "33")}: the launcher of ${name} still reads the old shared token; rewrite it with: turno profile repair ${name}`);
+  }
 }
 
 // config -------------------------------------------------------------------------------------
@@ -240,8 +266,11 @@ async function config(args: string[], io: Io): Promise<number> {
     .filter(([, def]) => servesProfile(def, profile) && !(def.kind === "remote" && !def.proxy))
     .map(([name]) => name);
   if (!servers.length) return fail(`no gateway servers for profile ${profile} in mcp.toml`);
-  const { mcpdPort } = await import("../../mcpd/daemon.js");
-  const s = gatewaySnippet(agent, servers, mcpdPort(io.env), profile);
+  const { ensureToken, mcpdPort } = await import("../../mcpd/daemon.js");
+  const { profileTokenFile, writeProfileTokenFile } = await import("../../mcpd/tokens.js");
+  // The snippet reads the profile's own token from a private file; it is never printed.
+  if (isValidProfileName(profile)) writeProfileTokenFile(profile, ensureToken(io.env), io.env);
+  const s = gatewaySnippet(agent, servers, mcpdPort(io.env), profile, tildify(profileTokenFile(profile, io.env), io.env));
   if (bool(p, "json")) {
     printJson(io.out, { agent, profile, servers, file: s.file, notes: s.notes, text: s.text });
     return 0;

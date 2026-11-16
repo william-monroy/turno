@@ -23,10 +23,13 @@ import { DescriptionCache } from "../src/mcpd/cache.js";
 import { DefaultConnector, RotatingLog } from "../src/mcpd/connectors.js";
 import { Gateway, decodeCwdHeaders } from "../src/mcpd/gateway.js";
 import { InstanceManager } from "../src/mcpd/instances.js";
+import { profileToken } from "../src/mcpd/tokens.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 const FIXTURE = fileURLToPath(new URL("./fixtures/fixture-server.mjs", import.meta.url));
 const TOKEN = "test-token";
+/** Sessions authenticate with a profile token (ADR 0023); "default" unless a test names one. */
+const sessionAuth = (headers: Record<string, string> = {}) => `Bearer ${profileToken(TOKEN, headers["X-Turno-Profile"] ?? "default")}`;
 
 let sb: Sandbox;
 let gw: Gateway;
@@ -96,7 +99,7 @@ async function connectWith(server: string, o: ConnectOpts = {}): Promise<Client>
     client.setRequestHandler(CreateMessageRequestSchema, async () => answer() as never);
   }
   const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp/${server}`), {
-    requestInit: { headers: { Authorization: `Bearer ${TOKEN}`, ...(o.headers ?? {}) } },
+    requestInit: { headers: { Authorization: sessionAuth(o.headers), ...(o.headers ?? {}) } },
   });
   await client.connect(transport);
   clients.push(client);
@@ -252,7 +255,7 @@ describe("mcpd gateway", () => {
       headers: { "content-type": "application/json", authorization: `Bearer ${TOKEN}`, origin: "https://evil.example" },
     });
     expect(origin.status).toBe(403);
-    const unknown = await fetch(`http://127.0.0.1:${port}/mcp/nope`, { method: "POST", body, headers: { authorization: `Bearer ${TOKEN}` } });
+    const unknown = await fetch(`http://127.0.0.1:${port}/mcp/nope`, { method: "POST", body, headers: { authorization: sessionAuth() } });
     expect(unknown.status).toBe(404);
   });
 });

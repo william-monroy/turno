@@ -1,6 +1,8 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
 import type { Io } from "../cli/io.js";
 import { paths, tildify } from "../core/paths.js";
+import { profileTokenFile, tokenProfile } from "./tokens.js";
 
 /**
  * The mcpd part of `turno doctor` (ADR 0017): the service file and the paths it runs, the
@@ -136,6 +138,69 @@ async function syncedPortCheck(env: NodeJS.ProcessEnv): Promise<McpdCheck | unde
   };
 }
 
+const PROFILE_BEARER = /Bearer (tp1\.[a-z0-9][a-z0-9_-]*\.[A-Za-z0-9_-]{43})/g;
+
+/**
+ * Synced configs and launcher token files that mcpd would refuse (ADR 0023): configs written
+ * before per-profile tokens still carry the master token, and every derived token dies with a
+ * `turno mcp token rotate`. Both are fixed by `turno mcp sync`. Never prints a token.
+ */
+export function tokenSyncCheck(env: NodeJS.ProcessEnv): McpdCheck | undefined {
+  const p = paths(env);
+  let master: string;
+  let managed: Record<string, unknown>;
+  try {
+    master = readFileSync(p.mcpdToken, "utf8").trim();
+    managed = JSON.parse(readFileSync(p.mcpdManaged, "utf8")) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+  if (!master) return undefined;
+  const legacy: string[] = [];
+  const stale: string[] = [];
+  for (const file of Object.keys(managed)) {
+    let text: string;
+    try {
+      text = readFileSync(file, "utf8");
+    } catch {
+      continue;
+    }
+    if (text.includes(master)) legacy.push(tildify(file, env));
+    else if ([...text.matchAll(PROFILE_BEARER)].some((m) => !tokenProfile(master, m[1]!))) stale.push(tildify(file, env));
+  }
+  const dir = dirname(profileTokenFile("x", env));
+  let names: string[] = [];
+  try {
+    names = readdirSync(dir).filter((f) => f.endsWith(".token"));
+  } catch {
+    /* no token files */
+  }
+  for (const f of names) {
+    const profile = f.slice(0, -".token".length);
+    try {
+      if (tokenProfile(master, readFileSync(join(dir, f), "utf8").trim()) !== profile) stale.push(tildify(join(dir, f), env));
+    } catch {
+      /* unreadable: the launcher sends nothing and mcpd says why */
+    }
+  }
+  const s = (n: number) => (n === 1 ? "" : "s");
+  if (legacy.length) {
+    return {
+      level: "warn",
+      text: `mcpd: ${legacy.length} synced config${s(legacy.length)} still send${legacy.length === 1 ? "s" : ""} the master token, which mcpd no longer accepts for MCP sessions (${legacy.join(", ")})`,
+      fix: syncFix,
+    };
+  }
+  if (stale.length) {
+    return {
+      level: "warn",
+      text: `mcpd: ${stale.length} profile token${s(stale.length)} predate${stale.length === 1 ? "s" : ""} the current gateway token (${stale.join(", ")})`,
+      fix: syncFix,
+    };
+  }
+  return undefined;
+}
+
 export async function mcpdChecks(env: NodeJS.ProcessEnv): Promise<McpdCheck[]> {
   const out: McpdCheck[] = [];
   try {
@@ -148,5 +213,7 @@ export async function mcpdChecks(env: NodeJS.ProcessEnv): Promise<McpdCheck[]> {
   out.push(...(await portChecks(env)));
   const s = await syncedPortCheck(env);
   if (s) out.push(s);
+  const tk = tokenSyncCheck(env);
+  if (tk) out.push(tk);
   return out;
 }

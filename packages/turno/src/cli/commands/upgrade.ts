@@ -76,6 +76,10 @@ export async function finishUpgrade(io: Io): Promise<number> {
     rewritten += writeHelperLaunchers(env, turnoCommand()).length;
   }
   if (rewritten) io.out(`launchers: ${rewritten} rewritten for turno ${now}`);
+  // Configs synced before per-profile gateway tokens (ADR 0023) send the master token, which
+  // mcpd refuses for MCP sessions: say so here instead of leaving it to the first failed call.
+  const tokens = (await import("../../mcpd/health.js")).tokenSyncCheck(env);
+  if (tokens) io.out(`${tokens.text}; run: turno mcp sync`);
   await refreshDaemonService(io);
   recordVersion(env);
   if (before && before !== now) {

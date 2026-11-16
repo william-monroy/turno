@@ -4,6 +4,7 @@ import { parse } from "smol-toml";
 import type { AgentId } from "../agents/index.js";
 import type { Manifest } from "../core/manifest.js";
 import { servesProfile } from "../core/manifest.js";
+import { profileToken } from "./tokens.js";
 
 /**
  * Headers every gateway entry carries. The PID and folder are expanded by Claude Code from the
@@ -27,9 +28,10 @@ export function gatewayEntry(name: string, port: number, token: string, profile:
 const gatewayUrl = (name: string, port: number) => `http://127.0.0.1:${port}/mcp/${encodeURIComponent(name)}`;
 
 /**
- * A gateway entry in the format of each agent (ADR 0013). Claude Code gets the token in the
- * entry, as before; the others read it, and the session PID, from the launcher's environment.
- * Cursor shares one file between profiles, so even the profile comes from the environment.
+ * A gateway entry in the format of each agent (ADR 0013). Claude Code gets the profile's token
+ * (ADR 0023) in the entry; the others read it, and the session PID, from the launcher's
+ * environment. Cursor shares one file between profiles, so even the profile comes from the
+ * environment.
  */
 export function gatewayEntryFor(agent: AgentId, name: string, port: number, token: string, profile: string): Record<string, unknown> {
   const url = gatewayUrl(name, port);
@@ -69,16 +71,19 @@ export function gatewayEntryFor(agent: AgentId, name: string, port: number, toke
 /**
  * The MCP entries a profile should have, according to the manifest. Remote servers that do not
  * go through the gateway are written as they are for Claude Code, and skipped for the other
- * agents (their formats differ; `turno mcp config` prints them).
+ * agents (their formats differ; `turno mcp config` prints them). `master` is the gateway's
+ * master token: entries carry the profile's own token derived from it (ADR 0023), never the
+ * master itself.
  */
 export function profileServers(
   manifest: Manifest,
   profile: string,
   port: number,
-  token: string,
+  master: string,
   agent: AgentId = "claude",
 ): Record<string, Record<string, unknown>> {
   const out: Record<string, Record<string, unknown>> = {};
+  const token = profile ? profileToken(master, profile) : "";
   for (const [name, def] of Object.entries(manifest.servers)) {
     if (!servesProfile(def, profile)) continue;
     if (def.kind === "remote" && !def.proxy) {

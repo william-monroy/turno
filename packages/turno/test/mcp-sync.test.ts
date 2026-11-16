@@ -7,6 +7,7 @@ import { guessScope, importServers, parseNpx } from "../src/mcpd/importer.js";
 import { writeLauncher } from "../src/cli/launchers.js";
 import { decodeCwdHeaders } from "../src/mcpd/gateway.js";
 import { gatewayEntry, profileServers, syncConfigFile } from "../src/mcpd/sync.js";
+import { profileToken } from "../src/mcpd/tokens.js";
 import { fakeCommand } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
@@ -35,7 +36,9 @@ describe("profileServers", () => {
     const m = parseManifest(MANIFEST);
     const personal = profileServers(m, "personal", 47821, "tok");
     expect(Object.keys(personal).sort()).toEqual(["calc", "docs", "vault"]);
-    expect(personal.calc).toEqual(gatewayEntry("calc", 47821, "tok", "personal"));
+    // The entry carries the profile's own token, derived from the master (ADR 0023).
+    expect(personal.calc).toEqual(gatewayEntry("calc", 47821, profileToken("tok", "personal"), "personal"));
+    expect(JSON.stringify(personal)).not.toContain('"Bearer tok"');
     expect(personal.docs).toEqual({ type: "http", url: "https://docs.example.com/mcp" });
     expect((personal.vault as { url: string }).url).toBe("http://127.0.0.1:47821/mcp/vault");
     const headers = (personal.calc as { headers: Record<string, string> }).headers;
