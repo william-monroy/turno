@@ -18,10 +18,15 @@ export interface RunOutput {
   stdout: string;
   stderr: string;
   timedOut: boolean;
+  /** The caller aborted the run (the MCP call was cancelled); the process group was killed. */
+  cancelled?: boolean;
 }
 
-/** Runs a process to completion. Injectable so tests never start a real Claude Code. */
-export type Runner = (spec: RunSpec) => Promise<RunOutput>;
+/**
+ * Runs a process to completion, or until `signal` aborts. Injectable so tests never start a
+ * real Claude Code.
+ */
+export type Runner = (spec: RunSpec, signal?: AbortSignal) => Promise<RunOutput>;
 
 export interface DelegateRequest {
   account: Account;
@@ -39,6 +44,8 @@ export interface DelegateResult {
   costUsd: number | null;
   numTurns: number | null;
   durationMs: number;
+  /** The run was cancelled before it finished. */
+  cancelled?: boolean;
 }
 
 export const DEFAULT_MAX_TURNS = 15;
@@ -119,9 +126,13 @@ function isDir(p: string): boolean {
   }
 }
 
-/** Default runner: own process group, killed as a whole on timeout. */
-export const spawnRunner: Runner = (spec) =>
+/** Default runner: own process group, killed as a whole on timeout or abort. */
+export const spawnRunner: Runner = (spec, signal) =>
   new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve({ code: null, stdout: "", stderr: "", timedOut: false, cancelled: true });
+      return;
+    }
     const child = spawn(spec.command, spec.args, {
       cwd: spec.cwd,
       env: spec.env,
@@ -131,6 +142,7 @@ export const spawnRunner: Runner = (spec) =>
     let stdout = "";
     let stderr = "";
     let timedOut = false;
+    let cancelled = false;
     let done = false;
     const killGroup = (signal: NodeJS.Signals) => {
       if (child.pid === undefined) return;
@@ -141,12 +153,21 @@ export const spawnRunner: Runner = (spec) =>
       }
     };
     let hardKill: NodeJS.Timeout | undefined;
-    const timer = setTimeout(() => {
-      timedOut = true;
+    const stop = () => {
       killGroup("SIGTERM");
       hardKill = setTimeout(() => killGroup("SIGKILL"), 5000);
       hardKill.unref();
+    };
+    const timer = setTimeout(() => {
+      timedOut = true;
+      stop();
     }, spec.timeoutMs);
+    const onAbort = () => {
+      if (done) return;
+      cancelled = true;
+      stop();
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
     child.stdout.setEncoding("utf8").on("data", (d: string) => (stdout += d));
     child.stderr.setEncoding("utf8").on("data", (d: string) => {
       if (stderr.length < 64 * 1024) stderr += d;
@@ -155,8 +176,9 @@ export const spawnRunner: Runner = (spec) =>
       if (done) return;
       done = true;
       clearTimeout(timer);
-      // After a timeout the hard kill stays armed (unref'd) for grandchildren still alive.
-      resolve({ code, stdout, stderr, timedOut });
+      signal?.removeEventListener("abort", onAbort);
+      // After a timeout or abort the hard kill stays armed (unref'd) for grandchildren still alive.
+      resolve({ code, stdout, stderr, timedOut, ...(cancelled ? { cancelled } : {}) });
     };
     child.on("error", (err) => {
       stderr += `${err.message}\n`;
@@ -203,17 +225,20 @@ function tail(text: string, n = 400): string {
 /** Run the task in the owning profile and interpret Claude Code's JSON result. */
 export async function delegate(
   req: DelegateRequest,
-  opts: { runner?: Runner; env?: NodeJS.ProcessEnv; now?: () => number } = {},
+  opts: { runner?: Runner; env?: NodeJS.ProcessEnv; now?: () => number; signal?: AbortSignal } = {},
 ): Promise<DelegateResult> {
   const env = opts.env ?? process.env;
   const now = opts.now ?? Date.now;
   const spec = buildDelegation(req, env);
   const started = now();
-  const out = await (opts.runner ?? spawnRunner)(spec);
+  const out = await (opts.runner ?? spawnRunner)(spec, opts.signal);
   const durationMs = now() - started;
   const json = parseClaudeJson(out.stdout);
   const costUsd = typeof json?.total_cost_usd === "number" ? json.total_cost_usd : null;
   const numTurns = typeof json?.num_turns === "number" ? json.num_turns : null;
+  if (out.cancelled || (opts.signal?.aborted && !json)) {
+    return { ok: false, cancelled: true, text: `Delegation to ${req.account.profile} was cancelled; its process was stopped.`, costUsd, numTurns, durationMs };
+  }
   if (out.timedOut) {
     return { ok: false, text: `Delegation to ${req.account.profile} timed out after ${Math.round(spec.timeoutMs / 1000)}s.`, costUsd, numTurns, durationMs };
   }

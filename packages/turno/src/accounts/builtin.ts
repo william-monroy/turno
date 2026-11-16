@@ -33,8 +33,8 @@ export interface AccountsDeps {
 
 /**
  * The client's own capabilities, when mcpd passes them in the context. Without them the
- * builtin only sees mcpd's capabilities (which always include elicitation and roots), so an
- * unsupported request is detected from the client's "method not found" answer instead.
+ * builtin only sees what mcpd declared for it (form elicitation, roots), so an unsupported
+ * request is detected from the client's "method not found" answer instead.
  */
 type Ctx = ClientContext & { clientCapabilities?: ClientCapabilities };
 
@@ -94,7 +94,7 @@ export function accountsBuiltin(deps: AccountsDeps = {}): BuiltinFactory {
     const caller = { profile: ctx.profile ?? null, pid: ctx.pid ?? null };
     let folder: string | undefined = ctx.cwd;
 
-    /** The session folder: the X-Turno-Cwd header, else the client's first root. */
+    /** The session folder: the one mcpd resolved (folder header or client process), else the client's first root. */
     async function sessionFolder(): Promise<string | undefined> {
       if (folder) return folder;
       const caps = ctx.clientCapabilities ?? server.getClientCapabilities();
@@ -134,7 +134,7 @@ export function accountsBuiltin(deps: AccountsDeps = {}): BuiltinFactory {
       return text(JSON.stringify(body, null, 2));
     }
 
-    async function confirmWrite(account: Account, task: string): Promise<{ ok: true } | { ok: false; why: string }> {
+    async function confirmWrite(account: Account, task: string, signal: AbortSignal): Promise<{ ok: true } | { ok: false; why: string; cancelled?: boolean }> {
       const caps = ctx.clientCapabilities ?? server.getClientCapabilities();
       const unsupported =
         "This client does not support MCP elicitation, so a write action cannot be confirmed by the user. Write delegation is refused; do it from a session that supports elicitation, or in the owning profile directly.";
@@ -155,11 +155,12 @@ export function accountsBuiltin(deps: AccountsDeps = {}): BuiltinFactory {
               required: ["confirm"],
             },
           },
-          { timeout: deps.confirmTimeoutMs ?? 10 * 60_000 },
+          { timeout: deps.confirmTimeoutMs ?? 10 * 60_000, signal },
         );
         if (res.action === "accept" && res.content?.confirm === true) return { ok: true };
         return { ok: false, why: res.action === "accept" ? "the user did not check confirm" : `the user chose ${res.action}` };
       } catch (err) {
+        if (signal.aborted) return { ok: false, why: "the call was cancelled", cancelled: true };
         if (err instanceof McpError && err.code === ErrorCode.MethodNotFound) return { ok: false, why: unsupported };
         return { ok: false, why: `confirmation failed: ${(err as Error).message}` };
       }
@@ -171,6 +172,7 @@ export function accountsBuiltin(deps: AccountsDeps = {}): BuiltinFactory {
       write: boolean,
       progressToken: string | number | undefined,
       send: (n: { method: "notifications/progress"; params: { progressToken: string | number; progress: number; message?: string } }) => Promise<void>,
+      signal: AbortSignal,
     ): Promise<DelegateResult> {
       let beat: NodeJS.Timeout | undefined;
       if (progressToken !== undefined) {
@@ -194,7 +196,7 @@ export function accountsBuiltin(deps: AccountsDeps = {}): BuiltinFactory {
             maxTurns: deps.maxTurns ?? DEFAULT_MAX_TURNS,
             timeoutMs: deps.timeoutMs ?? DEFAULT_TIMEOUT_MS,
           },
-          { env, now, ...(deps.runner ? { runner: deps.runner } : {}) },
+          { env, now, signal, ...(deps.runner ? { runner: deps.runner } : {}) },
         );
       } finally {
         if (beat) clearInterval(beat);
@@ -254,14 +256,23 @@ export function accountsBuiltin(deps: AccountsDeps = {}): BuiltinFactory {
         );
       }
       if (write) {
-        const ok = await confirmWrite(account, task);
+        const ok = await confirmWrite(account, task, extra.signal);
         if (!ok.ok) {
-          record("refused", ok.why);
+          record(ok.cancelled ? "cancelled" : "refused", ok.why);
           return text(`Write delegation to ${account.id} refused: ${ok.why}. Nothing was run.`, true);
         }
       }
+      if (extra.signal.aborted) {
+        record("cancelled", "cancelled before the run started");
+        return text(`Delegation to ${account.id} was cancelled. Nothing was run.`, true);
+      }
       const progressToken = req.params._meta?.progressToken;
-      const res = await run(account, task, write, progressToken, (n) => extra.sendNotification(n));
+      const res = await run(account, task, write, progressToken, (n) => extra.sendNotification(n), extra.signal);
+      if (res.cancelled) {
+        // The caller is gone, but the audit log keeps what really happened.
+        record("cancelled", res.text, res.costUsd, res.durationMs);
+        return text(res.text, true);
+      }
       record(res.ok ? "ok" : "error", res.ok ? `${res.numTurns ?? "?"} turns` : res.text.slice(0, 500), res.costUsd, res.durationMs);
       const footer = `\n\n[${account.id} via profile ${account.profile}; ${res.numTurns ?? "?"} turns; ${money(res.costUsd)}; ${Math.round(res.durationMs / 1000)}s]`;
       return text(`${res.text}${footer}`, !res.ok);

@@ -22,6 +22,7 @@ let manager: InstanceManager;
 let port: number;
 let clients: Client[] = [];
 let runs: RunSpec[] = [];
+let runner: (spec: RunSpec, signal?: AbortSignal) => Promise<RunOutput>;
 let elicitations: unknown[] = [];
 
 const REGISTRY = `
@@ -64,7 +65,7 @@ async function boot(): Promise<void> {
       resolve: async (v) => v,
       serversDir: join(sb.home, "servers"),
       logsDir: join(sb.home, "logs"),
-      builtins: { accounts: accountsBuiltin({ env: sb.env, runner: fakeRunner }) },
+      builtins: { accounts: accountsBuiltin({ env: sb.env, runner: (spec, signal) => runner(spec, signal) }) },
     }),
     home: sb.home,
   });
@@ -116,6 +117,7 @@ beforeEach(async () => {
   sb = sandbox();
   clients = [];
   runs = [];
+  runner = fakeRunner;
   elicitations = [];
   await boot();
 });
@@ -234,5 +236,22 @@ describe("accounts builtin through mcpd", () => {
     // Reads still work for the same client.
     expect((await call(c, "accounts_delegate", { account: "linear:work", task: "read" })).isError).toBe(false);
     expect(runs).toHaveLength(1);
+  });
+
+  it("stops a delegation the caller cancels and audits it as cancelled", async () => {
+    runner = (spec, signal) =>
+      new Promise((resolve) => {
+        runs.push(spec);
+        signal?.addEventListener("abort", () => resolve({ code: null, stdout: "", stderr: "", timedOut: false, cancelled: true }));
+      });
+    const c = await connect({ profile: "personal" });
+    const ac = new AbortController();
+    const pending = c.callTool({ name: "accounts_delegate", arguments: { account: "linear:work", task: "a long read" } }, undefined, { signal: ac.signal });
+    for (let i = 0; i < 250 && runs.length === 0; i++) await new Promise((r) => setTimeout(r, 20));
+    expect(runs).toHaveLength(1);
+    ac.abort();
+    await expect(pending).rejects.toThrow();
+    for (let i = 0; i < 250 && readAudit(0, sb.env).length === 0; i++) await new Promise((r) => setTimeout(r, 20));
+    expect(readAudit(0, sb.env)[0]).toMatchObject({ account: "linear:work", outcome: "cancelled" });
   });
 });

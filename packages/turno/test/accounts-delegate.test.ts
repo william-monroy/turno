@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type RunSpec, buildDelegation, delegate, launcherExists, parseClaudeJson } from "../src/accounts/delegate.js";
@@ -112,5 +112,42 @@ echo '{"type":"result","subtype":"success","is_error":false,"result":"done from 
     expect(res.ok).toBe(false);
     expect(res.text).toMatch(/timed out/);
     expect(Date.now() - started).toBeLessThan(5000);
+  });
+
+  it("stops the launcher's process group when the caller cancels", async () => {
+    const marker = join(sb.home, "grandchild.pid");
+    sb.write(".local/bin/claude-work", `#!/bin/sh\nsleep 30 &\necho $! > ${JSON.stringify(marker)}\nwait\n`, 0o755);
+    const ac = new AbortController();
+    const started = Date.now();
+    const run = delegate({ account: WORK, task: "t", write: false }, { env: sb.env, signal: ac.signal });
+    for (let i = 0; i < 250 && !existsSync(marker); i++) await new Promise((r) => setTimeout(r, 20));
+    const grandchild = Number(readFileSync(marker, "utf8"));
+    ac.abort();
+    const res = await run;
+    expect(res).toMatchObject({ ok: false, cancelled: true });
+    expect(res.text).toMatch(/was cancelled/);
+    expect(Date.now() - started).toBeLessThan(6000);
+    const alive = () => {
+      try {
+        process.kill(grandchild, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    for (let i = 0; i < 50 && alive(); i++) await new Promise((r) => setTimeout(r, 20));
+    expect(alive()).toBe(false);
+  });
+
+  it("does not start a run that was cancelled before it began", async () => {
+    let ran = false;
+    const ac = new AbortController();
+    ac.abort();
+    const res = await delegate(
+      { account: WORK, task: "t", write: false },
+      { env: sb.env, signal: ac.signal, runner: async (_spec, signal) => ((ran = !signal?.aborted), { code: null, stdout: "", stderr: "", timedOut: false, cancelled: true }) },
+    );
+    expect(ran).toBe(false);
+    expect(res.cancelled).toBe(true);
   });
 });
