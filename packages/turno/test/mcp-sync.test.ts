@@ -1,9 +1,13 @@
-import { readFileSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseManifest } from "../src/core/manifest.js";
 import { guessScope, importServers, parseNpx } from "../src/mcpd/importer.js";
+import { writeLauncher } from "../src/cli/launchers.js";
+import { decodeCwdHeaders } from "../src/mcpd/gateway.js";
 import { gatewayEntry, profileServers, syncConfigFile } from "../src/mcpd/sync.js";
+import { fakeCommand } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 let sb: Sandbox;
@@ -36,6 +40,9 @@ describe("profileServers", () => {
     expect((personal.vault as { url: string }).url).toBe("http://127.0.0.1:47821/mcp/vault");
     const headers = (personal.calc as { headers: Record<string, string> }).headers;
     expect(headers["X-Turno-Pid"]).toBe("${TURNO_SESSION_PID:-0}");
+    // The folder travels encoded: a raw non-Latin-1 path is an invalid header value.
+    expect(headers["X-Turno-Cwd-B64"]).toBe("${TURNO_SESSION_CWD_B64:-}");
+    expect(headers["X-Turno-Cwd"]).toBeUndefined();
     expect(headers["X-Turno-Profile"]).toBe("personal");
     expect(Object.keys(profileServers(m, "work", 1, "t"))).toContain("dev");
   });
@@ -118,5 +125,17 @@ describe("pickBin", () => {
     expect(pickBin("chrome-devtools-mcp", { "chrome-devtools": "a", "chrome-devtools-mcp": "b" })).toBe("chrome-devtools-mcp");
     expect(pickBin("@calcom/cal-mcp", { "cal-mcp-demo": "a" })).toBe("cal-mcp-demo");
     expect(pickBin("@scope/thing", "bin.js")).toBe("thing");
+  });
+});
+
+describe("session folder header", () => {
+  it("survives a folder outside Latin-1, from the launcher to mcpd", () => {
+    fakeCommand(sb, "claude", 'printf %s "$TURNO_SESSION_CWD_B64"');
+    const launcher = writeLauncher("work", sb.env, "claude");
+    const dir = join(sb.home, "日本 Cafe\u0301 🚀");
+    mkdirSync(dir);
+    const value = execFileSync(launcher, [], { cwd: dir, env: { ...sb.env, PWD: dir }, encoding: "utf8" });
+    expect(value).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(decodeCwdHeaders({ "x-turno-cwd-b64": value })).toBe(dir);
   });
 });

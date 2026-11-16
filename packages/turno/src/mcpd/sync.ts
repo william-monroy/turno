@@ -5,7 +5,12 @@ import type { AgentId } from "../agents/index.js";
 import type { Manifest } from "../core/manifest.js";
 import { servesProfile } from "../core/manifest.js";
 
-/** Headers every gateway entry carries. The PID and folder are expanded by Claude Code. */
+/**
+ * Headers every gateway entry carries. The PID and folder are expanded by Claude Code from the
+ * launcher's environment. The folder travels base64url-encoded: a raw path outside Latin-1
+ * (accents in NFD form, CJK, emoji) is an invalid header value and the client would refuse to
+ * connect. Without the variable (a plain `claude`), mcpd reads the folder of the client process.
+ */
 export function gatewayEntry(name: string, port: number, token: string, profile: string): Record<string, unknown> {
   return {
     type: "http",
@@ -14,7 +19,7 @@ export function gatewayEntry(name: string, port: number, token: string, profile:
       Authorization: `Bearer ${token}`,
       "X-Turno-Profile": profile,
       "X-Turno-Pid": "${TURNO_SESSION_PID:-0}",
-      "X-Turno-Cwd": "${PWD:-}",
+      "X-Turno-Cwd-B64": "${TURNO_SESSION_CWD_B64:-}",
     },
   };
 }
@@ -36,7 +41,7 @@ export function gatewayEntryFor(agent: AgentId, name: string, port: number, toke
         url,
         bearer_token_env_var: "TURNO_MCPD_TOKEN",
         http_headers: { "X-Turno-Profile": profile },
-        env_http_headers: { "X-Turno-Pid": "TURNO_SESSION_PID", "X-Turno-Cwd": "PWD" },
+        env_http_headers: { "X-Turno-Pid": "TURNO_SESSION_PID", "X-Turno-Cwd-B64": "TURNO_SESSION_CWD_B64" },
       };
     case "copilot":
       return {
