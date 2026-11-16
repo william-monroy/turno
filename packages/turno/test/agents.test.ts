@@ -274,8 +274,11 @@ describe("agent commands", () => {
     expect(io.lines.some((l) => l.includes("run codex-cx login"))).toBe(true);
     expect(loadConfig(sb.env).profiles.cx!.agent).toBe("codex");
 
+    // Port 1 never answers, so the "mcpd is not running" check stays inside this machine's sandbox.
+    sb.write(".local/state/turno/mcpd.port", "1");
     const sync = fakeIo(sb.env);
     expect(await main(["mcp", "sync", "cx"], sync)).toBe(0);
+    expect(sync.errors.join("\n")).toContain("mcpd is not running");
     const cfg = parse(readFileSync(join(sb.home, ".codex-cx/config.toml"), "utf8")) as { mcp_servers: Record<string, Record<string, unknown>> };
     expect(Object.keys(cfg.mcp_servers)).toEqual(["calendar"]);
     expect(cfg.mcp_servers.calendar!.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/mcp\/calendar$/);

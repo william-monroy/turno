@@ -74,8 +74,7 @@ describe("importer", () => {
     expect(guessScope("something-else").scope).toBe("project");
   });
 
-  it("drafts a manifest, moving secrets when asked", async () => {
-    const stored: Record<string, string> = {};
+  it("drafts a manifest, planning secret moves without storing anything", async () => {
     const report = await importServers(
       {
         calcom: { type: "stdio", command: "npx", args: ["-y", "@calcom/cal-mcp@latest"], env: { CAL_API_KEY: "cal_live_x", REGION: "eu" } },
@@ -83,7 +82,7 @@ describe("importer", () => {
         granola: { type: "http", url: "https://mcp.granola.example/mcp" },
         local: { command: "/usr/local/bin/thing", args: [] },
       },
-      { moveSecrets: true, binOf: async (p) => (p === "@calcom/cal-mcp" ? "cal-mcp" : undefined), store: async (s, v) => void (stored[s] = v) },
+      { moveSecrets: true, binOf: async (p) => (p === "@calcom/cal-mcp" ? "cal-mcp" : undefined) },
     );
     const m = parseManifest(report.toml);
     const calcom = m.servers.calcom!;
@@ -98,13 +97,18 @@ describe("importer", () => {
     expect(neon.kind === "remote" && neon.proxy).toBe(true);
     const granola = m.servers.granola!;
     expect(granola.kind === "remote" && granola.proxy).toBe(false);
-    expect(stored).toEqual({ "turno/calcom/cal-api-key": "cal_live_x", "turno/neon/authorization": "Bearer secret" });
+    expect(report.secrets.map((s) => [s.service, s.value])).toEqual([
+      ["turno/calcom/cal-api-key", "cal_live_x"],
+      ["turno/neon/authorization", "Bearer secret"],
+    ]);
     expect(report.toml).not.toContain("cal_live_x");
+    expect(report.notes.join("\n")).not.toMatch(/\([^)]*\(/);
   });
 
   it("keeps literal secrets and reports them without --move-secrets", async () => {
-    const report = await importServers({ s: { command: "x", env: { API_TOKEN: "abc" } } });
+    const report = await importServers({ s: { command: "x", env: { API_TOKEN: "abc", PATH: "/usr/bin", PWD: "/tmp" } } });
     expect(report.literalSecrets).toEqual(["s.API_TOKEN"]);
+    expect(report.secrets).toEqual([]);
   });
 });
 
