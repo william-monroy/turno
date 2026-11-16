@@ -247,10 +247,17 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
     else add("look", "info", `font: ${FALLBACK.family} ${have}/${fonts.length} files in ${tildify(fontDir, env)} (turno ui install)`);
   }
 
-  const mcpd = await mcpdStatus(env, config);
-  add("mcpd", mcpd.level, mcpd.text);
+  checks.push(...(await mcpdSection(env)));
   return checks;
 }
+
+// ---- mcpd section (ADR 0017): service file, token mode, port owner, start errors, synced ports.
+// The checks live in mcpd/health.ts; keep this section separate from the rest of doctor.
+async function mcpdSection(env: NodeJS.ProcessEnv): Promise<Check[]> {
+  const { mcpdChecks } = await import("../../mcpd/health.js");
+  return (await mcpdChecks(env)).map((c) => ({ area: "mcpd", ...c }));
+}
+// ---- end of the mcpd section
 
 function report(io: Io, c: Check): void {
   const tag = { ok: paint(io, "ok  ", "32"), warn: paint(io, "warn", "33"), fail: paint(io, "FAIL", "31"), info: paint(io, "info", "2") }[c.level];
