@@ -1,7 +1,7 @@
 {
   "name": "turno-monorepo",
   "private": true,
-  "description": "Several coding agent accounts on one machine: shared context, per-folder accounts, a lazy MCP gateway, persistent browser identities and an accounts bridge.",
+  "description": "One MCP gateway and per-folder accounts for Claude Code, Codex, Copilot CLI and Cursor CLI.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {

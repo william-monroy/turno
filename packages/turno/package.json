@@ -1,17 +1,33 @@
 {
   "name": "turno",
   "version": "0.1.0",
-  "private": true,
-  "description": "Several Claude Code accounts on one machine: shared context, per-folder accounts, a lazy MCP gateway and a status line.",
+  "description": "One MCP gateway and per-folder accounts for Claude Code, Codex, Copilot CLI and Cursor CLI.",
   "keywords": [
-    "claude",
     "claude-code",
+    "codex",
+    "copilot",
+    "cursor",
     "mcp",
+    "model-context-protocol",
+    "mcp-gateway",
+    "ai-agents",
+    "coding-agents",
     "cli",
-    "multi-account",
-    "statusline"
+    "statusline",
+    "profiles",
+    "developer-tools"
   ],
   "license": "Apache-2.0",
+  "author": "William Frank Monroy Mamani (https://github.com/william-monroy)",
+  "homepage": "https://github.com/william-monroy/turno#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/william-monroy/turno.git",
+    "directory": "packages/turno"
+  },
+  "bugs": {
+    "url": "https://github.com/william-monroy/turno/issues"
+  },
   "type": "module",
   "engines": {
     "node": ">=22.11"
@@ -31,7 +47,7 @@
     "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/cli/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "prepack": "pnpm run build && cp ../../README.md ../../LICENSE ../../NOTICE ."
+    "prepack": "pnpm run build && node ../../scripts/readme-for-npm.mjs README.md && cp ../../LICENSE ../../NOTICE ."
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",

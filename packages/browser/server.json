@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "io.github.william-monroy/turno-browser",
+  "description": "Drives your installed Chrome with a persistent profile per identity (Playwright MCP tools).",
+  "repository": {
+    "url": "https://github.com/william-monroy/turno",
+    "source": "github",
+    "subfolder": "packages/browser"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "turno-browser",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "named",
+          "name": "--identity",
+          "description": "Identity name; each has its own persistent Chrome profile",
+          "isRequired": false,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}
