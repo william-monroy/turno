@@ -112,12 +112,15 @@ Last updated: 2026-11-13.
    name `turno` was refused, ADR 0014), each with a trusted publisher for `release.yml` and the
    `npm` environment and "require 2FA, disallow tokens"; the Homebrew tap
    `wimo-dev/homebrew-turno`; `turno-browser` in the MCP Registry (as
-   `io.github.william-monroy/turno-browser`, renamed to `io.github.wimo-dev/turno-browser` with
-   its next release);
+   `io.github.william-monroy/turno-browser`, now deprecated in favour of
+   `io.github.wimo-dev/turno-browser`);
    cobalt logo and social preview; Discussions with an Español category and the pinned roadmap.
    Left:
-   - GitHub Actions never started on the owner's personal account (a billing lock); the move to
-     the `wimo-dev` organization is meant to fix that, to be confirmed by the first CI run;
+   GitHub Actions never started on the owner's personal account (a billing lock); in the
+   `wimo-dev` organization it runs. The first CI run found that `node --test scripts/` only
+   works on Node 26 (fixed) and zizmor asked for a 7 day Dependabot cooldown. 0.1.1 of the three
+   packages was the first release through `release.yml`: version pull request, `npm`
+   environment approval, publish with provenance, tags and GitHub releases. The tap follows it.
    - the Claude Code community marketplace and awesome lists (from 2026-11-26);
    - a lawyer's read of the vendor terms notice, and Cursor's and Copilot's terms on several
      accounts, before the launch post promises anything about those agents;
