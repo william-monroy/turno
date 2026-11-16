@@ -1,3 +1,4 @@
+import { effectivePolicy } from "../../accounts/policy.js";
 import { loadRegistry } from "../../accounts/registry.js";
 import { tildify } from "../../core/paths.js";
 import { DRY_RUN, JSON_FLAG, bool, parseFlags, printJson, str } from "../args.js";
@@ -38,7 +39,15 @@ async function list(args: string[], io: Io): Promise<number> {
     printJson(io.out, {
       services: Object.values(reg.accounts)
         .sort((a, b) => a.id.localeCompare(b.id))
-        .map((a) => ({ id: a.id, service: a.service, profile: a.profile, tools: a.tools, description: a.description ?? null })),
+        .map((a) => ({
+          id: a.id,
+          service: a.service,
+          profile: a.profile,
+          tools: a.tools,
+          readTools: a.readTools ?? null,
+          confirm: effectivePolicy(a),
+          description: a.description ?? null,
+        })),
       browser: browsers.map((b) => ({ id: `${BROWSER}${b.id}`, inUse: b.inUse, dir: tildify(b.dir, io.env) })),
       preferences: reg.prefer.map((r) => ({ path: tildify(r.path, io.env), accounts: r.accounts })),
     });
@@ -109,9 +118,9 @@ export const command = group(
     list: { summary: "service accounts, browser identities and folder preferences", synopsis: "[--json]", flags: ["--json"], run: list },
     add: {
       summary: "add a service account, or create a browser identity (browser:<id>)",
-      synopsis: "<service:label> --profile <p> --tools <pattern>[,...] | browser:<id>  [--dry-run]",
+      synopsis: "<service:label> --profile <p> --tools <pattern>[,...] [--read-tools <pattern>[,...]] [--confirm always|writes|never] | browser:<id>  [--dry-run]",
       args: ["any"],
-      flags: ["--profile", "--tools", "--service", "--description", "--dry-run"],
+      flags: ["--profile", "--tools", "--read-tools", "--confirm", "--service", "--description", "--dry-run"],
       run: add,
     },
     remove: { summary: "remove a service account, or delete a browser identity and its logins", synopsis: "<id> [--dry-run]", args: ["identity"], flags: ["--dry-run"], run: remove },

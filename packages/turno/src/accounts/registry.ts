@@ -4,6 +4,7 @@ import { dirname, resolve, sep } from "node:path";
 import { parse, stringify } from "smol-toml";
 import { ConfigError, isValidProfileName } from "../core/config.js";
 import { PRIVATE_FILE_MODE, ensurePrivateDir, expandHome, paths, tildify } from "../core/paths.js";
+import { CONFIRM_POLICIES, type ConfirmPolicy, isConfirmPolicy, patternCovers } from "./policy.js";
 
 /** One service account (a Linear workspace, a Gmail connector) owned by one Claude profile. */
 export interface Account {
@@ -15,6 +16,13 @@ export interface Account {
   profile: string;
   /** Tool patterns that reach the account inside the owning profile (`mcp__linear__*`). */
   tools: string[];
+  /**
+   * Tools that only read (`read_tools` in accounts.toml), each covered by `tools`. A delegated
+   * read gets only these; without them a read is treated like a write (ADR 0024).
+   */
+  readTools?: string[];
+  /** When the user confirms a delegated run (`confirm`); unset means the service default. */
+  confirm?: ConfirmPolicy;
   description?: string;
 }
 
@@ -55,10 +63,20 @@ function optStr(v: unknown, file: string, key: string): string | undefined {
   return v;
 }
 
+function toolList(v: unknown, file: string, key: string): string[] {
+  if (!Array.isArray(v) || v.length === 0) throw new ConfigError(file, `${key} must be a non-empty array of tool patterns`);
+  for (const t of v) {
+    if (typeof t !== "string" || !t.trim() || /\s/.test(t)) {
+      throw new ConfigError(file, `${key}: invalid tool pattern ${JSON.stringify(t)}`);
+    }
+  }
+  return [...(v as string[])];
+}
+
 /** Validate one account definition; shared by the parser and `turno accounts add`. */
 export function makeAccount(
   id: string,
-  fields: { service?: string; profile?: string; tools?: unknown; description?: string },
+  fields: { service?: string; profile?: string; tools?: unknown; readTools?: unknown; confirm?: unknown; description?: string },
   file = "accounts.toml",
 ): Account {
   const key = `account."${id}"`;
@@ -70,19 +88,27 @@ export function makeAccount(
   }
   if (!fields.profile) throw new ConfigError(file, `${key} needs profile`);
   if (!isValidProfileName(fields.profile)) throw new ConfigError(file, `${key}.profile: invalid profile name "${fields.profile}"`);
-  const tools = fields.tools;
-  if (!Array.isArray(tools) || tools.length === 0) throw new ConfigError(file, `${key}.tools must be a non-empty array of tool patterns`);
-  for (const t of tools) {
-    if (typeof t !== "string" || !t.trim() || /\s/.test(t)) {
-      throw new ConfigError(file, `${key}.tools: invalid tool pattern ${JSON.stringify(t)}`);
+  const tools = toolList(fields.tools, file, `${key}.tools`);
+  let readTools: string[] | undefined;
+  if (fields.readTools !== undefined) {
+    readTools = toolList(fields.readTools, file, `${key}.read_tools`);
+    for (const r of readTools) {
+      if (!tools.some((t) => patternCovers(t, r))) {
+        throw new ConfigError(file, `${key}.read_tools: "${r}" is not covered by the account's tools (${tools.join(", ")})`);
+      }
     }
+  }
+  if (fields.confirm !== undefined && !isConfirmPolicy(fields.confirm)) {
+    throw new ConfigError(file, `${key}.confirm must be ${CONFIRM_POLICIES.map((c) => `"${c}"`).join(", ").replace(/, ([^,]*)$/, " or $1")}`);
   }
   return {
     id,
     service,
     label: parsed.label,
     profile: fields.profile,
-    tools: [...(tools as string[])],
+    tools,
+    ...(readTools ? { readTools } : {}),
+    ...(fields.confirm !== undefined ? { confirm: fields.confirm } : {}),
     ...(fields.description ? { description: fields.description } : {}),
   };
 }
@@ -106,6 +132,8 @@ export function parseRegistry(text: string, file = "accounts.toml", env: NodeJS.
         ...(service !== undefined ? { service } : {}),
         ...(profile !== undefined ? { profile } : {}),
         tools: v.tools,
+        ...(v.read_tools !== undefined ? { readTools: v.read_tools } : {}),
+        ...(v.confirm !== undefined ? { confirm: v.confirm } : {}),
         ...(description !== undefined ? { description } : {}),
       },
       file,
@@ -155,6 +183,8 @@ export function formatRegistry(reg: Registry, env: NodeJS.ProcessEnv = process.e
       service: a.service,
       profile: a.profile,
       tools: a.tools,
+      ...(a.readTools ? { read_tools: a.readTools } : {}),
+      ...(a.confirm ? { confirm: a.confirm } : {}),
       ...(a.description ? { description: a.description } : {}),
     };
   }

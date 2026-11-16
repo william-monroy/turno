@@ -1,7 +1,8 @@
 import { resolve } from "node:path";
 import { readAudit } from "../../accounts/audit.js";
 import { launcherExists } from "../../accounts/delegate.js";
-import { type Registry, isValidService, loadRegistry, makeAccount, parseAccountId, saveRegistry } from "../../accounts/registry.js";
+import { effectivePolicy } from "../../accounts/policy.js";
+import { type Account, type Registry, isValidService, loadRegistry, makeAccount, parseAccountId, saveRegistry } from "../../accounts/registry.js";
 import { Journal } from "../../core/journal.js";
 import { expandHome, paths, tildify } from "../../core/paths.js";
 import { DRY_RUN, type FlagSpec, bool, count, parseFlags, str } from "../args.js";
@@ -10,18 +11,24 @@ import { type Command, type Io, fail, paint } from "../io.js";
 const USAGE = `Usage:
   turno accounts list                       accounts, owners and folder preferences
   turno accounts add <service:label> --profile <p> --tools <pattern>[,<pattern>]
+                       [--read-tools <pattern>[,<pattern>]] [--confirm always|writes|never]
                        [--service <s>] [--description <d>]
   turno accounts remove <service:label>
   turno accounts prefer <path> <service>=<account>   (empty account removes the preference)
   turno accounts log [-n N]                 recent calls to the accounts bridge
 
 The registry lives in ~/.config/turno/accounts.toml. add, remove and prefer rewrite
-the file (it is managed: comments in it are not preserved) and accept --dry-run.`;
+the file (it is managed: comments in it are not preserved) and accept --dry-run.
+
+A delegated read gets only --read-tools; an account without them has every call confirmed.
+--confirm defaults to "always" for mail and messaging services and "writes" elsewhere.`;
 
 /** Flags of each subcommand, shared with completion through flagsOf. */
 export const ADD_SPEC: FlagSpec = {
   profile: { type: "string" },
   tools: { type: "string" },
+  "read-tools": { type: "string" },
+  confirm: { type: "string" },
   service: { type: "string" },
   description: { type: "string" },
   ...DRY_RUN,
@@ -40,6 +47,7 @@ export function list(io: Io): number {
   for (const a of accounts) {
     const missing = launcherExists(a.profile, io.env) ? "" : paint(io, "  (no launcher)", "33");
     io.out(`${paint(io, a.id.padEnd(width), "1")}  ${a.profile.padEnd(12)} ${a.tools.join(", ")}${missing}`);
+    io.out(`${" ".repeat(width)}  ${paint(io, policyLine(a), "2")}`);
     if (a.description) io.out(`${" ".repeat(width)}  ${paint(io, a.description, "2")}`);
   }
   if (reg.prefer.length) {
@@ -52,24 +60,43 @@ export function list(io: Io): number {
   return 0;
 }
 
+/** How the bridge treats an account: its confirm policy and what a read may call. */
+export function policyLine(a: Account): string {
+  const policy = `confirm ${effectivePolicy(a)}${a.confirm ? "" : " (default)"}`;
+  if (a.readTools) return `${policy}; reads: ${a.readTools.join(", ")}`;
+  return `${policy}; no read_tools: ${effectivePolicy(a) === "never" ? "reads get every tool" : "every call is confirmed"}`;
+}
+
+const list_ = (v: string | undefined) =>
+  v
+    ?.split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+
 export function add(rawArgs: string[], io: Io): number {
   const p = parseFlags(rawArgs, ADD_SPEC);
   const dry = bool(p, "dry-run");
   const [id, extra] = p.positionals;
-  if (!id || extra !== undefined) fail("usage: turno identity add <service:label> --profile <p> --tools <pattern>[,<pattern>]");
+  if (!id || extra !== undefined) fail("usage: turno identity add <service:label> --profile <p> --tools <pattern>[,<pattern>] [--read-tools <pattern>[,...]] [--confirm always|writes|never]");
   const journal = new Journal(io.env, `accounts add ${id}`, dry);
-  const flags = { profile: str(p, "profile"), tools: str(p, "tools"), service: str(p, "service"), description: str(p, "description") };
+  const flags = {
+    profile: str(p, "profile"),
+    tools: str(p, "tools"),
+    readTools: str(p, "read-tools"),
+    confirm: str(p, "confirm"),
+    service: str(p, "service"),
+    description: str(p, "description"),
+  };
   if (!flags.profile) fail("--profile is required");
   if (!flags.tools) fail("--tools is required");
-  const tools = flags.tools
-    .split(",")
-    .map((t) => t.trim())
-    .filter(Boolean);
+  const tools = list_(flags.tools);
   const reg = loadRegistry(io.env);
   const existed = Boolean(reg.accounts[id]);
   reg.accounts[id] = makeAccount(id, {
     profile: flags.profile,
     tools,
+    ...(flags.readTools !== undefined ? { readTools: list_(flags.readTools) } : {}),
+    ...(flags.confirm !== undefined ? { confirm: flags.confirm } : {}),
     ...(flags.service ? { service: flags.service } : {}),
     ...(flags.description ? { description: flags.description } : {}),
   });
@@ -158,6 +185,12 @@ export function log(args: string[], io: Io): number {
       `${when}  ${paint(io, e.outcome.padEnd(7), color)} ${who} -> ${e.account} (${e.owner ?? "?"}) ${e.write ? "write" : "read"} ${Math.round(e.durationMs / 1000)}s${cost}`,
     );
     io.out(`    ${task.length > 120 ? `${task.slice(0, 117)}...` : task}`);
+    if (e.decision) {
+      const d = e.decision;
+      const asked = d.asked ? (d.confirmed ? "confirmed" : "not confirmed") : "not asked";
+      const blocked = d.denied?.length ? `; blocked: ${d.denied.join(", ")}` : "";
+      io.out(`    ${paint(io, `${d.toolset === "read" ? "read tools" : "all tools"}, ${asked}${d.mcp ? `, ${d.mcp} MCP` : ""}${blocked}`, "2")}`);
+    }
     if (e.outcome !== "ok" && e.detail) io.out(`    ${paint(io, e.detail.replace(/\s+/g, " ").slice(0, 160), "2")}`);
   }
   return 0;
