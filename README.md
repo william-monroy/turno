@@ -11,9 +11,9 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/turno-cli"><img alt="npm" src="https://img.shields.io/npm/v/turno-cli?color=2457F5"></a>
-  <a href="https://github.com/william-monroy/turno/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/william-monroy/turno/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/wimo-dev/turno/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/wimo-dev/turno/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
-  <a href="https://scorecard.dev/viewer/?uri=github.com/william-monroy/turno"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/william-monroy/turno/badge"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/wimo-dev/turno"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/wimo-dev/turno/badge"></a>
 </p>
 
 <p align="center">
@@ -34,7 +34,7 @@ open with your work login and everything else with your personal one.
 ```sh
 npx turno-cli@latest doctor     # try it without installing: checks your agents and config
 npm install --global turno-cli  # macOS or Linux, Node 22.11+
-brew tap william-monroy/turno && brew trust william-monroy/turno && brew install turno  # or Homebrew
+brew tap wimo-dev/turno && brew trust wimo-dev/turno && brew install turno  # or Homebrew
 ```
 
 The npm package is `turno-cli`; the command it installs is `turno`.
@@ -261,7 +261,7 @@ Details: [docs/ui.md](docs/ui.md).
 reaches its usage limit, so `turno status` can show it:
 
 ```
-/plugin marketplace add william-monroy/turno
+/plugin marketplace add wimo-dev/turno
 /plugin install turno@turno
 ```
 
@@ -315,10 +315,10 @@ terminal. turno sends no other data anywhere.
 
 ## Contributing
 
-Issues labeled [good first issue](https://github.com/william-monroy/turno/labels/good%20first%20issue)
+Issues labeled [good first issue](https://github.com/wimo-dev/turno/labels/good%20first%20issue)
 are a good start. Read [CONTRIBUTING.md](CONTRIBUTING.md), the
 [Code of Conduct](CODE_OF_CONDUCT.md) and the [AI policy](AI_POLICY.md). Questions and ideas go
-to [Discussions](https://github.com/william-monroy/turno/discussions) (there is an Español
+to [Discussions](https://github.com/wimo-dev/turno/discussions) (there is an Español
 category). Security issues: [SECURITY.md](SECURITY.md).
 
 ```sh

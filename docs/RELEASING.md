@@ -78,7 +78,7 @@ then releases go to the `next` dist-tag (`turno upgrade --channel next` follows 
 ## Before the first publish
 
 1. Done on 2026-11-16: the name (`turno`, trademark risk accepted by the owner), the GitHub
-   repository `william-monroy/turno`, `repository`, `homepage` and `bugs` in each package.json,
+   repository `wimo-dev/turno`, `repository`, `homepage` and `bugs` in each package.json,
    no `private` flag, changelogs for 0.1.0.
 2. Repository settings: private vulnerability reporting, Discussions (with an "Español"
    category), secret scanning with push protection, the open pull request limit, the "require
