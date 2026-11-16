@@ -5,12 +5,24 @@ import { paths } from "./paths.js";
 
 export type Scope = "shared" | "project" | "session";
 
+/**
+ * Which tools of a server a session sees (ADR 0023): glob patterns (`*` any run of characters,
+ * `?` one character) matched against the whole tool name. With `allow`, only matching tools are
+ * kept; `deny` then removes matching ones. Unset keys filter nothing.
+ */
+export interface ToolFilter {
+  allow?: string[];
+  deny?: string[];
+}
+
 /** Settings a profile variant may override. */
 export interface ServerVariant {
   command?: string;
   args?: string[];
   env: Record<string, string>;
   cwd?: string;
+  /** Replaces the server's `tools.allow` / `tools.deny`, key by key, for this profile. */
+  tools?: ToolFilter;
 }
 
 export interface StdioServer {
@@ -36,6 +48,7 @@ export interface StdioServer {
   builtin?: string;
   /** Seconds a single client request may run before mcpd cancels it (off when unset). */
   callTimeout?: number;
+  tools?: ToolFilter;
 }
 
 export interface RemoteServer {
@@ -54,6 +67,8 @@ export interface RemoteServer {
   idle: number;
   /** Seconds a single client request may run before mcpd cancels it (off when unset). */
   callTimeout?: number;
+  /** Only for proxied remotes: a direct remote never passes through mcpd. */
+  tools?: ToolFilter;
 }
 
 export type ServerDef = StdioServer | RemoteServer;
@@ -102,6 +117,22 @@ function optStr(v: unknown, file: string, key: string): string | undefined {
   return v;
 }
 
+const TOOL_PATTERN = /^[^\s]{1,128}$/;
+
+/** `tools = { allow = [...], deny = [...] }`: a table with only those keys, each a list of patterns. */
+function toolFilterOf(v: unknown, file: string, key: string): ToolFilter | undefined {
+  if (v === undefined) return undefined;
+  if (typeof v !== "object" || v === null || Array.isArray(v)) throw new ConfigError(file, `${key} must be a table with allow and/or deny`);
+  const out: ToolFilter = {};
+  for (const [k, val] of Object.entries(v)) {
+    if (k !== "allow" && k !== "deny") throw new ConfigError(file, `${key}.${k} is not a tool filter key (allow, deny)`);
+    const list = strArray(val, file, `${key}.${k}`);
+    for (const p of list) if (!TOOL_PATTERN.test(p)) throw new ConfigError(file, `${key}.${k}: invalid tool pattern ${JSON.stringify(p)}`);
+    out[k] = list;
+  }
+  return out;
+}
+
 function profilesOf(v: unknown, file: string, key: string): string[] {
   const list = v === undefined ? ["*"] : strArray(v, file, key);
   for (const p of list) if (p !== "*" && !isValidProfileName(p)) throw new ConfigError(file, `${key}: invalid profile "${p}"`);
@@ -124,10 +155,14 @@ export function parseManifest(text: string, file = "mcp.toml"): Manifest {
     const profiles = profilesOf(v.profiles, file, `${key}.profiles`);
     if (v.url !== undefined) {
       if (typeof v.url !== "string") throw new ConfigError(file, `${key}.url must be a string`);
-      const { profiles: _p, idle: _i, call_timeout: _t, ...rest } = v;
+      const { profiles: _p, idle: _i, call_timeout: _t, tools: _f, ...rest } = v;
       const entry: Record<string, unknown> = { type: "http", ...rest };
       const headers = strRecord(v.headers, file, `${key}.headers`);
       const proxy = Object.values(headers).some(isSecretRef);
+      const tools = toolFilterOf(v.tools, file, `${key}.tools`);
+      if (tools && !proxy) {
+        throw new ConfigError(file, `${key}.tools only works for servers that go through mcpd; a remote server does when a header uses keychain: or env:`);
+      }
       const remote: RemoteServer = {
         kind: "remote",
         name,
@@ -139,6 +174,7 @@ export function parseManifest(text: string, file = "mcp.toml"): Manifest {
         idle: v.idle === undefined ? 30 * 60 : parseDuration(v.idle, file, `${key}.idle`),
       };
       if (v.call_timeout !== undefined) remote.callTimeout = parseDuration(v.call_timeout, file, `${key}.call_timeout`);
+      if (tools) remote.tools = tools;
       servers[name] = remote;
       continue;
     }
@@ -162,6 +198,8 @@ export function parseManifest(text: string, file = "mcp.toml"): Manifest {
       if (o.args !== undefined) variant.args = strArray(o.args, file, `${key}.variant.${prof}.args`);
       const vcwd = optStr(o.cwd, file, `${key}.variant.${prof}.cwd`);
       if (vcwd) variant.cwd = vcwd;
+      const vtools = toolFilterOf(o.tools, file, `${key}.variant.${prof}.tools`);
+      if (vtools) variant.tools = vtools;
       variants[prof] = variant;
     }
     const server: StdioServer = {
@@ -183,6 +221,8 @@ export function parseManifest(text: string, file = "mcp.toml"): Manifest {
     if (pkg) server.package = pkg;
     if (builtin) server.builtin = builtin;
     if (v.call_timeout !== undefined) server.callTimeout = parseDuration(v.call_timeout, file, `${key}.call_timeout`);
+    const tools = toolFilterOf(v.tools, file, `${key}.tools`);
+    if (tools) server.tools = tools;
     servers[name] = server;
   }
   return { servers };
@@ -220,4 +260,29 @@ export function effectiveLaunch(server: StdioServer, variant: string): { command
   const cwd = v?.cwd ?? server.cwd;
   if (cwd) out.cwd = cwd;
   return out;
+}
+
+/** The tool filter a profile's sessions get: the server's, with the variant's keys in place of its own. */
+export function toolFilterFor(server: ServerDef, profile: string | undefined): ToolFilter {
+  const base = server.tools ?? {};
+  if (server.kind !== "stdio") return base;
+  const v = server.variants[variantKey(server, profile)]?.tools;
+  return v ? { ...base, ...v } : base;
+}
+
+function globRegExp(pattern: string): RegExp {
+  const body = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".");
+  return new RegExp(`^${body}$`);
+}
+
+/** Whether a tool passes a filter. */
+export function toolAllowed(filter: ToolFilter, tool: string): boolean {
+  const hit = (patterns: string[]) => patterns.some((p) => globRegExp(p).test(tool));
+  if (filter.allow && !hit(filter.allow)) return false;
+  return !(filter.deny && hit(filter.deny));
+}
+
+/** Whether a filter can hide anything. */
+export function filtersTools(filter: ToolFilter): boolean {
+  return filter.allow !== undefined || filter.deny !== undefined;
 }

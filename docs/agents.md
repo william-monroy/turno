@@ -71,9 +71,9 @@ turno mcp config --agent opencode --profile work
 ```
 
 prints the entries of every gateway server for that agent, with the file they go in. Where the
-agent expands variables the token is read from `TURNO_MCPD_TOKEN`
-(`export TURNO_MCPD_TOKEN="$(cat ~/.local/state/turno/mcpd.token)"` in your shell profile);
-Goose gets a placeholder you replace by hand.
+agent expands variables the token is read from `TURNO_MCPD_TOKEN`, set to the profile's own token
+(`export TURNO_MCPD_TOKEN="$(cat ~/.local/state/turno/mcpd-tokens/work.token)"` in your shell
+profile; the command writes that file); Goose gets a placeholder you replace by hand.
 
 ## Not covered (yet)
 

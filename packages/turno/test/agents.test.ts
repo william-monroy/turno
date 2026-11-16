@@ -98,7 +98,9 @@ describe("agent launchers", () => {
     expect(text).toContain('export CODEX_HOME="$HOME/.codex-cx"');
     expect(text).toContain('export TURNO_PROFILE="cx"');
     expect(text).toContain("TURNO_MCPD_TOKEN=");
-    expect(text).toContain('"$HOME/.local/state/turno/mcpd.token"');
+    // Its own profile token (ADR 0023), never the master token.
+    expect(text).toContain('"$HOME/.local/state/turno/mcpd-tokens/cx.token"');
+    expect(text).not.toContain("mcpd.token");
     expect(text).toContain('exec codex "$@"');
     expect(text).not.toContain("CLAUDE_CONFIG_DIR");
   });

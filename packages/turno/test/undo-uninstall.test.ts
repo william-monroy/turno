@@ -207,6 +207,7 @@ function setUpTurno(): void {
   );
   sb.write(".local/state/turno/mcp-managed.json", `${JSON.stringify({ [claudeJson]: ["fs"] })}\n`);
   sb.write(".local/state/turno/mcpd.token", "secret-token-value\n", 0o600);
+  sb.write(".local/state/turno/mcpd-tokens/work.token", "tp1.work.x\n", 0o600);
   writeFileSync(home(".claude/settings.json"), `${JSON.stringify({ theme: "dark", statusLine: { type: "command", command: "turno statusline" } }, null, 2)}\n`);
   sb.write(".config/fish/completions/turno.fish", SCRIPTS.fish!);
   sb.write(".zshrc", "export X=1\nsource <(turno completion zsh)\n");
@@ -233,6 +234,7 @@ describe("turno uninstall (02-H5)", () => {
     expect(out).toContain("npm uninstall --global turno-cli");
     expect(out).not.toContain("secret-token-value");
     expect(existsSync(serviceFile())).toBe(true);
+    expect(existsSync(home(".local/state/turno/mcpd-tokens/work.token"))).toBe(true);
     expect(existsSync(home(".local/bin/claude-work"))).toBe(true);
     expect(existsSync(cfgFile())).toBe(true);
     expect(callLog()).toEqual([]);
@@ -271,6 +273,7 @@ describe("turno uninstall (02-H5)", () => {
     expect(readFileSync(home(".zshrc"), "utf8")).toContain("turno completion zsh");
     expect(existsSync(home(".config/turno"))).toBe(false);
     expect(existsSync(home(".local/state/turno/mcpd.token"))).toBe(false);
+    expect(existsSync(home(".local/state/turno/mcpd-tokens/work.token"))).toBe(false);
     expect(existsSync(home(".claude-work"))).toBe(true);
     const out = r.io.lines.join("\n");
     expect(out).toMatch(/turno undo \d{8}-\d{6}/);

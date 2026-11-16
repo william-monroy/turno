@@ -13,6 +13,7 @@ import { DescriptionCache } from "../src/mcpd/cache.js";
 import { DefaultConnector } from "../src/mcpd/connectors.js";
 import { Gateway } from "../src/mcpd/gateway.js";
 import { InstanceManager } from "../src/mcpd/instances.js";
+import { profileToken } from "../src/mcpd/tokens.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 const TOKEN = "test-token";
@@ -97,7 +98,8 @@ async function connect(o: ConnectOpts = {}): Promise<Client> {
     const roots = o.roots;
     client.setRequestHandler(ListRootsRequestSchema, async () => ({ roots: roots.map((r) => ({ uri: pathToFileURL(r).href })) }));
   }
-  const headers: Record<string, string> = { Authorization: `Bearer ${TOKEN}` };
+  // Sessions authenticate with their profile's token (ADR 0023).
+  const headers: Record<string, string> = { Authorization: `Bearer ${profileToken(TOKEN, o.profile ?? "default")}` };
   if (o.profile) headers["X-Turno-Profile"] = o.profile;
   if (o.cwd) headers["X-Turno-Cwd"] = o.cwd;
   // Distinct fake PIDs keep each test client in its own session-scoped builtin instance.

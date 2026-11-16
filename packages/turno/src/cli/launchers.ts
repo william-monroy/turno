@@ -6,6 +6,7 @@ import { loadConfig } from "../core/config.js";
 import type { Journal } from "../core/journal.js";
 import { paths, tildify } from "../core/paths.js";
 import { agentOf } from "../core/profiles.js";
+import { profileTokenFile } from "../mcpd/tokens.js";
 import { CliError, UsageError } from "./io.js";
 
 /** Every launcher turno writes carries this line; only marked files are ever overwritten. */
@@ -160,7 +161,11 @@ function agentLauncherText(name: string, agent: AgentId, env: NodeJS.ProcessEnv,
     "export TURNO_SESSION_CWD_B64",
     ...a.launcherEnv,
     ...(a.tokenFromEnv
-      ? ["# The MCP gateway token, read by the agent from the environment (never written to its config).", `TURNO_MCPD_TOKEN="$(cat ${shPath(p.mcpdToken, env)} 2>/dev/null)"`, "export TURNO_MCPD_TOKEN"]
+      ? [
+          "# This profile's MCP gateway token (turno mcp sync writes it), read by the agent from the environment.",
+          `TURNO_MCPD_TOKEN="$(cat ${shPath(profileTokenFile(name, env), env)} 2>/dev/null)"`,
+          "export TURNO_MCPD_TOKEN",
+        ]
       : []),
     ...(hubDirs.length ? ["# If a cleanup removed an empty hub folder, the profile symlink would dangle.", `mkdir -p ${hubDirs.join(" ")}`] : []),
     ...browserLines(env, platform, false),

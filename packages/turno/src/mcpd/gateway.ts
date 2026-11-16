@@ -3,14 +3,19 @@ import { type IncomingMessage, type Server as HttpServer, type ServerResponse, c
 import { isAbsolute } from "node:path";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
-import type { Manifest } from "../core/manifest.js";
+import { type Manifest, type ToolFilter, filtersTools, servesProfile, toolAllowed, toolFilterFor } from "../core/manifest.js";
 import type { ServerDescription } from "./cache.js";
 import { type ClientContext, type ClientHandle, type InstanceManager, isDirectory, processCwd, projectRoot, scopeOf } from "./instances.js";
 import { ErrorCode, type Id, type Message, type Outcome, isNotification, isRequest, isResponse, rpcError, toResponse } from "./jsonrpc.js";
+import { tokenProfile } from "./tokens.js";
 
 export interface GatewayOptions {
   manager: InstanceManager;
   manifest: () => Manifest;
+  /**
+   * The master token (ADR 0023). It opens only the admin endpoints (/status, /refresh); MCP
+   * sessions authenticate with a profile token derived from it.
+   */
   token: string;
   /** Finds the PID of a local TCP peer (lsof) when the session did not send one. */
   peerPid?: (remotePort: number) => Promise<number | undefined>;
@@ -33,6 +38,13 @@ const LIST_METHODS: Record<string, { cap: string; key: keyof ServerDescription; 
 };
 
 const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** What a valid bearer token lets the caller do. */
+type Caller = { admin: true } | { admin: false; profile: string };
+
+export const MASTER_TOKEN_REFUSED =
+  "this agent config sends the master gateway token, which turno no longer accepts for MCP sessions (each profile has its own token now); run: turno mcp sync";
+export const BAD_TOKEN = "bad token (after an upgrade or turno mcp token rotate, run: turno mcp sync)";
 
 function header(req: IncomingMessage, name: string): string | undefined {
   const v = req.headers[name];
@@ -190,8 +202,19 @@ class ClientSession implements ClientHandle {
           this.reply(id, rpcError(ErrorCode.MethodNotFound, `${this.ctx.serverName} has no ${list.cap}`));
           return;
         }
-        this.reply(id, { result: { [list.field]: d[list.key] ?? [] } });
+        let items = (d[list.key] as unknown[] | undefined) ?? [];
+        const filter = list.key === "tools" ? this.gw.toolFilter(this.ctx) : undefined;
+        if (filter) items = items.filter((t) => toolAllowed(filter, String((t as { name?: unknown }).name ?? "")));
+        this.reply(id, { result: { [list.field]: items } });
         return;
+      }
+      if (method === "tools/call") {
+        const filter = this.gw.toolFilter(this.ctx);
+        const tool = typeof m.params?.name === "string" ? m.params.name : "";
+        if (filter && !toolAllowed(filter, tool)) {
+          this.reply(id, rpcError(ErrorCode.InvalidParams, `tool ${tool} of ${this.ctx.serverName} is not available to profile ${this.ctx.profile ?? "default"} (tools.allow / tools.deny in mcp.toml)`));
+          return;
+        }
       }
       if (method === "logging/setLevel" && !manager.existing(this)) {
         this.reply(id, { result: {} });
@@ -289,15 +312,35 @@ export class Gateway {
     this.manager.detach(s);
   }
 
-  private authorized(req: IncomingMessage): string | undefined {
+  /** Local, not a browser, and a valid token: the master (admin) or a profile token. */
+  private authenticate(req: IncomingMessage): Caller | { status: number; error: string } {
     const addr = req.socket.remoteAddress ?? "";
-    if (!["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(addr)) return "not local";
+    if (!["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(addr)) return { status: 403, error: "not local" };
     const host = header(req, "host") ?? "";
-    if (!/^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(host)) return "bad host";
-    if (header(req, "origin") !== undefined) return "browser origin";
+    if (!/^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(host)) return { status: 403, error: "bad host" };
+    if (header(req, "origin") !== undefined) return { status: 403, error: "browser origin" };
     const auth = header(req, "authorization") ?? "";
-    if (!safeEqual(auth, `Bearer ${this.opts.token}`)) return "bad token";
-    return undefined;
+    if (safeEqual(auth, `Bearer ${this.opts.token}`)) return { admin: true };
+    const profile = auth.startsWith("Bearer ") ? tokenProfile(this.opts.token, auth.slice(7).trim()) : undefined;
+    return profile ? { admin: false, profile } : { status: 401, error: BAD_TOKEN };
+  }
+
+  /** The tool filter for a session, or undefined when its server filters nothing. */
+  toolFilter(ctx: ClientContext): ToolFilter | undefined {
+    const server = this.opts.manifest().servers[ctx.serverName];
+    if (!server) return undefined;
+    const f = toolFilterFor(server, ctx.profile);
+    return filtersTools(f) ? f : undefined;
+  }
+
+  private lastMasterWarning = 0;
+
+  private refuseMaster(res: ServerResponse, name: string | undefined): void {
+    if (Date.now() - this.lastMasterWarning > 60_000) {
+      this.lastMasterWarning = Date.now();
+      this.opts.log?.(`refused a session for ${name ?? "?"} that sent the master token: an agent config predates per-profile tokens (turno mcp sync fixes it)`);
+    }
+    json(res, 403, { error: MASTER_TOKEN_REFUSED });
   }
 
   private servable(name: string | undefined): boolean {
@@ -306,23 +349,36 @@ export class Gateway {
   }
 
   private async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    const denied = this.authorized(req);
-    if (denied) {
-      json(res, denied === "bad token" ? 401 : 403, { error: denied });
+    const caller = this.authenticate(req);
+    if ("status" in caller) {
+      json(res, caller.status, { error: caller.error });
       return;
     }
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
-    if (url.pathname === "/status" && req.method === "GET") {
-      json(res, 200, this.status());
-      return;
-    }
     const refresh = /^\/refresh(?:\/([^/]+))?\/?$/.exec(url.pathname);
-    if (refresh && req.method === "POST") {
-      await this.handleRefresh(refresh[1] ? decodeURIComponent(refresh[1]) : undefined, res);
+    if ((url.pathname === "/status" && req.method === "GET") || (refresh && req.method === "POST")) {
+      if (!caller.admin) {
+        json(res, 403, { error: "a profile token cannot use the admin endpoints" });
+        return;
+      }
+      if (refresh) await this.handleRefresh(refresh[1] ? decodeURIComponent(refresh[1]) : undefined, res);
+      else json(res, 200, this.status());
       return;
     }
     const m = /^\/mcp\/([^/]+)\/?$/.exec(url.pathname);
     const name = m?.[1] ? decodeURIComponent(m[1]) : undefined;
+    if (caller.admin) {
+      if (m) this.refuseMaster(res, name);
+      else json(res, 404, { error: "unknown server " });
+      return;
+    }
+    // The profile comes from the token; a header that disagrees is a config copied across
+    // profiles or a forgery, and is refused rather than ignored.
+    const claimed = header(req, "x-turno-profile")?.trim();
+    if (claimed && claimed !== caller.profile) {
+      json(res, 403, { error: `X-Turno-Profile says ${claimed}, but the token belongs to profile ${caller.profile}` });
+      return;
+    }
     const sid = header(req, "mcp-session-id");
     const open = sid ? this.sessions.get(sid) : undefined;
     // An open session goes on even if its server left the manifest: it then gets a JSON-RPC
@@ -331,19 +387,28 @@ export class Gateway {
       json(res, 404, { error: `unknown server ${name ?? ""}` });
       return;
     }
+    const def = this.opts.manifest().servers[name];
+    if (def && !servesProfile(def, caller.profile)) {
+      json(res, 403, { error: `server ${name} is not enabled for profile ${caller.profile} (profiles in mcp.toml)` });
+      return;
+    }
+    if (open && open.ctx.profile !== caller.profile) {
+      json(res, 403, { error: `session ${sid} belongs to another profile` });
+      return;
+    }
     if (sid) {
       let s = open;
       // mcpd restarted (upgrade, refresh, crash): rebuild the session under the same id from
       // the request headers instead of a 404 that ends the client's conversation.
-      if (!s && (req.method === "POST" || req.method === "GET") && SESSION_ID.test(sid)) s = await this.recreate(req, name, sid);
-      if (!s || s.ctx.serverName !== name) {
+      if (!s && (req.method === "POST" || req.method === "GET") && SESSION_ID.test(sid)) s = await this.recreate(req, name, sid, caller.profile);
+      if (!s || s.ctx.serverName !== name || s.ctx.profile !== caller.profile) {
         json(res, 404, { jsonrpc: "2.0", error: { code: -32001, message: "Session not found" }, id: null });
         return;
       }
       await s.transport.handleRequest(req, res);
       return;
     }
-    const session = await this.createSession(req, name);
+    const session = await this.createSession(req, name, caller.profile);
     await session?.transport.handleRequest(req, res);
     if (session && !session.transport.sessionId) await session.transport.close().catch(() => {});
   }
@@ -362,9 +427,8 @@ export class Gateway {
     json(res, 200, name !== undefined ? { server: name, ...(out[name] as object) } : { servers: out });
   }
 
-  /** Identity and folder of a new session: profile, PID (header, else TCP peer), folder (header, else the PID's). */
-  private async sessionContext(req: IncomingMessage, name: string): Promise<ClientContext> {
-    const profile = header(req, "x-turno-profile") || undefined;
+  /** Identity and folder of a new session: profile (from its token), PID (header, else TCP peer), folder (header, else the PID's). */
+  private async sessionContext(req: IncomingMessage, name: string, profile: string): Promise<ClientContext> {
     let pid = Number.parseInt(header(req, "x-turno-pid") ?? "0", 10) || undefined;
     if (!pid && this.opts.peerPid && req.socket.remotePort) pid = await this.opts.peerPid(req.socket.remotePort);
     let cwd = decodeCwdHeaders(req.headers);
@@ -380,7 +444,7 @@ export class Gateway {
     return {
       serverName: name,
       sessionId: "",
-      ...(profile ? { profile } : {}),
+      profile,
       ...(pid ? { pid } : {}),
       ...(cwd ? { cwd } : {}),
       ...(root ? { projectRoot: root } : {}),
@@ -388,18 +452,18 @@ export class Gateway {
   }
 
   /** One recreation per id, even when the client's GET stream and next POST arrive together. */
-  private recreate(req: IncomingMessage, name: string, sid: string): Promise<ClientSession | undefined> {
+  private recreate(req: IncomingMessage, name: string, sid: string, profile: string): Promise<ClientSession | undefined> {
     let p = this.recreating.get(sid);
     if (!p) {
-      p = this.createSession(req, name, sid);
+      p = this.createSession(req, name, profile, sid);
       this.recreating.set(sid, p);
       p.finally(() => this.recreating.delete(sid)).catch(() => {});
     }
     return p;
   }
 
-  private async createSession(req: IncomingMessage, name: string, fixedId?: string): Promise<ClientSession | undefined> {
-    const ctx = await this.sessionContext(req, name);
+  private async createSession(req: IncomingMessage, name: string, profile: string, fixedId?: string): Promise<ClientSession | undefined> {
+    const ctx = await this.sessionContext(req, name, profile);
     let session: ClientSession | undefined;
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => fixedId ?? randomUUID(),

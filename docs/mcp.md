@@ -7,7 +7,7 @@ Every profile's `.claude.json` lists local MCP servers as HTTP entries pointing 
   "type": "http",
   "url": "http://127.0.0.1:47821/mcp/calendar",
   "headers": {
-    "Authorization": "Bearer <token>",
+    "Authorization": "Bearer <the work profile's token>",
     "X-Turno-Profile": "work",
     "X-Turno-Pid": "${TURNO_SESSION_PID:-0}",
     "X-Turno-Cwd-B64": "${TURNO_SESSION_CWD_B64:-}"
@@ -22,6 +22,24 @@ NFD form, CJK, an emoji) is not a valid header value and the client would refuse
 Without the variable (a plain `claude`), mcpd reads the folder of the client process (`/proc`
 on Linux, `lsof` on macOS). Entries written by older versions still send `X-Turno-Cwd`; mcpd
 keeps reading it.
+
+## Tokens and profiles
+
+Each profile gets its own gateway token, derived from the master token in
+`~/.local/state/turno/mcpd.token` (HMAC-SHA256, so mcpd keeps no list of them). mcpd reads the
+profile from the token, not from `X-Turno-Profile`: a session with the `work` token cannot open
+a server whose `profiles` leave `work` out (HTTP 403), and a request whose `X-Turno-Profile`
+names another profile than its token is refused too. Plain `claude` gets the token of the
+system profile. Codex, Copilot and Cursor read the token from `TURNO_MCPD_TOKEN`, which their
+launcher fills from `~/.local/state/turno/mcpd-tokens/<profile>.token` (mode 600, written by
+`turno mcp sync`).
+
+The master token never goes into an agent config. It opens only mcpd's own endpoints
+(`/status`, `/refresh`), which `turno` uses; mcpd refuses it for MCP sessions. Configs synced by
+a turno older than per-profile tokens still send it: mcpd answers 403 with "run: turno mcp sync",
+and `turno doctor` and `turno upgrade --finish` say the same. Removing a profile does not revoke
+its token; `turno mcp token rotate` does (for every profile). See
+[ADR 0023](decisions/0023-per-profile-gateway-tokens-and-tool-filters.md).
 
 ## mcp.toml reference
 
@@ -39,16 +57,24 @@ call_timeout = "10m"              # optional: cancel a single request that runs 
                                   # it also cuts calls waiting for the user to answer a form)
 exclusive = false                 # one client session at a time (shared scope only)
 lease = "5m"                      # exclusive: how long an idle holder keeps it
-profiles = ["*"]                  # which profiles get this server
+profiles = ["*"]                  # which profiles get this server (and may open it)
+tools = { allow = ["get_*", "list_*"], deny = ["*_delete"] }   # optional: which tools sessions see
 
 [server.<name>.variant.<profile>] # what changes for one profile (a different account)
 env = { TOKEN = "keychain:turno/name/token-work" }
+tools = { deny = ["*"] }          # replaces the server's allow / deny, key by key, for this profile
 
 [server.<remote>]
 url = "https://example.com/mcp"
 headers = { Authorization = "keychain:turno/remote/auth" }   # secret headers: proxied by mcpd
 type = "http"                     # or "sse" for the legacy HTTP+SSE transport
 ```
+
+`tools` patterns match whole tool names: `*` is any run of characters, `?` one character. With
+`allow`, only matching tools stay; `deny` then removes matching ones. A filtered tool is absent
+from `tools/list`, and a call to it gets a JSON-RPC error. mcpd applies the filter, so it works
+for stdio servers and proxied remotes, and `turno config check` refuses it on a remote that does
+not go through mcpd.
 
 Values starting with `keychain:` are read with `security find-generic-password -s <service> -w`
 when the server starts; `env:` reads mcpd's own environment, and `env:NAME:-default` uses the
@@ -106,7 +132,7 @@ mcpd. With secret headers it is proxied, so the secret stays in the Keychain.
   answering 404.
 - Reloads `mcp.toml` when it changes (or on SIGHUP).
 
-`POST /refresh/<server>` (or `POST /refresh` for all servers) on the gateway, with the bearer
+`POST /refresh/<server>` (or `POST /refresh` for all servers) on the gateway, with the master
 token, relists running instances and forgets the cached description of the others, without a
 restart. It answers `{"server", "refreshed": [...], "forgotten": [...], "errors": {...}}`.
 
@@ -142,5 +168,5 @@ If `mcp.toml` stops validating, mcpd keeps serving the last copy that did
 (`~/.local/state/turno/mcp.last-good.toml`) and reports the error in `turno mcp daemon status`
 and `turno doctor`.
 
-`turno mcp token rotate` replaces the gateway token, restarts mcpd and asks you to run
-`turno mcp sync`. See [ADR 0017](decisions/0017-daemon-service-port-and-last-good-manifest.md).
+`turno mcp token rotate` replaces the master token, which invalidates every profile token,
+restarts mcpd and asks you to run `turno mcp sync`. See [ADR 0017](decisions/0017-daemon-service-port-and-last-good-manifest.md).

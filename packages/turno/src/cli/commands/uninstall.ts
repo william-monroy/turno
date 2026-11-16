@@ -1,5 +1,5 @@
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { agentProfileDir } from "../../agents/index.js";
 import { type Config, loadConfig, parseConfig } from "../../core/config.js";
@@ -7,6 +7,7 @@ import { Journal, listJournals } from "../../core/journal.js";
 import { paths, tildify } from "../../core/paths.js";
 import { agentOf, listProfiles } from "../../core/profiles.js";
 import type { ServiceBackend } from "../../mcpd/service.js";
+import { profileTokenFile } from "../../mcpd/tokens.js";
 import { type StatusLine, currentStatusLine, isTurnoStatusLine, readSettings } from "../../ui/settings.js";
 import { DRY_RUN, bool, parseFlags } from "../args.js";
 import { CliError, type Command, type Io, confirm } from "../io.js";
@@ -57,6 +58,8 @@ export interface UninstallPlan {
   launchers: string[];
   completions: string[];
   token?: string;
+  /** Per-profile gateway token files (ADR 0023). */
+  profileTokens: string[];
   turnoConfig?: ConfigFiles;
   /** Shell startup lines to remove by hand. */
   manual: string[];
@@ -164,7 +167,7 @@ const RC_FILES = [".zshrc", ".bashrc", ".bash_profile", ".profile", ".config/fis
 
 export async function planUninstall(env: NodeJS.ProcessEnv, opts: { keepConfig?: boolean } = {}): Promise<UninstallPlan> {
   const p = paths(env);
-  const plan: UninstallPlan = { configs: [], launchers: [], completions: [], manual: [], kept: [] };
+  const plan: UninstallPlan = { configs: [], launchers: [], completions: [], profileTokens: [], manual: [], kept: [] };
 
   // Only a service whose file is in this HOME: never ask the service manager about one it is not.
   const { installedBackend } = await import("../../mcpd/service.js");
@@ -212,6 +215,10 @@ export async function planUninstall(env: NodeJS.ProcessEnv, opts: { keepConfig?:
   }
 
   if (existsSync(p.mcpdToken)) plan.token = p.mcpdToken;
+  const tokenDir = dirname(profileTokenFile("x", env));
+  if (existsSync(tokenDir)) {
+    for (const f of readdirSync(tokenDir)) if (f.endsWith(".token")) plan.profileTokens.push(join(tokenDir, f));
+  }
 
   if (opts.keepConfig) {
     if (existsSync(p.config)) plan.kept.push(`${tildify(p.config, env)} stays (--keep-config)`);
@@ -241,6 +248,7 @@ function isEmpty(plan: UninstallPlan): boolean {
     !plan.launchers.length &&
     !plan.completions.length &&
     !plan.token &&
+    !plan.profileTokens.length &&
     !plan.turnoConfig
   );
 }
@@ -258,6 +266,7 @@ function describe(plan: UninstallPlan, env: NodeJS.ProcessEnv): string[] {
   for (const l of plan.launchers) out.push(`launcher ${t(l)}`);
   for (const c of plan.completions) out.push(`completion ${t(c)}`);
   if (plan.token) out.push(`the gateway token ${t(plan.token)}`);
+  if (plan.profileTokens.length) out.push(`${plan.profileTokens.length} profile gateway token file${plan.profileTokens.length === 1 ? "" : "s"} in ${t(dirname(plan.profileTokens[0]!))}`);
   if (plan.turnoConfig) {
     const names = plan.turnoConfig.files.map((f) => f.slice(plan.turnoConfig!.root.length + 1));
     out.push(`${t(plan.turnoConfig.root)}${names.length ? ` (${names.join(", ")})` : ""}`);
@@ -313,6 +322,7 @@ async function apply(plan: UninstallPlan, journal: Journal, io: Io): Promise<voi
   for (const l of plan.launchers) journal.remove(l);
   for (const c of plan.completions) journal.remove(c);
   if (plan.token) journal.remove(plan.token);
+  for (const f of plan.profileTokens) journal.remove(f);
   if (plan.turnoConfig) {
     for (const f of plan.turnoConfig.files) journal.remove(f);
     for (const l of plan.turnoConfig.links) journal.unlink(l);

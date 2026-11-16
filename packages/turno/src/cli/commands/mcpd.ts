@@ -342,7 +342,7 @@ async function token(args: string[], io: Io): Promise<number> {
     } else io.out("mcpd is not running; it uses the new token when it starts");
     return 0;
   });
-  io.out("Now run `turno mcp sync` so every profile sends the new token; open sessions need a restart.");
+  io.out("Every profile token derives from it and stopped working: run `turno mcp sync` so each profile gets its new one; open sessions need a restart.");
   return code;
 }
 
