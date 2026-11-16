@@ -47,12 +47,12 @@ describe("setup", () => {
     const aside = readdirSync(dir).filter((e) => e.startsWith(".aside-"));
     expect(aside).toHaveLength(1);
     expect(readFileSync(join(dir, aside[0]!, "skills/mine/SKILL.md"), "utf8")).toBe("local skill\n");
-    expect(io.lines.some((l) => l.includes("skills was a local copy"))).toBe(true);
+    expect(io.lines.some((l) => l.includes("moved your own skills to ~/.claude-work/.aside-"))).toBe(true);
 
     const seeded = JSON.parse(readFileSync(join(dir, ".claude.json"), "utf8"));
     expect(Object.keys(seeded).sort()).toEqual(["mcpServers", "projects", "theme"]);
     expect(statSync(join(dir, ".claude.json")).mode & 0o777).toBe(0o600);
-    expect(io.lines).toContain("  + .claude.json with 2 MCP servers and 1 projects from the hub");
+    expect(io.lines).toContain("  + .claude.json with 2 MCP servers and 1 project from the hub");
 
     expect(lstatSync(join(dir, "history.jsonl")).isFile()).toBe(true);
     expect(readFileSync(join(dir, "history.jsonl"), "utf8")).toContain("hi");
@@ -65,7 +65,7 @@ describe("setup", () => {
     setupProfiles(["work"], fakeIo(sb.env), { turno: "turno" });
     const io = fakeIo(sb.env);
     setupProfiles(["work"], io, { turno: "turno" });
-    expect(io.lines.some((l) => l.includes("↔") || l.includes("local copy"))).toBe(false);
+    expect(io.lines.some((l) => l.includes("↔") || l.includes("moved your own"))).toBe(false);
     expect(io.lines).toContain("  = .claude.json already exists (turno mcp sync brings in new MCP servers)");
   });
 

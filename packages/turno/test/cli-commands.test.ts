@@ -39,7 +39,7 @@ describe("usage", () => {
     expect(text).toMatch(/ {2}week {4}█{3}░{27}  10% {2}resets in 2d 23h/);
     expect(text).toContain("  data from 2 min ago");
     expect(text).toContain("personal  not logged in");
-    expect(text).toContain("  no data yet: shows up once a session of this account gets a response");
+    expect(text).toContain("  no usage data yet: shows up once a session of this account gets a response");
     expect(readFileSync(join(sb.home, ".local/state/turno/plan/work"), "utf8")).toBe("max\n");
   });
 
