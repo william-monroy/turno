@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Pack every public package whose version is not on npm yet, for the publish job of
 // release.yml. Writes the tarballs, a CycloneDX SBOM per package and plan.json to <out>.
+// Packing runs each package's prepack, which writes its npm-shrinkwrap.json.
 //   node scripts/release-plan.mjs <out>
 // plan.json: [{ "name", "version", "tag", "tarball" }]. The dist-tag is "latest", or the
 // prerelease id ("next" for 1.2.0-next.0) so a prerelease never becomes the default install.
@@ -36,6 +37,12 @@ for (const dir of readdirSync(join(root, "packages"))) {
   const report = execFileSync("pnpm", ["pack", "--pack-destination", out, "--json"], { cwd, encoding: "utf8" });
   const { filename } = JSON.parse(report.slice(report.indexOf("{")));
   const tarball = filename.split("/").pop();
+  // prepack wrote npm-shrinkwrap.json (ADR 0019); a tarball with dependencies must carry it.
+  const hasDeps = Object.keys({ ...pkg.dependencies, ...pkg.optionalDependencies }).length > 0;
+  const listing = execFileSync("tar", ["-tzf", join(out, tarball)], { encoding: "utf8" }).split("\n");
+  if (hasDeps && !listing.includes("package/npm-shrinkwrap.json")) {
+    throw new Error(`${tarball} has dependencies but no npm-shrinkwrap.json`);
+  }
   const sbom = execFileSync("pnpm", ["sbom", "--sbom-format", "cyclonedx", "--sbom-type", "application", "--prod"], {
     cwd,
     encoding: "utf8",
