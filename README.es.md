@@ -27,7 +27,7 @@ cuenta: los repositorios del trabajo abren con tu cuenta del trabajo y lo demás
 ```sh
 npx turno-cli@latest doctor     # pruébalo sin instalar: revisa tus agentes y tu configuración
 npm install --global turno-cli  # macOS o Linux, Node 22.11 o más nuevo
-brew tap william-monroy/turno && brew trust william-monroy/turno && brew install turno  # o con Homebrew
+brew tap wimo-dev/turno && brew trust wimo-dev/turno && brew install turno  # o con Homebrew
 ```
 
 El paquete de npm se llama `turno-cli`; el comando que instala es `turno`.
@@ -76,6 +76,6 @@ herramientas MCP pasan por `mcpd`, en `127.0.0.1` y con un token.
 ## Contribuir
 
 Las preguntas en español son bienvenidas en
-[Discussions](https://github.com/william-monroy/turno/discussions), en la categoría Español.
+[Discussions](https://github.com/wimo-dev/turno/discussions), en la categoría Español.
 Lee [CONTRIBUTING.md](CONTRIBUTING.md) antes de abrir un pull request. Hecho en Monterrey,
 México. Licencia Apache 2.0.

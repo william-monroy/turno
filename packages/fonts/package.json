@@ -4,14 +4,14 @@
   "description": "MesloLGS Nerd Font 3.4.0, the font the turno status line icons are drawn with, bundled with checksums.",
   "license": "SEE LICENSE IN LICENSE.txt",
   "author": "William Frank Monroy Mamani (https://github.com/william-monroy)",
-  "homepage": "https://github.com/william-monroy/turno#readme",
+  "homepage": "https://github.com/wimo-dev/turno#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/william-monroy/turno.git",
+    "url": "git+https://github.com/wimo-dev/turno.git",
     "directory": "packages/fonts"
   },
   "bugs": {
-    "url": "https://github.com/william-monroy/turno/issues"
+    "url": "https://github.com/wimo-dev/turno/issues"
   },
   "type": "module",
   "main": "index.js",

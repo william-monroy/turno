@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const REPO = "william-monroy/turno";
+const REPO = "wimo-dev/turno";
 const BLOB = `https://github.com/${REPO}/blob/main/`;
 const RAW = `https://raw.githubusercontent.com/${REPO}/main/`;
 const IMAGE = /\.(png|gif|svg|jpe?g|webp)$/i;

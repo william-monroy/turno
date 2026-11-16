@@ -17,7 +17,7 @@ Or run it directly as an MCP server: `turno-browser-mcp --identity school`.
 
 Defaults: headed, the installed Chrome channel, a persistent user data dir per identity, no
 injected init scripts. The reasons, and what these settings do and do not change, are in
-[ADR 0005](https://github.com/william-monroy/turno/blob/main/docs/decisions/0005-stealth-browser-defaults.md).
+[ADR 0005](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0005-stealth-browser-defaults.md).
 
 ## Acceptable use
 

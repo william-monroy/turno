@@ -19,14 +19,14 @@
   ],
   "license": "Apache-2.0",
   "author": "William Frank Monroy Mamani (https://github.com/william-monroy)",
-  "homepage": "https://github.com/william-monroy/turno#readme",
+  "homepage": "https://github.com/wimo-dev/turno#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/william-monroy/turno.git",
+    "url": "git+https://github.com/wimo-dev/turno.git",
     "directory": "packages/turno"
   },
   "bugs": {
-    "url": "https://github.com/william-monroy/turno/issues"
+    "url": "https://github.com/wimo-dev/turno/issues"
   },
   "type": "module",
   "engines": {
