@@ -34,6 +34,7 @@ open with your work login and everything else with your personal one.
 ```sh
 npx turno-cli@latest doctor     # try it without installing: checks your agents and config
 npm install --global turno-cli  # macOS or Linux, Node 22.11+
+brew tap william-monroy/turno && brew trust william-monroy/turno && brew install turno  # or Homebrew
 ```
 
 The npm package is `turno-cli`; the command it installs is `turno`.

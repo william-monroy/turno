@@ -22,7 +22,7 @@ export function packageInfo(): PackageInfo {
   return cached;
 }
 
-export type InstallMethod = "npm" | "pnpm" | "yarn" | "bun" | "volta" | "source" | "unknown";
+export type InstallMethod = "npm" | "pnpm" | "yarn" | "bun" | "volta" | "brew" | "source" | "unknown";
 
 export interface Install {
   method: InstallMethod;
@@ -41,6 +41,8 @@ export function detectInstall(root = packageInfo().root): Install {
     /* keep it */
   }
   const parts = real.split(sep);
+  // Homebrew keeps the npm package under Cellar/<formula>/<version>/libexec: brew owns it.
+  if (parts.includes("Cellar") && parts.includes("node_modules")) return { method: "brew", root: real };
   if (parts.includes("node_modules")) {
     const method: InstallMethod = real.includes(`${sep}.volta${sep}`)
       ? "volta"
@@ -73,6 +75,9 @@ export function upgradeCommand(install: Install, name: string, spec: string): st
       return [["bun", "add", "--global", target]];
     case "volta":
       return [["volta", "install", target]];
+    case "brew":
+      // The formula follows the newest release; brew cannot install an arbitrary version.
+      return [["brew", "update"], ["brew", "upgrade", "turno"]];
     case "source":
       return [
         ["git", "-C", install.repo!, "pull", "--ff-only"],
