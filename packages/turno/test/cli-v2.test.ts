@@ -241,6 +241,8 @@ describe("versions and upgrades", () => {
     expect(detectInstall("/Users/a/Library/pnpm/global/5/.pnpm/x@1/node_modules/x").method).toBe("pnpm");
     expect(detectInstall("/Users/a/.bun/install/global/node_modules/x").method).toBe("bun");
     expect(detectInstall(packageInfo().root).method).toBe("source");
+    expect(detectInstall("/opt/homebrew/Cellar/turno/0.1.0/libexec/lib/node_modules/turno-cli").method).toBe("brew");
+    expect(upgradeCommand({ method: "brew", root: "/x" }, "turno-cli", "0.2.0")).toEqual([["brew", "update"], ["brew", "upgrade", "turno"]]);
     expect(upgradeCommand({ method: "npm", root: "/x" }, "@x/turno", "1.2.3")).toEqual([["npm", "install", "--global", "@x/turno@1.2.3"]]);
     expect(upgradeCommand({ method: "source", root: "/r/p", repo: "/r" }, "turno", "latest")![0]).toEqual(["git", "-C", "/r", "pull", "--ff-only"]);
     expect(registryUrl({}, "@x/turno", "latest")).toBe("https://registry.npmjs.org/@x%2Fturno/latest");
