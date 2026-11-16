@@ -1,6 +1,7 @@
 /**
  * Two-row status line for Claude Code. Pure rendering: everything it shows comes in through
  * RenderInput, which `collect()` in ../cli/commands/statusline.ts fills from disk and git.
+ * It expects data already checked by `sanitize()` in ./input.ts: every field has its type.
  *
  *   1. account: profile and plan, 5 h and weekly usage of THAT account, context, cache,
  *               turns left, and a warning when a fallback or the wrong account is in use
@@ -131,6 +132,10 @@ export interface RenderInput {
   exhaustedAssigned?: number;
   branch: string;
   cost?: { total: number; sub: number };
+  /** A model in the conversation has no known price and Claude Code sent no cost: show "$?". */
+  costUnknown?: boolean;
+  /** The agents use the mcpd gateway and it did not answer the last check. */
+  gatewayDown?: boolean;
   /** Local time formatter (injectable for tests). */
   when?: (epochSeconds: number) => string;
 }
@@ -261,9 +266,12 @@ export function render(i: RenderInput): string {
     let seg = ic("cost", COST) + fg(COST, money(i.cost.total), true);
     if (i.cost.sub >= 0.01 && !compact) seg += fg(MUTED, ` (sub $${Math.round(i.cost.sub).toLocaleString("en-US")})`);
     row2.push(seg);
-  } else if (c.total_cost_usd !== undefined && c.total_cost_usd !== null) {
+  } else if (i.costUnknown) {
+    row2.push(ic("cost", COST) + fg(COST, "$?", true));
+  } else if (typeof c.total_cost_usd === "number" && Number.isFinite(c.total_cost_usd)) {
     row2.push(ic("cost", COST) + fg(COST, `$${c.total_cost_usd.toFixed(2)}`) + fg(MUTED, "…"));
   }
+  if (i.gatewayDown) row2.push(ic("ban", BAD) + fg(BAD, "mcpd down"));
 
   return `${row1.join(div)}\n${row2.join(div)}\n`;
 }

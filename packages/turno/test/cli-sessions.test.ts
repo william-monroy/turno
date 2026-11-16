@@ -6,6 +6,7 @@ import { command as sessionsCommand } from "../src/cli/commands/sessions.js";
 import { parseConfig } from "../src/core/config.js";
 import { busyProfiles, liveSessions, parseProcStart, profileBusy } from "../src/core/sessions.js";
 import { fakeIo } from "./helpers/cli.js";
+import { killAndWait } from "./helpers/wait.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -21,8 +22,9 @@ beforeEach(() => {
   sb = sandbox();
   sb.write(".config/turno/config.toml", 'system = "personal"\n');
 });
-afterEach(() => {
-  for (const c of children) c.kill();
+afterEach(async () => {
+  // Kill every child even when the test failed early, and wait so none outlives the file.
+  await Promise.all(children.map((c) => killAndWait(c)));
   children = [];
   sb.cleanup();
 });

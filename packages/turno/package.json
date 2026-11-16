@@ -47,6 +47,7 @@
     "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/cli/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:e2e": "TURNO_E2E_NETWORK=1 vitest run test/e2e-*.test.ts",
     "prepack": "pnpm run build && node ../../scripts/readme-for-npm.mjs README.md && cp ../../LICENSE ../../NOTICE ."
   },
   "dependencies": {
