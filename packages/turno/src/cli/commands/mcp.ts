@@ -26,7 +26,8 @@ const USAGE = `Usage:
   turno mcp refresh [server...]           forget cached tool lists (relearned on next use)
   turno mcp doctor                        find servers that bypass the gateway
   turno mcp daemon <start|stop|restart|status|logs|run>
-                                            the gateway daemon (turno mcpd is the same)`;
+                                            the gateway daemon (turno mcpd is the same)
+  turno mcp token rotate [--dry-run]      replace the gateway token, then run turno mcp sync`;
 
 async function list(io: Io, json = false): Promise<number> {
   const m = loadManifest(io.env);
@@ -337,6 +338,7 @@ export const command: Command = {
     refresh: { args: ["server"] },
     doctor: {},
     daemon: { args: ["any"] },
+    token: { args: ["any"], flags: ["--dry-run"] },
   },
   async run(args, io) {
     const [sub, ...rest] = args;
@@ -356,6 +358,8 @@ export const command: Command = {
         return refresh(rest, io);
       case "daemon":
         return (await import("./mcpd.js")).command.run(rest, io);
+      case "token":
+        return (await import("./mcpd.js")).tokenCommand.run(rest, io);
       case "doctor":
         return doctor(io);
       default:

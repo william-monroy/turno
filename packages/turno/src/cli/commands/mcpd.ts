@@ -1,22 +1,16 @@
-import { createReadStream, existsSync, statSync } from "node:fs";
-import { realpathSync } from "node:fs";
+import { createReadStream, existsSync, realpathSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { paths } from "../../core/paths.js";
+import { Journal } from "../../core/journal.js";
+import { paths, tildify } from "../../core/paths.js";
+import { DRY_RUN, JSON_FLAG, TAIL, bool, count, parseFlags, printJson, str } from "../args.js";
+import { type Sub, group } from "../group.js";
 import { type Command, type Io, fail, paint } from "../io.js";
-
-const USAGE = `Usage:
-  turno mcpd run [--port N]     run the gateway in the foreground
-  turno mcpd start              install and start the LaunchAgent (keeps mcpd alive)
-  turno mcpd stop               stop and unload the LaunchAgent
-  turno mcpd restart            restart the LaunchAgent
-  turno mcpd status [--json]    running servers, their clients and memory
-  turno mcpd logs [-n N]        last lines of the mcpd log`;
 
 /** GET /status from the running daemon. */
 export async function fetchStatus(env: NodeJS.ProcessEnv): Promise<Record<string, unknown> | undefined> {
   const { mcpdPort, readToken } = await import("../../mcpd/daemon.js");
-  const token = readToken(env);
+  const token = readToken(env, () => {});
   if (!token) return undefined;
   try {
     const res = await fetch(`http://127.0.0.1:${mcpdPort(env)}/status`, {
@@ -50,19 +44,44 @@ function mb(bytes: number): string {
   return `${Math.round(bytes / 1048576)} MB`;
 }
 
+/** Why mcpd is down, as far as the files and the port can tell. */
+async function downReasons(env: NodeJS.ProcessEnv): Promise<string[]> {
+  const { daemonFiles, loadConfigSafe, readLock, readStartError } = await import("../../mcpd/daemon.js");
+  const { describeOwner, portOwner } = await import("../../mcpd/peerpid.js");
+  const out: string[] = [];
+  const port = loadConfigSafe(env).config.mcpd.port;
+  const owner = await portOwner(port, { env });
+  if (owner) out.push(`port ${port} is in use by ${describeOwner(owner)}`);
+  const e = readStartError(env);
+  if (e) out.push(`last start failed at ${localTime(e.at)}: ${e.message}`);
+  const lock = readLock(env);
+  if (lock) out.push(`stale lock from pid ${lock.pid} (${tildify(daemonFiles(env).lock, env)}); the next start clears it`);
+  return out;
+}
+
 async function status(args: string[], io: Io): Promise<number> {
+  const p = parseFlags(args, JSON_FLAG, 0);
   const s = await fetchStatus(io.env);
   if (!s) {
-    io.out("mcpd is not running (turno mcpd start)");
+    const reasons = await downReasons(io.env);
+    if (bool(p, "json")) printJson(io.out, { running: false, problems: reasons });
+    else {
+      io.out("mcpd is not running (turno mcp daemon start)");
+      for (const r of reasons) io.out(`  ${r}`);
+    }
     return 1;
   }
-  if (args.includes("--json")) {
-    io.out(JSON.stringify(s, null, 2));
+  if (bool(p, "json")) {
+    printJson(io.out, s);
     return 0;
   }
   const instances = (s.instances as Record<string, unknown>[]) ?? [];
   const rss = await rssOf([Number(s.pid), ...instances.map((i) => Number(i.pid)).filter(Boolean)]);
-  io.out(`${paint(io, "mcpd", "1")} pid ${s.pid} · ${mb(rss.get(Number(s.pid)) ?? 0)} · ${s.sessions} client sessions`);
+  io.out(`${paint(io, "mcpd", "1")} pid ${s.pid}${s.port ? ` · port ${s.port}` : ""} · ${mb(rss.get(Number(s.pid)) ?? 0)} · ${s.sessions} client sessions`);
+  const manifest = s.manifest as { source: string; error: string | null } | undefined;
+  if (manifest?.error) io.out(`  ${paint(io, "warn", "33")} mcp.toml is invalid, serving the ${manifest.source}: ${manifest.error}`);
+  const config = s.config as { error: string | null } | undefined;
+  if (config?.error) io.out(`  ${paint(io, "warn", "33")} config.toml is invalid, using defaults: ${config.error}`);
   if (!instances.length) {
     io.out("  no servers running (they start on first use)");
     return 0;
@@ -80,12 +99,33 @@ async function status(args: string[], io: Io): Promise<number> {
   return 0;
 }
 
-function entryScript(): string {
-  return realpathSync(join(fileURLToPath(new URL(".", import.meta.url)), "..", "main.js"));
+/** The CLI entry the service runs when no stable `turno` is on PATH. */
+export function entryScript(): string {
+  const dir = fileURLToPath(new URL("..", import.meta.url));
+  for (const f of ["main.js", "main.ts"]) {
+    const file = join(dir, f);
+    if (existsSync(file)) return realpathSync(file);
+  }
+  return join(dir, "main.js");
+}
+
+/** "2026-11-16 15:26:45" in the local time zone, from an ISO timestamp. */
+export function localTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+/** A log line with its leading UTC timestamp shown in local time. */
+export function localizeLine(line: string): string {
+  const m = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z) /.exec(line);
+  return m ? `${localTime(m[1]!)} ${line.slice(m[0].length)}` : line;
 }
 
 async function logs(args: string[], io: Io): Promise<number> {
-  const n = Number(args[args.indexOf("-n") + 1]) || 40;
+  const p = parseFlags(args, { ...TAIL, utc: { type: "boolean" } }, 0);
+  const n = count(p, "tail", 40);
   const file = join(paths(io.env).logsDir, "mcpd.log");
   if (!existsSync(file)) {
     io.out("no log yet");
@@ -96,68 +136,234 @@ async function logs(args: string[], io: Io): Promise<number> {
   const chunks: Buffer[] = [];
   for await (const c of createReadStream(file, { start })) chunks.push(c as Buffer);
   const lines = Buffer.concat(chunks).toString("utf8").trimEnd().split("\n");
-  for (const l of lines.slice(-n)) io.out(l);
+  for (const l of lines.slice(-n)) io.out(bool(p, "utc") ? l : localizeLine(l));
   return 0;
 }
 
-export const command: Command = {
-  summary: "run or manage the MCP gateway daemon",
-  usage: USAGE,
-  async run(args, io) {
-    const [sub, ...rest] = args;
-    switch (sub) {
-      case "run": {
-        const { startDaemon } = await import("../../mcpd/daemon.js");
-        const portArg = rest.indexOf("--port");
-        const d = await startDaemon({
-          env: io.env,
-          logToStdout: process.stdout.isTTY,
-          ...(portArg >= 0 ? { port: Number(rest[portArg + 1]) } : {}),
-        });
-        io.err(`mcpd listening on 127.0.0.1:${d.port}`);
-        await new Promise<void>((resolve) => {
-          const stop = () => {
-            void d.stop().then(resolve);
-          };
-          process.once("SIGINT", stop);
-          process.once("SIGTERM", stop);
-        });
-        return 0;
+const isService = (env: NodeJS.ProcessEnv): boolean => Boolean(env.TURNO_MCPD_SERVICE);
+
+async function runDaemon(args: string[], io: Io): Promise<number> {
+  const p = parseFlags(args, { port: { type: "string" } }, 0);
+  const raw = str(p, "port");
+  let port: number | undefined;
+  if (raw !== undefined) {
+    port = Number(raw);
+    if (!Number.isInteger(port) || port < 0 || port > 65535 || String(port) !== raw.trim()) fail("--port must be an integer between 0 and 65535");
+  }
+  const { AlreadyRunningError, PortBusyError, installCrashGuards, startDaemon } = await import("../../mcpd/daemon.js");
+  const service = isService(io.env);
+  let waiting = false;
+  for (;;) {
+    try {
+      const d = await startDaemon({ env: io.env, logToStdout: Boolean(process.stdout.isTTY) && !service, ...(port !== undefined ? { port } : {}) });
+      io.err(`mcpd listening on 127.0.0.1:${d.port}`);
+      const unguard = installCrashGuards(d.log, () => d.stop());
+      await new Promise<void>((resolve) => {
+        const stop = () => {
+          void d.stop().then(resolve, resolve);
+        };
+        process.once("SIGINT", stop);
+        process.once("SIGTERM", stop);
+      });
+      unguard();
+      return 0;
+    } catch (err) {
+      if (err instanceof AlreadyRunningError) {
+        io.err(`turno: ${err.message}`);
+        // Under a service a clean exit is not restarted: the other mcpd serves.
+        return service ? 0 : 1;
       }
-      case "start": {
-        const { install } = await import("../../mcpd/launchd.js");
-        const { ensureToken } = await import("../../mcpd/daemon.js");
-        ensureToken(io.env);
-        const file = await install({ node: process.execPath, script: entryScript(), env: io.env });
-        io.out(`LaunchAgent installed: ${file}`);
-        for (let i = 0; i < 20; i++) {
-          if (await fetchStatus(io.env)) {
-            io.out("mcpd is running");
-            return 0;
-          }
-          await new Promise((r) => setTimeout(r, 250));
-        }
-        io.err("mcpd did not answer yet; see turno mcpd logs");
+      if (err instanceof PortBusyError && service) {
+        // Exiting would make the supervisor loop; wait for the port instead (doctor shows why).
+        if (!waiting) io.err(`turno: ${err.message}; retrying every 30 s`);
+        waiting = true;
+        await new Promise((r) => setTimeout(r, 30_000));
+        continue;
+      }
+      if (err instanceof PortBusyError) {
+        io.err(`turno: ${err.message}`);
         return 1;
       }
-      case "stop": {
-        const { uninstall } = await import("../../mcpd/launchd.js");
-        await uninstall();
-        io.out("mcpd stopped");
-        return 0;
-      }
-      case "restart": {
-        const { restart } = await import("../../mcpd/launchd.js");
-        await restart();
-        io.out("mcpd restarted");
-        return 0;
-      }
-      case "status":
-        return status(rest, io);
-      case "logs":
-        return logs(rest, io);
-      default:
-        return fail(`unknown mcpd command "${sub ?? ""}"\n${USAGE}`);
+      throw err;
     }
-  },
+  }
+}
+
+async function backendOrReport(io: Io): Promise<import("../../mcpd/service.js").ServiceBackend | undefined> {
+  const { ServiceError, serviceBackend } = await import("../../mcpd/service.js");
+  try {
+    return await serviceBackend(io.env);
+  } catch (err) {
+    if (err instanceof ServiceError) {
+      io.err(`turno: ${err.message}`);
+      return undefined;
+    }
+    throw err;
+  }
+}
+
+/** Run a service step; a ServiceError is one line on stderr and exit 1, never a stack. */
+async function serviceStep(io: Io, step: () => Promise<number>): Promise<number> {
+  const { ServiceError } = await import("../../mcpd/service.js");
+  try {
+    return await step();
+  } catch (err) {
+    if (err instanceof ServiceError) {
+      io.err(`turno: ${err.message}`);
+      return 1;
+    }
+    throw err;
+  }
+}
+
+async function waitFor(check: () => Promise<boolean>, ms: number): Promise<boolean> {
+  for (let waited = 0; waited <= ms; waited += 250) {
+    if (await check()) return true;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return false;
+}
+
+/** Write (or rewrite) the service file and (re)load it. Shared by `start` and `upgrade --finish`. */
+export async function installDaemonService(io: Io, opts: { dryRun?: boolean; command?: string } = {}): Promise<number> {
+  const backend = await backendOrReport(io);
+  if (!backend) return 1;
+  return serviceStep(io, async () => {
+    const { chooseProgram, installService } = await import("../../mcpd/service.js");
+    const choice = chooseProgram({ env: io.env, execPath: process.execPath, script: entryScript() });
+    const journal = new Journal(io.env, opts.command ?? "mcp daemon start", Boolean(opts.dryRun));
+    if (!opts.dryRun) {
+      const { ensureToken } = await import("../../mcpd/daemon.js");
+      ensureToken(io.env, (m) => io.err(`turno: ${m}`));
+    }
+    const r = await installService(backend, { program: choice.program, env: io.env }, journal);
+    if (opts.dryRun) {
+      io.out(`would write ${tildify(r.file, io.env)}${r.changed ? "" : " (unchanged)"} and load the ${backend.noun}:`);
+      io.out("");
+      io.out(r.text.trimEnd());
+    } else io.out(`${backend.noun} ${r.changed ? "written" : "unchanged"}: ${tildify(r.file, io.env)}`);
+    if (choice.warning) io.err(`turno: warning: ${choice.warning}`);
+    const hint = journal.hint();
+    if (hint) io.out(hint);
+    return 0;
+  });
+}
+
+async function start(args: string[], io: Io): Promise<number> {
+  const p = parseFlags(args, DRY_RUN, 0);
+  const dryRun = bool(p, "dry-run");
+  const code = await installDaemonService(io, { dryRun });
+  if (code || dryRun) return code;
+  if (await waitFor(async () => Boolean(await fetchStatus(io.env)), 5000)) {
+    io.out("mcpd is running");
+    return 0;
+  }
+  io.err("mcpd did not answer yet; see turno mcp daemon status and turno mcp daemon logs");
+  return 1;
+}
+
+/** Stop the service and remove its file, so mcpd does not come back at login. A hand-started mcpd gets SIGTERM. */
+async function stop(args: string[], io: Io): Promise<number> {
+  const p = parseFlags(args, DRY_RUN, 0);
+  const dryRun = bool(p, "dry-run");
+  const { installedBackend, removeService } = await import("../../mcpd/service.js");
+  const { liveLock } = await import("../../mcpd/daemon.js");
+  return serviceStep(io, async () => {
+    const backend = (await installedBackend(io.env)) ?? (await backendOrReport({ ...io, err: () => {} }));
+    const journal = new Journal(io.env, "mcp daemon stop", dryRun);
+    let did = false;
+    if (backend) {
+      const r = await removeService(backend, io.env, journal);
+      if (r.existed) {
+        io.out(`${dryRun ? "would remove" : "removed"} ${tildify(r.file, io.env)} (turno mcp daemon start installs it again)`);
+        did = true;
+      }
+    }
+    const lock = liveLock(io.env);
+    if (lock && lock.pid !== process.pid) {
+      if (dryRun) io.out(`would stop mcpd (pid ${lock.pid})`);
+      else {
+        try {
+          process.kill(lock.pid, "SIGTERM");
+        } catch {
+          /* gone already */
+        }
+        await waitFor(async () => !liveLock(io.env), 5000);
+      }
+      did = true;
+    }
+    if (!dryRun) io.out(did ? "mcpd stopped" : "mcpd was not running");
+    const hint = journal.hint();
+    if (hint) io.out(hint);
+    return 0;
+  });
+}
+
+async function restart(args: string[], io: Io): Promise<number> {
+  parseFlags(args, {}, 0);
+  const { installedBackend } = await import("../../mcpd/service.js");
+  return serviceStep(io, async () => {
+    const backend = await installedBackend(io.env);
+    if (!backend) {
+      io.err("turno: the mcpd service is not installed (turno mcp daemon start)");
+      return 1;
+    }
+    await backend.restart(io.env);
+    io.out("mcpd restarted; open sessions reconnect on their next call");
+    return 0;
+  });
+}
+
+/** `turno mcp token rotate`: a new master token, then mcpd picks it up and profiles need a sync. */
+async function token(args: string[], io: Io): Promise<number> {
+  const p = parseFlags(args, DRY_RUN, 1);
+  const action = p.positionals[0];
+  if (action !== "rotate") return fail(`usage: turno mcp token rotate [--dry-run]`);
+  const file = tildify(paths(io.env).mcpdToken, io.env);
+  if (bool(p, "dry-run")) {
+    io.out(`would write a new token to ${file} and restart mcpd`);
+    return 0;
+  }
+  const { liveLock, rotateToken } = await import("../../mcpd/daemon.js");
+  const { installedBackend } = await import("../../mcpd/service.js");
+  rotateToken(io.env);
+  io.out(`new gateway token written to ${file}`);
+  const code = await serviceStep(io, async () => {
+    const backend = await installedBackend(io.env);
+    if (backend && (await backend.isLoaded(io.env))) {
+      await backend.restart(io.env);
+      io.out("mcpd restarted with the new token");
+      return 0;
+    }
+    const lock = liveLock(io.env);
+    if (lock && lock.pid !== process.pid) {
+      process.kill(lock.pid, "SIGHUP");
+      io.out(`mcpd (pid ${lock.pid}) reloads the new token`);
+    } else io.out("mcpd is not running; it uses the new token when it starts");
+    return 0;
+  });
+  io.out("Now run `turno mcp sync` so every profile sends the new token; open sessions need a restart.");
+  return code;
+}
+
+const SUBS: Record<string, Sub> = {
+  start: { synopsis: "[--dry-run]", summary: "install the service (LaunchAgent or systemd user unit) and start mcpd", flags: ["--dry-run"], run: start },
+  stop: { synopsis: "[--dry-run]", summary: "stop mcpd and remove the service, so it does not start at login", flags: ["--dry-run"], run: stop },
+  restart: { summary: "restart the service (open sessions reconnect)", run: restart },
+  status: { synopsis: "[--json]", summary: "running servers, their clients and memory; why mcpd is down", flags: ["--json"], run: status },
+  logs: { synopsis: "[-n N] [--utc]", summary: "last lines of the mcpd log, in local time", flags: ["--tail", "--utc"], run: logs },
+  run: { synopsis: "[--port N]", summary: "run the gateway in the foreground (what the service runs)", flags: ["--port"], run: runDaemon },
+  token: { synopsis: "rotate [--dry-run]", summary: "replace the gateway token (then turno mcp sync)", args: ["any"], flags: ["--dry-run"], run: token },
 };
+
+export const tokenCommand: Command = {
+  summary: "replace the gateway token",
+  usage: "Usage: turno mcp token rotate [--dry-run]\n\nWrites a new token (mode 600), restarts mcpd, and asks you to run turno mcp sync.",
+  run: async (args, io) => (args.includes("--help") || args.includes("-h") ? (io.out(tokenCommand.usage), 0) : token(args, io)),
+};
+
+export const command: Command = group("mcp daemon", "run or manage the MCP gateway daemon", SUBS, {
+  footer:
+    "mcpd listens on 127.0.0.1 at mcpd.port (config.toml) and never moves to another port.\n" +
+    "start keeps it alive with a LaunchAgent on macOS or a systemd user unit on Linux; stop removes it.",
+});
