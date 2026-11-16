@@ -184,8 +184,9 @@ export function requireSecretStore(env: NodeJS.ProcessEnv = process.env, platfor
 export function keychainResolver(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): SecretResolver {
   return async (value) => {
     if (value.startsWith("env:")) {
-      const name = value.slice(4);
-      const v = env[name];
+      // env:NAME, or env:NAME:-default (what `turno mcp import` writes for ${NAME:-default}).
+      const [name, fallback] = value.slice(4).split(/:-(.*)/s, 2) as [string, string | undefined];
+      const v = fallback !== undefined && !env[name] ? fallback : env[name];
       if (v === undefined) throw new SecretError(value, `environment variable ${name} is not set`);
       return v;
     }

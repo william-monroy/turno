@@ -26,7 +26,7 @@ command = "server-bin"            # stdio server
 args = ["--flag"]
 env = { TOKEN = "keychain:turno/name/token", REGION = "eu", OTHER = "env:SOME_VAR" }
 cwd = "/abs/path"                 # default: project root (project), session folder (session), home (shared)
-package = "server-pkg@1.2.3"      # optional: `turno mcp install` pins it; until then npx runs it
+package = "server-pkg@1.2.3"      # optional: `turno mcp install` pins it to an exact version; until then npx runs it
 scope = "shared"                  # shared | project | session (default shared)
 idle = "30m"                      # stop after this long without calls (default 30m shared, 20m others)
 exclusive = false                 # one client session at a time (shared scope only)
@@ -42,8 +42,25 @@ headers = { Authorization = "keychain:turno/remote/auth" }   # secret headers: p
 ```
 
 Values starting with `keychain:` are read with `security find-generic-password -s <service> -w`
-when the server starts; `env:` reads mcpd's own environment. Store a secret with
+when the server starts; `env:` reads mcpd's own environment, and `env:NAME:-default` uses the
+default when `NAME` is unset or empty. Under the LaunchAgent mcpd sees few variables (set more
+with `launchctl setenv`), so prefer `keychain:` for secrets. Store a secret with
 `turno secret set <service>` (input is hidden, never printed).
+
+## Importing what you already have
+
+`turno mcp import` drafts `mcp.toml` from the servers your agents already use: user and project
+servers in `~/.claude.json`, `.mcp.json` in the current folder, `~/.codex/config.toml`,
+`~/.cursor/mcp.json` and `~/.copilot/mcp-config.json`. It is a preview until `--write`: secrets
+are shown masked and nothing is stored. `--write --move-secrets` stores env and header secrets
+in the Keychain and writes `keychain:` references; secrets in args or URLs stay literal (they
+cannot come from the Keychain). `${VAR}` and `${VAR:-default}` become `env:VAR` and
+`env:VAR:-default`.
+
+`turno mcp install` then resolves each `package` to an exact version, rewrites it in
+`mcp.toml`, installs it without install scripts (`--allow-scripts` to run them) and keeps a
+`package-lock.json` in `~/.local/share/turno/servers/<name>/`, so a reinstall gets the same
+files.
 
 ## Choosing a scope
 
@@ -79,7 +96,7 @@ Servers that come from Claude Code plugins start in every session and bypass mcp
 turno mcp daemon status    # running servers, clients, memory; or why mcpd is down
 turno mcp daemon logs -n 100  # gateway log, in local time (--utc for the raw lines)
 ls ~/.local/state/turno/logs/   # one stderr log per server (and variant)
-turno mcp refresh <name>   # forget a cached tool list
+turno mcp refresh <name>   # forget a cached tool list; a running mcpd relearns it
 ```
 
 ## The daemon as a service
