@@ -1,7 +1,7 @@
 import { effectivePolicy } from "../../accounts/policy.js";
 import { loadRegistry } from "../../accounts/registry.js";
 import { tildify } from "../../core/paths.js";
-import { DRY_RUN, JSON_FLAG, bool, parseFlags, printJson, str } from "../args.js";
+import { DRY_RUN, JSON_FLAG, bool, flagsOf, parseFlags, printJson, str } from "../args.js";
 import { group } from "../group.js";
 import { type Io, fail, paint } from "../io.js";
 import * as accounts from "./accounts.js";
@@ -132,7 +132,12 @@ export const command = group(
       flags: ["--dry-run"],
       run: async (a, io) => accounts.prefer(a, io),
     },
-    log: { summary: "recent calls to the accounts bridge", synopsis: "[-n N]", flags: ["--tail"], run: async (a, io) => accounts.log(a, io) },
+    log: {
+      summary: "recent calls to the accounts bridge; --verify checks the log's hash chain",
+      synopsis: "[-n N] [--verify] [--json]",
+      flags: flagsOf(accounts.LOG_SPEC),
+      run: async (a, io) => accounts.log(a, io),
+    },
   },
   { fallback: "list" },
 );
