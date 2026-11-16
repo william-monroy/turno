@@ -108,54 +108,50 @@ export function isDirectory(p: string): boolean {
   }
 }
 
-const rootCache = new Map<string, { root: string; at: number }>();
+/** Results of slow lookups, keyed and shared by concurrent callers (a client opens many sessions at once). */
+function memo<K, V>(ttlMs: number, compute: (key: K) => Promise<V>): (key: K, now?: number) => Promise<V> {
+  const cache = new Map<K, { value: Promise<V>; at: number }>();
+  return (key, now = Date.now()) => {
+    const hit = cache.get(key);
+    if (hit && now - hit.at < ttlMs) return hit.value;
+    if (cache.size > 500) cache.clear();
+    const value = compute(key);
+    cache.set(key, { value, at: now });
+    return value;
+  };
+}
 
 /** Git top level of a folder (worktree-specific), else the folder itself. Async, cached for 10 s. */
-export async function projectRoot(cwd: string, now = Date.now()): Promise<string> {
-  const hit = rootCache.get(cwd);
-  if (hit && now - hit.at < 10_000) return hit.root;
-  let root: string;
+export const projectRoot: (cwd: string, now?: number) => Promise<string> = memo(10_000, async (cwd: string) => {
   try {
     const { stdout } = await run("git", ["-C", cwd, "rev-parse", "--show-toplevel"], { encoding: "utf8", timeout: 3000 });
-    root = stdout.trim() || cwd;
+    return stdout.trim() || cwd;
   } catch {
     try {
-      root = realpathSync(cwd);
+      return realpathSync(cwd);
     } catch {
-      root = cwd;
+      return cwd;
     }
   }
-  if (rootCache.size > 500) rootCache.clear();
-  rootCache.set(cwd, { root, at: now });
-  return root;
-}
-
-const cwdCache = new Map<number, { cwd: string | undefined; at: number }>();
+});
 
 /** Current folder of a process: /proc on Linux, lsof elsewhere. Cached per PID for a minute. */
-export async function processCwd(pid: number, now = Date.now()): Promise<string | undefined> {
-  const hit = cwdCache.get(pid);
-  if (hit && now - hit.at < 60_000) return hit.cwd;
-  let cwd: string | undefined;
+export const processCwd: (pid: number, now?: number) => Promise<string | undefined> = memo(60_000, async (pid: number) => {
   if (existsSync("/proc/self/cwd")) {
     try {
-      cwd = readlinkSync(`/proc/${pid}/cwd`);
+      return readlinkSync(`/proc/${pid}/cwd`);
     } catch {
-      cwd = undefined;
-    }
-  } else {
-    try {
-      const { stdout } = await run("lsof", ["-a", "-p", String(pid), "-d", "cwd", "-Fn"], { encoding: "utf8", timeout: 3000 });
-      const line = stdout.split("\n").find((l) => l.startsWith("n"));
-      cwd = line ? line.slice(1) : undefined;
-    } catch {
-      cwd = undefined;
+      return undefined;
     }
   }
-  if (cwdCache.size > 500) cwdCache.clear();
-  cwdCache.set(pid, { cwd, at: now });
-  return cwd;
-}
+  try {
+    const { stdout } = await run("lsof", ["-a", "-p", String(pid), "-d", "cwd", "-Fn"], { encoding: "utf8", timeout: 3000 });
+    const line = stdout.split("\n").find((l) => l.startsWith("n"));
+    return line ? line.slice(1) : undefined;
+  } catch {
+    return undefined;
+  }
+});
 
 export function variantOf(server: ServerDef, profile: string | undefined): string {
   return server.kind === "stdio" ? variantKey(server, profile) : "default";
