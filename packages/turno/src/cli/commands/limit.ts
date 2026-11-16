@@ -2,7 +2,7 @@ import { loadConfig } from "../../core/config.js";
 import { clearExhausted, exhaustedUntil, markExhausted } from "../../core/exhausted.js";
 import { agentOf, listProfiles } from "../../core/profiles.js";
 import { formatUntil } from "../../core/resolve.js";
-import { DRY_RUN, JSON_FLAG, WATCH, bool, parseFlags, printJson, str } from "../args.js";
+import { DRY_RUN, JSON_FLAG, WATCH, bool, flagsOf, parseFlags, printJson, str } from "../args.js";
 import { group } from "../group.js";
 import { type Io, fail } from "../io.js";
 import { launcherPath } from "../launch.js";
@@ -39,11 +39,22 @@ export async function limitsData(env: NodeJS.ProcessEnv, withAccounts = true) {
   });
 }
 
+const SHOW_SPEC = { ...JSON_FLAG, ...WATCH };
+
 async function show(args: string[], io: Io): Promise<number> {
-  const p = parseFlags(args, { ...JSON_FLAG, ...WATCH }, 0);
+  const p = parseFlags(args, SHOW_SPEC, 0);
   if (bool(p, "json")) {
     if (bool(p, "watch")) fail("--json and --watch do not go together");
     printJson(io.out, await limitsData(io.env));
+    return 0;
+  }
+  const config = loadConfig(io.env);
+  if (!listProfiles(config, io.env).length) {
+    io.out("No profiles yet (turno profile add <name>).");
+    return 0;
+  }
+  if (!listProfiles(config, io.env, "claude").length) {
+    io.out("Usage limits come from Claude Code profiles, and there are none yet (turno profile add <name>).");
     return 0;
   }
   return usage.run(bool(p, "watch") ? ["--watch"] : [], io);
@@ -55,10 +66,12 @@ function profileArg(name: string | undefined, io: Io, verb: string): string {
   return name;
 }
 
+const SET_SPEC = { until: { type: "string" }, for: { type: "string" }, ...DRY_RUN } as const;
+
 async function set(args: string[], io: Io): Promise<number> {
   // The bash form `exhausted <profile> until "YYYY-MM-DD HH:MM"` still works.
   const legacy = args[1] === "until" || args[1] === "hasta";
-  const p = parseFlags(legacy ? [args[0]!, "--until", ...args.slice(2)] : args, { until: { type: "string" }, for: { type: "string" }, ...DRY_RUN }, 1);
+  const p = parseFlags(legacy ? [args[0]!, "--until", ...args.slice(2)] : args, SET_SPEC, 1);
   const name = profileArg(p.positionals[0], io, "set");
   const untilText = str(p, "until");
   const forText = str(p, "for");
@@ -90,15 +103,15 @@ export const command = group(
   "limit",
   "usage limits of each account, and the exhausted marks that move projects to the fallback",
   {
-    show: { summary: "5 h and weekly usage of each account, as bars", synopsis: "[--watch] [--json]", flags: ["--watch", "--json"], run: show },
+    show: { summary: "5 h and weekly usage of each account, as bars", synopsis: "[--watch] [--json]", flags: flagsOf(SHOW_SPEC), run: show },
     set: {
       summary: "mark a profile exhausted (default for 5 h); its projects open with the fallback, if one is set",
       synopsis: '<profile> [--until "YYYY-MM-DD HH:MM" | --for 2h] [--dry-run]',
       args: ["profile"],
-      flags: ["--until", "--for", "--dry-run"],
+      flags: flagsOf(SET_SPEC),
       run: set,
     },
-    clear: { summary: "clear a profile's exhausted mark", synopsis: "<profile> [--dry-run]", args: ["profile"], flags: ["--dry-run"], run: clear },
+    clear: { summary: "clear a profile's exhausted mark", synopsis: "<profile> [--dry-run]", args: ["profile"], flags: flagsOf(DRY_RUN), run: clear },
   },
   { fallback: "show" },
 );

@@ -141,7 +141,7 @@ export function renderUsage(profiles: string[], accounts: Record<string, Account
     if (!hasLimits) {
       const why =
         plan === "team" ? "the Team plan does not report these limits" : "shows up once a session of this account gets a response";
-      out.push(paint(io, `  no data yet: ${why}`, "2"));
+      out.push(paint(io, `  no usage data yet: ${why}`, "2"));
     }
     for (const [key, label] of [
       ["five_hour", "5 hours"],
