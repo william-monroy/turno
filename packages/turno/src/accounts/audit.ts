@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { chmodSync, closeSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, rmdirSync, statSync, writeSync } from "node:fs";
 import { dirname } from "node:path";
 import { PRIVATE_FILE_MODE, ensurePrivateDir, paths } from "../core/paths.js";
+import type { ConfirmPolicy } from "./policy.js";
 
 export type AuditOutcome = "ok" | "error" | "refused" | "cancelled";
 
@@ -18,11 +19,31 @@ export interface AuditEntry {
   detail: string;
   durationMs: number;
   costUsd: number | null;
+  /** The bridge's decision (ADR 0024), when the call reached one. */
+  decision?: AuditDecision;
   /**
    * sha256 (hex) of the previous line as written, or GENESIS on the first line. Each line
    * commits to the one before, so editing or deleting a line breaks the chain (verifyAudit).
    */
   prev?: string;
+}
+
+/** What the bridge decided for a call, and what the run did with it. */
+export interface AuditDecision {
+  /** The confirmation policy in force. */
+  policy: ConfirmPolicy;
+  /** Whether the policy asked the user. */
+  asked: boolean;
+  /** The user's answer when asked: true only for an explicit confirmation. */
+  confirmed?: boolean;
+  /** `read`: the account's read tools only; `all`: every tool of the account. */
+  toolset: "read" | "all";
+  /** Tool patterns the run was allowed to call. */
+  allowed: string[];
+  /** `strict`: only the account's gateway servers; `profile`: the profile's MCP config. */
+  mcp?: "strict" | "profile";
+  /** Tools the run tried and Claude Code refused. */
+  denied?: string[];
 }
 
 export const TASK_LIMIT = 500;
@@ -106,6 +127,7 @@ export function appendAudit(entry: AuditInput, env: NodeJS.ProcessEnv = process.
     detail: entry.detail,
     durationMs: entry.durationMs,
     costUsd: entry.costUsd,
+    ...(entry.decision ? { decision: entry.decision } : {}),
   };
   const file = paths(env).auditLog;
   try {
