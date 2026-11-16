@@ -1,33 +1,14 @@
 import { spawn } from "node:child_process";
-import { accessSync, constants as fsConstants, statSync } from "node:fs";
 import { constants } from "node:os";
-import { delimiter, join } from "node:path";
+import { join } from "node:path";
 import type { AgentId } from "../agents/index.js";
-import { isValidProfileName } from "../core/config.js";
-import { paths } from "../core/paths.js";
-import { type Io, UsageError } from "./io.js";
-import { launcherName, profileAgent } from "./launchers.js";
+import { isValidProfileName, loadConfig } from "../core/config.js";
+import { paths, tildify } from "../core/paths.js";
+import { listProfiles } from "../core/profiles.js";
+import { CliError, type Io, UsageError } from "./io.js";
+import { executable, findOnPath, launcherName, profileAgent } from "./launchers.js";
 
-function executable(file: string): boolean {
-  try {
-    if (!statSync(file).isFile()) return false;
-    accessSync(file, fsConstants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** Absolute path of a command found on PATH (or the command itself when it has a slash). */
-export function findOnPath(cmd: string, env: NodeJS.ProcessEnv = process.env): string | undefined {
-  if (cmd.includes("/")) return executable(cmd) ? cmd : undefined;
-  for (const dir of (env.PATH ?? "").split(delimiter)) {
-    if (!dir) continue;
-    const file = join(dir, cmd);
-    if (executable(file)) return file;
-  }
-  return undefined;
-}
+export { findOnPath } from "./launchers.js";
 
 /** Path of a profile's launcher (claude-<name>, codex-<name>, ...) when it exists and is executable. */
 export function launcherPath(name: string, env: NodeJS.ProcessEnv = process.env, agent: AgentId = profileAgent(name, env)): string | undefined {
@@ -88,6 +69,18 @@ export async function execCommand(cmd: string, args: string[], env: NodeJS.Proce
 export async function launchProfile(name: string, args: string[], io: Io): Promise<number> {
   const file = launcherPath(name, io.env);
   if (!file) {
+    if (!isValidProfileName(name)) throw new UsageError(`unknown command '${name}' (turno --help)`);
+    let declared = false;
+    try {
+      declared = listProfiles(loadConfig(io.env), io.env).includes(name);
+    } catch {
+      declared = false;
+    }
+    if (declared) {
+      const agent = profileAgent(name, io.env);
+      const missing = tildify(join(paths(io.env).bin, launcherName(name, agent)), io.env);
+      throw new CliError(`profile ${name} has no launcher (${missing} is missing). Run: turno profile repair ${name}`);
+    }
     throw new UsageError(`no profile '${name}' (turno profile list shows them; turno profile add ${name} creates it)`);
   }
   return execLauncher(file, args, io.env);

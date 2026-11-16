@@ -1,41 +1,101 @@
-import { type AgentId, adapter, isAgentId } from "../../agents/index.js";
+import { join } from "node:path";
+import { type AgentId, adapter, agentHub, isAgentId } from "../../agents/index.js";
 import { type Config, loadConfig } from "../../core/config.js";
+import { paths, tildify } from "../../core/paths.js";
+import { listProfiles } from "../../core/profiles.js";
 import { resolveProfile } from "../../core/resolve.js";
-import { type Command, fail } from "../io.js";
-import { execCommand, execLauncher, launcherPath } from "../launch.js";
+import { CliError, type Command, type Io, fail } from "../io.js";
+import { execLauncher, findOnPath, launcherPath } from "../launch.js";
+import { launcherName } from "../launchers.js";
+
+/** What `turno auto` will exec, and the line it tells the person on stderr. */
+export interface AutoPlan {
+  file: string;
+  args: string[];
+  notice?: string;
+  /** Show the notice even when stderr is not a terminal. */
+  always?: boolean;
+}
+
+/**
+ * Decide what `turno auto` runs in `cwd`. It never falls back to another account in silence:
+ * a chosen profile without its launcher, a rule naming a missing profile, or a broken
+ * config.toml are errors (TURNO_ALLOW_PLAIN=1 runs the plain agent despite a broken config).
+ */
+export function planAuto(argv: string[], io: Io, cwd: string = process.cwd()): AutoPlan {
+  let agent: AgentId = "claude";
+  let args = argv;
+  if (argv[0] === "--agent" || argv[0]?.startsWith("--agent=")) {
+    const v = argv[0] === "--agent" ? argv[1] : argv[0].slice("--agent=".length);
+    if (!isAgentId(v)) return fail("--agent must be claude, codex, copilot or cursor");
+    agent = v;
+    args = argv.slice(argv[0] === "--agent" ? 2 : 1);
+  }
+  const env = io.env;
+  const a = adapter(agent);
+  const hub = tildify(agentHub(agent, env), env);
+  const plain = (): string => {
+    const file = findOnPath(a.command, env);
+    if (!file) throw new CliError(`${a.command} is not installed (${a.install})`, 127);
+    return file;
+  };
+  let config: Config;
+  try {
+    config = loadConfig(env);
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (env.TURNO_ALLOW_PLAIN === "1") return { file: plain(), args, notice: `turno: ${msg}; running plain ${a.command} (TURNO_ALLOW_PLAIN=1)`, always: true };
+    throw new CliError(
+      `${msg}\nturno auto does not guess an account while config.toml is broken. Fix it (turno config edit), or run plain ${a.command} once with TURNO_ALLOW_PLAIN=1.`,
+    );
+  }
+  const where = tildify(cwd, env);
+  const r = resolveProfile(cwd, config, env, undefined, agent);
+  if (r.chosen) {
+    const launcher = launcherPath(r.chosen, env, agent);
+    if (!launcher) {
+      if (!listProfiles(config, env).includes(r.chosen)) {
+        const add = `turno profile add ${r.chosen}${agent === "claude" ? "" : ` --agent ${agent}`}`;
+        throw new CliError(`${where} uses the ${r.chosen} profile (${r.reason}), but there is no such profile. Run: ${add}, or change the rule (turno profile which)`);
+      }
+      const missing = tildify(join(paths(env).bin, launcherName(r.chosen, agent)), env);
+      throw new CliError(`${where} uses the ${r.chosen} profile, but its launcher ${missing} is missing. Run: turno profile repair ${r.chosen}`);
+    }
+    return {
+      file: launcher,
+      args,
+      notice: r.note ? `turno: ${r.assigned} ${r.note} → using ${r.chosen} (${r.reason})` : `turno: account ${r.chosen} (${r.reason})`,
+    };
+  }
+  if (config.system === "") {
+    throw new CliError(`${where} has no rule and no default profile, and system = "" says there is no default account. Assign one: turno profile assign ${where} <profile>`);
+  }
+  if (agent !== "claude" && listProfiles(config, env, agent).length === 0) {
+    return { file: plain(), args, notice: `turno: no ${a.label} profile yet, so this runs plain ${a.command} with ${hub} (turno profile add <name> --agent ${agent})`, always: true };
+  }
+  return { file: plain(), args, notice: `turno: no rule or default for ${where}; running plain ${a.command} with ${hub}` };
+}
 
 export const command: Command = {
   summary: "open the agent with the account assigned to this folder (turno-auto)",
   usage: [
     "Usage: turno auto [--agent claude|codex|copilot|cursor] [agent args]",
     "",
-    "Resolves the profile of that agent (Claude Code by default) for the current folder (a",
-    "git worktree counts as its main repository), switches to the fallback when one is set and",
-    "the assigned profile is exhausted, and execs its launcher. Without a profile, runs the",
-    "agent's own command (claude, codex, copilot, cursor-agent).",
+    "Resolves the profile of that agent (Claude Code by default) for the current",
+    "folder (a git worktree counts as its main repository), switches to the fallback",
+    "when one is set and the assigned profile is exhausted, and execs its launcher.",
+    "Without a rule or a default, runs the agent's own command (claude, codex,",
+    "copilot, cursor-agent).",
+    "",
+    "It never switches accounts in silence: when the chosen profile or its launcher",
+    "is missing, or config.toml does not parse, it exits 1 and says how to fix it.",
+    "TURNO_ALLOW_PLAIN=1 runs the plain agent despite a broken config.toml;",
+    'system = "" in config.toml makes folders without a rule an error too.',
   ].join("\n"),
   async run(argv, io) {
-    let agent: AgentId = "claude";
-    let args = argv;
-    if (argv[0] === "--agent" || argv[0]?.startsWith("--agent=")) {
-      const v = argv[0] === "--agent" ? argv[1] : argv[0].slice("--agent=".length);
-      if (!isAgentId(v)) return fail("--agent must be claude, codex, copilot or cursor");
-      agent = v;
-      args = argv.slice(argv[0] === "--agent" ? 2 : 1);
-    }
-    let config: Config | undefined;
-    try {
-      config = loadConfig(io.env);
-    } catch (err) {
-      // A broken config must not stop Claude Code from starting.
-      io.err(`turno: ${(err as Error).message}; running plain ${adapter(agent).command}`);
-    }
-    const r = config ? resolveProfile(process.cwd(), config, io.env, undefined, agent) : undefined;
-    const launcher = r?.chosen ? launcherPath(r.chosen, io.env, agent) : undefined;
-    if (!r || !launcher) return execCommand(adapter(agent).command, args, io.env);
-    if (process.stderr.isTTY && args[0] !== "--version" && args[0] !== "-v") {
-      io.err(r.note ? `turno: ${r.assigned} ${r.note} → using ${r.chosen} (${r.reason})` : `turno: account ${r.chosen} (${r.reason})`);
-    }
-    return execLauncher(launcher, args, io.env);
+    const plan = planAuto(argv, io);
+    const quiet = plan.args[0] === "--version" || plan.args[0] === "-v";
+    if (plan.notice && (plan.always || (process.stderr.isTTY && !quiet))) io.err(plan.notice);
+    return execLauncher(plan.file, plan.args, io.env);
   },
 };

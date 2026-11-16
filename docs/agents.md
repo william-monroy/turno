@@ -45,6 +45,10 @@ default = "cx"
 # fallback = "cx2"   # optional, off unless set; see the vendor terms notice in the README
 ```
 
+`turno auto --agent codex` in a folder without a Codex rule or default runs plain `codex` and says
+so; before any Codex profile exists it says that too. What happens to processes started outside a
+launcher, and how to have no default account at all: [accounts.md](accounts.md).
+
 Exhausted marks are per profile (`turno limit set cx --for 3h`). Only Claude Code marks them by
 itself, through the plugin's hook.
 
