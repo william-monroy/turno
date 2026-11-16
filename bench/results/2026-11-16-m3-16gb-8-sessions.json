@@ -1,0 +1,27 @@
+{
+  "date": "2026-11-16T14:57:25.016Z",
+  "machine": "Apple M3, 16 GB",
+  "node": "v26.13.0",
+  "sessions": 8,
+  "servers": [
+    "@playwright/mcp@0.0.85",
+    "chrome-devtools-mcp@1.13.0",
+    "@modelcontextprotocol/server-filesystem@2.3.0",
+    "@modelcontextprotocol/server-memory@2.1.1",
+    "@modelcontextprotocol/server-sequential-thinking@2.1.1",
+    "@upstash/context7-mcp@4.7.0"
+  ],
+  "direct": {
+    "mode": "installed binaries",
+    "mib": 3163,
+    "processes": 56
+  },
+  "gatewayColdCache": {
+    "mib": 847,
+    "processes": 8
+  },
+  "gatewayWarmCache": {
+    "mib": 103,
+    "processes": 1
+  }
+}
