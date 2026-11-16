@@ -5,8 +5,8 @@ import { migrationPending } from "../../core/config-edit.js";
 import { type Config, loadConfig } from "../../core/config.js";
 import { loadManifest } from "../../core/manifest.js";
 import { paths, profileDir, tildify } from "../../core/paths.js";
-import { type AgentId, adapter, agentHub, agentProfileDir } from "../../agents/index.js";
-import { agentOf, listProfiles } from "../../core/profiles.js";
+import { AGENT_IDS, type AgentId, adapter, agentHub, agentProfileDir } from "../../agents/index.js";
+import { agentOf, configProblems, listProfiles } from "../../core/profiles.js";
 import { availableUpdate } from "../../core/update.js";
 import { packageInfo } from "../../core/version.js";
 import { FALLBACK, checkFonts, userFontDir } from "../../ui/fonts.js";
@@ -124,7 +124,6 @@ async function agentProfileChecks(name: string, agent: AgentId, env: NodeJS.Proc
     }
     if (store !== "file") out.push({ area, level: "warn", text: `profile ${name}: Codex may keep the login in the shared Keychain (cli_auth_credentials_store is not "file")`, fix: repair(name) });
   }
-  if (!findOnPath(a.command, env)) out.push({ area, level: "warn", text: `profile ${name}: ${a.command} is not on PATH (${a.install})` });
   return out;
 }
 
@@ -176,8 +175,25 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
 
   const major = Number(process.versions.node.split(".")[0]);
   add("system", major >= 20 ? "ok" : "fail", `node ${process.versions.node}${major >= 20 ? "" : " (turno needs >= 20)"}`);
-  const claude = findOnPath("claude", env);
-  add("system", claude ? "ok" : "fail", claude ? `claude at ${tildify(claude, env)}` : "claude not found on PATH");
+  // Every agent is listed; only one that a profile uses can fail.
+  let early: Config | undefined;
+  try {
+    early = loadConfig(env);
+  } catch {
+    early = undefined;
+  }
+  const names = early ? listProfiles(early, env) : [];
+  const used = new Set<AgentId>(early ? names.map((n) => agentOf(n, early!)) : []);
+  for (const id of AGENT_IDS) {
+    const a = adapter(id);
+    const at = findOnPath(a.command, env);
+    if (at) add("system", used.has(id) ? "ok" : "info", `${a.command} at ${tildify(at, env)}`);
+    else if (used.has(id)) add("system", "fail", `${a.command} not found on PATH, and profiles use it (${a.install})`);
+    else add("system", "info", `${a.command} not installed (${a.install})`);
+  }
+  const { pathAdvice } = await import("./profile.js");
+  const advice = names.length ? pathAdvice(env) : undefined;
+  if (advice) add("system", "warn", `${tildify(p.bin, env)} is not on your PATH, so launchers like ${launcherName(names[0]!, agentOf(names[0]!, early!))} will not be found (turno ${names[0]} works meanwhile). ${advice}`);
   const chrome = env.TURNO_CHROME_APP || "/Applications/Google Chrome.app";
   add("system", existsSync(chrome) ? "ok" : "warn", existsSync(chrome) ? "Google Chrome installed" : "Google Chrome not found: claude.ai links open in the default browser");
 
@@ -196,6 +212,7 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
     if (existsSync(p.configFile)) add("config", "ok", `${tildify(p.configFile, env)} parses`);
     else if (migrationPending(env)) add("config", "info", `no ${tildify(p.configFile, env)} yet: turno migrate imports the bash config`);
     else add("config", "info", `no ${tildify(p.configFile, env)} (defaults)`);
+    for (const w of configProblems(config, env)) add("config", "warn", w);
   } catch (err) {
     add("config", "fail", (err as Error).message);
   }
@@ -294,8 +311,8 @@ export const command: Command = {
   usage: [
     "Usage: turno doctor [--fix] [--json]",
     "",
-    "Exits 1 when a hard check fails. --fix runs the repair each failed check names (relink a",
-    "profile, rewrite launchers, finish an upgrade), then checks again.",
+    "Exits 1 when a hard check fails. --fix runs the repair each failed check names",
+    "(relink a profile, rewrite launchers, finish an upgrade), then checks again.",
   ].join("\n"),
   flags: ["--fix", "--json"],
   async run(args, io) {

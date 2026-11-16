@@ -6,8 +6,8 @@ import { setValue } from "../../core/toml-edit.js";
 import { paths, profileDir, tildify } from "../../core/paths.js";
 import { agentOf } from "../../core/profiles.js";
 import { profileBusy } from "../../core/sessions.js";
-import { type Command, type Io, fail } from "../io.js";
-import { SHARED_DIRS, launcherName, turnoCommand, writeHelperLaunchers, writeLauncher } from "../launchers.js";
+import { type Command, type Io, fail, plural } from "../io.js";
+import { SHARED_DIRS, launcherName, refuseNpx, resolveTurnoCommand, writeHelperLaunchers, writeLauncher } from "../launchers.js";
 
 export { SHARED_DIRS };
 
@@ -72,23 +72,69 @@ function lstat(path: string) {
   }
 }
 
+/** True when `path` holds the person's own data: a file, or a folder that is not empty. */
+function ownCopy(path: string): boolean {
+  const st = lstat(path);
+  if (!st || st.isSymbolicLink()) return false;
+  if (st.isDirectory()) return readdirSync(path).length > 0;
+  return true;
+}
+
+type Link = "linked" | "same" | "aside";
+
 /** Make <dir>/<item> a symlink to the hub, moving a local copy aside. */
-function linkItem(dir: string, item: string, aside: string, io: Io, hub = paths(io.env).hub): void {
+function linkItem(dir: string, item: string, aside: string, io: Io, hub = paths(io.env).hub): Link {
   const target = join(hub, item);
   const path = join(dir, item);
   const st = lstat(path);
+  let result: Link = "linked";
   if (st?.isSymbolicLink()) {
-    if (readlinkSync(path) === target) return;
+    if (readlinkSync(path) === target) return "same";
     rmSync(path);
   } else if (st?.isDirectory() && readdirSync(path).length === 0) {
     rmdirSync(path);
   } else if (st) {
     mkdirSync(aside, { recursive: true });
     renameSync(path, join(aside, item));
-    io.out(`  ! ${item} was a local copy: moved to ${tildify(aside, io.env)}/ (merge it by hand if useful)`);
+    result = "aside";
   }
   symlinkSync(target, path);
-  io.out(`  ↔ ${item}`);
+  return result;
+}
+
+/** Shared items of a profile: [name, hub] pairs, hub files only when they exist. */
+function sharedItems(name: string, agent: AgentId, env: NodeJS.ProcessEnv): { dir: string; hub: string; dirs: string[]; files: string[] } {
+  if (agent === "claude") {
+    const hub = paths(env).hub;
+    return { dir: profileDir(name, env), hub, dirs: [...SHARED_DIRS], files: SHARED_FILES.filter((f) => existsSync(join(hub, f))) };
+  }
+  const a = adapter(agent);
+  const hub = agentHub(agent, env);
+  return { dir: agentProfileDir(name, agent, env), hub, dirs: [...a.sharedDirs], files: a.sharedFiles.filter((f) => existsSync(join(hub, f))) };
+}
+
+/**
+ * The person's own files that setting up `names` would move to .aside-<stamp>/, so a command
+ * can ask before it moves anything.
+ */
+export function localCopies(names: string[], env: NodeJS.ProcessEnv): { name: string; dir: string; items: string[] }[] {
+  const config = loadConfig(env);
+  return names.map((name) => {
+    const s = sharedItems(name, agentOf(name, config), env);
+    return { name, dir: s.dir, items: [...s.dirs, ...s.files].filter((item) => ownCopy(join(s.dir, item))) };
+  });
+}
+
+/** Print what linking did: one line, or every item with `verbose`. */
+function reportLinks(name: string, label: string, dir: string, hub: string, results: [string, Link][], aside: string, io: Io, verbose: boolean): void {
+  const env = io.env;
+  const dirs = results.length;
+  io.out(`▸ ${name}${label} → ${tildify(dir, env)}: shares ${plural(dirs, "item")} with ${tildify(hub, env)}${verbose || !dirs ? "" : " (-v lists them)"}`);
+  if (verbose) for (const [item, r] of results) io.out(`  ${r === "same" ? "=" : "↔"} ${item}`);
+  const moved = results.filter(([, r]) => r === "aside").map(([item]) => item);
+  if (moved.length) {
+    io.out(`  ! moved your own ${moved.join(", ")} to ${tildify(aside, env)}/ (merge by hand if useful; turno undo does not move them back)`);
+  }
 }
 
 const SEED_KEYS = ["mcpServers", "projects", "hasCompletedOnboarding", "lastOnboardingVersion", "theme"];
@@ -112,12 +158,14 @@ function seedGlobalConfig(dir: string, io: Io): void {
   writeFileSync(dst, `${JSON.stringify(seed, null, 2)}\n`, { mode: 0o600 });
   chmodSync(dst, 0o600);
   const count = (v: unknown) => (v && typeof v === "object" ? Object.keys(v).length : 0);
-  io.out(`  + .claude.json with ${count(seed.mcpServers)} MCP servers and ${count(seed.projects)} projects from the hub`);
+  io.out(`  + .claude.json with ${plural(count(seed.mcpServers), "MCP server")} and ${plural(count(seed.projects), "project")} from the hub`);
 }
 
 export interface SetupOptions {
   /** Shell words that run turno, baked into turno-auto and turno-open. */
   turno?: string;
+  /** List every shared item instead of one summary line. */
+  verbose?: boolean;
 }
 
 /**
@@ -144,35 +192,37 @@ function prepareCodex(dir: string, io: Io): void {
 }
 
 /** Profile of an agent other than Claude Code: its directory, hub links, config, launcher. */
-function setupAgentProfile(name: string, agent: AgentId, io: Io): void {
+function setupAgentProfile(name: string, agent: AgentId, io: Io, verbose: boolean): void {
   const a = adapter(agent);
-  const hub = agentHub(agent, io.env);
-  const dir = agentProfileDir(name, agent, io.env);
-  const aside = join(dir, `.aside-${stamp()}`);
-  io.out(`▸ ${name} (${a.label}) → ${tildify(dir, io.env)}`);
-  mkdirSync(dir, { recursive: true });
-  chmodSync(dir, 0o700);
-  for (const item of a.sharedDirs) {
-    mkdirSync(join(hub, item), { recursive: true });
-    linkItem(dir, item, aside, io, hub);
+  const s = sharedItems(name, agent, io.env);
+  const aside = join(s.dir, `.aside-${stamp()}`);
+  mkdirSync(s.dir, { recursive: true });
+  chmodSync(s.dir, 0o700);
+  const results: [string, Link][] = [];
+  for (const item of s.dirs) {
+    mkdirSync(join(s.hub, item), { recursive: true });
+    results.push([item, linkItem(s.dir, item, aside, io, s.hub)]);
   }
-  for (const item of a.sharedFiles) {
-    if (existsSync(join(hub, item))) linkItem(dir, item, aside, io, hub);
-  }
-  if (agent === "codex") prepareCodex(dir, io);
+  for (const item of s.files) results.push([item, linkItem(s.dir, item, aside, io, s.hub)]);
+  reportLinks(name, ` (${a.label})`, s.dir, s.hub, results, aside, io, verbose);
+  if (agent === "codex") prepareCodex(s.dir, io);
   writeLauncher(name, io.env, agent);
   io.out(`  + command ${launcherName(name, agent)}`);
 }
 
 export function setupProfiles(names: string[], io: Io, opts: SetupOptions = {}): void {
-  if (names.length === 0) fail("usage: turno setup <profile>...");
+  if (names.length === 0) fail("usage: turno profile repair <profile>...");
   for (const name of names) checkName(name);
+  // Launchers keep the path of this turno; a path into npx's cache disappears.
+  if (opts.turno === undefined) refuseNpx();
+  const turno = opts.turno !== undefined ? { words: opts.turno } : resolveTurnoCommand(io.env);
+  const verbose = Boolean(opts.verbose);
   const p = paths(io.env);
   const config = loadConfig(io.env);
   for (const name of names) {
     const agent = agentOf(name, config);
     if (agent !== "claude") {
-      setupAgentProfile(name, agent, io);
+      setupAgentProfile(name, agent, io, verbose);
       continue;
     }
     if (!existsSync(p.hub)) {
@@ -180,24 +230,25 @@ export function setupProfiles(names: string[], io: Io, opts: SetupOptions = {}):
       mkdirSync(p.hub, { recursive: true, mode: 0o700 });
       io.out(`  + created ${tildify(p.hub, io.env)} (the folder every Claude Code profile shares)`);
     }
-    const dir = profileDir(name, io.env);
-    const aside = join(dir, `.aside-${stamp()}`);
-    io.out(`▸ ${name} → ${tildify(dir, io.env)}`);
-    mkdirSync(dir, { recursive: true });
-    chmodSync(dir, 0o700);
-    for (const item of SHARED_DIRS) {
-      if (item === "sessions" && !lstat(join(dir, item))?.isSymbolicLink() && profileBusy(name, io.env, config)) {
-        io.out("  ! sessions: this profile has open sessions; close them and run setup again");
+    const s = sharedItems(name, "claude", io.env);
+    const aside = join(s.dir, `.aside-${stamp()}`);
+    mkdirSync(s.dir, { recursive: true });
+    chmodSync(s.dir, 0o700);
+    const results: [string, Link][] = [];
+    let busy = false;
+    for (const item of s.dirs) {
+      if (item === "sessions" && !lstat(join(s.dir, item))?.isSymbolicLink() && profileBusy(name, io.env, config)) {
+        busy = true;
         continue;
       }
       mkdirSync(join(p.hub, item), { recursive: true });
-      linkItem(dir, item, aside, io);
+      results.push([item, linkItem(s.dir, item, aside, io)]);
     }
-    for (const item of SHARED_FILES) {
-      if (existsSync(join(p.hub, item))) linkItem(dir, item, aside, io);
-    }
-    seedGlobalConfig(dir, io);
-    const history = join(dir, "history.jsonl");
+    for (const item of s.files) results.push([item, linkItem(s.dir, item, aside, io)]);
+    reportLinks(name, "", s.dir, s.hub, results, aside, io, verbose);
+    if (busy) io.out("  ! sessions: this profile has open sessions; close them and run turno profile repair again");
+    seedGlobalConfig(s.dir, io);
+    const history = join(s.dir, "history.jsonl");
     const hubHistory = join(p.hub, "history.jsonl");
     if (!existsSync(history) && lstat(hubHistory)?.isFile()) {
       copyFileSync(hubHistory, history);
@@ -207,13 +258,16 @@ export function setupProfiles(names: string[], io: Io, opts: SetupOptions = {}):
     writeLauncher(name, io.env, "claude");
     io.out(`  + command claude-${name}`);
   }
-  for (const written of writeHelperLaunchers(io.env, opts.turno ?? turnoCommand())) io.out(`+ command ${written}`);
+  const written = writeHelperLaunchers(io.env, turno.words);
+  if (verbose) for (const w of written) io.out(`+ command ${w}`);
+  if (turno.warning) io.out(`! turno-auto and turno-open: ${turno.warning}`);
 }
 
 export const command: Command = {
   summary: "create or repair ~/.claude-<profile> and its claude-<profile> command",
+  hidden: true,
   usage: [
-    "Usage: turno setup <profile>...",
+    "Usage: turno profile repair <profile>...",
     "",
     "Links the shared hub folders and files into the profile (local copies are moved",
     "to .aside-<timestamp>/), seeds .claude.json and history.jsonl, and writes the",
