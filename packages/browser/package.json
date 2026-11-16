@@ -1,6 +1,6 @@
 {
   "name": "turno-browser",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Browser MCP server that drives your installed Chrome with a persistent profile per identity, built on patchright-core.",
   "license": "Apache-2.0",
   "author": "William Frank Monroy Mamani (https://github.com/william-monroy)",
