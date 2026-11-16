@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
-    <img src="docs/assets/logo-light.svg" alt="turno" width="232" height="56">
+    <img src="docs/assets/logo-light.svg" alt="turno" width="168" height="56">
   </picture>
 </p>
 
@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/turno"><img alt="npm" src="https://img.shields.io/npm/v/turno?color=7C5CFF"></a>
+  <a href="https://www.npmjs.com/package/turno"><img alt="npm" src="https://img.shields.io/npm/v/turno?color=2457F5"></a>
   <a href="https://github.com/william-monroy/turno/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/william-monroy/turno/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/william-monroy/turno"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/william-monroy/turno/badge"></a>

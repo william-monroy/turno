@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
-    <img src="docs/assets/logo-light.svg" alt="turno" width="232" height="56">
+    <img src="docs/assets/logo-light.svg" alt="turno" width="168" height="56">
   </picture>
 </p>
 
