@@ -1,9 +1,9 @@
 import type { Journal } from "../core/journal.js";
-import { mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve, sep } from "node:path";
 import { parse, stringify } from "smol-toml";
 import { ConfigError, isValidProfileName } from "../core/config.js";
-import { expandHome, paths, tildify } from "../core/paths.js";
+import { PRIVATE_FILE_MODE, ensurePrivateDir, expandHome, paths, tildify } from "../core/paths.js";
 
 /** One service account (a Linear workspace, a Gmail connector) owned by one Claude profile. */
 export interface Account {
@@ -173,9 +173,10 @@ export function saveRegistry(reg: Registry, env: NodeJS.ProcessEnv = process.env
     journal.write(file, formatRegistry(reg, env));
     return file;
   }
-  mkdirSync(dirname(file), { recursive: true });
+  ensurePrivateDir(dirname(file), env);
   const tmp = `${file}.${process.pid}.tmp`;
-  writeFileSync(tmp, formatRegistry(reg, env));
+  writeFileSync(tmp, formatRegistry(reg, env), { mode: PRIVATE_FILE_MODE });
+  chmodSync(tmp, PRIVATE_FILE_MODE);
   renameSync(tmp, file);
   return file;
 }
