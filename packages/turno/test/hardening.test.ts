@@ -19,6 +19,7 @@ import { SecretError, expandVars, keychainResolver } from "../src/core/secrets.j
 import { DescriptionCache } from "../src/mcpd/cache.js";
 import { DefaultConnector, RotatingLog } from "../src/mcpd/connectors.js";
 import { type RunningDaemon, createLogger, startDaemon } from "../src/mcpd/daemon.js";
+import { profileToken } from "../src/mcpd/tokens.js";
 import { writeManaged } from "../src/mcpd/sync.js";
 import { fakeCommand, fakeIo } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -346,7 +347,8 @@ describe("[mcpd] max_request_body", () => {
     const res = await fetch(`http://127.0.0.1:${d.port}/mcp/fx`, {
       method: "POST",
       body: "x".repeat(2 * 1024 * 1024),
-      headers: { authorization: `Bearer ${token}`, "content-type": "application/json", accept: "application/json, text/event-stream" },
+      // MCP sessions take a profile token (ADR 0023).
+      headers: { authorization: `Bearer ${profileToken(token, "default")}`, "content-type": "application/json", accept: "application/json, text/event-stream" },
     });
     expect(res.status).toBe(413);
   });
