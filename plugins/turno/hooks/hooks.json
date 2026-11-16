@@ -1,5 +1,5 @@
 {
-  "description": "When a turn stops because the account hit its usage limit, record the profile as exhausted until the reset time, so turno status shows it (and the optional fallback, if you set one, can use it).",
+  "description": "Status hook: when Claude Code reports a rate_limit stop, record the reset time for the current turno profile so turno status can show when that profile is available again.",
   "hooks": {
     "StopFailure": [
       {

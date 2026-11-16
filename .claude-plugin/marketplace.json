@@ -1,6 +1,6 @@
 {
   "name": "turno",
-  "description": "The turno companion plugin: usage status and session handoff for turno profiles.",
+  "description": "The turno companion plugin: profile status and session resume for turno profiles.",
   "owner": {
     "name": "turno contributors"
   },
@@ -8,7 +8,7 @@
     {
       "name": "turno",
       "source": "./plugins/turno",
-      "description": "Session handoff and fork skills, and a hook that records usage-limit events for turno status."
+      "description": "Skills that resume or fork a session under a turno profile. A separate status hook records reset times for turno status."
     }
   ]
 }

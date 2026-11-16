@@ -1,7 +1,7 @@
 {
   "name": "turno",
-  "version": "0.1.0",
-  "description": "Companion plugin for the turno CLI: records when a profile reaches its usage limit (shown by turno status) and hands a session over to another profile or forks it.",
+  "version": "0.1.1",
+  "description": "Companion plugin for the turno CLI. A status hook records each profile's account state, which turno status shows. Two skills print the command that resumes or forks the current session under a turno profile you choose.",
   "author": {
     "name": "William Frank Monroy Mamani"
   },
@@ -9,9 +9,9 @@
   "keywords": [
     "accounts",
     "profiles",
-    "usage",
+    "status",
     "sessions",
-    "handoff"
+    "fork"
   ],
   "homepage": "https://github.com/wimo-dev/turno",
   "repository": "https://github.com/wimo-dev/turno"
