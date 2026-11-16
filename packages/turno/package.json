@@ -1,5 +1,5 @@
 {
-  "name": "turno",
+  "name": "turno-cli",
   "version": "0.1.0",
   "description": "One MCP gateway and per-folder accounts for Claude Code, Codex, Copilot CLI and Cursor CLI.",
   "keywords": [

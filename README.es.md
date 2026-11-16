@@ -25,9 +25,11 @@ cuenta: los repositorios del trabajo abren con tu cuenta del trabajo y lo demás
 ## Instalación
 
 ```sh
-npx turno@latest doctor     # pruébalo sin instalar: revisa tus agentes y tu configuración
-npm install --global turno  # macOS o Linux, Node 22.11 o más nuevo
+npx turno-cli@latest doctor     # pruébalo sin instalar: revisa tus agentes y tu configuración
+npm install --global turno-cli  # macOS o Linux, Node 22.11 o más nuevo
 ```
+
+El paquete de npm se llama `turno-cli`; el comando que instala es `turno`.
 
 Después pasa tus servidores MCP detrás del gateway:
 

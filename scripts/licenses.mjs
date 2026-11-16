@@ -9,7 +9,7 @@ import { join } from "node:path";
 
 const root = new URL("..", import.meta.url).pathname;
 const FILE = join(root, "THIRD_PARTY_NOTICES.md");
-const OWN = new Set(["turno", "turno-browser", "turno-fonts"]);
+const OWN = new Set(["turno", "turno-cli", "turno-browser", "turno-fonts"]);
 
 // Licenses a dependency may carry. Anything else (GPL, AGPL, LGPL, SSPL, UNLICENSED, unknown)
 // fails the check until someone looks at it and, if it is fine, adds it here.

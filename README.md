@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/turno"><img alt="npm" src="https://img.shields.io/npm/v/turno?color=2457F5"></a>
+  <a href="https://www.npmjs.com/package/turno-cli"><img alt="npm" src="https://img.shields.io/npm/v/turno-cli?color=2457F5"></a>
   <a href="https://github.com/william-monroy/turno/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/william-monroy/turno/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/william-monroy/turno"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/william-monroy/turno/badge"></a>
@@ -32,9 +32,11 @@ open with your work login and everything else with your personal one.
 ## Install
 
 ```sh
-npx turno@latest doctor     # try it without installing: checks your agents and config
-npm install --global turno  # macOS or Linux, Node 22.11+
+npx turno-cli@latest doctor     # try it without installing: checks your agents and config
+npm install --global turno-cli  # macOS or Linux, Node 22.11+
 ```
+
+The npm package is `turno-cli`; the command it installs is `turno`.
 
 Then move your MCP servers behind the gateway:
 
@@ -139,7 +141,7 @@ have open issues). Windows is not supported.
 **How do I undo it?** Every command that writes keeps a copy of each file it changes:
 `turno undo --list` shows them and `turno undo <stamp>` puts them back. To remove turno,
 `turno mcp daemon stop`, undo the `mcp sync`, delete the `claude-<p>`-style launchers in
-`~/.local/bin` and `npm uninstall --global turno`. Profile folders stay until you delete them.
+`~/.local/bin` and `npm uninstall --global turno-cli`. Profile folders stay until you delete them.
 
 ## Reference
 

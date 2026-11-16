@@ -5,7 +5,7 @@ profile per identity: you sign into a site once by hand, and the agent works in 
 signed-in browser afterwards. It is the Playwright MCP program, run on Patchright (a Playwright
 fork that drives Chrome without the automation flags Playwright adds).
 
-It is an optional part of [turno](https://www.npmjs.com/package/turno); turno works without it.
+It is an optional part of [turno](https://www.npmjs.com/package/turno-cli); turno works without it.
 
 ```sh
 npm install --global turno-browser
