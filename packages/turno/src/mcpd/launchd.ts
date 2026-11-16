@@ -1,10 +1,7 @@
-import { execFile } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import { paths } from "../core/paths.js";
-
-const run = promisify(execFile);
+import { type ServiceBackend, type ServiceSpec, ServiceError, runTool, serviceArgs, serviceEnv } from "./service.js";
 
 export const LABEL = "dev.turno.mcpd";
 
@@ -16,16 +13,22 @@ function xml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-/** LaunchAgent that keeps `turno mcpd run` alive, with the caller's PATH (launchd's is minimal). */
-export function plist(opts: { node: string; script: string; env: NodeJS.ProcessEnv }): string {
-  const p = paths(opts.env);
-  const vars: Record<string, string> = {
-    PATH: opts.env.PATH ?? "/usr/bin:/bin:/usr/sbin:/sbin",
-    HOME: p.home,
-  };
-  for (const k of ["XDG_CONFIG_HOME", "XDG_STATE_HOME", "XDG_DATA_HOME", "LANG"]) if (opts.env[k]) vars[k] = opts.env[k] as string;
-  const envXml = Object.entries(vars)
+function unxml(s: string): string {
+  return s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+}
+
+/**
+ * LaunchAgent that keeps `turno mcp daemon run` alive. `Interactive` because mcpd answers
+ * calls the user is waiting for and starts browsers (a `Background` job gets throttled).
+ * KeepAlive only restarts it after a failure: a clean exit (another mcpd already serves) stays down.
+ */
+export function plist(spec: ServiceSpec): string {
+  const p = paths(spec.env);
+  const envXml = Object.entries(serviceEnv(spec, "launchd"))
     .map(([k, v]) => `      <key>${xml(k)}</key>\n      <string>${xml(v)}</string>`)
+    .join("\n");
+  const args = serviceArgs(spec)
+    .map((a) => `      <string>${xml(a)}</string>`)
     .join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -35,10 +38,7 @@ export function plist(opts: { node: string; script: string; env: NodeJS.ProcessE
     <string>${LABEL}</string>
     <key>ProgramArguments</key>
     <array>
-      <string>${xml(opts.node)}</string>
-      <string>${xml(opts.script)}</string>
-      <string>mcpd</string>
-      <string>run</string>
+${args}
     </array>
     <key>EnvironmentVariables</key>
     <dict>
@@ -47,9 +47,14 @@ ${envXml}
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
-    <true/>
+    <dict>
+      <key>SuccessfulExit</key>
+      <false/>
+    </dict>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
     <key>ProcessType</key>
-    <string>Background</string>
+    <string>Interactive</string>
     <key>StandardOutPath</key>
     <string>${xml(join(p.logsDir, "mcpd.stdout.log"))}</string>
     <key>StandardErrorPath</key>
@@ -59,33 +64,43 @@ ${envXml}
 `;
 }
 
+/** ProgramArguments of a plist written by `plist()` (or an earlier turno). */
+export function plistProgram(text: string): string[] {
+  const m = /<key>ProgramArguments<\/key>\s*<array>([\s\S]*?)<\/array>/.exec(text);
+  if (!m) return [];
+  return [...m[1]!.matchAll(/<string>([\s\S]*?)<\/string>/g)].map((x) => unxml(x[1]!));
+}
+
 function domain(): string {
-  return `gui/${process.getuid?.() ?? 501}`;
+  const uid = process.getuid?.();
+  if (uid === undefined) throw new ServiceError("cannot tell the user id for launchctl");
+  return `gui/${uid}`;
 }
 
-export async function isLoaded(): Promise<boolean> {
-  try {
-    await run("launchctl", ["print", `${domain()}/${LABEL}`], { timeout: 5000 });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export async function install(opts: { node: string; script: string; env: NodeJS.ProcessEnv }): Promise<string> {
-  const file = plistPath(opts.env);
-  mkdirSync(join(paths(opts.env).home, "Library", "LaunchAgents"), { recursive: true });
-  mkdirSync(paths(opts.env).logsDir, { recursive: true });
-  writeFileSync(file, plist(opts));
-  if (await isLoaded()) await run("launchctl", ["bootout", `${domain()}/${LABEL}`], { timeout: 10_000 }).catch(() => {});
-  await run("launchctl", ["bootstrap", domain(), file], { timeout: 10_000 });
-  return file;
-}
-
-export async function uninstall(): Promise<void> {
-  await run("launchctl", ["bootout", `${domain()}/${LABEL}`], { timeout: 10_000 });
-}
-
-export async function restart(): Promise<void> {
-  await run("launchctl", ["kickstart", "-k", `${domain()}/${LABEL}`], { timeout: 10_000 });
-}
+export const launchd: ServiceBackend = {
+  kind: "launchd",
+  noun: "LaunchAgent",
+  file: plistPath,
+  render: plist,
+  programOf: plistProgram,
+  async isLoaded(env) {
+    try {
+      await runTool("launchctl", ["print", `${domain()}/${LABEL}`], env, 5000);
+      return true;
+    } catch (err) {
+      if (err instanceof ServiceError && /not found on PATH/.test(err.message)) throw err;
+      return false;
+    }
+  },
+  async load(env) {
+    mkdirSync(paths(env).logsDir, { recursive: true });
+    if (await launchd.isLoaded(env)) await runTool("launchctl", ["bootout", `${domain()}/${LABEL}`], env).catch(() => {});
+    await runTool("launchctl", ["bootstrap", domain(), plistPath(env)], env);
+  },
+  async unload(env) {
+    await runTool("launchctl", ["bootout", `${domain()}/${LABEL}`], env);
+  },
+  async restart(env) {
+    await runTool("launchctl", ["kickstart", "-k", `${domain()}/${LABEL}`], env);
+  },
+};
