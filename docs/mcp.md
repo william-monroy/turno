@@ -136,6 +136,41 @@ mcpd. With secret headers it is proxied, so the secret stays in the Keychain.
 token, relists running instances and forgets the cached description of the others, without a
 restart. It answers `{"server", "refreshed": [...], "forgotten": [...], "errors": {...}}`.
 
+## Watching the gateway
+
+```sh
+turno mcp log                 # the last 20 tool calls: time, outcome, duration, server, tool, profile, agent, sizes
+turno mcp log -f --server github --profile work   # follow new calls, filtered
+turno mcp log --json -n 500   # one JSON record per line, for jq
+turno mcp top                 # memory, sessions, calls in flight, idle time and restarts per running server
+turno mcp savings             # mcpd's memory now against the same sessions without the gateway
+```
+
+mcpd appends one JSON line per tool call it relays to `~/.local/state/turno/logs/calls.jsonl`
+(mode 600, rotated at 5 MiB, two old files kept):
+
+```json
+{"time":"2026-11-16T21:00:00.000Z","agent":"claude-code","profile":"work","pid":4242,"server":"github","variant":"work","tool":"create_issue","durationMs":812,"outcome":"ok","requestBytes":431,"responseBytes":2210}
+```
+
+`outcome` is `ok`, `error`, `cancelled` or `timeout`; failed calls add `error`, with anything
+that looks like a token replaced by `[redacted]`. A record never holds the call's arguments or
+its result, only their sizes. `agent` is the name the client gives in `initialize`. Turn the log
+off with `call_log = false` under `[mcpd]` in config.toml (it applies at the next mcpd start).
+
+`turno mcp top` refreshes every 2 seconds in a terminal and prints one snapshot with `--once`,
+`--json` or when piped. Memory is the resident size of each server process plus its children
+(`npx` and shell wrappers start the real server as a child), read with `ps`, or from `/proc` on
+Linux hosts without it.
+
+`turno mcp savings` compares mcpd plus every server it runs now with an estimate of the same
+live agent sessions without the gateway: each session would start its own copy of every stdio
+server its profile uses, so the estimate is sessions x per-server memory. A server that is not
+running now counts with the memory mcpd measured the last time it ran (mcpd samples every 15
+seconds while servers run and keeps the numbers in `~/.local/state/turno/mcpd-rss.json`).
+Resident memory counts shared pages once per process, so both sides overcount a little in the
+same way. See [ADR 0026](decisions/0026-call-log-top-and-savings.md).
+
 ## Plugin servers
 
 Servers that come from Claude Code plugins start in every session and bypass mcpd.
@@ -147,6 +182,7 @@ Servers that come from Claude Code plugins start in every session and bypass mcp
 ```sh
 turno mcp daemon status    # running servers, clients, memory; or why mcpd is down
 turno mcp daemon logs -n 100  # gateway log, in local time (--utc for the raw lines)
+turno mcp log --server <name>  # its recent tool calls, with errors and durations
 ls ~/.local/state/turno/logs/   # one stderr log per server (and variant)
 turno mcp refresh <name>   # forget a cached tool list; a running mcpd relearns it
 ```
