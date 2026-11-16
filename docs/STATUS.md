@@ -106,11 +106,17 @@ Last updated: 2026-11-13.
    to publish under `github.com/william-monroy/turno`. Done in the repository: README rewritten
    around the measured gateway saving ([BENCHMARKS.md](../BENCHMARKS.md), `bench/`), Spanish
    README, logo, VHS demo (`docs/demo/`), social preview, package metadata, changelogs for
-   0.1.0, `server.json` for the MCP Registry, plugin texts without rate-limit wording. Left:
-   - the first npm publish of `turno`, `turno-browser` and `turno-fonts` (needs the owner's npm
-     login), then trusted publishers on npmjs.com and the `npm` environment (RELEASING.md);
-   - a Homebrew tap over the npm tarball, the MCP Registry entry, the Claude Code community
-     marketplace, awesome lists (from 2026-11-26);
+   0.1.0, `server.json` for the MCP Registry, plugin texts without rate-limit wording.
+   Published the same day: `turno-cli`, `turno-browser` and `turno-fonts` 0.1.0 on npm (the
+   name `turno` was refused, ADR 0014), each with a trusted publisher for `release.yml` and the
+   `npm` environment and "require 2FA, disallow tokens"; the Homebrew tap
+   `william-monroy/homebrew-turno`; `io.github.william-monroy/turno-browser` in the MCP Registry;
+   cobalt logo and social preview; Discussions with an Español category and the pinned roadmap.
+   Left:
+   - GitHub Actions does not start on the owner's account ("account is locked due to a billing
+     issue", although the plan is Free and nothing is owed): a valid payment method or GitHub
+     Support. Until then CI and `release.yml` do not run, so releases are manual;
+   - the Claude Code community marketplace and awesome lists (from 2026-11-26);
    - a lawyer's read of the vendor terms notice, and Cursor's and Copilot's terms on several
      accounts, before the launch post promises anything about those agents;
    - the backup administrator in GOVERNANCE.md;
