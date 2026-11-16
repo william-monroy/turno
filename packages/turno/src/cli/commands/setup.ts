@@ -175,7 +175,11 @@ export function setupProfiles(names: string[], io: Io, opts: SetupOptions = {}):
       setupAgentProfile(name, agent, io);
       continue;
     }
-    if (!existsSync(p.hub)) fail(`the hub ${p.hub} does not exist`);
+    if (!existsSync(p.hub)) {
+      // Claude Code creates it on first run; profiles need it now to link the shared folders.
+      mkdirSync(p.hub, { recursive: true, mode: 0o700 });
+      io.out(`  + created ${tildify(p.hub, io.env)} (the folder every Claude Code profile shares)`);
+    }
     const dir = profileDir(name, io.env);
     const aside = join(dir, `.aside-${stamp()}`);
     io.out(`▸ ${name} → ${tildify(dir, io.env)}`);

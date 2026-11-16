@@ -304,3 +304,15 @@ describe("folder rules per agent", () => {
     expect(rules.map((r) => r.profile).sort()).toEqual(["cx2", "work"]);
   });
 });
+
+describe("status with other agents", () => {
+  it("names the agent of a profile instead of a Claude Code login", async () => {
+    const { main } = await import("../src/cli/main.js");
+    const io = fakeIo(sb.env);
+    expect(await main(["profile", "add", "cx", "--agent", "codex"], fakeIo(sb.env))).toBe(0);
+    expect(await main(["status"], io)).toBe(0);
+    const row = io.lines.find((l) => /\bcx\b/.test(l) && l.includes("5h"));
+    expect(row).toContain("Codex CLI");
+    expect(row).not.toContain("not logged in");
+  });
+});

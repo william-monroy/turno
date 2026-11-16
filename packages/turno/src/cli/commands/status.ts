@@ -11,6 +11,7 @@ import { currentTerminal, nerdHere } from "../../ui/terminal-id.js";
 import { JSON_FLAG, bool, parseFlags, printJson } from "../args.js";
 import { type Command, type Io, paint } from "../io.js";
 import { mcpdStatus } from "./doctor.js";
+import { adapter } from "../../agents/index.js";
 import { limitsData } from "./limit.js";
 import { profilesData } from "./profile.js";
 import { sessionsData } from "./session.js";
@@ -85,7 +86,7 @@ export const command: Command = {
     if (!d.profiles.length) io.out("profiles  none yet (turno profile add <name>)");
     const w = Math.max(0, ...d.profiles.map((x) => x.name.length));
     for (const [i, x] of d.profiles.entries()) {
-      const who = x.setUp ? (x.email ?? "not logged in") : "not set up";
+      const who = !x.setUp ? "not set up" : x.agent !== "claude" ? adapter(x.agent).label : (x.email ?? "not logged in");
       const flags = [...x.roles, x.exhaustedUntil ? `exhausted until ${shortTime(x.exhaustedUntil)}` : ""].filter(Boolean).join(", ");
       io.out(`${i === 0 ? "profiles  " : "          "}${x.name.padEnd(w)}  5h ${pct(x.fiveHour, now)}  week ${pct(x.week, now)}  ${who}${x.plan ? ` · ${x.plan}` : ""}${flags ? dim(`  ${flags}`) : ""}`);
     }

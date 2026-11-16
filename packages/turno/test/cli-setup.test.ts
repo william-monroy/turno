@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, statSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { UsageError } from "../src/cli/io.js";
@@ -14,6 +14,15 @@ beforeEach(() => {
 afterEach(() => sb.cleanup());
 
 describe("setup", () => {
+  it("creates the hub on a machine where Claude Code never ran", () => {
+    rmSync(join(sb.home, ".claude"), { recursive: true });
+    const io = fakeIo(sb.env);
+    setupProfiles(["work"], io, { turno: "turno" });
+    expect(statSync(join(sb.home, ".claude")).mode & 0o777).toBe(0o700);
+    expect(lstatSync(join(sb.home, ".claude-work/projects")).isSymbolicLink()).toBe(true);
+    expect(io.lines.some((l) => l.includes("created ~/.claude"))).toBe(true);
+  });
+
   it("links the hub, moves local copies aside, seeds config and history, writes launchers", () => {
     sb.write(".claude/CLAUDE.md", "# shared\n");
     sb.write(".claude/settings.json", "{}\n");
@@ -64,12 +73,6 @@ describe("setup", () => {
     expect(() => setupProfiles(["work", "uso"], fakeIo(sb.env))).toThrow(/reserved/);
     expect(() => setupProfiles(["Bad"], fakeIo(sb.env))).toThrow(UsageError);
     expect(existsSync(join(sb.home, ".claude-work"))).toBe(false);
-  });
-
-  it("needs the hub", () => {
-    sb.cleanup();
-    sb = sandbox();
-    expect(() => setupProfiles(["work"], fakeIo(sb.env))).toThrow(/hub/);
   });
 
   it("skips replacing a local sessions folder while the profile is busy", () => {
