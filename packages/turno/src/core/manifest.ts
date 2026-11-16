@@ -34,6 +34,8 @@ export interface StdioServer {
   variants: Record<string, ServerVariant>;
   /** Builtin servers run inside mcpd (no process). */
   builtin?: string;
+  /** Seconds a single client request may run before mcpd cancels it (off when unset). */
+  callTimeout?: number;
 }
 
 export interface RemoteServer {
@@ -50,6 +52,8 @@ export interface RemoteServer {
   url: string;
   headers: Record<string, string>;
   idle: number;
+  /** Seconds a single client request may run before mcpd cancels it (off when unset). */
+  callTimeout?: number;
 }
 
 export type ServerDef = StdioServer | RemoteServer;
@@ -120,11 +124,11 @@ export function parseManifest(text: string, file = "mcp.toml"): Manifest {
     const profiles = profilesOf(v.profiles, file, `${key}.profiles`);
     if (v.url !== undefined) {
       if (typeof v.url !== "string") throw new ConfigError(file, `${key}.url must be a string`);
-      const { profiles: _p, idle: _i, ...rest } = v;
+      const { profiles: _p, idle: _i, call_timeout: _t, ...rest } = v;
       const entry: Record<string, unknown> = { type: "http", ...rest };
       const headers = strRecord(v.headers, file, `${key}.headers`);
       const proxy = Object.values(headers).some(isSecretRef);
-      servers[name] = {
+      const remote: RemoteServer = {
         kind: "remote",
         name,
         entry,
@@ -134,6 +138,8 @@ export function parseManifest(text: string, file = "mcp.toml"): Manifest {
         headers,
         idle: v.idle === undefined ? 30 * 60 : parseDuration(v.idle, file, `${key}.idle`),
       };
+      if (v.call_timeout !== undefined) remote.callTimeout = parseDuration(v.call_timeout, file, `${key}.call_timeout`);
+      servers[name] = remote;
       continue;
     }
     const builtin = optStr(v.builtin, file, `${key}.builtin`);
@@ -176,6 +182,7 @@ export function parseManifest(text: string, file = "mcp.toml"): Manifest {
     const pkg = optStr(v.package, file, `${key}.package`);
     if (pkg) server.package = pkg;
     if (builtin) server.builtin = builtin;
+    if (v.call_timeout !== undefined) server.callTimeout = parseDuration(v.call_timeout, file, `${key}.call_timeout`);
     servers[name] = server;
   }
   return { servers };

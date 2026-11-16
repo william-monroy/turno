@@ -1,8 +1,12 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-/** What a server says about itself, enough to answer initialize and the list methods without it running. */
+/**
+ * What a server says about itself, enough to answer initialize and the schema-like list
+ * methods without it running. resources/list is not cached: resources are data that differ
+ * per project and over time, so that method always reaches a running instance.
+ */
 export interface ServerDescription {
   fingerprint: string;
   serverInfo: Record<string, unknown>;
@@ -10,7 +14,6 @@ export interface ServerDescription {
   instructions?: string;
   tools?: unknown[];
   prompts?: unknown[];
-  resources?: unknown[];
   resourceTemplates?: unknown[];
   updatedAt: number;
 }
@@ -29,6 +32,12 @@ export class DescriptionCache {
   }
 
   get(key: string, fp: string): ServerDescription | undefined {
+    const d = this.peek(key);
+    return d && d.fingerprint === fp ? d : undefined;
+  }
+
+  /** The stored description whatever its fingerprint (to compare with a fresh one). */
+  peek(key: string): ServerDescription | undefined {
     let d = this.memory.get(key);
     if (!d) {
       try {
@@ -38,7 +47,7 @@ export class DescriptionCache {
         return undefined;
       }
     }
-    return d.fingerprint === fp ? d : undefined;
+    return d;
   }
 
   set(key: string, d: ServerDescription): void {
@@ -52,5 +61,13 @@ export class DescriptionCache {
 
   delete(key: string): void {
     this.memory.delete(key);
+  }
+
+  /** Drop a description from memory and disk, so the next client relearns it. */
+  forget(key: string): boolean {
+    const had = this.peek(key) !== undefined;
+    this.memory.delete(key);
+    rmSync(this.file(key), { force: true });
+    return had;
   }
 }
