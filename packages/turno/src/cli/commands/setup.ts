@@ -1,4 +1,4 @@
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, renameSync, rmSync, rmdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type AgentId, adapter, agentHub, agentProfileDir } from "../../agents/index.js";
 import { isValidProfileName, loadConfig } from "../../core/config.js";
@@ -54,6 +54,7 @@ export const RESERVED = new Set([
   "cuenta", "resolver", "sesiones", "uso", "agotada", "disponible", "limite", "abrir", "sync-mcp",
   "profile", "navegador",
   "run", "limit", "session", "identity", "config", "undo", "upgrade", "completion", "__complete", "__update-check",
+  "uninstall",
 ]);
 
 export function checkName(name: string): void {
@@ -62,7 +63,7 @@ export function checkName(name: string): void {
 }
 
 export { stamp } from "../../core/journal.js";
-import { stamp } from "../../core/journal.js";
+import { Journal, stamp } from "../../core/journal.js";
 
 function lstat(path: string) {
   try {
@@ -82,24 +83,41 @@ function ownCopy(path: string): boolean {
 
 type Link = "linked" | "same" | "aside";
 
-/** Make <dir>/<item> a symlink to the hub, moving a local copy aside. */
-function linkItem(dir: string, item: string, aside: string, io: Io, hub = paths(io.env).hub): Link {
+/**
+ * Make <dir>/<item> a symlink to the hub, moving a local copy aside. Every step goes through
+ * the journal, so `turno undo` removes the link and moves the copy back (ADR 0025).
+ */
+function linkItem(dir: string, item: string, aside: string, journal: Journal, hub: string): Link {
   const target = join(hub, item);
   const path = join(dir, item);
   const st = lstat(path);
   let result: Link = "linked";
   if (st?.isSymbolicLink()) {
     if (readlinkSync(path) === target) return "same";
-    rmSync(path);
+    journal.unlink(path);
   } else if (st?.isDirectory() && readdirSync(path).length === 0) {
-    rmdirSync(path);
+    journal.rmdir(path);
   } else if (st) {
-    mkdirSync(aside, { recursive: true });
-    renameSync(path, join(aside, item));
+    journal.mkdir(aside);
+    journal.move(path, join(aside, item));
     result = "aside";
   }
-  symlinkSync(target, path);
+  journal.symlink(target, path);
   return result;
+}
+
+/** Create a profile folder (0700) through the journal, so undo removes it while it is empty. */
+function profileFolder(dir: string, journal: Journal): void {
+  journal.mkdir(dir, 0o700);
+  chmodSync(dir, 0o700);
+}
+
+/** Write a file the setup creates or changes (seeds, Codex config) through the journal. */
+function writeOwn(file: string, text: string, journal: Journal): void {
+  journal.save(file);
+  writeFileSync(file, text, { mode: 0o600 });
+  chmodSync(file, 0o600);
+  journal.settle(file);
 }
 
 /** Shared items of a profile: [name, hub] pairs, hub files only when they exist. */
@@ -133,14 +151,14 @@ function reportLinks(name: string, label: string, dir: string, hub: string, resu
   if (verbose) for (const [item, r] of results) io.out(`  ${r === "same" ? "=" : "↔"} ${item}`);
   const moved = results.filter(([, r]) => r === "aside").map(([item]) => item);
   if (moved.length) {
-    io.out(`  ! moved your own ${moved.join(", ")} to ${tildify(aside, env)}/ (merge by hand if useful; turno undo does not move them back)`);
+    io.out(`  ! moved your own ${moved.join(", ")} to ${tildify(aside, env)}/ (merge by hand if useful; turno undo puts them back)`);
   }
 }
 
 const SEED_KEYS = ["mcpServers", "projects", "hasCompletedOnboarding", "lastOnboardingVersion", "theme"];
 
 /** First .claude.json of a profile: user MCP servers and per-project state, never the account. */
-function seedGlobalConfig(dir: string, io: Io): void {
+function seedGlobalConfig(dir: string, io: Io, journal: Journal): void {
   const dst = join(dir, ".claude.json");
   if (existsSync(dst)) {
     io.out("  = .claude.json already exists (turno mcp sync brings in new MCP servers)");
@@ -155,8 +173,7 @@ function seedGlobalConfig(dir: string, io: Io): void {
   }
   const seed: Record<string, unknown> = {};
   for (const k of SEED_KEYS) if (k in hub) seed[k] = hub[k];
-  writeFileSync(dst, `${JSON.stringify(seed, null, 2)}\n`, { mode: 0o600 });
-  chmodSync(dst, 0o600);
+  writeOwn(dst, `${JSON.stringify(seed, null, 2)}\n`, journal);
   const count = (v: unknown) => (v && typeof v === "object" ? Object.keys(v).length : 0);
   io.out(`  + .claude.json with ${plural(count(seed.mcpServers), "MCP server")} and ${plural(count(seed.projects), "project")} from the hub`);
 }
@@ -166,13 +183,18 @@ export interface SetupOptions {
   turno?: string;
   /** List every shared item instead of one summary line. */
   verbose?: boolean;
+  /**
+   * Records links, moves, folders, seeds and launchers. Without one, setupProfiles opens its
+   * own ("profile repair ...") and prints its undo hint.
+   */
+  journal?: Journal;
 }
 
 /**
  * Codex profiles: seed config.toml from the hub once, and always store the login in the
  * profile (`cli_auth_credentials_store = "file"`), so each CODEX_HOME has its own account.
  */
-function prepareCodex(dir: string, io: Io): void {
+function prepareCodex(dir: string, io: Io, journal: Journal): void {
   const file = join(dir, "config.toml");
   let text = "";
   if (existsSync(file)) text = readFileSync(file, "utf8");
@@ -185,28 +207,27 @@ function prepareCodex(dir: string, io: Io): void {
   }
   const next = setValue(text, undefined, "cli_auth_credentials_store", "file");
   if (next !== text || !existsSync(file)) {
-    writeFileSync(file, next, { mode: 0o600 });
+    writeOwn(file, next, journal);
     io.out('  + cli_auth_credentials_store = "file" (the login stays in this profile)');
   }
   chmodSync(file, 0o600);
 }
 
 /** Profile of an agent other than Claude Code: its directory, hub links, config, launcher. */
-function setupAgentProfile(name: string, agent: AgentId, io: Io, verbose: boolean): void {
+function setupAgentProfile(name: string, agent: AgentId, io: Io, verbose: boolean, journal: Journal): void {
   const a = adapter(agent);
   const s = sharedItems(name, agent, io.env);
   const aside = join(s.dir, `.aside-${stamp()}`);
-  mkdirSync(s.dir, { recursive: true });
-  chmodSync(s.dir, 0o700);
+  profileFolder(s.dir, journal);
   const results: [string, Link][] = [];
   for (const item of s.dirs) {
     mkdirSync(join(s.hub, item), { recursive: true });
-    results.push([item, linkItem(s.dir, item, aside, io, s.hub)]);
+    results.push([item, linkItem(s.dir, item, aside, journal, s.hub)]);
   }
-  for (const item of s.files) results.push([item, linkItem(s.dir, item, aside, io, s.hub)]);
+  for (const item of s.files) results.push([item, linkItem(s.dir, item, aside, journal, s.hub)]);
   reportLinks(name, ` (${a.label})`, s.dir, s.hub, results, aside, io, verbose);
-  if (agent === "codex") prepareCodex(s.dir, io);
-  writeLauncher(name, io.env, agent);
+  if (agent === "codex") prepareCodex(s.dir, io, journal);
+  writeLauncher(name, io.env, agent, journal);
   io.out(`  + command ${launcherName(name, agent)}`);
 }
 
@@ -219,10 +240,11 @@ export function setupProfiles(names: string[], io: Io, opts: SetupOptions = {}):
   const verbose = Boolean(opts.verbose);
   const p = paths(io.env);
   const config = loadConfig(io.env);
+  const journal = opts.journal ?? new Journal(io.env, `profile repair ${names.join(" ")}`);
   for (const name of names) {
     const agent = agentOf(name, config);
     if (agent !== "claude") {
-      setupAgentProfile(name, agent, io, verbose);
+      setupAgentProfile(name, agent, io, verbose, journal);
       continue;
     }
     if (!existsSync(p.hub)) {
@@ -232,8 +254,7 @@ export function setupProfiles(names: string[], io: Io, opts: SetupOptions = {}):
     }
     const s = sharedItems(name, "claude", io.env);
     const aside = join(s.dir, `.aside-${stamp()}`);
-    mkdirSync(s.dir, { recursive: true });
-    chmodSync(s.dir, 0o700);
+    profileFolder(s.dir, journal);
     const results: [string, Link][] = [];
     let busy = false;
     for (const item of s.dirs) {
@@ -242,25 +263,31 @@ export function setupProfiles(names: string[], io: Io, opts: SetupOptions = {}):
         continue;
       }
       mkdirSync(join(p.hub, item), { recursive: true });
-      results.push([item, linkItem(s.dir, item, aside, io)]);
+      results.push([item, linkItem(s.dir, item, aside, journal, p.hub)]);
     }
-    for (const item of s.files) results.push([item, linkItem(s.dir, item, aside, io)]);
+    for (const item of s.files) results.push([item, linkItem(s.dir, item, aside, journal, p.hub)]);
     reportLinks(name, "", s.dir, s.hub, results, aside, io, verbose);
     if (busy) io.out("  ! sessions: this profile has open sessions; close them and run turno profile repair again");
-    seedGlobalConfig(s.dir, io);
+    seedGlobalConfig(s.dir, io, journal);
     const history = join(s.dir, "history.jsonl");
     const hubHistory = join(p.hub, "history.jsonl");
     if (!existsSync(history) && lstat(hubHistory)?.isFile()) {
+      journal.save(history);
       copyFileSync(hubHistory, history);
       chmodSync(history, 0o600);
+      journal.settle(history);
       io.out("  + history.jsonl (initial copy; the ↑ history cannot be shared)");
     }
-    writeLauncher(name, io.env, "claude");
+    writeLauncher(name, io.env, "claude", journal);
     io.out(`  + command claude-${name}`);
   }
-  const written = writeHelperLaunchers(io.env, turno.words);
+  const written = writeHelperLaunchers(io.env, turno.words, journal);
   if (verbose) for (const w of written) io.out(`+ command ${w}`);
   if (turno.warning) io.out(`! turno-auto and turno-open: ${turno.warning}`);
+  if (!opts.journal) {
+    const hint = journal.hint();
+    if (hint) io.out(hint);
+  }
 }
 
 export const command: Command = {

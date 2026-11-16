@@ -11,10 +11,16 @@ const USAGE = `Usage:
                                        delete old backups
 
 Every command that writes your files (ui install, profile, config, mcp sync,
-identity) keeps a copy under ~/.local/state/turno/backups/<stamp>/ first. A file
-that changed again after that command is left alone unless --force. An undo is
-itself recorded, so it can be undone. Profile folders, their links and the
-.aside-* folders with your own files are not part of it.
+mcp daemon, identity, uninstall) keeps a copy under
+~/.local/state/turno/backups/<stamp>/ first. A file that changed again after
+that command is left alone unless --force. An undo is itself recorded, so it can
+be undone.
+
+profile add and profile repair also record the links, launchers and folders
+they create and the files they move to .aside-<time>/: undo removes those links
+and launchers, moves your files back and removes the .aside-* folder. A profile
+folder is removed only when it is empty again; one that holds a login stays.
+turno uninstall is recorded the same way, so undo puts back what it removed.
 
 Backups can hold secrets that were in those files, so they are private (folders
 0700, files 0600) and pruned: each new backup deletes those older than 30 days,
@@ -51,7 +57,9 @@ function describe(j: JournalInfo, io: Io): string {
   if (!j.manifest) return `${j.stamp}  ${paint(io, "(older backup without a journal: restore by hand)", "2")}`;
   const m = j.manifest;
   const undone = m.undoneBy ? paint(io, `  undone by ${m.undoneBy}`, "2") : "";
-  return `${j.stamp}  ${m.command}  (${m.entries.length} file${m.entries.length === 1 ? "" : "s"})${undone}`;
+  const n = m.entries.length;
+  const what = m.entries.every((e) => (e.kind ?? "file") === "file") ? `${n} file${n === 1 ? "" : "s"}` : `${n} change${n === 1 ? "" : "s"}`;
+  return `${j.stamp}  ${m.command}  (${what})${undone}`;
 }
 
 export const command: Command = {
@@ -96,8 +104,19 @@ export const command: Command = {
     const d = dry ? " (dry run)" : "";
     io.out(`undo ${info.stamp}: ${info.manifest!.command}${d}`);
     for (const s of result.steps) {
-      const what = { restore: "restored", delete: "removed", skip: paint(io, "skipped", "33") }[s.action];
-      io.out(`  ${what} ${tildify(s.path, io.env)}${s.reason ? `: ${s.reason}` : ""}`);
+      const what = {
+        restore: "restored",
+        delete: "removed",
+        skip: paint(io, "skipped", "33"),
+        unlink: "removed link",
+        link: "linked again",
+        move: "moved back",
+        rmdir: "removed folder",
+        mkdir: "made folder",
+        keep: "kept",
+      }[s.action];
+      const from = s.from ? ` from ${tildify(s.from, io.env)}` : "";
+      io.out(`  ${what} ${tildify(s.path, io.env)}${from}${s.reason ? `: ${s.reason}` : ""}`);
     }
     if (result.journal.used) io.out(`redo with: turno undo ${result.journal.stamp}`);
     return result.steps.some((s) => s.action === "skip") ? 1 : 0;

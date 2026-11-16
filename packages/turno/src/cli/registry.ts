@@ -11,7 +11,7 @@ export const SECTIONS: { title: string; commands: string[] }[] = [
   { title: "Accounts", commands: ["profile", "limit", "session", "open"] },
   { title: "MCP servers and outside services", commands: ["mcp", "identity", "secret"] },
   { title: "Look", commands: ["ui"] },
-  { title: "Maintenance", commands: ["status", "doctor", "config", "undo", "upgrade", "version", "completion"] },
+  { title: "Maintenance", commands: ["status", "doctor", "config", "undo", "upgrade", "uninstall", "version", "completion"] },
   { title: "Developer tools", commands: ["browser"] },
 ];
 
@@ -37,6 +37,7 @@ export const COMMANDS: Record<string, Loader> = {
   config: () => import("./commands/config.js"),
   undo: () => import("./commands/undo.js"),
   upgrade: () => import("./commands/upgrade.js"),
+  uninstall: () => import("./commands/uninstall.js"),
   version: () => import("./commands/version.js"),
   completion: () => import("./commands/completion.js"),
   // Kept for people coming from the bash tool; not in the help.

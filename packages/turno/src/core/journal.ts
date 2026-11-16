@@ -1,4 +1,4 @@
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { basename, dirname, join } from "node:path";
 import { PRIVATE_FILE_MODE, ensurePrivateDir, isPrivatePath, paths } from "./paths.js";
@@ -7,10 +7,26 @@ import { PRIVATE_FILE_MODE, ensurePrivateDir, isPrivatePath, paths } from "./pat
  * Every command that changes a file the user owns records it in a journal first:
  * backups/<stamp>/journal.json lists each path with a copy of what it held (or that it did
  * not exist), so `turno undo <stamp>` can put everything back.
+ *
+ * Besides file contents, a journal records the links, folders and moves a command makes
+ * (ADR 0025), each with its inverse:
+ * - "symlink": the command created a link at `path` to `target`; undo removes it.
+ * - "unlink": the command removed a link at `path` to `target`; undo creates it again.
+ * - "move": the command renamed `path` to `to`; undo renames it back.
+ * - "mkdir": the command created the empty folder `path`; undo removes it while it is empty.
+ * - "rmdir": the command removed the empty folder `path`; undo creates it again.
  */
+export type EntryKind = "file" | "symlink" | "unlink" | "move" | "mkdir" | "rmdir";
+
 export interface JournalEntry {
+  /** Missing in journals written before ADR 0025: a file. */
+  kind?: EntryKind;
   path: string;
   existed: boolean;
+  /** symlink, unlink: where the link points. */
+  target?: string;
+  /** move: where `path` went. */
+  to?: string;
   /** Copy of the previous contents, relative to the journal folder. */
   backup?: string;
   mode?: number;
@@ -64,6 +80,23 @@ function real(p: string): string {
     } catch {
       return p;
     }
+  }
+}
+
+/** `p` with its folder resolved but not `p` itself: the path of a link, not of what it points to. */
+function realParent(p: string): string {
+  try {
+    return join(realpathSync(dirname(p)), basename(p));
+  } catch {
+    return p;
+  }
+}
+
+function lstatOf(p: string) {
+  try {
+    return lstatSync(p);
+  } catch {
+    return undefined;
   }
 }
 
@@ -174,6 +207,60 @@ export class Journal {
     this.settle(target);
   }
 
+  private record(entry: JournalEntry): void {
+    this.manifest.entries.push(entry);
+    this.flush();
+  }
+
+  /** Create a link at `path` to `target`. */
+  symlink(target: string, path: string): void {
+    if (this.dryRun) return;
+    const at = realParent(path);
+    symlinkSync(target, at);
+    this.record({ kind: "symlink", path: at, target, existed: false });
+  }
+
+  /** Remove the link at `path` (never what it points to). */
+  unlink(path: string): void {
+    if (this.dryRun) return;
+    const at = realParent(path);
+    const target = readlinkSync(at);
+    rmSync(at);
+    this.record({ kind: "unlink", path: at, target, existed: true });
+  }
+
+  /** Rename `from` to `to` (a file, a folder or a link). */
+  move(from: string, to: string): void {
+    if (this.dryRun) return;
+    const src = realParent(from);
+    const dst = realParent(to);
+    renameSync(src, dst);
+    this.record({ kind: "move", path: src, to: dst, existed: true });
+  }
+
+  /** Create the folder `path` and any missing parents, recording each one it creates. */
+  mkdir(path: string, mode?: number): void {
+    if (this.dryRun) return;
+    const missing: string[] = [];
+    for (let p = path; !lstatOf(p); p = dirname(p)) {
+      missing.unshift(p);
+      if (dirname(p) === p) break;
+    }
+    for (const p of missing) {
+      mkdirSync(p, mode !== undefined ? { mode } : undefined);
+      this.record({ kind: "mkdir", path: realParent(p), existed: false, ...(mode !== undefined ? { mode } : {}) });
+    }
+  }
+
+  /** Remove the empty folder `path`. */
+  rmdir(path: string): void {
+    if (this.dryRun) return;
+    const at = realParent(path);
+    const mode = statSync(at).mode & 0o777;
+    rmdirSync(at);
+    this.record({ kind: "rmdir", path: at, existed: true, mode });
+  }
+
   /** The `turno undo` hint to print after a command that changed something. */
   hint(): string | undefined {
     return this.used ? `undo with: turno undo ${this.stamp}` : undefined;
@@ -212,9 +299,85 @@ export function listJournals(env: NodeJS.ProcessEnv = process.env): JournalInfo[
 
 export interface UndoStep {
   path: string;
-  action: "restore" | "delete" | "skip";
-  /** Why a file was skipped: it changed after the journaled command. */
+  /**
+   * restore and delete: file contents. unlink and link: a link removed or made again. move: a
+   * file or folder moved back to `path` from `from`. rmdir and mkdir: a folder removed or made
+   * again. keep: a folder left in place because it holds files made since (not a failure).
+   * skip: left alone because it changed since.
+   */
+  action: "restore" | "delete" | "skip" | "unlink" | "link" | "move" | "rmdir" | "mkdir" | "keep";
+  /** move: where the file or folder was. */
+  from?: string;
+  /** Why a step was skipped or kept. */
   reason?: string;
+}
+
+function isEmptyDir(p: string): boolean {
+  try {
+    return readdirSync(p).length === 0;
+  } catch {
+    return false;
+  }
+}
+
+/** Undo one link, move or folder entry through `journal` (which records the inverse). */
+function undoTreeEntry(e: JournalEntry, journal: Journal): UndoStep | undefined {
+  const st = lstatOf(e.path);
+  switch (e.kind) {
+    case "symlink": {
+      if (!st) return undefined;
+      if (!st.isSymbolicLink() || readlinkSync(e.path) !== e.target) return { path: e.path, action: "skip", reason: "no longer the link turno made; left as it is" };
+      journal.unlink(e.path);
+      return { path: e.path, action: "unlink" };
+    }
+    case "unlink": {
+      if (st) return { path: e.path, action: "skip", reason: `something else is there now; it linked to ${e.target}` };
+      journal.symlink(e.target!, e.path);
+      return { path: e.path, action: "link" };
+    }
+    case "move": {
+      if (st) return { path: e.path, action: "skip", reason: `something is there now; the moved copy stays at ${e.to}` };
+      if (!lstatOf(e.to!)) return { path: e.path, action: "skip", reason: `${e.to} is gone` };
+      journal.move(e.to!, e.path);
+      return { path: e.path, action: "move", from: e.to! };
+    }
+    case "mkdir": {
+      if (!st) return undefined;
+      if (!st.isDirectory() || !isEmptyDir(e.path)) return { path: e.path, action: "keep", reason: "not empty (it holds files made since)" };
+      journal.rmdir(e.path);
+      return { path: e.path, action: "rmdir" };
+    }
+    case "rmdir": {
+      if (st) return undefined;
+      journal.mkdir(e.path, e.mode);
+      return { path: e.path, action: "mkdir" };
+    }
+    default:
+      return undefined;
+  }
+}
+
+/** What undoing a tree entry would do, without doing it (for --dry-run). */
+function planTreeEntry(e: JournalEntry): UndoStep | undefined {
+  const st = lstatOf(e.path);
+  switch (e.kind) {
+    case "symlink":
+      if (!st) return undefined;
+      return st.isSymbolicLink() && readlinkSync(e.path) === e.target ? { path: e.path, action: "unlink" } : { path: e.path, action: "skip", reason: "no longer the link turno made; left as it is" };
+    case "unlink":
+      return st ? { path: e.path, action: "skip", reason: `something else is there now; it linked to ${e.target}` } : { path: e.path, action: "link" };
+    case "move":
+      if (st) return { path: e.path, action: "skip", reason: `something is there now; the moved copy stays at ${e.to}` };
+      return lstatOf(e.to!) ? { path: e.path, action: "move", from: e.to! } : { path: e.path, action: "skip", reason: `${e.to} is gone` };
+    case "mkdir":
+      if (!st) return undefined;
+      // In a dry run nothing inside was removed yet: report the folder as removable.
+      return st.isDirectory() ? { path: e.path, action: "rmdir" } : { path: e.path, action: "keep", reason: "not a folder any more" };
+    case "rmdir":
+      return st ? undefined : { path: e.path, action: "mkdir" };
+    default:
+      return undefined;
+  }
 }
 
 /**
@@ -232,6 +395,11 @@ export function undoJournal(
   const journal = new Journal(env, `undo ${info.stamp}`, dryRun, [info.stamp]);
   const steps: UndoStep[] = [];
   for (const e of [...m.entries].reverse()) {
+    if (e.kind && e.kind !== "file") {
+      const step = dryRun ? planTreeEntry(e) : undoTreeEntry(e, journal);
+      if (step) steps.push(step);
+      continue;
+    }
     if (!opts.force && e.wrote && digest(e.path) !== e.wrote) {
       steps.push({ path: e.path, action: "skip", reason: "changed since; --force puts the old copy back anyway" });
       continue;
@@ -271,7 +439,7 @@ export function journalTime(info: JournalInfo): number {
 export function liveEntry(info: JournalInfo): JournalEntry | undefined {
   const m = info.manifest;
   if (!m || m.undoneBy) return undefined;
-  return m.entries.find((e) => e.wrote !== undefined && digest(e.path) === e.wrote);
+  return m.entries.find((e) => (e.kind ?? "file") === "file" && e.wrote !== undefined && digest(e.path) === e.wrote);
 }
 
 export interface PruneOptions {

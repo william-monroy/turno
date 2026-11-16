@@ -409,7 +409,7 @@ describe("profile add output and own files (02-H18)", () => {
     expect((await run(["profile", "add", "old"], yes)).code).toBe(0);
     const aside = readdirSync(join(sb.home, ".claude-old")).find((e) => e.startsWith(".aside-"))!;
     expect(readFileSync(join(sb.home, ".claude-old", aside, "settings.json"), "utf8")).toBe('{"mine":true}\n');
-    expect(yes.lines).toContain(`  ! moved your own skills, settings.json to ~/.claude-old/${aside}/ (merge by hand if useful; turno undo does not move them back)`);
+    expect(yes.lines).toContain(`  ! moved your own skills, settings.json to ~/.claude-old/${aside}/ (merge by hand if useful; turno undo puts them back)`);
   });
 
   it("prints one line for the shared items, every item with -v", async () => {

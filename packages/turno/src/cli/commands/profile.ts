@@ -155,7 +155,8 @@ async function add(args: string[], io: Io): Promise<number> {
     io.out(`(dry run) would set up ${tildify(agentProfileDir(name, agent, io.env), io.env)} and the ${launcherName(name, agent)} command`);
     return 0;
   }
-  setupProfiles([name], io, { verbose: bool(p, "verbose") });
+  // The same journal as the config.toml change: one `turno undo` reverts the whole profile add.
+  setupProfiles([name], io, { verbose: bool(p, "verbose"), journal });
   const launcher = launcherName(name, agent);
   const offPath = warnPath(io, launcher);
   // `turno <name>` works without ~/.local/bin on PATH.
@@ -310,14 +311,14 @@ export const command = group(
     list: { summary: "each profile, its account and roles", synopsis: "[--json]", flags: ["--json"], run: list },
     add: {
       summary:
-        "declare a profile in config.toml and set up its folder and launcher (claude-<name>, codex-<name>, ...); asks before moving your own files aside (--yes skips the question), -v lists every shared item",
+        "declare a profile in config.toml and set up its folder and launcher (claude-<name>, codex-<name>, ...); asks before moving your own files aside (--yes skips the question), -v lists every shared item; turno undo reverts all of it",
       synopsis: "<name> [--agent claude|codex|copilot|cursor] [--color <c>] [--browser chrome|default] [--dry-run] [--yes] [-v]",
       args: ["any"],
       flags: flagsOf(ADD_SPEC),
       run: add,
     },
     repair: {
-      summary: "relink shared folders and rewrite launchers (all profiles by default)",
+      summary: "relink shared folders and rewrite launchers (all profiles by default); turno undo reverts it",
       synopsis: "[profile...] [--yes] [-v]",
       args: ["profile"],
       flags: flagsOf(REPAIR_SPEC),
