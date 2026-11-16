@@ -1,3 +1,4 @@
+import { parseFlags } from "../args.js";
 import { type Command, fail } from "../io.js";
 
 const ZSH = `#compdef turno
@@ -52,8 +53,9 @@ export const command: Command = {
   ].join("\n"),
   args: ["shell"],
   async run(args, io) {
-    const script = SCRIPTS[args[0] ?? ""];
-    if (!script || args.length > 1) return fail("usage: turno completion <zsh|bash|fish>");
+    const p = parseFlags(args, {}, 1);
+    const script = SCRIPTS[p.positionals[0] ?? ""];
+    if (!script) return fail("usage: turno completion <zsh|bash|fish>");
     io.out(script.trimEnd());
     return 0;
   },

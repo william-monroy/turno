@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { isValidProfileName, parseConfig } from "../../core/config.js";
 import { paths, tildify } from "../../core/paths.js";
+import { DRY_RUN, FORCE, bool, flagsOf, parseFlags } from "../args.js";
 import { type Command, type Io, fail } from "../io.js";
 import { detectNerdTerminals } from "../../ui/terminals.js";
 import { Journal } from "../../core/journal.js";
@@ -154,8 +155,12 @@ export function migrate(io: Io, opts: { dryRun?: boolean; force?: boolean } = {}
   return 0;
 }
 
+const SPEC = { ...DRY_RUN, ...FORCE };
+
 export const command: Command = {
   summary: "import the bash claudio config and state into the new layout",
+  hidden: true,
+  flags: flagsOf(SPEC),
   usage: [
     "Usage: turno migrate [--dry-run] [--force]",
     "",
@@ -164,7 +169,7 @@ export const command: Command = {
     "snapshots, exhausted marks and plans to the state folder. Never changes legacy files.",
   ].join("\n"),
   async run(args, io) {
-    for (const a of args) if (a !== "--dry-run" && a !== "--force") fail(`unknown option: ${a}`);
-    return migrate(io, { dryRun: args.includes("--dry-run"), force: args.includes("--force") });
+    const p = parseFlags(args, SPEC, 0);
+    return migrate(io, { dryRun: bool(p, "dry-run"), force: bool(p, "force") });
   },
 };

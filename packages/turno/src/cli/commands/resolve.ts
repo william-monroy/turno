@@ -1,6 +1,7 @@
 import { resolve as resolvePath } from "node:path";
 import { loadConfig } from "../../core/config.js";
 import { resolveProfile } from "../../core/resolve.js";
+import { JSON_FLAG, bool, flagsOf, parseFlags } from "../args.js";
 import type { Command } from "../io.js";
 
 /** Field separator of the machine output read by status lines. */
@@ -15,9 +16,12 @@ export const command: Command = {
     "or a JSON object with --json.",
   ].join("\n"),
   hidden: true,
+  args: ["dir"],
+  flags: flagsOf(JSON_FLAG),
   async run(args, io) {
-    const json = args.includes("--json");
-    const dir = args.find((a) => a !== "--json");
+    const p = parseFlags(args, JSON_FLAG, 1);
+    const json = bool(p, "json");
+    const dir = p.positionals[0];
     const r = resolveProfile(resolvePath(dir ?? process.cwd()), loadConfig(io.env), io.env);
     io.out(json ? JSON.stringify(r) : [r.chosen, r.assigned, r.reason, r.note].join(SEP));
     return 0;

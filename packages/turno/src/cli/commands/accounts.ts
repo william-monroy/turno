@@ -4,6 +4,7 @@ import { launcherExists } from "../../accounts/delegate.js";
 import { type Registry, isValidService, loadRegistry, makeAccount, parseAccountId, saveRegistry } from "../../accounts/registry.js";
 import { Journal } from "../../core/journal.js";
 import { expandHome, paths, tildify } from "../../core/paths.js";
+import { DRY_RUN, type FlagSpec, bool, count, parseFlags, str } from "../args.js";
 import { type Command, type Io, fail, paint } from "../io.js";
 
 const USAGE = `Usage:
@@ -17,30 +18,15 @@ const USAGE = `Usage:
 The registry lives in ~/.config/turno/accounts.toml. add, remove and prefer rewrite
 the file (it is managed: comments in it are not preserved) and accept --dry-run.`;
 
-/** Split args into positionals and --flag values (also --flag=value). */
-function parseFlags(args: string[], known: string[]): { pos: string[]; flags: Record<string, string> } {
-  const pos: string[] = [];
-  const flags: Record<string, string> = {};
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i]!;
-    if (!a.startsWith("--")) {
-      pos.push(a);
-      continue;
-    }
-    const eq = a.indexOf("=");
-    const name = eq > 0 ? a.slice(2, eq) : a.slice(2);
-    if (!known.includes(name)) fail(`unknown option --${name}`);
-    let value: string | undefined;
-    if (eq > 0) value = a.slice(eq + 1);
-    else {
-      value = args[i + 1];
-      i += 1;
-    }
-    if (value === undefined) fail(`--${name} needs a value`);
-    flags[name] = value;
-  }
-  return { pos, flags };
-}
+/** Flags of each subcommand, shared with completion through flagsOf. */
+export const ADD_SPEC: FlagSpec = {
+  profile: { type: "string" },
+  tools: { type: "string" },
+  service: { type: "string" },
+  description: { type: "string" },
+  ...DRY_RUN,
+};
+export const LOG_SPEC: FlagSpec = { tail: { type: "string", short: "n" } };
 
 export function list(io: Io): number {
   const reg = loadRegistry(io.env);
@@ -67,12 +53,12 @@ export function list(io: Io): number {
 }
 
 export function add(rawArgs: string[], io: Io): number {
-  const dry = rawArgs.includes("--dry-run");
-  const args = rawArgs.filter((a) => a !== "--dry-run");
-  const journal = new Journal(io.env, `accounts add ${args.join(" ")}`, dry);
-  const { pos, flags } = parseFlags(args, ["profile", "tools", "service", "description"]);
-  const [id, extra] = pos;
-  if (!id || extra !== undefined) fail("usage: turno accounts add <service:label> --profile <p> --tools <pattern>[,<pattern>]");
+  const p = parseFlags(rawArgs, ADD_SPEC);
+  const dry = bool(p, "dry-run");
+  const [id, extra] = p.positionals;
+  if (!id || extra !== undefined) fail("usage: turno identity add <service:label> --profile <p> --tools <pattern>[,<pattern>]");
+  const journal = new Journal(io.env, `accounts add ${id}`, dry);
+  const flags = { profile: str(p, "profile"), tools: str(p, "tools"), service: str(p, "service"), description: str(p, "description") };
   if (!flags.profile) fail("--profile is required");
   if (!flags.tools) fail("--tools is required");
   const tools = flags.tools
@@ -95,11 +81,12 @@ export function add(rawArgs: string[], io: Io): number {
 }
 
 export function remove(rawArgs: string[], io: Io): number {
-  const dry = rawArgs.includes("--dry-run");
-  const args = rawArgs.filter((a) => a !== "--dry-run");
+  const p = parseFlags(rawArgs, DRY_RUN);
+  const dry = bool(p, "dry-run");
+  const args = p.positionals;
   const journal = new Journal(io.env, `accounts remove ${args.join(" ")}`, dry);
   const [id, extra] = args;
-  if (!id || extra !== undefined) fail("usage: turno accounts remove <service:label>");
+  if (!id || extra !== undefined) fail("usage: turno identity remove <service:label>");
   const reg = loadRegistry(io.env);
   if (!reg.accounts[id]) fail(`unknown account "${id}"`);
   delete reg.accounts[id];
@@ -118,11 +105,12 @@ function dropPreferences(reg: Registry, id: string): void {
 }
 
 export function prefer(rawArgs: string[], io: Io): number {
-  const dry = rawArgs.includes("--dry-run");
-  const args = rawArgs.filter((a) => a !== "--dry-run");
+  const p = parseFlags(rawArgs, DRY_RUN);
+  const dry = bool(p, "dry-run");
+  const args = p.positionals;
   const journal = new Journal(io.env, `accounts prefer ${args.join(" ")}`, dry);
   const [rawPath, pair, extra] = args;
-  if (!rawPath || !pair || extra !== undefined) fail("usage: turno accounts prefer <path> <service>=<account>");
+  if (!rawPath || !pair || extra !== undefined) fail("usage: turno identity prefer <path> <service>=<account>");
   const eq = pair.indexOf("=");
   if (eq <= 0) fail("expected <service>=<account>, like linear=linear:work");
   const service = pair.slice(0, eq);
@@ -153,10 +141,8 @@ export function prefer(rawArgs: string[], io: Io): number {
 }
 
 export function log(args: string[], io: Io): number {
-  const { pos, flags } = parseFlags(args.map((a) => (a === "-n" ? "--tail" : a)), ["tail"]);
-  if (pos.length) fail("usage: turno accounts log [--tail N]");
-  const n = flags.tail === undefined ? 20 : Number.parseInt(flags.tail, 10);
-  if (!Number.isInteger(n) || n < 1) fail("--tail must be a positive integer");
+  const p = parseFlags(args, LOG_SPEC, 0);
+  const n = count(p, "tail", 20);
   const entries = readAudit(n, io.env);
   if (!entries.length) {
     io.out("No delegations recorded yet.");
