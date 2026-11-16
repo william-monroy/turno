@@ -322,7 +322,10 @@ describe("first-run paths (02-H12, 02-H13, 02-H14)", () => {
   it("exports BROWSER only where turno-open can work", () => {
     expect(launcherText("work", sb.env, "claude", "darwin")).toContain('export BROWSER="$HOME/.local/bin/turno-open"');
     expect(launcherText("work", sb.env, "claude", "win32")).not.toContain("BROWSER");
-    expect(launcherText("work", sb.env, "claude", "linux")).not.toContain("BROWSER");
+    // A PATH with no xdg-open at all (CI runners have one in /usr/bin).
+    const emptyBin = join(sb.home, "empty-bin");
+    mkdirSync(emptyBin, { recursive: true });
+    expect(launcherText("work", { ...sb.env, PATH: emptyBin }, "claude", "linux")).not.toContain("BROWSER");
     fakeCommand(sb, "xdg-open", "exit 0");
     expect(launcherText("work", sb.env, "claude", "linux")).toContain("export BROWSER=");
   });
