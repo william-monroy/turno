@@ -605,6 +605,7 @@ const SUBS: Record<string, Sub> = {
     synopsis: "<start|stop|restart|status|logs>",
     summary: "the gateway daemon (same as turno mcpd)",
     args: ["any"],
+    ownHelp: true,
     run: async (rest, io) => (await import("./mcpd.js")).command.run(rest, io),
   },
   token: {
@@ -612,6 +613,7 @@ const SUBS: Record<string, Sub> = {
     summary: "replace the gateway token, then run turno mcp sync",
     args: ["any"],
     flags: ["--dry-run"],
+    ownHelp: true,
     run: async (rest, io) => (await import("./mcpd.js")).tokenCommand.run(rest, io),
   },
 };

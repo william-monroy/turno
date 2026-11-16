@@ -5,6 +5,8 @@ export interface Sub extends Completion {
   synopsis?: string;
   summary: string;
   hidden?: boolean;
+  /** The subcommand is itself a command that prints its own help, so `--help` is passed on. */
+  ownHelp?: boolean;
   run(args: string[], io: Io): Promise<number>;
 }
 
@@ -49,7 +51,7 @@ export function group(name: string, summary: string, subs: Record<string, Sub>, 
       }
       const s = subs[sub];
       if (!s) return fail(`unknown ${name} command '${sub}'\n\n${usage}`);
-      if (rest.includes("--help") || rest.includes("-h")) {
+      if (!s.ownHelp && (rest.includes("--help") || rest.includes("-h"))) {
         io.out(groupUsage(name, { [sub]: s }));
         return 0;
       }
