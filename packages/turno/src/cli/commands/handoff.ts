@@ -3,10 +3,11 @@ import { join } from "node:path";
 import { loadConfig } from "../../core/config.js";
 import { paths, profileDir } from "../../core/paths.js";
 import { listProfiles, profileFromConfigDir } from "../../core/profiles.js";
+import { type FlagSpec, bool, flagsOf, parseFlags } from "../args.js";
 import { type Command, type Io, fail } from "../io.js";
 
 const USAGE = `Usage:
-  turno handoff <profile|auto> [--fork] [--copy]
+  turno session handoff <profile|auto> [--fork] [--copy]
 
 Prints the command that continues THIS Claude Code session under another profile:
   default   resume it there (exit this session first)
@@ -75,7 +76,7 @@ export function buildHandoff(target: string, fork: boolean, env: NodeJS.ProcessE
   const current = profileFromConfigDir(env.CLAUDE_CONFIG_DIR, config, env);
   if (!fork && target === current) warnings.push(`this session already runs as '${target}'`);
   if (target !== "auto" && real(join(cfg, "projects")) !== real(join(profileDir(target, env), "projects"))) {
-    warnings.push(`${target} does not share the projects folder with this profile, so it will not see this session (turno setup ${target})`);
+    warnings.push(`${target} does not share the projects folder with this profile, so it will not see this session (turno profile repair ${target})`);
   }
   const command = `cd ${shellQuote(cwd!)} && turno ${target} --resume ${sid}${fork ? " --fork-session" : ""}`;
   return { command, warnings };
@@ -95,11 +96,16 @@ async function copy(text: string): Promise<boolean> {
   });
 }
 
+const SPEC: FlagSpec = { fork: { type: "boolean" }, copy: { type: "boolean" } };
+
 export const command: Command = {
   summary: "print the command to continue or fork this session under another profile",
   usage: USAGE,
+  args: ["profile-or-auto"],
+  flags: flagsOf(SPEC),
   async run(args, io: Io) {
-    const target = args.find((a) => !a.startsWith("--"));
+    const p = parseFlags(args, SPEC, 1);
+    const target = p.positionals[0];
     if (!target) {
       const config = loadConfig(io.env);
       io.out(`profiles: ${[...listProfiles(config, io.env, "claude"), "auto"].join(" ")}`);
@@ -107,10 +113,10 @@ export const command: Command = {
       io.err(USAGE);
       return 2;
     }
-    const h = buildHandoff(target, args.includes("--fork"), io.env);
+    const h = buildHandoff(target, bool(p, "fork"), io.env);
     for (const w of h.warnings) io.err(`warning: ${w}`);
     io.out(h.command);
-    if (args.includes("--copy") && !(await copy(`${h.command}\n`))) io.err("warning: could not copy to the clipboard");
+    if (bool(p, "copy") && !(await copy(`${h.command}\n`))) io.err("warning: could not copy to the clipboard");
     return 0;
   },
 };

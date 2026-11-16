@@ -24,6 +24,7 @@ beforeEach(() => {
   sb = sandbox();
   sb.write(".config/turno/config.toml", '[[projects]]\npath = "~/code"\nprofile = "work"\n');
   sb.write(".local/bin/claude-work", "#!/bin/sh\n", 0o755);
+  mkdirSync(join(sb.home, ".claude-work"));
   mkdirSync(join(sb.home, "code"));
 });
 afterEach(() => sb.cleanup());

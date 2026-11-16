@@ -1,12 +1,14 @@
 import { loadConfig } from "../../core/config.js";
 import { tildify } from "../../core/paths.js";
 import { displayName, liveSessions } from "../../core/sessions.js";
+import { parseFlags } from "../args.js";
 import type { Command } from "../io.js";
 
 export const command: Command = {
   summary: "list live sessions and the account of each",
   usage: "Usage: turno sessions",
-  async run(_args, io) {
+  async run(args, io) {
+    parseFlags(args, {}, 0);
     const config = loadConfig(io.env);
     const rows = liveSessions(io.env, config).map((s) => {
       const account =
@@ -14,7 +16,7 @@ export const command: Command = {
           ? "Claude Desktop (its own account)"
           : s.source === "record"
             ? s.profile!
-            : `default (~/.claude = ${config.system ?? "?"})`;
+            : `plain claude (~/.claude${config.system ? ` = ${config.system}` : ""})`;
       return { name: displayName(s), account, status: s.status, cwd: tildify(s.cwd, io.env) };
     });
     if (rows.length === 0) {

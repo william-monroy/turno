@@ -2,33 +2,26 @@ import { join } from "node:path";
 import { migrationPending } from "../../core/config-edit.js";
 import { loadConfig } from "../../core/config.js";
 import { paths, tildify } from "../../core/paths.js";
-import { resolveProfile } from "../../core/resolve.js";
 import { availableUpdate } from "../../core/update.js";
 import { packageInfo } from "../../core/version.js";
 import { FALLBACK, checkFonts, userFontDir } from "../../ui/fonts.js";
 import { currentStatusLine, isTurnoStatusLine } from "../../ui/settings.js";
 import { currentTerminal, nerdHere } from "../../ui/terminal-id.js";
 import { JSON_FLAG, bool, parseFlags, printJson } from "../args.js";
-import { type Command, type Io, paint } from "../io.js";
+import { type Command, type Io, paint, plural } from "../io.js";
 import { mcpdStatus } from "./doctor.js";
 import { adapter } from "../../agents/index.js";
 import { limitsData } from "./limit.js";
-import { profilesData } from "./profile.js";
+import { profilesData, resolveAll, usingText } from "./profile.js";
 import { sessionsData } from "./session.js";
-import type { AuthStatus } from "./usage.js";
 import { bar, shortTime } from "./usage.js";
-
-export function accountLine(s: AuthStatus | undefined): string | undefined {
-  if (!s?.loggedIn) return undefined;
-  const parts = [s.email, s.orgName, s.subscriptionType].filter((v): v is string => Boolean(v)).map(String);
-  return parts.length ? parts.join(" · ") : (s.authMethod ?? "logged in");
-}
 
 /** Everything `turno status` shows, as data. */
 export async function statusData(env: NodeJS.ProcessEnv, cwd = process.cwd()) {
   const config = loadConfig(env);
   const [profiles, limits, mcpd] = await Promise.all([profilesData(env, config), limitsData(env, false), mcpdStatus(env, config)]);
-  const here = resolveProfile(cwd, config, env);
+  const all = resolveAll(cwd, config, env);
+  const here = all[0]!.r;
   const sessions = sessionsData(env);
   const line = currentStatusLine(join(paths(env).hub, "settings.json"));
   const fontDir = userFontDir(env);
@@ -38,7 +31,14 @@ export async function statusData(env: NodeJS.ProcessEnv, cwd = process.cwd()) {
     version: packageInfo().version,
     update: availableUpdate(env) ?? null,
     migrationPending: migrationPending(env),
-    here: { dir: tildify(cwd, env), assigned: here.assigned || null, chosen: here.chosen || null, reason: here.reason, note: here.note || null },
+    here: {
+      dir: tildify(cwd, env),
+      assigned: here.assigned || null,
+      chosen: here.chosen || null,
+      reason: here.reason,
+      note: here.note || null,
+      agents: Object.fromEntries(all.map(({ agent, r }) => [agent, { chosen: r.chosen || null, text: usingText(agent, r, env) }])),
+    },
     profiles: profiles.map((p) => {
       const l = limits.find((x) => x.profile === p.name);
       return { ...p, fiveHour: l?.fiveHour ?? null, week: l?.week ?? null };
@@ -83,6 +83,7 @@ export const command: Command = {
     if (d.migrationPending) io.out(paint(io, "the bash claudio config is not migrated yet: turno migrate", "33"));
     const using = d.here.chosen ?? "plain claude";
     io.out(`here      ${d.here.dir} -> ${using}${d.here.note ? ` (${d.here.assigned} ${d.here.note})` : dim(` (${d.here.reason})`)}`);
+    for (const [agent, a] of Object.entries(d.here.agents)) if (agent !== "claude") io.out(`          ${agent} -> ${a.text}`);
     if (!d.profiles.length) io.out("profiles  none yet (turno profile add <name>)");
     const w = Math.max(0, ...d.profiles.map((x) => x.name.length));
     for (const [i, x] of d.profiles.entries()) {
@@ -91,7 +92,7 @@ export const command: Command = {
       io.out(`${i === 0 ? "profiles  " : "          "}${x.name.padEnd(w)}  5h ${pct(x.fiveHour, now)}  week ${pct(x.week, now)}  ${who}${x.plan ? ` · ${x.plan}` : ""}${flags ? dim(`  ${flags}`) : ""}`);
     }
     const by = Object.entries(d.sessions.byProfile).map(([k, v]) => `${k} ${v}`).join(", ");
-    io.out(`sessions  ${d.sessions.total} live${by ? ` (${by})` : ""}`);
+    io.out(`sessions  ${plural(d.sessions.total, "live session")}${by ? ` (${by})` : ""}`);
     io.out(`mcpd      ${d.mcpd.running ? `running on port ${d.mcpd.port}` : "not running (turno mcp daemon start)"}`);
     const lineText = d.look.statusLine === "turno" ? "turno status line" : d.look.statusLine ? `status line \`${d.look.statusLine}\`` : "no status line";
     io.out(`look      ${lineText}, ${d.look.font ? "font installed" : "font missing (turno ui install)"}, ${d.look.icons} icons here`);

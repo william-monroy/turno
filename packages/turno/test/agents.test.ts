@@ -271,7 +271,9 @@ describe("agent commands", () => {
     sb.write(".config/turno/mcp.toml", '[server.calendar]\ncommand = "cal-mcp"\nscope = "shared"\n\n[server.docs]\nurl = "https://docs.example.com/mcp"\n');
     const io = fakeIo(sb.env);
     expect(await main(["profile", "add", "cx", "--agent", "codex"], io)).toBe(0);
-    expect(io.lines.some((l) => l.includes("run codex-cx login"))).toBe(true);
+    // The sandbox PATH lacks ~/.local/bin, so the next step uses turno <name>.
+    expect(io.lines.some((l) => l.includes("run turno cx login"))).toBe(true);
+    expect(io.errors.some((l) => l.includes("is not on your PATH, so codex-cx will not be found"))).toBe(true);
     expect(loadConfig(sb.env).profiles.cx!.agent).toBe("codex");
 
     // Port 1 never answers, so the "mcpd is not running" check stays inside this machine's sandbox.

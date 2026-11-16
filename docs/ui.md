@@ -27,8 +27,10 @@ everything back:
    [Nerd Fonts v3.4.0 tag](https://github.com/ryanoasis/nerd-fonts/tree/v3.4.0/patched-fonts/Meslo/S)
    and checked against the same checksums.
 2. **Status line.** It sets `statusLine` in the hub `~/.claude/settings.json`. Every profile
-   links to that file, so one change covers them all. The command is the `turno` on your PATH
-   and the line refreshes every 30 s. Keys you added yourself, such as `padding`, are kept.
+   links to that file, so one change covers them all. The command is the `turno` on your PATH;
+   without one it is the path of the running copy, and `ui install` warns that such a path breaks
+   when you switch Node versions. Run from npx's cache, it refuses and asks you to install turno
+   first. The line refreshes every 30 s. Keys you added yourself, such as `padding`, are kept.
    `--no-statusline` skips this step.
 3. **Icons per terminal.** It records in `config.toml` which terminals already use a Nerd Font
    (`nerd_terminals = ["warp"]`). With `icons = "auto"` (the default) the line uses Nerd icons

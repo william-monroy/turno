@@ -206,7 +206,7 @@ describe("limit and old names", () => {
     await main(["--help"], io);
     const out = io.lines.join("\n");
     expect(out).toContain("Accounts:");
-    expect(out).toMatch(/turno profile +Claude Code accounts/);
+    expect(out).toMatch(/turno profile +accounts \(profiles\) for each agent/);
     expect(out).not.toMatch(/turno exhausted/);
     const g = fakeIo(sb.env);
     await main(["profile", "--help"], g);

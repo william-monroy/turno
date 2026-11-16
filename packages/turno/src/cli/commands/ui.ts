@@ -9,26 +9,35 @@ import { currentStatusLine, isTurnoStatusLine, setStatusLine, withNerdTerminals 
 import { Journal } from "../../core/journal.js";
 import { BUILTIN_SYMBOLS, currentTerminal } from "../../ui/terminal-id.js";
 import { TERMINALS, type Terminal, detectNerdTerminals, fontOf, installed, isNerdFamily, terminal } from "../../ui/terminals.js";
-import { type Command, type Io, fail, paint } from "../io.js";
+import { DRY_RUN, FORCE, type FlagSpec, bool, flagsOf, parseFlags } from "../args.js";
+import { group } from "../group.js";
+import { type Io, fail, paint } from "../io.js";
 import { findOnPath } from "../launch.js";
+import { refuseNpx } from "../launchers.js";
 import { isLegacyScript } from "./doctor.js";
 
-const USAGE = `Usage:
-  turno ui status                  font, status line and icons, terminal by terminal
-  turno ui install [options]       set up the turno look of Claude Code
-      --terminal <ids>               also set the font in these terminals: current, all, or a
-                                     comma list of warp, vscode, cursor, alacritty
-      --no-font                      leave the font alone
-      --no-statusline                leave Claude Code's settings.json alone
-      --force                        replace font files that have the same name but other bytes
-      --dry-run                      print what would change and change nothing
+const INSTALL_SPEC: FlagSpec = {
+  terminal: { type: "string", multiple: true },
+  "no-font": { type: "boolean" },
+  "no-statusline": { type: "boolean" },
+  ...FORCE,
+  ...DRY_RUN,
+};
 
-install copies MesloLGS Nerd Font 3.4.0 (the Nerd Font the icons come from, the same
-release Orca ships) into your user font folder,
-points the statusLine of the hub settings.json (shared by every profile) at
-\`turno statusline\`, and records in config.toml which terminals already use a Nerd Font,
-so \`icons = "auto"\` draws Nerd icons there and Unicode ones elsewhere. Every file it changes
-is backed up first under ~/.local/state/turno/backups/<stamp>/, and turno undo puts it back.`;
+const INSTALL_HELP = `Options:
+  --terminal <ids>   also set the font in these terminals: current, all, or a
+                     comma list of warp, vscode, cursor, alacritty
+  --no-font          leave the font alone
+  --no-statusline    leave Claude Code's settings.json alone
+  --force            replace font files that have the same name but other bytes
+  --dry-run          print what would change and change nothing
+
+install copies MesloLGS Nerd Font 3.4.0 (the Nerd Font the icons come from) into
+your user font folder, points the statusLine of the hub settings.json (shared by
+every profile) at \`turno statusline\`, and records in config.toml which terminals
+already use a Nerd Font, so \`icons = "auto"\` draws Nerd icons there and Unicode
+ones elsewhere. Every file it changes is backed up first under
+~/.local/state/turno/backups/<stamp>/, and turno undo puts it back.`;
 
 interface Options {
   terminals: string[];
@@ -39,20 +48,15 @@ interface Options {
 }
 
 function parse(args: string[]): Options {
-  const o: Options = { terminals: [], font: true, statusline: true, force: false, dryRun: false };
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i]!;
-    if (a === "--no-font") o.font = false;
-    else if (a === "--no-statusline") o.statusline = false;
-    else if (a === "--force") o.force = true;
-    else if (a === "--dry-run") o.dryRun = true;
-    else if (a === "--terminal" || a.startsWith("--terminal=")) {
-      const v = a.includes("=") ? a.slice(a.indexOf("=") + 1) : args[++i];
-      if (!v) fail("--terminal needs a value");
-      o.terminals.push(...v.split(",").map((s) => s.trim()).filter(Boolean));
-    } else fail(`unknown option ${a}`);
-  }
-  return o;
+  const p = parseFlags(args, INSTALL_SPEC, 0);
+  const values = (p.values.terminal as string[] | undefined) ?? [];
+  return {
+    terminals: values.flatMap((v) => v.split(",").map((s) => s.trim()).filter(Boolean)),
+    font: !bool(p, "no-font"),
+    statusline: !bool(p, "no-statusline"),
+    force: bool(p, "force"),
+    dryRun: bool(p, "dry-run"),
+  };
 }
 
 /** Terminal ids to configure, from --terminal values. */
@@ -71,18 +75,24 @@ function chosenTerminals(values: string[], env: NodeJS.ProcessEnv, platform: Nod
   return [...out.values()];
 }
 
-/** The turno on PATH, unless it is still the bash original: then this very script. */
-export function statusLineCommand(env: NodeJS.ProcessEnv, self = process.argv[1]): string {
+/** The status line command, and a warning when it holds a path that may stop working. */
+export function statusLineInfo(env: NodeJS.ProcessEnv, self = process.argv[1]): { command: string; warning?: string } {
   const bin = findOnPath("turno", env);
-  if (bin && !isLegacyScript(bin)) return `${tildify(bin, env)} statusline`;
+  if (bin && !isLegacyScript(bin) && !bin.includes("/_npx/")) return { command: `${tildify(bin, env)} statusline` };
   if (self) {
     try {
-      return `${tildify(realpathSync(self), env)} statusline`;
+      const real = tildify(realpathSync(self), env);
+      return { command: `${real} statusline`, warning: `wrote an absolute path (${real}) because turno is not on your PATH; it breaks if you switch Node versions or move this copy` };
     } catch {
       /* fall through */
     }
   }
-  return "turno statusline";
+  return { command: "turno statusline" };
+}
+
+/** The turno on PATH, unless it is still the bash original: then this very script. */
+export function statusLineCommand(env: NodeJS.ProcessEnv, self = process.argv[1]): string {
+  return statusLineInfo(env, self).command;
 }
 
 /** Status line icons missing from a font file. */
@@ -93,7 +103,8 @@ function missingGlyphs(file: string): number[] {
     .filter((c) => !have.has(c));
 }
 
-async function status(io: Io): Promise<number> {
+async function status(args: string[], io: Io): Promise<number> {
+  parseFlags(args, {}, 0);
   const env = io.env;
   const platform = process.platform;
   const p = paths(env);
@@ -158,6 +169,8 @@ async function status(io: Io): Promise<number> {
 
 async function install(args: string[], io: Io): Promise<number> {
   const o = parse(args);
+  // The status line keeps the path of this turno; a path into npx's cache disappears.
+  if (o.statusline) refuseNpx();
   const env = io.env;
   const platform = process.platform;
   const targets = chosenTerminals(o.terminals, env, platform); // validate before changing anything
@@ -175,11 +188,11 @@ async function install(args: string[], io: Io): Promise<number> {
       for (const r of results) {
         const what = {
           kept: "already installed",
-          copied: "installed",
-          downloaded: "downloaded and installed",
+          copied: o.dryRun ? "would be installed" : "installed",
+          downloaded: o.dryRun ? "would be downloaded and installed" : "downloaded and installed",
           skipped: "skipped: a different file has this name (--force replaces it)",
         }[r.action];
-        io.out(`font: ${r.file} ${what}${r.action === "kept" || r.action === "skipped" ? "" : dry}`);
+        io.out(`font: ${r.file} ${what}`);
       }
       if (results.some((r) => r.action === "copied" || r.action === "downloaded") && !o.dryRun) {
         io.out("font: restart open terminals so they see the new font");
@@ -188,11 +201,13 @@ async function install(args: string[], io: Io): Promise<number> {
   }
 
   if (o.statusline) {
-    const r = setStatusLine(join(p.hub, "settings.json"), statusLineCommand(env), journal);
+    const line = statusLineInfo(env);
+    const r = setStatusLine(join(p.hub, "settings.json"), line.command, journal);
     if (!r.changed) io.out(`statusline: ${tildify(r.file, env)} already runs \`${r.after.command}\``);
     else {
       io.out(`statusline: ${tildify(r.file, env)} now runs \`${r.after.command}\` every ${r.after.refreshInterval} s${dry}`);
       if (r.before) io.out(`statusline: it ran \`${r.before.command}\``);
+      if (line.warning) io.out(`statusline: ${line.warning}`);
     }
   }
 
@@ -244,21 +259,18 @@ async function install(args: string[], io: Io): Promise<number> {
   return 0;
 }
 
-export const command: Command = {
-  summary: "the status line, its font and icons in every terminal",
-  usage: USAGE,
-  subcommands: {
-    status: {},
-    install: { flags: ["--terminal", "--no-font", "--no-statusline", "--force", "--dry-run"] },
+export const command = group(
+  "ui",
+  "the status line, its font and icons in every terminal",
+  {
+    status: { summary: "font, status line and icons, terminal by terminal", run: status },
+    install: {
+      summary: "set up the turno look of Claude Code (font, status line, terminals)",
+      synopsis: "[--terminal <ids>] [--no-font] [--no-statusline] [--force] [--dry-run]",
+      flags: flagsOf(INSTALL_SPEC),
+      details: INSTALL_HELP,
+      run: install,
+    },
   },
-  async run(args, io) {
-    const [sub, ...rest] = args;
-    if (sub === "status" || sub === undefined) return status(io);
-    if (sub === "install") return install(rest, io);
-    if (sub === "--help" || sub === "-h") {
-      io.out(USAGE);
-      return 0;
-    }
-    return fail(`unknown subcommand '${sub}'\n\n${USAGE}`);
-  },
-};
+  { fallback: "status", footer: "turno ui install --help explains each option." },
+);

@@ -4,19 +4,22 @@ import { DRY_RUN, FORCE, JSON_FLAG, type Parsed, bool, count, parseFlags, printJ
 import { type Command, type Io, fail, paint } from "../io.js";
 
 const USAGE = `Usage:
-  turno undo --list [-n N] [--json]       recent changes, newest first
+  turno undo --list [-n N] [--json]    recent changes, newest first
   turno undo <stamp|last> [--dry-run] [--force]
-                                            put back every file that change touched
+                                       put back every file that change touched
   turno undo --prune [--older-than 30d] [--keep 10] [--dry-run] [--json]
-                                            delete old backups
+                                       delete old backups
 
-Every command that writes your files (ui install, migrate, profile, config, mcp sync, identity)
-keeps a copy under ~/.local/state/turno/backups/<stamp>/ first. A file that changed again
-after that command is left alone unless --force. An undo is itself recorded, so it can be undone.
+Every command that writes your files (ui install, profile, config, mcp sync,
+identity) keeps a copy under ~/.local/state/turno/backups/<stamp>/ first. A file
+that changed again after that command is left alone unless --force. An undo is
+itself recorded, so it can be undone. Profile folders, their links and the
+.aside-* folders with your own files are not part of it.
 
-Backups can hold secrets that were in those files, so they are private (folders 0700, files 0600)
-and pruned: each new backup deletes those older than 30 days, keeping the newest 10. A backup
-that is still the only way back for a file it changed (the file is unchanged since) is kept.`;
+Backups can hold secrets that were in those files, so they are private (folders
+0700, files 0600) and pruned: each new backup deletes those older than 30 days,
+keeping the newest 10. A backup that is still the only way back for a file it
+changed (the file is unchanged since) is kept.`;
 
 function prune(p: Parsed, io: Io): number {
   let olderThanMs = PRUNE_DEFAULT_AGE_MS;

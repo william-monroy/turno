@@ -1,9 +1,9 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import type { AgentId } from "../agents/index.js";
+import { type AgentId, adapter } from "../agents/index.js";
 import type { Config } from "./config.js";
 import { isValidProfileName } from "./config.js";
-import { paths, profileDir } from "./paths.js";
+import { paths, profileDir, tildify } from "./paths.js";
 
 /** The agent a profile runs: from config.toml, else Claude Code. */
 export function agentOf(name: string, config: Config): AgentId {
@@ -42,6 +42,38 @@ export function listProfiles(config: Config, env: NodeJS.ProcessEnv = process.en
 
 export function profileExists(name: string, config: Config, env: NodeJS.ProcessEnv = process.env): boolean {
   return listProfiles(config, env).includes(name);
+}
+
+/**
+ * What is wrong in a config.toml that parses: unknown keys (likely typos) and names of
+ * profiles that do not exist in system, default, fallback, [agents.*] and [[projects]].
+ * Warnings, not errors, so an older or hand-edited file keeps working.
+ */
+export function configProblems(config: Config, env: NodeJS.ProcessEnv = process.env): string[] {
+  const out = [...(config.warnings ?? [])];
+  const known = new Set(listProfiles(config, env));
+  const missing = (where: string, name: string | undefined) => {
+    if (name && !known.has(name)) out.push(`${where} = "${name}", but there is no profile ${name} (turno profile list)`);
+  };
+  missing("system", config.system);
+  missing("default", config.default);
+  missing("fallback", config.fallback);
+  for (const [id, roles] of Object.entries(config.agents)) {
+    missing(`agents.${id}.default`, roles?.default);
+    missing(`agents.${id}.fallback`, roles?.fallback);
+    for (const role of ["default", "fallback"] as const) {
+      const name = roles?.[role];
+      if (name && known.has(name) && agentOf(name, config) !== id) out.push(`agents.${id}.${role} = "${name}", but ${name} is a ${adapter(agentOf(name, config)).label} profile`);
+    }
+  }
+  for (const role of ["default", "fallback"] as const) {
+    const name = config[role];
+    if (name && known.has(name) && agentOf(name, config) !== "claude") out.push(`${role} = "${name}" is for Claude Code, but ${name} is a ${adapter(agentOf(name, config)).label} profile (use [agents.${agentOf(name, config)}])`);
+  }
+  for (const rule of config.projects) {
+    if (!known.has(rule.profile)) out.push(`the rule for ${tildify(rule.path, env)} uses profile ${rule.profile}, which does not exist (turno profile list)`);
+  }
+  return out;
 }
 
 /** The profile a CLAUDE_CONFIG_DIR value belongs to, or the system profile for the hub. */
