@@ -13,6 +13,7 @@ import { liveSessions } from "../../core/sessions.js";
 import { DRY_RUN, FORCE, type FlagSpec, JSON_FLAG, bool, parseFlags, printJson, str } from "../args.js";
 import { type Sub, group } from "../group.js";
 import { type Io, fail, paint } from "../io.js";
+import { LOG_FLAGS, SAVINGS_FLAGS, TOP_FLAGS } from "./mcp-observe.js";
 
 const run = promisify(execFile);
 
@@ -630,6 +631,27 @@ const SUBS: Record<string, Sub> = {
   },
   refresh: { synopsis: "[server...] [--dry-run]", summary: "make mcpd relearn tool lists", args: ["server"], flags: flagsOf(REFRESH_FLAGS), run: refresh },
   doctor: { synopsis: "[--json]", summary: "find servers that bypass the gateway", flags: flagsOf(DOCTOR_FLAGS), run: doctor },
+  log: {
+    synopsis: "[-f] [-n N] [--server S] [--profile P] [--json]",
+    summary: "tool calls mcpd relayed (no arguments or results)",
+    flags: flagsOf(LOG_FLAGS),
+    details: "One line per tool call: time, outcome, duration, server, tool, profile, agent and sizes.\n-f keeps printing new calls; --json prints one JSON record per line.\nTurn the log off with call_log = false under [mcpd] in config.toml.",
+    run: async (rest, io) => (await import("./mcp-observe.js")).log(rest, io),
+  },
+  top: {
+    synopsis: "[--once] [--json]",
+    summary: "memory, sessions and calls of each running server",
+    flags: flagsOf(TOP_FLAGS),
+    details: "Refreshes every 2 seconds in a terminal (Ctrl-C quits); prints one snapshot otherwise.",
+    run: async (rest, io) => (await import("./mcp-observe.js")).top(rest, io),
+  },
+  savings: {
+    synopsis: "[--json]",
+    summary: "memory mcpd saves compared with no gateway",
+    flags: flagsOf(SAVINGS_FLAGS),
+    details: "Compares mcpd plus its servers now with an estimate where each live agent session\nstarts its own copy of every stdio server its profile uses.",
+    run: async (rest, io) => (await import("./mcp-observe.js")).savings(rest, io),
+  },
   daemon: {
     synopsis: "<start|stop|restart|status|logs>",
     summary: "the gateway daemon (same as turno mcpd)",
