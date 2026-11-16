@@ -1,19 +1,13 @@
+import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { paths, tildify } from "../../core/paths.js";
+import { DRY_RUN, type FlagSpec, JSON_FLAG, bool, parseFlags, printJson, str } from "../args.js";
+import { type Sub, group } from "../group.js";
 import { type Command, type Io, fail, paint } from "../io.js";
 
-const USAGE = `Usage:
-  turno browser identities                 list browser identities and whether they are in use
-  turno browser add <id>                   create an identity and print its mcp.toml block
-  turno browser remove <id>                delete an identity and its saved logins
-  turno browser login <id> [--url <url>]   open the identity's Chrome to sign in by hand once
-  turno browser bench [--engine <name>]... [--url <url>]... [--no-detectors] [--json]
-                                             compare engines against bot detectors and your URLs
-
-Identities are persistent Chrome profiles served by turno-browser-mcp (one session at a
-time through mcpd). Ids use lowercase letters, digits, "-" and "_", for example "school".
-Engines: patchright-chrome-headed, patchright-chrome-headless, playwright-stock, camoufox.`;
-
-/** The part of turno-browser this command uses. Typed locally: the package is optional. */
+/** The part of turno-browser this command uses. Typed locally: the package is installed apart. */
 interface IdentityInfo {
   id: string;
   dir: string;
@@ -39,22 +33,73 @@ export interface BrowserModule {
   formatBenchTable(report: unknown): string;
 }
 
-const NOT_INSTALLED = `the browser package (turno-browser) is not installed or not built.
-Install it next to turno (it is an optional dependency) and run its build, then try again.`;
+export const INSTALL_HINT = "npm install --global turno-browser";
+export const NOT_INSTALLED = `turno-browser is not installed: ${INSTALL_HINT}`;
 
-export async function loadBrowser(): Promise<BrowserModule | undefined> {
-  const spec = "turno-browser";
+const SPEC = "turno-browser";
+
+function isMissing(err: unknown): boolean {
+  const code = (err as NodeJS.ErrnoException).code;
+  return code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND" || code === "ERR_PACKAGE_PATH_NOT_EXPORTED";
+}
+
+/** The global npm folder, where `npm install --global turno-browser` puts the package. */
+function npmGlobalRoot(env: NodeJS.ProcessEnv): string | undefined {
   try {
-    return (await import(spec)) as BrowserModule;
+    return execFileSync("npm", ["root", "--global"], { env, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000 }).trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Load turno-browser: next to this install first, then (with `global`) from the global npm
+ * folder, which a Homebrew or npx install of turno cannot see on its own.
+ */
+export async function loadBrowser(options: { global?: boolean; env?: NodeJS.ProcessEnv } = {}): Promise<BrowserModule | undefined> {
+  try {
+    return (await import(SPEC)) as BrowserModule;
   } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND" || code === "ERR_PACKAGE_PATH_NOT_EXPORTED") return undefined;
+    if (!isMissing(err)) throw err;
+  }
+  if (!options.global) return undefined;
+  const root = npmGlobalRoot(options.env ?? process.env);
+  if (!root) return undefined;
+  try {
+    const entry = createRequire(join(root, "noop.js")).resolve(SPEC);
+    return (await import(pathToFileURL(entry).href)) as BrowserModule;
+  } catch (err) {
+    if (isMissing(err)) return undefined;
     throw err;
   }
 }
 
-function requireId(mod: BrowserModule, id: string | undefined, sub: string): string {
-  if (!id) return fail(`browser ${sub} needs an identity id\n\n${USAGE}`);
+export interface BrowserDeps {
+  load(io: Io): Promise<BrowserModule | undefined>;
+  /** True when a person can answer a question (stdin and stderr are terminals). */
+  interactive(io: Io): boolean;
+  /** Ask a yes/no question; true only for an explicit yes. */
+  confirm(question: string, io: Io): Promise<boolean>;
+}
+
+async function askOnTerminal(question: string): Promise<boolean> {
+  const { createInterface } = await import("node:readline/promises");
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    return /^y(es)?$/i.test((await rl.question(question)).trim());
+  } finally {
+    rl.close();
+  }
+}
+
+export const defaultDeps: BrowserDeps = {
+  load: (io) => loadBrowser({ global: true, env: io.env }),
+  interactive: () => Boolean(process.stdin.isTTY && process.stderr.isTTY),
+  confirm: (question) => askOnTerminal(question),
+};
+
+function checkId(mod: BrowserModule, id: string | undefined, sub: string): string {
+  if (!id) return fail(`browser ${sub} needs an identity id (for example: turno browser ${sub} school)`);
   try {
     mod.assertIdentityId(id);
   } catch (err) {
@@ -63,50 +108,51 @@ function requireId(mod: BrowserModule, id: string | undefined, sub: string): str
   return id;
 }
 
-/** Values of a repeatable flag; "--flag a,b" and "--flag=a" both work. */
-function takeList(args: string[], flag: string): { values: string[]; rest: string[] } {
-  const values: string[] = [];
-  const rest: string[] = [];
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i]!;
-    if (a === flag) {
-      const v = args[++i];
-      if (v === undefined) return fail(`${flag} needs a value`);
-      values.push(v);
-    } else if (a.startsWith(`${flag}=`)) {
-      values.push(a.slice(flag.length + 1));
-    } else {
-      rest.push(a);
-    }
-  }
-  return { values, rest };
-}
+const BENCH_FLAGS: FlagSpec = {
+  engine: { type: "string", multiple: true },
+  url: { type: "string", multiple: true },
+  "only-urls": { type: "boolean" },
+  // Older name of --only-urls, kept so scripts keep working.
+  "no-detectors": { type: "boolean" },
+  yes: { type: "boolean", short: "y" },
+  ...JSON_FLAG,
+};
 
-async function bench(mod: BrowserModule, args: string[], io: Io): Promise<number> {
-  const engines = takeList(args, "--engine");
-  const urls = takeList(engines.rest, "--url");
-  const rest = urls.rest;
-  const json = rest.includes("--json");
-  const detectors = !rest.includes("--no-detectors");
-  const unknown = rest.filter((a) => a !== "--json" && a !== "--no-detectors");
-  if (unknown.length) return fail(`unknown bench argument: ${unknown[0]}\n\n${USAGE}`);
-  const engineNames = engines.values.flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean);
-  for (const e of engineNames) {
+export const BENCH_PROMPT = "This opens Chrome and visits third-party test pages. Continue? [y/N] ";
+const URLS_PROMPT = "This opens Chrome and visits the URLs you gave. Continue? [y/N] ";
+
+async function bench(mod: BrowserModule, args: string[], io: Io, deps: BrowserDeps): Promise<number> {
+  const p = parseFlags(args, BENCH_FLAGS, 0);
+  const list = (name: string) => ((p.values[name] as string[] | undefined) ?? []).flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean);
+  const engines = list("engine");
+  const urls = (p.values.url as string[] | undefined) ?? [];
+  const onlyUrls = bool(p, "only-urls") || bool(p, "no-detectors");
+  for (const e of engines) {
     if (!mod.ENGINES.includes(e)) return fail(`unknown engine "${e}" (known: ${mod.ENGINES.join(", ")})`);
   }
-  for (const u of urls.values) {
+  for (const u of urls) {
     if (!/^https?:\/\//.test(u)) return fail(`--url must start with http:// or https://: ${u}`);
   }
-  if (!detectors && urls.values.length === 0) return fail("--no-detectors needs at least one --url");
+  if (onlyUrls && urls.length === 0) return fail("--only-urls needs at least one --url");
+  // Opening a browser on outside pages needs a yes from a person: --json is not consent.
+  if (!bool(p, "yes")) {
+    if (!deps.interactive(io)) {
+      return fail("browser bench opens Chrome and visits third-party test pages; confirm in a terminal or pass --yes");
+    }
+    if (!(await deps.confirm(onlyUrls ? URLS_PROMPT : BENCH_PROMPT, io))) {
+      io.err("Cancelled; nothing was opened.");
+      return 1;
+    }
+  }
   const report = await mod.runBench({
-    engines: engineNames,
-    urls: urls.values,
-    detectors,
+    engines,
+    urls,
+    detectors: !onlyUrls,
     env: io.env,
     onProgress: (m) => io.err(paint(io, m, "2")),
   });
-  if (json) {
-    io.out(JSON.stringify(report, null, 2));
+  if (bool(p, "json")) {
+    printJson(io.out, report);
   } else {
     io.out(mod.formatBenchTable(report));
     if (report.file) io.out(`\nreport: ${tildify(report.file, io.env)}`);
@@ -114,77 +160,130 @@ async function bench(mod: BrowserModule, args: string[], io: Io): Promise<number
   return 0;
 }
 
-export const command: Command = {
-  summary: "how automation-fingerprint test pages see each browser engine (identities live in turno identity)",
-  usage: USAGE,
-  subcommands: { bench: { flags: ["--engine", "--url", "--no-detectors", "--json"] } },
-  async run(args, io) {
-    const [sub, ...rest] = args;
-    if (!sub) return fail(USAGE);
-    const mod = await loadBrowser();
-    if (!mod) {
-      io.err(`turno: ${NOT_INSTALLED}`);
-      return 1;
-    }
-    try {
-      return await dispatch(mod, sub, rest, io);
-    } catch (err) {
-      if ((err as Error).name === "IdentityError") return fail((err as Error).message);
-      throw err;
-    }
-  },
-};
+function identities(mod: BrowserModule, args: string[], io: Io): number {
+  const p = parseFlags(args, JSON_FLAG, 0);
+  const list = mod.listIdentities(io.env);
+  if (bool(p, "json")) {
+    printJson(
+      io.out,
+      list.map((i) => ({ id: i.id, inUse: i.inUse, dir: tildify(i.dir, io.env) })),
+    );
+    return 0;
+  }
+  if (!list.length) {
+    io.out("No browser identities yet. Create one with `turno identity add browser:<id>`.");
+    return 0;
+  }
+  const width = Math.max(...list.map((i) => i.id.length));
+  for (const i of list) {
+    const state = i.inUse ? paint(io, "in use", "33") : paint(io, "free  ", "32");
+    io.out(`${i.id.padEnd(width)}  ${state}  ${tildify(i.dir, io.env)}`);
+  }
+  return 0;
+}
 
-export async function dispatch(mod: BrowserModule, sub: string, rest: string[], io: Io): Promise<number> {
-  switch (sub) {
-    case "identities":
-    case "list": {
-      const list = mod.listIdentities(io.env);
-      if (!list.length) {
-        io.out("No browser identities yet. Create one with `turno browser add <id>`.");
-        return 0;
-      }
-      const width = Math.max(...list.map((i) => i.id.length));
-      for (const i of list) {
-        const state = i.inUse ? paint(io, "in use", "33") : paint(io, "free  ", "32");
-        io.out(`${i.id.padEnd(width)}  ${state}  ${tildify(i.dir, io.env)}`);
-      }
-      return 0;
+function add(mod: BrowserModule, args: string[], io: Io): number {
+  const p = parseFlags(args, DRY_RUN, 1);
+  const id = checkId(mod, p.positionals[0], "add");
+  if (bool(p, "dry-run")) {
+    io.out(`(dry run) would create browser identity "${id}"`);
+    return 0;
+  }
+  const info = mod.addIdentity(id, io.env);
+  io.out(`identity "${id}" ready at ${tildify(info.dir, io.env)}`);
+  io.out(`\nAdd this to ${tildify(paths(io.env).mcpFile, io.env)}, then run \`turno mcp sync\`:\n`);
+  io.out(mod.manifestSnippet(id));
+  io.out(`Sign in to your sites once with \`turno identity login browser:${id}\`.`);
+  return 0;
+}
+
+function remove(mod: BrowserModule, args: string[], io: Io): number {
+  const p = parseFlags(args, DRY_RUN, 1);
+  const id = checkId(mod, p.positionals[0], "remove");
+  if (bool(p, "dry-run")) {
+    io.out(`(dry run) would delete browser identity "${id}" and its saved logins`);
+    return 0;
+  }
+  mod.removeIdentity(id, io.env);
+  io.out(`removed identity "${id}" and its saved browser data`);
+  io.out(`Remove its [server.browser-${id}] block from ${tildify(paths(io.env).mcpFile, io.env)} if you added one.`);
+  return 0;
+}
+
+async function login(mod: BrowserModule, args: string[], io: Io): Promise<number> {
+  const p = parseFlags(args, { url: { type: "string" } }, 1);
+  const id = checkId(mod, p.positionals[0], "login");
+  const url = str(p, "url");
+  if (url !== undefined && !/^https?:\/\//.test(url)) return fail(`--url must start with http:// or https://: ${url}`);
+  if (mod.isInUse(id, io.env)) {
+    return fail(`identity "${id}" is in use by a running Chrome (probably an MCP session through mcpd). Close that session or wait for its lease to end, then retry.`);
+  }
+  io.out(`Opening Chrome for identity "${id}". Sign in to your sites, then close the window to save the session.`);
+  const options: { env: NodeJS.ProcessEnv; url?: string } = { env: io.env };
+  if (url) options.url = url;
+  await mod.loginIdentity(id, options);
+  io.out(`saved. Sessions using browser-${id} now start signed in.`);
+  return 0;
+}
+
+/** Run one browser subcommand with a loaded module. `identity` uses it for browser:<id>. */
+export async function dispatch(mod: BrowserModule, sub: string, rest: string[], io: Io, deps: BrowserDeps = defaultDeps): Promise<number> {
+  try {
+    switch (sub) {
+      case "identities":
+      case "list":
+        return identities(mod, rest, io);
+      case "add":
+        return add(mod, rest, io);
+      case "remove":
+      case "rm":
+        return remove(mod, rest, io);
+      case "login":
+        return await login(mod, rest, io);
+      case "bench":
+        return await bench(mod, rest, io, deps);
+      default:
+        return fail(`unknown browser command "${sub}"`);
     }
-    case "add": {
-      const id = requireId(mod, rest[0], "add");
-      const info = mod.addIdentity(id, io.env);
-      io.out(`identity "${id}" ready at ${tildify(info.dir, io.env)}`);
-      io.out(`\nAdd this to ${tildify(paths(io.env).mcpFile, io.env)}, then run \`turno mcp sync\`:\n`);
-      io.out(mod.manifestSnippet(id));
-      io.out(`Sign in to your sites once with \`turno browser login ${id}\`.`);
-      return 0;
-    }
-    case "remove":
-    case "rm": {
-      const id = requireId(mod, rest[0], "remove");
-      mod.removeIdentity(id, io.env);
-      io.out(`removed identity "${id}" and its saved browser data`);
-      io.out(`Remove its [server.browser-${id}] block from ${tildify(paths(io.env).mcpFile, io.env)} if you added one.`);
-      return 0;
-    }
-    case "login": {
-      const id = requireId(mod, rest[0], "login");
-      const { values, rest: extra } = takeList(rest.slice(1), "--url");
-      if (extra.length) return fail(`unknown login argument: ${extra[0]}`);
-      if (mod.isInUse(id, io.env)) {
-        return fail(`identity "${id}" is in use by a running Chrome (probably an MCP session through mcpd). Close that session or wait for its lease to end, then retry.`);
-      }
-      io.out(`Opening Chrome for identity "${id}". Sign in to your sites, then close the window to save the session.`);
-      const options: { env: NodeJS.ProcessEnv; url?: string } = { env: io.env };
-      if (values[0]) options.url = values[0];
-      await mod.loginIdentity(id, options);
-      io.out(`saved. Sessions using browser-${id} now start signed in.`);
-      return 0;
-    }
-    case "bench":
-      return bench(mod, rest, io);
-    default:
-      return fail(`unknown browser command "${sub}"\n\n${USAGE}`);
+  } catch (err) {
+    if ((err as Error).name === "IdentityError") return fail((err as Error).message);
+    throw err;
   }
 }
+
+const FOOTER = `A developer diagnostic for browser engine compatibility. It needs the separate
+turno-browser package (${INSTALL_HINT}).
+Identities are persistent Chrome profiles served by turno-browser-mcp, one session at a time
+through mcpd; turno identity manages them too (browser:<id>). Ids use lowercase letters,
+digits, "-" and "_", for example "school".`;
+
+/** The `browser` command, with its loader and prompt injectable for tests. */
+export function browserCommand(deps: BrowserDeps = defaultDeps): Command {
+  const withModule =
+    (sub: string): Sub["run"] =>
+    async (args, io) => {
+      const mod = await deps.load(io);
+      if (!mod) {
+        io.err(`turno: ${NOT_INSTALLED}`);
+        return 1;
+      }
+      return dispatch(mod, sub, args, io, deps);
+    };
+  const subs: Record<string, Sub> = {
+    identities: { summary: "list browser identities and whether they are in use", synopsis: "[--json]", flags: ["--json"], run: withModule("identities") },
+    list: { summary: "same as identities", hidden: true, run: withModule("identities") },
+    add: { summary: "create an identity and print its mcp.toml block", synopsis: "<id> [--dry-run]", flags: ["--dry-run"], run: withModule("add") },
+    remove: { summary: "delete an identity and its saved logins", synopsis: "<id> [--dry-run]", flags: ["--dry-run"], run: withModule("remove") },
+    rm: { summary: "same as remove", hidden: true, run: withModule("remove") },
+    login: { summary: "open the identity's Chrome to sign in by hand once", synopsis: "<id> [--url <url>]", flags: ["--url"], run: withModule("login") },
+    bench: {
+      summary: "check how each browser engine loads reference test pages and your URLs (asks first)",
+      synopsis: "[--engine <name>]... [--url <url>]... [--only-urls] [--yes] [--json]",
+      flags: ["--engine", "--url", "--only-urls", "--yes", "--json"],
+      run: withModule("bench"),
+    },
+  };
+  return group("browser", "developer diagnostic: browser engine compatibility (needs turno-browser)", subs, { footer: FOOTER });
+}
+
+export const command: Command = browserCommand();
