@@ -15,6 +15,14 @@ export interface UpdateState {
 
 const DAY = 24 * 3600 * 1000;
 
+/** Strict semver 2.0.0 (no leading v, no ranges, no URLs): what may follow `turno-cli@`. */
+const SEMVER =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
+
+export function isSemver(v: unknown): v is string {
+  return typeof v === "string" && v.length <= 256 && SEMVER.test(v);
+}
+
 function file(env: NodeJS.ProcessEnv): string {
   return join(paths(env).state, "update.json");
 }
@@ -71,7 +79,12 @@ export async function fetchLatest(env: NodeJS.ProcessEnv, channel = "latest", do
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) state.error = `registry answered HTTP ${res.status}`;
-    else state.latest = String(((await res.json()) as { version?: string }).version ?? "");
+    else {
+      // The answer becomes part of an install command: accept a plain version only.
+      const v = ((await res.json()) as { version?: unknown }).version;
+      if (isSemver(v)) state.latest = v;
+      else state.error = "the registry answered with an invalid version";
+    }
   } catch (err) {
     state.error = (err as Error).message;
   }

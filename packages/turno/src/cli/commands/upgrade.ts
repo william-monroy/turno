@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { loadConfig } from "../../core/config.js";
 import { paths } from "../../core/paths.js";
 import { listProfiles } from "../../core/profiles.js";
-import { fetchLatest, updateChecksOff } from "../../core/update.js";
+import { fetchLatest, isSemver, updateChecksOff } from "../../core/update.js";
 import { compareVersions, detectInstall, packageInfo, upgradeCommand } from "../../core/version.js";
 import { DRY_RUN, JSON_FLAG, bool, parseFlags, printJson, str } from "../args.js";
 import { type Command, type Io, fail } from "../io.js";
@@ -52,7 +52,7 @@ export function changesSince(from: string | undefined, changelog: string, to = p
 }
 
 /** Steps after the files changed: idempotent, safe to run any time. */
-export function finishUpgrade(io: Io): number {
+export async function finishUpgrade(io: Io): Promise<number> {
   const env = io.env;
   const before = recordedVersion(env);
   const now = packageInfo().version;
@@ -76,6 +76,7 @@ export function finishUpgrade(io: Io): number {
     rewritten += writeHelperLaunchers(env, turnoCommand()).length;
   }
   if (rewritten) io.out(`launchers: ${rewritten} rewritten for turno ${now}`);
+  await refreshDaemonService(io);
   recordVersion(env);
   if (before && before !== now) {
     io.out(`turno ${before} -> ${now}`);
@@ -88,6 +89,20 @@ export function finishUpgrade(io: Io): number {
   return 0;
 }
 
+/**
+ * The mcpd service runs the turno that installed it, and the old code keeps running until a
+ * restart: rewrite the service file for this version and restart it, when one is installed.
+ */
+async function refreshDaemonService(io: Io): Promise<void> {
+  const { installedBackend } = await import("../../mcpd/service.js");
+  const backend = await installedBackend(io.env);
+  if (!backend) return;
+  io.out(`mcpd: rewriting the ${backend.noun} for turno ${packageInfo().version} and restarting it; open sessions reconnect on their next call`);
+  const { installDaemonService } = await import("./mcpd.js");
+  const code = await installDaemonService(io, { command: "upgrade --finish" });
+  if (code) io.err("turno: mcpd was not restarted; run turno mcp daemon start");
+}
+
 export const command: Command = {
   summary: "update turno to the newest release (or check for one)",
   usage: USAGE,
@@ -95,6 +110,9 @@ export const command: Command = {
   async run(args, io) {
     const p = parseFlags(args, { check: { type: "boolean" }, finish: { type: "boolean" }, channel: { type: "string" }, to: { type: "string" }, ...DRY_RUN, ...JSON_FLAG }, 0);
     if (bool(p, "finish")) return finishUpgrade(io);
+    const to = str(p, "to");
+    if (to !== undefined && !isSemver(to)) fail(`--to needs a version like 1.2.3 (got "${to}")`);
+    if (!/^[a-z][a-z0-9-]{0,63}$/.test(str(p, "channel") ?? "latest")) fail("--channel needs a dist-tag such as latest or next");
     const pkg = packageInfo();
     const install = detectInstall();
     const channel = str(p, "channel") ?? "latest";
@@ -127,6 +145,8 @@ export const command: Command = {
       }
       spec = s.latest ?? channel;
     }
+    // Whatever reaches the package manager is a plain version or a dist-tag, never a URL or range.
+    if (!isSemver(spec) && !/^[a-z][a-z0-9-]{0,63}$/.test(spec)) fail(`refusing to install "${spec}": not a version`);
     const steps = upgradeCommand(install, pkg.name, spec);
     if (!steps) return fail(`cannot tell how turno was installed (${install.root}); reinstall it with your package manager`);
     for (const step of steps) {
