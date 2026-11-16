@@ -345,7 +345,7 @@ async function importCmd(args: string[], io: Io): Promise<number> {
   const { storeKeychainSecret } = await import("../../core/secrets.js");
   for (const s of report.secrets) {
     if (s.value.includes("${")) continue; // never store a placeholder
-    await storeKeychainSecret(s.service, s.value);
+    await storeKeychainSecret(s.service, s.value, io.env);
     io.err(`  moved ${s.where} to keychain:${s.service}`);
   }
   const journal = new Journal(io.env, "mcp import --write");
@@ -492,11 +492,23 @@ async function install(args: string[], io: Io): Promise<number> {
 
 const REFRESH_FLAGS: FlagSpec = { ...DRY_RUN };
 
-/** Ask mcpd to forget and relearn one server's descriptions (POST /refresh/<server>). */
-async function refreshInDaemon(env: NodeJS.ProcessEnv, server: string): Promise<"ok" | "unsupported" | "down" | string> {
+/**
+ * Ask mcpd to forget and relearn one server's descriptions (POST /refresh/<server>). A 200 can
+ * still carry per-instance failures (`errors`: `<server>@<variant>` to message): they come back
+ * as `failed`.
+ */
+async function refreshInDaemon(
+  env: NodeJS.ProcessEnv,
+  server: string,
+): Promise<"unsupported" | "down" | { failed: Record<string, string> } | string> {
   const r = await mcpdRequest(env, "POST", `/refresh/${encodeURIComponent(server)}`, 15_000);
   if (r === "down") return "down";
-  if (r.status >= 200 && r.status < 300) return "ok";
+  if (r.status >= 200 && r.status < 300) {
+    const errors = typeof r.body === "object" && r.body ? (r.body as { errors?: unknown }).errors : undefined;
+    const failed: Record<string, string> = {};
+    if (errors && typeof errors === "object") for (const [k, v] of Object.entries(errors)) failed[k] = String(v);
+    return { failed };
+  }
   if (r.status === 404) return "unsupported";
   const msg = typeof r.body === "object" && r.body && "error" in r.body ? String((r.body as { error: unknown }).error) : `HTTP ${r.status}`;
   return msg;
@@ -534,11 +546,15 @@ async function refresh(args: string[], io: Io): Promise<number> {
       fallback = true;
       break;
     }
-    if (r === "ok") done.push(s);
-    else {
+    if (typeof r === "string") {
       failed++;
       io.err(`${s}: mcpd could not refresh it: ${r}`);
+      continue;
     }
+    const errors = Object.entries(r.failed);
+    for (const [instance, message] of errors) io.err(`${instance}: mcpd could not refresh it: ${message.split("\n")[0]}`);
+    if (errors.length) failed++;
+    else done.push(s);
   }
   if (fallback) io.out("restart mcpd so it relearns them: turno mcp daemon restart");
   else if (done.length) io.out(`mcpd refreshed ${done.join(", ")}`);
