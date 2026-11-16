@@ -46,8 +46,11 @@ export interface Config {
   agents: Partial<Record<AgentId, AgentRoles>>;
   projects: ProjectRule[];
   open: { chromeDir: string };
-  /** `[mcpd]`: the gateway port, and whether mcpd keeps the call log (ADR 0026). */
-  mcpd: { port: number; callLog: boolean };
+  /**
+   * `port` of the gateway; whether mcpd keeps the call log (ADR 0026); `maxRequestBody`, the
+   * largest request body mcpd accepts in bytes (unset: the gateway default, 32 MiB).
+   */
+  mcpd: { port: number; callLog: boolean; maxRequestBody?: number };
   /** Keys turno does not know (likely typos), with a suggestion when one is close. */
   warnings?: string[];
 }
@@ -59,8 +62,32 @@ export const KNOWN_KEYS: Record<string, readonly string[]> = {
   "agents.*": ["default", "fallback"],
   "projects[]": ["path", "profile"],
   open: ["chrome_dir"],
-  mcpd: ["port", "call_log"],
+  mcpd: ["port", "call_log", "max_request_body"],
 };
+
+const SIZE_UNITS: Record<string, number> = { "": 1, b: 1, k: 1024, kb: 1000, kib: 1024, m: 1024 ** 2, mb: 1000 ** 2, mib: 1024 ** 2, g: 1024 ** 3, gb: 1000 ** 3, gib: 1024 ** 3 };
+/** Bounds of `mcpd.max_request_body`: below 1 MiB ordinary tool calls fail, above 1 GiB a client can exhaust memory. */
+export const MIN_REQUEST_BODY = 1024 ** 2;
+export const MAX_REQUEST_BODY = 1024 ** 3;
+
+/**
+ * A size in bytes: a whole number of bytes, or a string such as "64MiB", "512 KiB" or "1GB".
+ * Undefined when it is neither.
+ */
+export function parseSize(v: unknown): number | undefined {
+  if (typeof v === "number") return Number.isInteger(v) && v >= 0 ? v : undefined;
+  if (typeof v !== "string") return undefined;
+  const m = /^\s*(\d+(?:\.\d+)?)\s*([a-z]*)\s*$/i.exec(v);
+  const unit = m ? SIZE_UNITS[m[2]!.toLowerCase()] : undefined;
+  return m && unit ? Math.round(Number(m[1]) * unit) : undefined;
+}
+
+/** Check `mcpd.max_request_body`; the message when it is out of bounds or not a size. */
+export function requestBodyProblem(v: unknown): string | undefined {
+  const n = parseSize(v);
+  if (n === undefined || n < MIN_REQUEST_BODY || n > MAX_REQUEST_BODY) return 'mcpd.max_request_body must be a size between 1MiB and 1GiB, in bytes or like "64MiB"';
+  return undefined;
+}
 
 /** The known key closest to `key`, when it is a likely typo (or `colour` for `color`). */
 export function suggestKey(key: string, known: readonly string[]): string | undefined {
@@ -220,6 +247,11 @@ export function parseConfig(text: string, path = "config.toml", env: NodeJS.Proc
   if (mcpd.call_log !== undefined) {
     if (typeof mcpd.call_log !== "boolean") throw new ConfigError(file, "mcpd.call_log must be true or false");
     cfg.mcpd.callLog = mcpd.call_log;
+  }
+  if (mcpd.max_request_body !== undefined) {
+    const problem = requestBodyProblem(mcpd.max_request_body);
+    if (problem) throw new ConfigError(file, problem);
+    cfg.mcpd.maxRequestBody = parseSize(mcpd.max_request_body)!;
   }
   return cfg;
 }

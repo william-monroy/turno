@@ -181,6 +181,32 @@ export function requireSecretStore(env: NodeJS.ProcessEnv = process.env, platfor
   return store;
 }
 
+/** `${VAR}`, `${VAR:-default}` and Cursor's `${env:VAR}` anywhere inside a string. */
+const VAR_REF = /\$\{(env:)?([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g;
+/** Cursor's own placeholders: not environment variables, so they stay as written. */
+const EDITOR_PLACEHOLDERS = new Set(["userHome", "workspaceFolder", "workspaceFolderBasename", "pathSeparator"]);
+
+/**
+ * Expand `${VAR}`, `${VAR:-default}` and `${env:VAR}` inside a string from `env`, the way Claude
+ * Code expands them in its own MCP config. A variable that is unset and has no default is an
+ * error (SecretError), never an empty string. Anything else (`${workspaceFolder}`, a lone `$`)
+ * stays as written.
+ */
+export function expandVars(value: string, env: NodeJS.ProcessEnv = process.env): string {
+  if (!value.includes("${")) return value;
+  return value.replace(VAR_REF, (whole, prefix: string | undefined, name: string, fallback: string | undefined) => {
+    if (!prefix && EDITOR_PLACEHOLDERS.has(name)) return whole;
+    const v = env[name];
+    if (fallback !== undefined && !v) return fallback;
+    if (v === undefined) throw new SecretError(whole, `environment variable ${name} is not set`);
+    return v;
+  });
+}
+
+/**
+ * Resolves whole-value references (`keychain:<name>`, `env:NAME`) and expands `${VAR}` inside any
+ * other value. mcpd uses it for stdio env values and remote headers.
+ */
 export function keychainResolver(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): SecretResolver {
   return async (value) => {
     if (value.startsWith("env:")) {
@@ -198,7 +224,7 @@ export function keychainResolver(env: NodeJS.ProcessEnv = process.env, platform:
       if (v === undefined) throw new SecretError(value, `no ${store.label} item "${service}" (turno secret set ${service})`);
       return v;
     }
-    return value;
+    return expandVars(value, env);
   };
 }
 

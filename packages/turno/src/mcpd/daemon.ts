@@ -8,7 +8,6 @@ import {
   existsSync,
   fchmodSync,
   fstatSync,
-  mkdirSync,
   openSync,
   readFileSync,
   renameSync,
@@ -21,7 +20,7 @@ import { parse as parseToml } from "smol-toml";
 import { type Config, loadConfig, parseConfig } from "../core/config.js";
 import { atomicWrite } from "../core/journal.js";
 import { type Manifest, parseManifest } from "../core/manifest.js";
-import { paths } from "../core/paths.js";
+import { PRIVATE_FILE_MODE, ensurePrivateDir, paths } from "../core/paths.js";
 import { keychainResolver } from "../core/secrets.js";
 import { packageInfo } from "../core/version.js";
 import { DescriptionCache } from "./cache.js";
@@ -212,11 +211,11 @@ export class PortBusyError extends Error {
 /** Take the single-instance lock (O_EXCL), clearing a stale one once. */
 function acquireLock(env: NodeJS.ProcessEnv): void {
   const file = daemonFiles(env).lock;
-  mkdirSync(dirname(file), { recursive: true });
+  ensurePrivateDir(dirname(file), env);
   const body = JSON.stringify({ pid: process.pid, port: 0, startedAt: new Date().toISOString() });
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      writeFileSync(file, `${body}\n`, { flag: "wx", mode: 0o600 });
+      writeFileSync(file, `${body}\n`, { flag: "wx", mode: PRIVATE_FILE_MODE });
       return;
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
@@ -272,8 +271,8 @@ function writeStartError(env: NodeJS.ProcessEnv, e: StartError | undefined): voi
   try {
     if (!e) rmSync(file, { force: true });
     else {
-      mkdirSync(dirname(file), { recursive: true });
-      writeFileSync(file, `${JSON.stringify(e)}\n`);
+      ensurePrivateDir(dirname(file), env);
+      atomicWrite(file, `${JSON.stringify(e)}\n`, PRIVATE_FILE_MODE);
     }
   } catch {
     /* best effort */
@@ -306,7 +305,7 @@ export interface Logger {
  * error handler so a full disk never takes the daemon down. Timestamps are UTC ISO;
  * `turno mcp daemon logs` shows them in local time.
  */
-export function createLogger(file: string, opts: { maxBytes?: number; keep?: number; toStdout?: boolean } = {}): Logger {
+export function createLogger(file: string, opts: { maxBytes?: number; keep?: number; toStdout?: boolean; env?: NodeJS.ProcessEnv } = {}): Logger {
   const maxBytes = opts.maxBytes ?? 5 * 1024 * 1024;
   const keep = opts.keep ?? 2;
   let stream: WriteStream | undefined;
@@ -325,9 +324,11 @@ export function createLogger(file: string, opts: { maxBytes?: number; keep?: num
   // Opened synchronously so the file exists before the first rotation renames it.
   const open = (): WriteStream | undefined => {
     try {
-      mkdirSync(dirname(file), { recursive: true });
-      const fd = openSync(file, "a", 0o600);
-      size = fstatSync(fd).size;
+      ensurePrivateDir(dirname(file), opts.env);
+      const fd = openSync(file, "a", PRIVATE_FILE_MODE);
+      const st = fstatSync(fd);
+      if (st.mode & 0o077) fchmodSync(fd, PRIVATE_FILE_MODE);
+      size = st.size;
       const s = createWriteStream("", { fd });
       s.on("error", onError);
       broken = false;
@@ -492,7 +493,7 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
   const env = opts.env ?? process.env;
   const p = paths(env);
   const files = daemonFiles(env);
-  const log = createLogger(files.log, { toStdout: Boolean(opts.logToStdout), ...(opts.logMaxBytes ? { maxBytes: opts.logMaxBytes } : {}) });
+  const log = createLogger(files.log, { env, toStdout: Boolean(opts.logToStdout), ...(opts.logMaxBytes ? { maxBytes: opts.logMaxBytes } : {}) });
 
   const { config, error: configError } = loadConfigSafe(env);
   if (configError) log(`config.toml is invalid, using defaults: ${configError}`);
@@ -524,6 +525,7 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
         resolve: keychainResolver(env),
         serversDir: p.serversDir,
         logsDir: p.logsDir,
+        vars: env,
         builtins: await loadBuiltins(),
         baseEnv: Object.fromEntries(
           ["PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TMPDIR"].flatMap((k) => (env[k] ? [[k, env[k] as string]] : [])),
@@ -533,7 +535,14 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
       log,
       ...(calls ? { onCall: (e) => calls.record(e) } : {}),
     });
-    const gwOpts: GatewayOptions = { manager, manifest: () => state.manifest, token, peerPid: (rp) => peerPid(rp), log };
+    const gwOpts: GatewayOptions = {
+      manager,
+      manifest: () => state.manifest,
+      token,
+      peerPid: (rp) => peerPid(rp),
+      log,
+      ...(config.mcpd.maxRequestBody ? { maxRequestBodyBytes: config.mcpd.maxRequestBody } : {}),
+    };
     const gateway = new DaemonGateway(gwOpts, () => ({
       version: packageInfo().version,
       port,
@@ -557,9 +566,9 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
         wanted,
       );
     }
-    writeFileSync(files.lock, `${JSON.stringify({ pid: process.pid, port, startedAt })}\n`, { mode: 0o600 });
-    mkdirSync(dirname(p.mcpdPort), { recursive: true });
-    writeFileSync(p.mcpdPort, `${port}\n`);
+    writeFileSync(files.lock, `${JSON.stringify({ pid: process.pid, port, startedAt })}\n`, { mode: PRIVATE_FILE_MODE });
+    ensurePrivateDir(dirname(p.mcpdPort), env);
+    atomicWrite(p.mcpdPort, `${port}\n`, PRIVATE_FILE_MODE);
     writeStartError(env, undefined);
     log(`mcpd ${packageInfo().version} listening on 127.0.0.1:${port} with ${Object.keys(state.manifest.servers).length} servers`);
 
