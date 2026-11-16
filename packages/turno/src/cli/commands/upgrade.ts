@@ -1,8 +1,8 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { loadConfig } from "../../core/config.js";
-import { paths } from "../../core/paths.js";
+import { paths, writePrivateFile } from "../../core/paths.js";
 import { listProfiles } from "../../core/profiles.js";
 import { fetchLatest, isSemver, updateChecksOff } from "../../core/update.js";
 import { compareVersions, detectInstall, packageInfo, upgradeCommand } from "../../core/version.js";
@@ -35,8 +35,7 @@ export function recordedVersion(env: NodeJS.ProcessEnv): string | undefined {
 }
 
 export function recordVersion(env: NodeJS.ProcessEnv): void {
-  mkdirSync(dirname(versionFile(env)), { recursive: true });
-  writeFileSync(versionFile(env), `${packageInfo().version}\n`);
+  writePrivateFile(versionFile(env), `${packageInfo().version}\n`, env);
 }
 
 /** CHANGELOG sections newer than `from`, up to the running version. */

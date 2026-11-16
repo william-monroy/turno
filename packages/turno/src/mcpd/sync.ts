@@ -2,6 +2,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSy
 import { dirname } from "node:path";
 import { parse } from "smol-toml";
 import type { AgentId } from "../agents/index.js";
+import { PRIVATE_DIR_MODE, PRIVATE_FILE_MODE } from "../core/paths.js";
 import type { Manifest } from "../core/manifest.js";
 import { servesProfile } from "../core/manifest.js";
 import { profileToken } from "./tokens.js";
@@ -107,8 +108,9 @@ export function readManaged(file: string): ManagedState {
 }
 
 export function writeManaged(file: string, state: ManagedState): void {
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, `${JSON.stringify(state, null, 2)}\n`);
+  mkdirSync(dirname(file), { recursive: true, mode: PRIVATE_DIR_MODE });
+  writeFileSync(file, `${JSON.stringify(state, null, 2)}\n`, { mode: PRIVATE_FILE_MODE });
+  chmodSync(file, PRIVATE_FILE_MODE);
 }
 
 export interface SyncResult {

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { PRIVATE_DIR_MODE, PRIVATE_FILE_MODE } from "../core/paths.js";
 import { join } from "node:path";
 
 /**
@@ -52,10 +53,11 @@ export class DescriptionCache {
 
   set(key: string, d: ServerDescription): void {
     this.memory.set(key, d);
-    mkdirSync(this.dir, { recursive: true });
+    // Under mcpd's data root, which already exists 0700: only the cache folders are created here.
+    mkdirSync(this.dir, { recursive: true, mode: PRIVATE_DIR_MODE });
     const file = this.file(key);
     const tmp = `${file}.${process.pid}.tmp`;
-    writeFileSync(tmp, JSON.stringify(d, null, 2));
+    writeFileSync(tmp, JSON.stringify(d, null, 2), { mode: PRIVATE_FILE_MODE });
     renameSync(tmp, file);
   }
 

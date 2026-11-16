@@ -1,4 +1,4 @@
-import { accessSync, chmodSync, constants, mkdirSync, statSync } from "node:fs";
+import { accessSync, chmodSync, closeSync, constants, fchmodSync, fstatSync, mkdirSync, openSync, statSync, writeSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, dirname, isAbsolute, join, relative, sep } from "node:path";
 
@@ -150,6 +150,22 @@ export function ensurePrivateDir(dir: string, env: NodeJS.ProcessEnv = process.e
   // Recursive mkdir applies the mode to every folder it creates, the root included if it vanished.
   mkdirSync(dir, { recursive: true, mode: PRIVATE_DIR_MODE });
   return dir;
+}
+
+/**
+ * Write a small file turno keeps for itself (a mark, a cache, a state file): its folder through
+ * `ensurePrivateDir`, the file created 0600, and narrowed to 0600 when an older turno left it
+ * wider. Not atomic; use the journal's `atomicWrite` for files a reader must never see half written.
+ */
+export function writePrivateFile(file: string, data: string, env: NodeJS.ProcessEnv = process.env): void {
+  ensurePrivateDir(dirname(file), env);
+  const fd = openSync(file, "w", PRIVATE_FILE_MODE);
+  try {
+    if (fstatSync(fd).mode & 0o077) fchmodSync(fd, PRIVATE_FILE_MODE);
+    writeSync(fd, data);
+  } finally {
+    closeSync(fd);
+  }
 }
 
 /** Forget which roots were checked (tests). */
