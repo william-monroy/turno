@@ -42,6 +42,14 @@ let remotes: { close(): Promise<void> }[] = [];
 let spawnLog: string;
 let eventsLog: string;
 let toolsFile: string;
+/**
+ * Milliseconds the manager's clock runs ahead of the real one. Idle limits and leases are
+ * tested by moving it forward (`advance`) instead of sleeping past them.
+ */
+let skew = 0;
+const advance = (ms: number) => {
+  skew += ms;
+};
 
 function fixtureToml(name: string, extra = "", account = "keychain:default-account"): string {
   const env = `{ FIXTURE_LOG = ${JSON.stringify(spawnLog)}, FIXTURE_EVENTS = ${JSON.stringify(eventsLog)}, FIXTURE_TOOLS_FILE = ${JSON.stringify(toolsFile)}, FIXTURE_ACCOUNT = ${JSON.stringify(account)} }`;
@@ -57,7 +65,9 @@ interface BootOpts {
 
 async function boot(toml: string, o: BootOpts = {}): Promise<void> {
   manifest = parseManifest(toml);
+  skew = 0;
   manager = new InstanceManager({
+    now: () => Date.now() + skew,
     cache: new DescriptionCache(join(sb.home, "cache")),
     connector: new DefaultConnector({
       resolve: async (v) =>
@@ -219,7 +229,7 @@ describe("mcpd gateway", () => {
     await boot(fixtureToml("fx", 'idle = "0.2s"'));
     const a = await connect("fx");
     await callText(a, "echo", { text: "x" });
-    await sleep(400);
+    advance(400);
     await manager.reap();
     expect(manager.list()).toHaveLength(0);
     expect(await callText(a, "counter")).toBe("1"); // restarts transparently
@@ -231,7 +241,7 @@ describe("mcpd gateway", () => {
     const b = await connect("fx");
     expect(await callText(a, "counter")).toBe("1");
     await expect(b.callTool({ name: "counter", arguments: {} })).rejects.toThrow(/in use by another session/);
-    await sleep(450);
+    advance(450);
     expect(await callText(b, "counter")).toBe("2");
   });
 
@@ -271,7 +281,7 @@ describe("call lifecycle (ADR 0016)", () => {
     await expect(call).rejects.toThrow();
     await waitFor(() => inflight() === 0, "the cancelled call to settle");
     await waitFor(() => events().some((e) => e.startsWith("cancelled")), "the server to see the cancellation");
-    await sleep(300);
+    advance(300);
     expect(await manager.reap()).toEqual(["fx: idle"]);
   });
 
@@ -324,7 +334,7 @@ describe("call lifecycle (ADR 0016)", () => {
     const b = await connect("fx");
     const long = callText(a, "hang", { ms: 1200 });
     await waitFor(() => inflight() === 1, "the long call");
-    await sleep(450);
+    advance(450);
     await expect(b.callTool({ name: "counter", arguments: {} })).rejects.toThrow(/in use by another session/);
     expect(await long).toBe("woke");
   });
@@ -333,7 +343,7 @@ describe("call lifecycle (ADR 0016)", () => {
     await boot(fixtureToml("fx", 'scope = "session"\nidle = "0.2s"'));
     const a = await connect("fx", { "X-Turno-Pid": String(process.pid) });
     await callText(a, "echo", { text: "x" });
-    await sleep(400);
+    advance(400);
     expect(await manager.reap()).toEqual([]);
     expect(manager.list()).toHaveLength(1);
   });
