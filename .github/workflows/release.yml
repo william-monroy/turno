@@ -3,10 +3,13 @@ name: release
 # Three jobs, so the one that can publish never runs project code (the lesson of the
 # 2026-05 Mini Shai-Hulud attack):
 #   version  with pending changesets, opens or updates the "Version packages" pull request.
-#   build    after that pull request is merged: checks, packs every unpublished package,
-#            writes an SBOM per package, uploads them as an artifact. No id-token, no secrets.
+#   build    after that pull request is merged: checks, packs every unpublished package
+#            (prepack writes its npm-shrinkwrap.json; pack:check verifies it and that nothing
+#            in the published tree has an install script), writes an SBOM per package,
+#            uploads them as an artifact. No id-token, no secrets.
 #   publish  downloads the tarballs, attests them and publishes with npm trusted publishing.
-#            No checkout, no install, no cache, runs in the protected "npm" environment.
+#            No checkout, no install, no cache, runs in the protected "npm" environment,
+#            with Harden-Runner blocking every host outside its allow list (as in tag).
 #            Trusted publishing stages each version; a maintainer approves it on npmjs.com.
 #   tag      creates the git tags and GitHub releases of what was published.
 on:
@@ -95,9 +98,25 @@ jobs:
       attestations: write # build provenance attestation of the tarballs
       contents: read # read the artifact
     steps:
+      # Block mode: only the hosts this job uses (from the Harden-Runner log of the 0.1.1
+      # release). Harden-Runner itself allows the Actions service hosts
+      # (*.actions.githubusercontent.com, the artifact blob storage). ADR 0019.
       - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
-          egress-policy: audit
+          egress-policy: block
+          allowed-endpoints: >
+            registry.npmjs.org:443
+            api.github.com:443
+            github.com:443
+            uploads.github.com:443
+            token.actions.githubusercontent.com:443
+            fulcio.sigstore.dev:443
+            rekor.sigstore.dev:443
+            tuf-repo-cdn.sigstore.dev:443
+            objects.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            raw.githubusercontent.com:443
+            nodejs.org:443
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
@@ -127,7 +146,11 @@ jobs:
     steps:
       - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
-          egress-policy: audit
+          egress-policy: block
+          allowed-endpoints: >
+            api.github.com:443
+            github.com:443
+            uploads.github.com:443
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: release
