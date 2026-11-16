@@ -76,8 +76,28 @@ Servers that come from Claude Code plugins start in every session and bypass mcp
 ## Troubleshooting
 
 ```sh
-turno mcp daemon status    # running servers, clients, memory (turno mcpd works too)
-turno mcp daemon logs -n 100  # gateway log
+turno mcp daemon status    # running servers, clients, memory; or why mcpd is down
+turno mcp daemon logs -n 100  # gateway log, in local time (--utc for the raw lines)
 ls ~/.local/state/turno/logs/   # one stderr log per server (and variant)
 turno mcp refresh <name>   # forget a cached tool list
 ```
+
+## The daemon as a service
+
+`turno mcp daemon start` keeps mcpd alive with a LaunchAgent on macOS
+(`~/Library/LaunchAgents/dev.turno.mcpd.plist`) or a `systemd --user` unit on Linux
+(`~/.config/systemd/user/turno-mcpd.service`). `--dry-run` prints the file first; the write is
+journaled, so `turno undo` restores it. `turno mcp daemon stop` stops mcpd and removes the
+file, so it does not come back at login. `turno upgrade --finish` rewrites the file and restarts
+mcpd for the new version.
+
+mcpd listens only on `mcpd.port` (config.toml, default 47821). If something else holds that
+port, mcpd does not move: it fails and names the owner, and `turno doctor` says the same. Pick
+another port with `turno config set mcpd.port <port>`, then `turno mcp sync`.
+
+If `mcp.toml` stops validating, mcpd keeps serving the last copy that did
+(`~/.local/state/turno/mcp.last-good.toml`) and reports the error in `turno mcp daemon status`
+and `turno doctor`.
+
+`turno mcp token rotate` replaces the gateway token, restarts mcpd and asks you to run
+`turno mcp sync`. See [ADR 0017](decisions/0017-daemon-service-port-and-last-good-manifest.md).
