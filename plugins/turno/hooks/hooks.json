@@ -1,5 +1,5 @@
 {
-  "description": "When a turn stops because the account hit its usage limit, record the profile as exhausted until the reset time so `turno auto` picks the fallback profile.",
+  "description": "When a turn stops because the account hit its usage limit, record the profile as exhausted until the reset time, so turno status shows it (and the optional fallback, if you set one, can use it).",
   "hooks": {
     "StopFailure": [
       {

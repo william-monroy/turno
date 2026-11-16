@@ -1,6 +1,6 @@
 ---
 name: switch-account
-description: Gives the exact command to continue the current Claude Code session under another turno profile without losing the conversation. Use it when the user says "switch account", "move this session to the work profile", "this account ran out, give me the command", "continue this with another account", or invokes /switch-account <profile>.
+description: Gives the exact command to continue the current Claude Code session under another turno profile without losing the conversation. Use it when the user says "switch account", "move this session to the work profile", "continue this with another account", or invokes /switch-account <profile>.
 ---
 
 # Continue this session under another profile

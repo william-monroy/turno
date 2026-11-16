@@ -1,0 +1,15 @@
+[server.playwright]
+command = "playwright-mcp"
+scope = "session"
+
+[server.context7]
+command = "context7-mcp"
+
+[server.memory]
+command = "mcp-server-memory"
+
+[server.github]
+command = "github-mcp-server"
+args = ["stdio"]
+[server.github.variant.work]
+env = { GITHUB_TOKEN = "keychain:turno/github/work" }

@@ -1,6 +1,6 @@
 {
   "name": "turno",
-  "description": "The turno companion plugin: rate-limit hook and session handoff skills for multi-account Claude Code.",
+  "description": "The turno companion plugin: usage status and session handoff for turno profiles.",
   "owner": {
     "name": "turno contributors"
   },
@@ -8,7 +8,7 @@
     {
       "name": "turno",
       "source": "./plugins/turno",
-      "description": "Account switching, session forks and the rate-limit hook for turno profiles."
+      "description": "Session handoff and fork skills, and a hook that records usage-limit events for turno status."
     }
   ]
 }

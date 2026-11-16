@@ -43,8 +43,8 @@ Last updated: 2026-11-13.
   workflows (npm with provenance), `scripts/pack-check.mjs`, `turno upgrade` per install
   method with `--finish` (launchers, changelog), a daily background update check. Packages stay
   `private` until the owner settles the name and publishing (see Next).
-- **Open-source groundwork** (2026-11-13, from the research report in
-  `~/Documents/wimodev/reports/Turno open source y multiagente.md`):
+- **Open-source groundwork** (2026-11-13, from the maintainer's research on licensing,
+  governance and release practice):
   - Apache-2.0 with NOTICE, REUSE metadata, font icon-set attributions, `THIRD_PARTY_NOTICES.md`
     and a license allow list in `pnpm check` (ADR 0010).
   - CONTRIBUTING, Code of Conduct (Covenant 3.0), SECURITY with the security model, GOVERNANCE,
@@ -102,26 +102,27 @@ Last updated: 2026-11-13.
 
 ## Next
 
-0. **Before any public release** (needs the owner, some need a lawyer):
-   - The name: TURNO is a registered US trademark (serial 97091315, reg. 7151919, TidyDaily,
-     classes 9 and 42). Confirm in USPTO TSDR, search MARCANET (IMPI) for Mexico, and get advice
-     before reserving the GitHub organization, the npm organization or a domain.
-   - A lawyer's read of the README vendor terms notice and the browser acceptable use section.
-   - `OWNER` placeholders in `.github/ISSUE_TEMPLATE/config.yml` and
-     `packages/browser/README.md` (`pack:check` fails on them once a package is public), the
-     backup administrator in GOVERNANCE.md, the code of conduct contact.
-   - Optional later: VHS demo, Starlight docs site (English root, Spanish quick start and FAQ,
-     llms.txt), Homebrew tap, OpenSSF Best Practices badge, GitHub Sponsors.
+0. **Public release** (2026-11-16): the owner accepted the trademark risk of the name and chose
+   to publish under `github.com/william-monroy/turno`. Done in the repository: README rewritten
+   around the measured gateway saving ([BENCHMARKS.md](../BENCHMARKS.md), `bench/`), Spanish
+   README, logo, VHS demo (`docs/demo/`), social preview, package metadata, changelogs for
+   0.1.0, `server.json` for the MCP Registry, plugin texts without rate-limit wording. Left:
+   - the first npm publish of `turno`, `turno-browser` and `turno-fonts` (needs the owner's npm
+     login), then trusted publishers on npmjs.com and the `npm` environment (RELEASING.md);
+   - a Homebrew tap over the npm tarball, the MCP Registry entry, the Claude Code community
+     marketplace, awesome lists (from 2026-11-26);
+   - a lawyer's read of the vendor terms notice, and Cursor's and Copilot's terms on several
+     accounts, before the launch post promises anything about those agents;
+   - the backup administrator in GOVERNANCE.md;
+   - optional later: Starlight docs site, OpenSSF Best Practices badge, GitHub Sponsors.
 
 1. **Cutover** (needs the owner, live sessions must close): `migrate`, `mcp import --write
    --move-secrets`, `mcp install`, `mcpd start`, disable plugin stdio servers covered by the
    manifest, `mcp sync`, `profile repair` to regenerate launchers and links, swap `~/.local/bin/claudio`, `ui install`
    (font and terminals are done; this switches the statusLine to turno), point the StopFailure hook at the
    new CLI (or install the plugin).
-2. Measure: RSS of MCP processes before and after with the same open sessions, and put the
-   number in the README (no competing gateway publishes one).
-3. Publishing (needs the owner): npm scope and names, GitHub repository, trusted publisher;
-   then drop `private` (docs/RELEASING.md). Later: a Homebrew tap over the npm tarball.
-4. Phase 3 of the command proposal: the Claude Code plugin with slash commands, exhaustion
+2. Measure the owner's own sessions before and after the cutover with `bench/` style RSS sums
+   and add them to BENCHMARKS.md as a real-world row.
+3. Phase 3 of the command proposal: the Claude Code plugin with slash commands, exhaustion
    warnings and auto handoff, external `turno-<x>` subcommands, export and import, Linux
    secrets and service.

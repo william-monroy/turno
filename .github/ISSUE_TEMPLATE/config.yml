@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Question or idea
-    url: https://github.com/OWNER/turno/discussions
+    url: https://github.com/william-monroy/turno/discussions
     about: Ask in Discussions (there is an "Español" category).
   - name: Security vulnerability
-    url: https://github.com/OWNER/turno/security/advisories/new
+    url: https://github.com/william-monroy/turno/security/advisories/new
     about: Report it privately. Never in a public issue.

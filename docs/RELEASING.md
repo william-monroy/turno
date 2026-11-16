@@ -77,23 +77,27 @@ then releases go to the `next` dist-tag (`turno upgrade --channel next` follows 
 
 ## Before the first publish
 
-The packages are `"private": true` until these are done (they need the owner):
+1. Done on 2026-11-16: the name (`turno`, trademark risk accepted by the owner), the GitHub
+   repository `william-monroy/turno`, `repository`, `homepage` and `bugs` in each package.json,
+   no `private` flag, changelogs for 0.1.0.
+2. Repository settings: private vulnerability reporting, Discussions (with an "Español"
+   category), secret scanning with push protection, the open pull request limit, the "require
+   actions pinned to a SHA" policy, and branch protection on `main` (pull request, passing
+   `ci`, no force push).
+3. First publish, by the owner from a clean checkout (trusted publishing needs the packages to
+   exist first):
 
-1. Settle the name. `turno` is free on npm, but the word is a registered US trademark in
-   classes 9 and 42 (see `docs/STATUS.md`); get legal advice before reserving the GitHub
-   organization, the npm organization and a domain.
-2. Create the GitHub repository; add `repository`, `homepage` and `bugs` to each
-   package.json; replace `OWNER` in `.github/ISSUE_TEMPLATE/config.yml`; turn on private
-   vulnerability reporting, Discussions (with an "Español" category), secret scanning with push
-   protection, the open pull request limit, the "require actions pinned to a SHA" policy, and
-   branch protection on `main` (pull request, passing `ci`, no force push).
-3. Create the `npm` environment in the repository settings, limited to `main`, with the owner
-   as required reviewer.
-4. On npmjs.com: an organization if a scope is used, a trusted publisher per package pointing at
-   `release.yml` and the `npm` environment, "require 2FA and disallow tokens" for publishing,
-   a passkey on the account, and no classic or granular tokens left.
-5. Name the backup administrator in `GOVERNANCE.md` and set the code of conduct contact.
-6. Remove `"private": true` and add a changeset; the next release publishes.
+   ```sh
+   npm login
+   pnpm install --frozen-lockfile && pnpm check && pnpm pack:check
+   for p in fonts browser turno; do (cd packages/$p && pnpm publish --access public --no-git-checks --provenance=false); done
+   ```
+
+4. On npmjs.com, for each package: a trusted publisher pointing at `release.yml` and the `npm`
+   environment, "require 2FA and disallow tokens", a passkey on the account, no tokens left.
+   Create the `npm` environment in the repository settings, limited to `main`, with the owner
+   as required reviewer. From then on every release goes through the workflow with provenance.
+5. Name the backup administrator in `GOVERNANCE.md`.
 
 ## How users update
 

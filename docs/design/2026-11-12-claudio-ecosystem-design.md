@@ -1,5 +1,7 @@
 # claudio ecosystem: design
 
+> Written before the project was renamed to turno (ADR 0009); `claudio` here means turno.
+
 Date: 2026-11-12
 Status: approved for implementation (owner delegated all design decisions).
 Amended by `docs/decisions/0004-builder-check-resolutions.md`, which wins where they differ

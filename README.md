@@ -1,246 +1,278 @@
-# turno
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+    <img src="docs/assets/logo-light.svg" alt="turno" width="232" height="56">
+  </picture>
+</p>
 
-Run several Claude Code accounts on one Mac as if they were one: shared conversations, memory,
-skills and plugins, a rule for which of your accounts each folder uses, and one local gateway
-that starts each MCP server once instead of once per session.
+<p align="center">
+  <b>One MCP gateway and per-folder accounts for Claude Code, Codex, Copilot CLI and Cursor CLI.</b>
+</p>
 
-```
-turno work                  # Claude Code logged into the "work" account
-turno auto                  # the account assigned to this folder
-turno status                # this folder, every account and its usage, sessions, mcpd
-turno limit show --watch    # 5 h and weekly usage of every account, live
-```
+<p align="center">
+  <a href="https://www.npmjs.com/package/turno"><img alt="npm" src="https://img.shields.io/npm/v/turno?color=7C5CFF"></a>
+  <a href="https://github.com/william-monroy/turno/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/william-monroy/turno/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/william-monroy/turno"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/william-monroy/turno/badge"></a>
+</p>
 
-## Why
+<p align="center">
+  English · <a href="README.es.md">Español</a>
+</p>
 
-Claude Code keeps one login per config directory. Running two accounts means two
-`CLAUDE_CONFIG_DIR`s, and by default they share nothing: a conversation started with one account
-cannot be resumed with the other, and every session starts its own copy of every MCP server.
-With a dozen sessions open, the same browser and API servers run a dozen times over.
+Every coding-agent session starts its own copy of every MCP server. Eight sessions with six
+common servers is **3,163 MiB in 56 processes**. turno starts each server once,
+only when a tool is called, behind one local gateway that every session of every agent shares:
+**847 MiB while all six run, 103 MiB while they sit idle**
+([benchmark](BENCHMARKS.md)). It also gives each folder its own account, so work repositories
+open with your work login and everything else with your personal one.
 
-turno fixes both:
-
-- **Profiles.** Each account gets `~/.claude-<name>` with its own credentials and history, and
-  symlinks to the shared hub (`~/.claude`) for projects, plans, skills, plugins, agents and
-  settings. `turno <name> --resume <id>` continues any session with any account.
-- **Rules.** `config.toml` maps folders to profiles, and `turno auto` picks the right one. An
-  optional `fallback` (off unless you set it) names the profile to open while the assigned one
-  is marked exhausted; see [Vendor terms](#vendor-terms) before you turn it on.
-- **mcpd.** A small HTTP gateway on `127.0.0.1` that every profile's MCP entries point to. It
-  answers `initialize` and the tool lists from a cache, starts a server only when a tool is called,
-  shares one process between sessions where that is safe, and stops it when idle.
-- **Browser with real profiles** (optional package). `turno-browser-mcp` is the Playwright MCP
-  server built on Patchright, driving your installed Chrome with a persistent profile per
-  identity, so the sites you sign into once stay signed in.
-- **Accounts bridge.** A builtin MCP server that lets a session in one profile delegate a task to
-  a service account (a Linear workspace, a mail connector) that only another profile is logged
-  into, with confirmation for anything that writes.
+![turno: profiles for two agents, one gateway, the status line](docs/assets/demo.gif)
 
 ## Install
 
-Requirements: macOS (Linux works for everything but the Keychain and the LaunchAgent), Node 22.11
-or newer, Claude Code (`claude` on PATH).
-
-From the source (pnpm needed):
-
 ```sh
-git clone <this repository> turno && cd turno
-pnpm install && pnpm build
-ln -s "$PWD/packages/turno/dist/cli/main.js" ~/.local/bin/turno
-turno ui install                   # status line font (MesloLGS Nerd Font) and the turno status line
-echo 'source <(turno completion zsh)' >> ~/.zshrc
-turno doctor
+npx turno@latest doctor     # try it without installing: checks your agents and config
+npm install --global turno  # macOS or Linux, Node 22.11+
 ```
 
-Once it is published to npm it installs with `npm install --global <package>` (or pnpm, yarn,
-bun, volta), and `turno upgrade` keeps any of those installs, or a git checkout, up to date.
-See [docs/RELEASING.md](docs/RELEASING.md) for versions and releases.
+Then move your MCP servers behind the gateway:
+
+```sh
+turno mcp import --move-secrets --write   # mcp.toml from the servers you already have
+turno mcp daemon start                    # the gateway, kept alive by launchd
+turno mcp sync                            # point every agent profile at it
+```
+
+Nothing leaves your machine: no account, no telemetry, no proxy for model traffic.
+
+## What it does
+
+- **One MCP gateway for every session.** `mcpd` listens on `127.0.0.1`, answers `initialize` and
+  the tool lists from a cache, starts a server the first time one of its tools is called, shares
+  that process between sessions where it is safe (`shared`, `project` or `session` scope) and
+  stops it when idle. Secrets live in the macOS Keychain, not in agent configs.
+- **An account per folder.** `turno profile assign ~/code/acme work` and every agent you open in
+  that repository uses your work login; `turno auto` picks it, and `turno status` shows who is
+  logged in where. Conversations, skills and settings stay shared between your Claude Code
+  profiles, so `turno work --resume <id>` continues a session started with another account.
+- **Four agents, one setup.** The same profiles, folder rules and gateway for:
+
+  | Agent | Profile | Gateway entries | Example |
+  |---|---|---|---|
+  | Claude Code | `~/.claude-<p>`, `claude-<p>` | `.claude.json` | `turno work` |
+  | Codex CLI | `~/.codex-<p>`, `codex-<p>` | `config.toml`, token from the environment | `turno auto --agent codex` |
+  | GitHub Copilot CLI | `~/.copilot-<p>`, `copilot-<p>` | `mcp-config.json` | `copilot-work` |
+  | Cursor CLI | `~/.cursor-<p>`, `cursor-agent-<p>` | `~/.cursor/mcp.json`, routed by environment | `cursor-agent-work` |
+
+  opencode, Gemini CLI, Goose, Crush, Droid and Kiro can use the gateway too:
+  `turno mcp config --agent <name>` prints their entries. See [docs/agents.md](docs/agents.md).
+- **A status line** for Claude Code with the account, its 5 h and weekly usage, context, branch
+  and cost, with Nerd Font icons it installs for you (or Unicode where there is none).
+- **A browser with real profiles** (optional `turno-browser`): an MCP server that drives your
+  installed Chrome with one persistent profile per identity, so an agent works in the sessions
+  you signed into by hand.
 
 ## Quick start
 
 ```sh
-turno profile add work --color violet       # declare the profile, create ~/.claude-work and claude-work
-turno profile add personal --browser default
-claude-work                                   # log in once per profile (/login)
-turno profile assign ~/code/acme work       # this folder and everything under it uses work
-turno config set default personal           # profile for folders without a rule
-turno status                                # who is logged in where, and their usage
+turno profile add work --color violet     # ~/.claude-work and the claude-work command
+turno profile add personal
+claude-work                               # sign in once per profile (/login)
+turno profile assign ~/code/acme work     # this folder and everything under it
+turno config set default personal         # folders without a rule
+cd ~/code/acme && turno auto              # Claude Code, signed in as work
 ```
+
+Codex, Copilot and Cursor profiles are the same with `--agent codex|copilot|cursor`. Point your
+terminal or editor at `turno auto` (or the `turno-auto` launcher) and every folder opens with
+its account.
+
+## Benchmark
+
+Six popular local MCP servers (Playwright, Chrome DevTools, filesystem, memory, sequential
+thinking, Context7), each session running `initialize` and `tools/list` on all of them. Resident
+memory of every process involved, Apple M3 with 16 GB, Node 26, 2026-11-16:
+
+| Sessions | Each session starts its own servers | turno, all six servers running | turno, idle (tool lists cached) |
+|---|---|---|---|
+| 4 | 1,410 MiB, 28 processes | 692 MiB, 8 processes | 101 MiB, 1 process |
+| 8 | 3,163 MiB, 56 processes | 847 MiB, 8 processes | 103 MiB, 1 process |
+
+Started the way most server READMEs suggest (`npx -y <package>`), 4 sessions take
+3,123 MiB in 52 processes. Reproduce it with `node bench/mcp-ram.mjs --sessions 8`;
+method and caveats in [BENCHMARKS.md](BENCHMARKS.md).
+
+## How it compares
+
+| | Accounts per folder | Several agents | Shared MCP processes | Status line | Notes |
+|---|---|---|---|---|---|
+| **turno** | yes | Claude Code, Codex, Copilot CLI, Cursor CLI | yes, lazy | yes | CLI, local only |
+| [claude-swap](https://github.com/realiti4/claude-swap) | switch, not per folder | Claude Code | no | no | usage dashboard, parallel sessions |
+| [clauth](https://github.com/uwuclxdy/clauth) | switch | Claude Code | no | no | TUI, cross-account delegation |
+| [cc-switch](https://github.com/farion1231/cc-switch) | no | many | no (manages MCP config) | no | desktop app, provider switching |
+| [ccstatusline](https://github.com/sirmalloc/ccstatusline) | no | Claude Code | no | yes | the most customizable status line |
+| [MetaMCP](https://github.com/metatool-ai/metamcp), [mcp-proxy](https://github.com/sparfenyuk/mcp-proxy) | no | any MCP client | aggregates or bridges | no | Docker / transport bridge |
+| Plain `CLAUDE_CONFIG_DIR` | by hand | one | no | no | what turno automates |
+
+If you only need one of these pieces, those tools are good at it. turno is for the case where
+you run many sessions of several agents with more than one account.
+
+## FAQ
+
+**Is using several accounts allowed?** That depends on your plan, not on turno. turno runs each
+vendor's own, unmodified CLI, and each account signs in with the vendor's own login in its own
+folder. The intended use is separate work and personal accounts. Do not use it to get around
+usage limits or safeguards; see [Vendor terms](#vendor-terms).
+
+**Where are my credentials?** Where each agent keeps them, inside that profile's folder (or the
+Keychain where the agent uses it). turno never reads, copies or forwards login tokens. MCP
+secrets you move with `--move-secrets` go to the macOS Keychain.
+
+**Does turno see my prompts or model traffic?** No. It launches the agent and gets out of the
+way. Only MCP tool calls go through `mcpd`, on `127.0.0.1`, with a bearer token, and requests
+with an `Origin` header are rejected so web pages cannot reach it.
+
+**Linux? Windows?** Linux works for everything except the Keychain and the LaunchAgent (both
+have open issues). Windows is not supported.
+
+**How do I undo it?** Every command that writes keeps a copy of each file it changes:
+`turno undo --list` shows them and `turno undo <stamp>` puts them back. To remove turno,
+`turno mcp daemon stop`, undo the `mcp sync`, delete the `claude-<p>`-style launchers in
+`~/.local/bin` and `npm uninstall --global turno`. Profile folders stay until you delete them.
+
+## Reference
+
+`turno --help` groups the commands and `turno <command> --help` explains each. Commands that
+only read take `--json`; commands that write take `--dry-run`, keep a copy of each file they
+change, and print the `turno undo <stamp>` that puts them back.
+
+| Command | What it does |
+|---|---|
+| `turno <profile> [args]`, `turno run <profile\|auto> [args]` | the profile's agent with that account (args pass through) |
+| `turno auto [--agent codex\|copilot\|cursor]` | the profile assigned to the current folder |
+| `turno profile list\|add\|repair\|remove\|which\|assign\|unassign` | the profiles, and which folders use each |
+| `turno mcp list\|sync\|config\|import\|install\|refresh\|doctor\|daemon ...` | the MCP gateway, and entries for other agents |
+| `turno status` | one screen: this folder, profiles and usage, sessions, mcpd |
+| `turno limit show [--watch]\|set\|clear` | usage windows per account, and exhausted marks |
+| `turno session list\|handoff <p> [--fork]` | open sessions, and the command to continue this one under another profile |
+| `turno open [profile] <url>` | open a link; claude.ai links use that profile's Chrome profile |
+| `turno identity list\|add\|remove\|login\|prefer\|log` | service accounts for the bridge, browser identities |
+| `turno secret set\|has\|rm\|list` | MCP secrets in the macOS Keychain |
+| `turno browser bench` | how automation-fingerprint test pages see each browser engine |
+| `turno ui status\|install` | the status line, its font and icons in every terminal |
+| `turno doctor [--fix]` | check everything and repair what is safe to repair |
+| `turno config path\|get\|set\|unset\|edit\|check` | config.toml without losing its comments |
+| `turno undo [--list] [<stamp>\|last]` | put back the files a command changed |
+| `turno upgrade [--check]`, `turno version` | update turno the way it was installed |
+| `turno completion zsh\|bash\|fish` | shell completion, including profiles and config keys |
+
+### Config
 
 `~/.config/turno/config.toml`:
 
 ```toml
 system = "personal"     # account the plain `claude` command uses
 default = "personal"    # profile for folders without a rule
-# fallback = "work"     # optional, off unless set: opened while the assigned profile is exhausted
+# fallback = "work"     # optional, off unless set; read "Vendor terms" first
 
 [profiles.work]
 color = "violet"        # status line pill
 [profiles.personal]
-browser = "default"     # claude.ai links open in the default browser instead of a Chrome profile
+browser = "default"     # claude.ai links open in the default browser
+[profiles.cx]
+agent = "codex"
 
 [[projects]]
 path = "~/code/acme"
 profile = "work"
 ```
 
-Point terminals and editors at `turno auto` (or the `turno-auto` launcher) and every folder
-opens with its account.
-
-## Commands
-
-`turno --help` groups them; `turno <command> --help` explains each. Every command that only
-reads takes `--json`; every command that writes takes `--dry-run`, keeps a copy of each file it
-changes, and prints the `turno undo <stamp>` that puts them back.
-
-| Command | What it does |
-|---|---|
-| `turno <profile> [args]`, `turno run <profile\|auto> [args]` | Claude Code with that account (replaces the process, args pass through) |
-| `turno auto [--agent codex]` | the profile assigned to the current folder (and the fallback, if you set one) |
-| `turno profile list\|add\|repair\|remove\|which\|assign\|unassign` | the accounts, and which folders use each |
-| `turno limit show [--watch]\|set <p> [--until \| --for]\|clear <p>` | usage windows, and exhausted marks (used by the optional fallback) |
-| `turno session list\|handoff <p> [--fork]` | open sessions, and the command to continue or fork this one under another profile |
-| `turno open [profile] <url>` | open a link; claude.ai links use that profile's Chrome profile |
-| `turno mcp list\|sync\|config\|import\|install\|refresh\|doctor\|daemon ...` | the MCP gateway (below), and entries for other agents |
-| `turno identity list\|add\|remove\|login\|prefer\|log` | service accounts for the bridge and browser identities |
-| `turno secret set\|has\|rm\|list` | MCP secrets in the macOS Keychain |
-| `turno browser bench` | how automation-fingerprint test pages see each browser engine |
-| `turno ui status\|install` | the status line, its font and icons in every terminal |
-| `turno status` | one screen: this folder, profiles and usage, sessions, mcpd, the look |
-| `turno doctor [--fix]` | check everything and repair what is safe to repair |
-| `turno config path\|get\|set\|unset\|edit\|check` | config.toml without losing its comments |
-| `turno undo [--list] [<stamp>\|last]` | put back the files a command changed |
-| `turno upgrade [--check]`, `turno version` | update turno the way it was installed |
-| `turno completion zsh\|bash\|fish` | shell completion, including profiles and config keys |
-| `turno migrate` | import the config of the original bash version (`turno undo` rolls it back) |
-
-The names of 0.1 (`setup`, `which`, `sessions`, `usage`, `exhausted`, `available`, `handoff`,
-`accounts`, `mcpd`) and the Spanish ones of the bash version still work.
-
-## MCP gateway
-
-```sh
-turno mcp import --move-secrets            # draft mcp.toml from your current servers
-turno mcp import --move-secrets --write    # write it (secrets go to the Keychain)
-turno mcp install                          # pin npm packages once instead of npx per start
-turno mcp daemon start                     # LaunchAgent that keeps the gateway alive
-turno mcp sync                             # point every profile at the gateway
-```
+### MCP gateway
 
 `~/.config/turno/mcp.toml`:
 
 ```toml
 [server.calendar]
 command = "cal-mcp"
-package = "@calcom/cal-mcp@1.4.0"
+package = "@calcom/cal-mcp@1.4.0"   # `turno mcp install` pins it instead of npx per start
 env = { CAL_API_KEY = "keychain:turno/calendar/api-key" }
-scope = "shared"                 # one process for every session
+scope = "shared"                     # one process for every session
 
 [server.devtools]
 command = "chrome-devtools-mcp"
-package = "chrome-devtools-mcp@0.9.0"
-scope = "session"                # one per Claude session, stopped when the session ends
+scope = "session"                    # one per agent session, stopped when it ends
 idle = "15m"
 
 [server.issues]
 command = "issues-mcp"
-[server.issues.variant.work]     # the work profile reaches a different account
+[server.issues.variant.work]         # the work profile reaches a different account
 env = { ISSUES_TOKEN = "keychain:turno/issues/work" }
 
-[server.browser-school]
-command = "turno-browser-mcp"
-args = ["--identity", "school"]
-exclusive = true                 # one session at a time drives this browser
-lease = "10m"
-
 [server.docs]
-url = "https://docs.example.com/mcp"   # remote, written straight into each profile
+url = "https://docs.example.com/mcp" # remote, written straight into each profile
 ```
 
-Scopes: `shared` (one process), `project` (one per git repository), `session` (one per Claude
-session). Each server variant per profile runs separately, so two profiles can reach two
-different accounts of the same service. Details in [docs/mcp.md](docs/mcp.md).
+Each variant per profile runs separately, so two profiles can reach two accounts of the same
+service. Details: [docs/mcp.md](docs/mcp.md).
 
-The gateway listens on `127.0.0.1` only, requires a bearer token (mode 600 file), and rejects any
-request with an `Origin` header, so a web page cannot reach it.
-
-## Browser with real profiles
+### Browser with real profiles
 
 ```sh
-npm install --global turno-browser   # optional: only if you want it
-turno identity add browser:school    # create an identity and print its mcp.toml entry
+npm install --global turno-browser   # optional
+turno identity add browser:school    # an identity and its mcp.toml entry
 turno identity login browser:school  # sign in by hand once; cookies persist
-turno browser bench --url https://portal.example.edu
 ```
 
 It drives the installed Google Chrome, headed, with a persistent profile per identity and no
-injected scripts, so an agent works in the same browser and session you would use yourself.
-Read [ADR 0005](docs/decisions/0005-stealth-browser-defaults.md) for the settings and what they
-do and do not change.
+injected scripts ([ADR 0005](docs/decisions/0005-stealth-browser-defaults.md)).
 
 **Acceptable use.** Use it with your own accounts, on sites whose terms allow automated access
 by you, and at a human pace. Do not use it to get around access controls, paywalls, CAPTCHAs or
-rate limits, to scrape at scale, or to access accounts that are not yours. You are responsible
-for how you use it; see [Disclaimers](#disclaimers).
+rate limits, to scrape at scale, or to access accounts that are not yours.
 
-## Accounts bridge
+### Accounts bridge
 
-```sh
-turno identity add linear:work --profile work --tools 'mcp__linear__*'
-turno identity prefer ~/code/acme linear=linear:work
-```
+A builtin MCP server (`builtin = "accounts"` in `mcp.toml`) lets a session in one profile
+delegate a task to a service account (a Linear workspace, a mail connector) that only another
+profile is signed into. Write tasks need your confirmation, and every call goes to an audit log
+(`turno identity log`).
 
-Add `[server.accounts]` with `builtin = "accounts"` to `mcp.toml`. Sessions then get
-`accounts_list` and `accounts_delegate`. A delegated task runs headless in the owning profile
-with only that account's tools allowed; write tasks need your confirmation in the client, and
-every call goes to an audit log (`turno identity log`).
+### Status line
 
-## Other agents
-
-Codex CLI, GitHub Copilot CLI and Cursor CLI profiles work the same way: one folder and one
-login per account, a launcher, folder rules and the MCP gateway.
-
-```sh
-turno profile add cx --agent codex   # ~/.codex-cx and the codex-cx command
-codex-cx login
-turno mcp sync cx
-turno auto --agent codex
-```
-
-opencode, Gemini CLI, Goose, Crush, Droid and Kiro can use the gateway too: `turno mcp config
---agent <name>` prints their entries. Details and caveats: [docs/agents.md](docs/agents.md).
-
-## Companion plugin
-
-`plugins/turno` adds the hook that marks a profile exhausted when it hits its limit (it only
-changes which profile opens next if you set a `fallback`), plus the
-`switch-account` and `fork-session` skills. Install it from this repository:
-
-```
-/plugin marketplace add /path/to/turno
-/plugin install turno@turno
-```
-
-## Status line
-
-![The turno status line with Nerd Font icons, after a fallback switch, and with Unicode icons](docs/assets/statusline.png)
+![The turno status line with Nerd Font icons and with Unicode icons](docs/assets/statusline.png)
 
 ```sh
 turno ui install                     # font + statusLine in the shared settings.json
-turno ui install --terminal current  # also set the font in this terminal (Warp, VS Code, Cursor, Alacritty)
-turno ui status                      # what each installed terminal will draw
+turno ui install --terminal current  # also set the font in this terminal
 ```
 
-Row 1: profile and plan, 5 h and weekly usage of that account (the freshest any session has
-seen) with time to reset, context, estimated turns left, and a warning when a fallback is active
-or the folder belongs to another profile. Row 2: project and worktree, branch, lines changed,
-model and effort, and the real API-equivalent cost of the conversation including subagents.
+Row 1: profile and plan, 5 h and weekly usage of that account with time to reset, context, and
+a warning when the folder belongs to another profile. Row 2: project and worktree, branch, lines
+changed, model and effort, and the API-equivalent cost of the conversation including subagents.
+Details: [docs/ui.md](docs/ui.md).
 
-The icons come from a Nerd Font. turno ships MesloLGS Nerd Font 3.4.0 (`packages/fonts`), the
-same Nerd Fonts release and icon size as Orca's terminal, and `turno ui install` copies it into
-your user font folder; terminals that ship the symbols
-(Ghostty, WezTerm, kitty) need nothing. Where no Nerd Font is set the line falls back to Unicode
-icons by itself. Details: [docs/ui.md](docs/ui.md).
+### Claude Code plugin
+
+`plugins/turno` adds session handoff and fork skills and a hook that records when a profile
+reaches its usage limit, so `turno status` can show it:
+
+```
+/plugin marketplace add william-monroy/turno
+/plugin install turno@turno
+```
+
+### Files
+
+| Path | What |
+|---|---|
+| `~/.config/turno/config.toml` | profiles and folder rules |
+| `~/.config/turno/mcp.toml` | MCP servers behind the gateway |
+| `~/.config/turno/accounts.toml` | service accounts for the bridge |
+| `~/.local/state/turno/` | usage, run records, logs, backups, the mcpd token |
+| `~/.local/share/turno/` | installed servers, tool cache, browser identities |
+
+All three honor `XDG_CONFIG_HOME`, `XDG_STATE_HOME` and `XDG_DATA_HOME`.
 
 ## Disclaimers
 
@@ -280,36 +312,22 @@ terminal. turno sends no other data anywhere.
 
 ## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md), the [Code of Conduct](CODE_OF_CONDUCT.md) and the
-[AI policy](AI_POLICY.md). Security issues: [SECURITY.md](SECURITY.md). Governance:
-[GOVERNANCE.md](GOVERNANCE.md).
-
-## Files
-
-| Path | What |
-|---|---|
-| `~/.config/turno/config.toml` | profiles and folder rules |
-| `~/.config/turno/mcp.toml` | MCP servers behind the gateway |
-| `~/.config/turno/accounts.toml` | service accounts for the bridge |
-| `~/.local/state/turno/` | usage, exhausted marks, run records, logs, backups, mcpd token |
-| `~/.local/share/turno/` | installed servers, description cache, browser identities |
-
-All three honor `XDG_CONFIG_HOME`, `XDG_STATE_HOME` and `XDG_DATA_HOME`.
-
-## Development
+Issues labeled [good first issue](https://github.com/william-monroy/turno/labels/good%20first%20issue)
+are a good start. Read [CONTRIBUTING.md](CONTRIBUTING.md), the
+[Code of Conduct](CODE_OF_CONDUCT.md) and the [AI policy](AI_POLICY.md). Questions and ideas go
+to [Discussions](https://github.com/william-monroy/turno/discussions) (there is an Español
+category). Security issues: [SECURITY.md](SECURITY.md).
 
 ```sh
-pnpm install
-pnpm build
-pnpm test        # unit and integration tests, sandboxed HOME
-pnpm check       # typecheck, tests, and the repository text rules
+pnpm install && pnpm build
+pnpm check       # typecheck, tests (sandboxed HOME), repository text rules, licenses
 ```
 
-Design: [docs/design](docs/design/2026-11-12-turno-ecosystem-design.md). Decisions:
+Design: [docs/design](docs/design/2026-11-12-claudio-ecosystem-design.md). Decisions:
 [docs/decisions](docs/decisions/). Progress: [docs/STATUS.md](docs/STATUS.md).
 
 ## License
 
 Apache License 2.0 ([LICENSE](LICENSE), [NOTICE](NOTICE)). The bundled fonts keep their own
 licenses ([packages/fonts/LICENSE.txt](packages/fonts/LICENSE.txt)); dependencies are listed in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Made in Monterrey, Mexico.
