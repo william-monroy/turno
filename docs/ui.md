@@ -78,7 +78,30 @@ Row 1:
 Row 2: project and worktree, git branch, lines added and removed, model and effort, and the
 API-equivalent cost of the conversation. The cost uses the pricing of each model, counts 5 m
 and 1 h cache writes apart, includes subagents, and is computed in the background so drawing
-the line never waits for it.
+the line never waits for it. Until the first count is ready the line shows Claude Code's own
+figure followed by `…`. Bedrock and Vertex model ids are priced as the same Anthropic model.
+When the conversation used a model turno has no price for, the line shows Claude Code's figure
+instead, or `$?` when there is none: never a total that leaves part of the conversation out.
+
+When the agents were set up to use the MCP gateway (`turno mcp sync`) and it does not answer, row
+2 ends with `mcpd down`. The line itself only reads a small file; a background check refreshes
+it at most once a minute.
+
+The branch comes from the repository's `HEAD` file (worktrees and submodules included), so
+drawing the line does not run git. Every part is computed on its own: a damaged cache file, a
+full disk or a read-only state folder leaves that part empty and the rest of the line intact.
+
+### Colors and `NO_COLOR`
+
+The status line always draws its colors, also when `NO_COLOR` is set. Claude Code runs the
+command with a pipe for output, not a terminal, and draws whatever the command prints inside its
+own interface, so the usual signals for "no color here" do not apply to it. Colors in the line
+are part of its meaning (usage levels, warnings), and `NO_COLOR` keeps applying to the rest of
+turno's output. To drop colors from the line, remove `statusLine` from the hub `settings.json`
+or point it at your own command.
+
+Background caches live in `~/.local/state/turno/cache`. Files older than a week are removed by
+the cost worker (at most once a day).
 
 ## Icons
 
