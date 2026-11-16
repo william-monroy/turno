@@ -10,6 +10,14 @@ export const FORCE: FlagSpec = { force: { type: "boolean" } };
 export const TAIL: FlagSpec = { tail: { type: "string", short: "n" } };
 export const WATCH: FlagSpec = { watch: { type: "boolean" } };
 
+/**
+ * Completion flags of a spec (`--name` for each long flag), so the parser and the shell
+ * completion never disagree. Use it as `flags: flagsOf(SPEC)` next to `parseFlags(args, SPEC)`.
+ */
+export function flagsOf(...specs: FlagSpec[]): string[] {
+  return specs.flatMap((s) => Object.keys(s)).map((k) => `--${k}`);
+}
+
 export interface Parsed {
   values: Record<string, string | boolean | string[] | undefined>;
   positionals: string[];
