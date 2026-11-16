@@ -10,13 +10,18 @@ Every profile's `.claude.json` lists local MCP servers as HTTP entries pointing 
     "Authorization": "Bearer <token>",
     "X-Turno-Profile": "work",
     "X-Turno-Pid": "${TURNO_SESSION_PID:-0}",
-    "X-Turno-Cwd": "${PWD:-}"
+    "X-Turno-Cwd-B64": "${TURNO_SESSION_CWD_B64:-}"
   }
 }
 ```
 
 `turno mcp sync` writes these. Claude Code expands the `${...}` values when it connects, so
-mcpd learns which session (launcher PID) and folder each connection comes from.
+mcpd learns which session (launcher PID) and folder each connection comes from. The launcher
+exports the folder base64url-encoded, because a raw path outside Latin-1 (an accent typed in
+NFD form, CJK, an emoji) is not a valid header value and the client would refuse to connect.
+Without the variable (a plain `claude`), mcpd reads the folder of the client process (`/proc`
+on Linux, `lsof` on macOS). Entries written by older versions still send `X-Turno-Cwd`; mcpd
+keeps reading it.
 
 ## mcp.toml reference
 
@@ -26,9 +31,12 @@ command = "server-bin"            # stdio server
 args = ["--flag"]
 env = { TOKEN = "keychain:turno/name/token", REGION = "eu", OTHER = "env:SOME_VAR" }
 cwd = "/abs/path"                 # default: project root (project), session folder (session), home (shared)
-package = "server-pkg@1.2.3"      # optional: `turno mcp install` pins it to an exact version; until then npx runs it
+package = "server-pkg@1.2.3"      # optional: `turno mcp install` pins it to an exact version; until then npx runs it (with a warning in the logs)
 scope = "shared"                  # shared | project | session (default shared)
-idle = "30m"                      # stop after this long without calls (default 30m shared, 20m others)
+idle = "30m"                      # stop after this long without calls (default 30m shared, 20m others;
+                                  # a session server stays while its session's process lives)
+call_timeout = "10m"              # optional: cancel a single request that runs longer (off by default;
+                                  # it also cuts calls waiting for the user to answer a form)
 exclusive = false                 # one client session at a time (shared scope only)
 lease = "5m"                      # exclusive: how long an idle holder keeps it
 profiles = ["*"]                  # which profiles get this server
@@ -39,6 +47,7 @@ env = { TOKEN = "keychain:turno/name/token-work" }
 [server.<remote>]
 url = "https://example.com/mcp"
 headers = { Authorization = "keychain:turno/remote/auth" }   # secret headers: proxied by mcpd
+type = "http"                     # or "sse" for the legacy HTTP+SSE transport
 ```
 
 Values starting with `keychain:` are read with `security find-generic-password -s <service> -w`
@@ -75,14 +84,31 @@ mcpd. With secret headers it is proxied, so the secret stays in the Keychain.
 
 ## What the gateway does
 
-- Answers `initialize` and the `*/list` methods from a cache, so a session that never calls a
-  tool never starts the server.
-- Starts the upstream on the first real call, relays requests, notifications, progress,
-  cancellation, and server-to-client requests (roots, elicitation) to the session that made the
-  call.
-- Stops instances idle for longer than `idle`, and session instances whose launcher PID died.
-- Reloads `mcp.toml` when it changes (or on SIGHUP) and restarts only servers whose definition
-  changed.
+- Answers `initialize`, `tools/list`, `prompts/list` and `resources/templates/list` from a
+  cache, so a session that never calls a tool never starts the server. `resources/list` always
+  reaches a running instance, since resources differ per project.
+- Starts the upstream on the first real call and relays requests, notifications, progress and
+  cancellation. Every start lists the tools again; when they changed, the cache is updated and
+  clients get `list_changed`.
+- Relays elicitation and sampling to the session whose call is in flight, and only offers them
+  to the server when the client supports them. When calls from several sessions are in flight on
+  a shared server, it refuses the request instead of guessing (use `scope = "session"` or
+  `exclusive = true` for servers that ask the user). `roots/list` is answered by mcpd from the
+  project or session folder; shared servers are not offered roots.
+- Cancels a call upstream when the client cancels it or goes away, so an interrupted tool does
+  not keep the server alive.
+- Stops instances idle for longer than `idle`, session instances whose launcher PID died, and
+  instances whose definition changed in `mcp.toml`. Open sessions use the new definition on
+  their next call.
+- After 3 failed starts in a row, answers at once with the last lines of the server's log and
+  retries with a growing delay (5 s, doubling, up to 5 minutes).
+- Rebuilds a session it does not know (mcpd restarted) from the request headers instead of
+  answering 404.
+- Reloads `mcp.toml` when it changes (or on SIGHUP).
+
+`POST /refresh/<server>` (or `POST /refresh` for all servers) on the gateway, with the bearer
+token, relists running instances and forgets the cached description of the others, without a
+restart. It answers `{"server", "refreshed": [...], "forgotten": [...], "errors": {...}}`.
 
 ## Plugin servers
 

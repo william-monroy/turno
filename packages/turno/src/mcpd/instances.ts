@@ -1,23 +1,34 @@
-import { execFileSync } from "node:child_process";
-import { existsSync, realpathSync } from "node:fs";
-import { join } from "node:path";
+import { execFile } from "node:child_process";
+import { existsSync, readlinkSync, realpathSync, statSync } from "node:fs";
+import { basename, join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import type { ServerDef, StdioServer } from "../core/manifest.js";
+import type { Manifest, ServerDef, StdioServer } from "../core/manifest.js";
 import { effectiveLaunch, variantKey } from "../core/manifest.js";
 import type { SecretResolver } from "../core/secrets.js";
 import { resolveRecord } from "../core/secrets.js";
 import { type DescriptionCache, type ServerDescription, fingerprint } from "./cache.js";
-import { ErrorCode, rpcError, type Outcome } from "./jsonrpc.js";
+import { ErrorCode, type Id, rpcError, type Outcome } from "./jsonrpc.js";
 import { type ClientPort, Upstream } from "./upstream.js";
 
-/** Who is calling: one Claude Code MCP session against one server. */
+const run = promisify(execFile);
+
+/**
+ * Who is calling: one MCP client session against one server. Only the server's name is kept:
+ * its definition is looked up in the current manifest on every use, so a reload applies to
+ * sessions that are already open (ADR 0016).
+ */
 export interface ClientContext {
-  server: ServerDef;
+  serverName: string;
   profile?: string;
   pid?: number;
+  /** The session folder, decoded and checked to exist. */
   cwd?: string;
+  /** Git top level of `cwd` (else `cwd`), computed once when the session is created. */
+  projectRoot?: string;
   sessionId: string;
-  /** What the downstream client declared in initialize (elicitation, roots, ...). */
+  /** What the downstream client declared in initialize (elicitation, roots, ...). Unknown when undefined. */
   clientCapabilities?: Record<string, unknown>;
 }
 
@@ -28,13 +39,26 @@ export interface ClientHandle extends ClientPort {
 
 /** Builds the transport for a server; injectable so tests and builtins can plug in. */
 export interface Connector {
-  connect(server: ServerDef, variant: string, ctx: ClientContext, workdir: string): Promise<{ transport: Transport; pid?: () => number | null | undefined }>;
+  connect(
+    server: ServerDef,
+    variant: string,
+    ctx: ClientContext,
+    workdir: string,
+  ): Promise<{ transport: Transport; pid?: () => number | null | undefined; warnings?: string[] }>;
+  /** Last lines of the server's own log, shown when it keeps failing to start. */
+  logTail?(server: ServerDef, variant: string, lines?: number): string | undefined;
 }
+
+export type Scope = "shared" | "project" | "session";
 
 export interface Instance {
   key: string;
   descKey: string;
+  /** The definition this instance was started with. */
   server: ServerDef;
+  /** Fingerprint of that definition; a reload that changes it retires the instance. */
+  defFp: string;
+  scope: Scope;
   variant: string;
   upstream: Upstream;
   clients: Set<ClientHandle>;
@@ -44,15 +68,27 @@ export interface Instance {
   /** PID the instance belongs to (session scope). */
   pid?: number;
   workdir: string;
+  /** Whether workdir is the session's real folder (not the home fallback). */
+  workdirKnown: boolean;
+  /** resources/subscribe per URI: which clients asked. */
+  subscriptions: Map<string, Set<ClientHandle>>;
+  /** The description relisted right after the start. */
+  described?: Promise<ServerDescription>;
 }
 
 export interface ManagerOptions {
   cache: DescriptionCache;
   connector: Connector;
   home: string;
+  /** The current manifest; the gateway wires it when it is not given here. */
+  manifest?: () => Manifest;
   isAlive?: (pid: number) => boolean;
   now?: () => number;
   log?: (line: string) => void;
+  /** Consecutive start failures before the circuit breaker opens (default 3). */
+  breakerThreshold?: number;
+  /** First backoff once the breaker is open, doubled on each further failure (default 5 s, max 5 min). */
+  breakerBaseMs?: number;
 }
 
 export function processAlive(pid: number): boolean {
@@ -64,14 +100,32 @@ export function processAlive(pid: number): boolean {
   }
 }
 
-/** Git top level of a folder (worktree-specific), else the folder itself. */
-export function projectRoot(cwd: string): string {
+export function isDirectory(p: string): boolean {
   try {
-    return execFileSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-      timeout: 3000,
-    }).trim();
+    return statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** Results of slow lookups, keyed and shared by concurrent callers (a client opens many sessions at once). */
+function memo<K, V>(ttlMs: number, compute: (key: K) => Promise<V>): (key: K, now?: number) => Promise<V> {
+  const cache = new Map<K, { value: Promise<V>; at: number }>();
+  return (key, now = Date.now()) => {
+    const hit = cache.get(key);
+    if (hit && now - hit.at < ttlMs) return hit.value;
+    if (cache.size > 500) cache.clear();
+    const value = compute(key);
+    cache.set(key, { value, at: now });
+    return value;
+  };
+}
+
+/** Git top level of a folder (worktree-specific), else the folder itself. Async, cached for 10 s. */
+export const projectRoot: (cwd: string, now?: number) => Promise<string> = memo(10_000, async (cwd: string) => {
+  try {
+    const { stdout } = await run("git", ["-C", cwd, "rev-parse", "--show-toplevel"], { encoding: "utf8", timeout: 3000 });
+    return stdout.trim() || cwd;
   } catch {
     try {
       return realpathSync(cwd);
@@ -79,13 +133,31 @@ export function projectRoot(cwd: string): string {
       return cwd;
     }
   }
-}
+});
+
+/** Current folder of a process: /proc on Linux, lsof elsewhere. Cached per PID for a minute. */
+export const processCwd: (pid: number, now?: number) => Promise<string | undefined> = memo(60_000, async (pid: number) => {
+  if (existsSync("/proc/self/cwd")) {
+    try {
+      return readlinkSync(`/proc/${pid}/cwd`);
+    } catch {
+      return undefined;
+    }
+  }
+  try {
+    const { stdout } = await run("lsof", ["-a", "-p", String(pid), "-d", "cwd", "-Fn"], { encoding: "utf8", timeout: 3000 });
+    const line = stdout.split("\n").find((l) => l.startsWith("n"));
+    return line ? line.slice(1) : undefined;
+  } catch {
+    return undefined;
+  }
+});
 
 export function variantOf(server: ServerDef, profile: string | undefined): string {
   return server.kind === "stdio" ? variantKey(server, profile) : "default";
 }
 
-export function scopeOf(server: ServerDef): "shared" | "project" | "session" {
+export function scopeOf(server: ServerDef): Scope {
   if (server.kind === "remote") return "shared";
   if (server.builtin) return "session";
   return server.scope;
@@ -97,6 +169,26 @@ export function descriptionFingerprint(server: ServerDef, variant: string): stri
   return fingerprint({ c: launch.command, a: launch.args, e: launch.env, v: variant, p: server.package ?? null, b: server.builtin ?? null });
 }
 
+/** Fingerprint of the whole definition (launch, scope, cwd, exclusive, idle, lease, timeouts), except who gets it. */
+export function definitionFingerprint(server: ServerDef): string {
+  return fingerprint({ ...server, profiles: null });
+}
+
+/** A server that is gone from the manifest (or no longer proxied) while sessions still use it. */
+export class ServerGoneError extends Error {}
+
+interface Breaker {
+  failures: number;
+  until: number;
+  lastError: string;
+}
+
+const LIST_NOTIFICATIONS: [keyof ServerDescription, string][] = [
+  ["tools", "notifications/tools/list_changed"],
+  ["prompts", "notifications/prompts/list_changed"],
+  ["resourceTemplates", "notifications/resources/list_changed"],
+];
+
 /**
  * Owns every running upstream. Starts them lazily, shares or isolates them by scope,
  * hands out exclusive leases, and stops them when their owner dies or they go idle.
@@ -106,23 +198,39 @@ export class InstanceManager {
   private starting = new Map<string, Promise<Instance>>();
   private describing = new Map<string, Promise<ServerDescription>>();
   private clients = new Set<ClientHandle>();
+  private breakers = new Map<string, Breaker>();
+  private manifest?: () => Manifest;
   private readonly isAlive: (pid: number) => boolean;
   private readonly now: () => number;
 
   constructor(private readonly opts: ManagerOptions) {
     this.isAlive = opts.isAlive ?? processAlive;
     this.now = opts.now ?? Date.now;
+    if (opts.manifest) this.manifest = opts.manifest;
+  }
+
+  /** Where definitions come from (the gateway passes its manifest getter). */
+  useManifest(manifest: () => Manifest): void {
+    this.manifest ??= manifest;
   }
 
   register(client: ClientHandle): void {
     this.clients.add(client);
   }
 
-  /** A client session ended: drop it from every instance and release its leases. */
+  /** A client session ended: cancel its calls, drop it from every instance and release its leases. */
   detach(client: ClientHandle): void {
     this.clients.delete(client);
     for (const inst of this.instances.values()) {
-      if (inst.clients.delete(client)) inst.upstream.forgetClient(client);
+      const cancelled = inst.upstream.forgetClient(client);
+      if (cancelled) this.opts.log?.(`cancelled ${cancelled} call(s) of a closed session on ${inst.upstream.label}`);
+      inst.clients.delete(client);
+      for (const [uri, subs] of inst.subscriptions) {
+        if (subs.delete(client) && subs.size === 0) {
+          inst.subscriptions.delete(uri);
+          void inst.upstream.call("resources/unsubscribe", { uri }, undefined, undefined, 30_000);
+        }
+      }
       if (inst.holder === client) {
         delete inst.holder;
         delete inst.holderSince;
@@ -130,32 +238,45 @@ export class InstanceManager {
     }
   }
 
-  keyOf(ctx: ClientContext): { key: string; descKey: string; variant: string; workdir: string; pid?: number } {
-    const s = ctx.server;
+  /** The current definition of the server a session talks to. */
+  serverOf(ctx: ClientContext): ServerDef {
+    const def = this.manifest?.().servers[ctx.serverName];
+    if (!def || (def.kind === "remote" && !def.proxy)) {
+      throw new ServerGoneError(`${ctx.serverName} is no longer served by mcpd (removed from mcp.toml); restart the session to drop it`);
+    }
+    return def;
+  }
+
+  keyOf(ctx: ClientContext): { key: string; descKey: string; variant: string; workdir: string; workdirKnown: boolean; pid?: number; server: ServerDef; scope: Scope; defFp: string } {
+    const s = this.serverOf(ctx);
     const variant = variantOf(s, ctx.profile);
     const descKey = `${s.name}@${variant}`;
     const scope = scopeOf(s);
-    if (scope === "shared") return { key: `${s.name}|${variant}`, descKey, variant, workdir: this.opts.home };
+    const defFp = definitionFingerprint(s);
+    const base = { descKey, variant, server: s, scope, defFp };
+    const head = `${s.name}|${variant}|${defFp}`;
+    if (scope === "shared") return { ...base, key: head, workdir: this.opts.home, workdirKnown: false };
     if (scope === "project") {
-      const root = ctx.cwd ? projectRoot(ctx.cwd) : this.opts.home;
-      return { key: `${s.name}|${variant}|root:${root}`, descKey, variant, workdir: root };
+      const root = ctx.projectRoot ?? ctx.cwd;
+      return { ...base, key: `${head}|root:${root ?? this.opts.home}`, workdir: root ?? this.opts.home, workdirKnown: root !== undefined };
     }
-    const workdir = ctx.cwd && existsSync(ctx.cwd) ? ctx.cwd : this.opts.home;
-    if (ctx.pid) return { key: `${s.name}|${variant}|pid:${ctx.pid}`, descKey, variant, workdir, pid: ctx.pid };
-    return { key: `${s.name}|${variant}|sid:${ctx.sessionId}`, descKey, variant, workdir };
+    const workdir = ctx.cwd ?? this.opts.home;
+    const workdirKnown = ctx.cwd !== undefined;
+    if (ctx.pid) return { ...base, key: `${head}|pid:${ctx.pid}`, workdir, workdirKnown, pid: ctx.pid };
+    return { ...base, key: `${head}|sid:${ctx.sessionId}`, workdir, workdirKnown };
   }
 
   /** Description for initialize and the list methods: cached, else from a (kept) running instance. */
   async describe(client: ClientHandle): Promise<ServerDescription> {
-    const { descKey, variant } = this.keyOf(client.ctx);
-    const fp = descriptionFingerprint(client.ctx.server, variant);
+    const { descKey, variant, server } = this.keyOf(client.ctx);
+    const fp = descriptionFingerprint(server, variant);
     const cached = this.opts.cache.get(descKey, fp);
     if (cached) return cached;
     let p = this.describing.get(descKey);
     if (!p) {
       p = (async () => {
         const inst = await this.instanceFor(client, false);
-        return this.refreshDescription(inst);
+        return inst.described ?? this.relist(inst);
       })();
       this.describing.set(descKey, p);
       p.finally(() => this.describing.delete(descKey)).catch(() => {});
@@ -169,9 +290,10 @@ export class InstanceManager {
     try {
       inst = await this.instanceFor(client, true);
     } catch (err) {
-      return rpcError(ErrorCode.Unavailable, `could not start ${client.ctx.server.name}: ${(err as Error).message}`);
+      if (err instanceof ServerGoneError) return rpcError(ErrorCode.Unavailable, err.message);
+      return rpcError(ErrorCode.Unavailable, `could not start ${client.ctx.serverName}: ${(err as Error).message}`);
     }
-    const s = client.ctx.server;
+    const s = inst.server;
     if (s.kind === "stdio" && s.exclusive) {
       this.expireLease(inst);
       if (inst.holder && inst.holder !== client) {
@@ -190,13 +312,57 @@ export class InstanceManager {
     return inst;
   }
 
+  /**
+   * Relay one client request: start or join the instance, apply the server's call_timeout,
+   * and retry once on a fresh instance when a remote server forgot our session.
+   */
+  async forward(client: ClientHandle, method: string, params: Record<string, unknown> | undefined, originId: Id): Promise<Outcome> {
+    for (let attempt = 0; ; attempt++) {
+      const inst = await this.acquire(client);
+      if ("error" in inst || "result" in inst) return inst as Outcome;
+      const timeout = inst.server.callTimeout ? inst.server.callTimeout * 1000 : undefined;
+      const out = await inst.upstream.call(method, params, client, originId, timeout);
+      if ("error" in out && inst.upstream.sessionLost && attempt === 0) {
+        this.opts.log?.(`${inst.upstream.label}: remote session expired; reconnecting and retrying ${method}`);
+        if (this.instances.get(inst.key) === inst) this.instances.delete(inst.key);
+        continue;
+      }
+      return out;
+    }
+  }
+
+  /** resources/subscribe: one upstream subscription per URI and instance, many client subscribers. */
+  async subscribe(client: ClientHandle, uri: string, originId: Id): Promise<Outcome> {
+    const inst = await this.acquire(client);
+    if ("error" in inst || "result" in inst) return inst as Outcome;
+    let subs = inst.subscriptions.get(uri);
+    if (!subs) {
+      const out = await inst.upstream.call("resources/subscribe", { uri }, client, originId);
+      if ("error" in out) return out;
+      subs = inst.subscriptions.get(uri) ?? new Set();
+      inst.subscriptions.set(uri, subs);
+    }
+    subs.add(client);
+    return { result: {} };
+  }
+
+  async unsubscribe(client: ClientHandle, uri: string, originId: Id): Promise<Outcome> {
+    const inst = this.existing(client);
+    const subs = inst?.subscriptions.get(uri);
+    if (!inst || !subs?.delete(client)) return { result: {} };
+    if (subs.size > 0) return { result: {} };
+    inst.subscriptions.delete(uri);
+    return inst.upstream.call("resources/unsubscribe", { uri }, client, originId);
+  }
+
   /** Instance already serving this client, if any (no start). */
   existing(client: ClientHandle): Instance | undefined {
     const inst = this.instances.get(this.keyOf(client.ctx).key);
     return inst && !inst.upstream.isClosed ? inst : undefined;
   }
 
-  async refreshDescription(inst: Instance): Promise<ServerDescription> {
+  /** List tools, prompts and resource templates again; store them and tell clients what changed. */
+  async relist(inst: Instance, quiet: string[] = []): Promise<ServerDescription> {
     const init = inst.upstream.init;
     if (!init) throw new Error(`${inst.server.name} is not initialized`);
     const caps = init.capabilities;
@@ -209,12 +375,52 @@ export class InstanceManager {
     };
     if (caps.tools) d.tools = await inst.upstream.listAll("tools/list", "tools");
     if (caps.prompts) d.prompts = await inst.upstream.listAll("prompts/list", "prompts");
-    if (caps.resources) {
-      d.resources = await inst.upstream.listAll("resources/list", "resources");
-      d.resourceTemplates = await inst.upstream.listAll("resources/templates/list", "resourceTemplates").catch(() => []);
-    }
+    if (caps.resources) d.resourceTemplates = await inst.upstream.listAll("resources/templates/list", "resourceTemplates").catch(() => []);
+    const prev = this.opts.cache.peek(inst.descKey);
     this.opts.cache.set(inst.descKey, d);
+    if (prev) {
+      const changed = LIST_NOTIFICATIONS.filter(([k, m]) => !quiet.includes(m) && JSON.stringify(prev[k] ?? null) !== JSON.stringify(d[k] ?? null));
+      if (changed.length) {
+        this.opts.log?.(`${inst.upstream.label}: ${changed.map(([k]) => k).join(", ")} changed; notifying clients`);
+        for (const c of this.clientsOf(inst.descKey)) for (const [, m] of changed) c.notify(m, undefined);
+      }
+    }
     return d;
+  }
+
+  /**
+   * `POST /refresh/<server>`: relist running instances (clients get list_changed when it
+   * changed) and forget the cached description of variants that are not running.
+   */
+  async refresh(name: string): Promise<{ refreshed: string[]; forgotten: string[]; errors: Record<string, string> }> {
+    const def = this.manifest?.().servers[name];
+    const variants = def?.kind === "stdio" ? ["default", ...Object.keys(def.variants)] : ["default"];
+    const out = { refreshed: [] as string[], forgotten: [] as string[], errors: {} as Record<string, string> };
+    for (const variant of variants) {
+      const descKey = `${name}@${variant}`;
+      const running = this.list().find((i) => i.descKey === descKey && !i.upstream.isClosed && i.upstream.init);
+      if (running) {
+        try {
+          await this.relist(running);
+          out.refreshed.push(descKey);
+        } catch (err) {
+          out.errors[descKey] = (err as Error).message;
+        }
+      } else if (this.opts.cache.forget(descKey)) {
+        out.forgotten.push(descKey);
+      }
+    }
+    return out;
+  }
+
+  private clientsOf(descKey: string): ClientHandle[] {
+    return [...this.clients].filter((c) => {
+      try {
+        return this.keyOf(c.ctx).descKey === descKey;
+      } catch {
+        return false;
+      }
+    });
   }
 
   private async instanceFor(client: ClientHandle, join: boolean): Promise<Instance> {
@@ -226,7 +432,7 @@ export class InstanceManager {
     }
     let p = this.starting.get(k.key);
     if (!p) {
-      p = this.start(client.ctx, k);
+      p = this.startGuarded(client.ctx, k);
       this.starting.set(k.key, p);
       p.finally(() => this.starting.delete(k.key)).catch(() => {});
     }
@@ -235,45 +441,108 @@ export class InstanceManager {
     return inst;
   }
 
+  /** Circuit breaker: after repeated start failures, answer at once with the log tail and back off. */
+  private async startGuarded(ctx: ClientContext, k: ReturnType<InstanceManager["keyOf"]>): Promise<Instance> {
+    const bkey = `${k.server.name}|${k.variant}|${k.defFp}`;
+    const b = this.breakers.get(bkey);
+    const now = this.now();
+    if (b && b.until > now) throw new Error(this.breakerMessage(k, b, now));
+    try {
+      const inst = await this.start(ctx, k);
+      this.breakers.delete(bkey);
+      return inst;
+    } catch (err) {
+      const message = (err as Error).message;
+      const failures = (b?.failures ?? 0) + 1;
+      const threshold = this.opts.breakerThreshold ?? 3;
+      const base = this.opts.breakerBaseMs ?? 5000;
+      const until = failures >= threshold ? this.now() + Math.min(base * 2 ** (failures - threshold), 5 * 60_000) : 0;
+      this.breakers.set(bkey, { failures, until, lastError: message });
+      if (failures >= threshold) this.opts.log?.(`${k.server.name}: ${failures} failed starts in a row; next try in ${Math.round((until - this.now()) / 1000)}s`);
+      throw err;
+    }
+  }
+
+  private breakerMessage(k: ReturnType<InstanceManager["keyOf"]>, b: Breaker, now: number): string {
+    const tail = this.opts.connector.logTail?.(k.server, k.variant, 10);
+    return (
+      `${k.server.name} failed to start ${b.failures} times in a row (last error: ${b.lastError}); ` +
+      `turno tries again in ${Math.max(1, Math.round((b.until - now) / 1000))}s.` +
+      (tail ? `\nLast lines of its log:\n${tail}` : "")
+    );
+  }
+
+  /** Client capabilities to declare upstream: only what the client behind it can honor. */
+  private upstreamCapabilities(ctx: ClientContext, scope: Scope): Record<string, unknown> {
+    const cc = ctx.clientCapabilities;
+    const caps: Record<string, unknown> = {};
+    // Shared instances serve many folders: there is no single right answer to roots/list.
+    if (scope !== "shared") caps.roots = { listChanged: true };
+    if (cc === undefined) caps.elicitation = { form: {} };
+    else if (cc.elicitation) caps.elicitation = cc.elicitation;
+    if (cc?.sampling) caps.sampling = cc.sampling;
+    return caps;
+  }
+
   private async start(ctx: ClientContext, k: ReturnType<InstanceManager["keyOf"]>): Promise<Instance> {
-    const server = ctx.server;
-    const { transport, pid } = await this.opts.connector.connect(server, k.variant, ctx, k.workdir);
+    const server = k.server;
+    const { transport, pid, warnings } = await this.opts.connector.connect(server, k.variant, ctx, k.workdir);
+    for (const w of warnings ?? []) this.opts.log?.(`warning: ${w}`);
     let inst!: Instance;
     const upstream = new Upstream({
       label: `${server.name}${k.variant === "default" ? "" : `@${k.variant}`}`,
       connect: async () => transport,
-      pid,
+      ...(pid ? { pid } : {}),
+      capabilities: this.upstreamCapabilities(ctx, k.scope),
+      localRoots: () =>
+        inst && inst.scope !== "shared" && inst.workdirKnown
+          ? { roots: [{ uri: pathToFileURL(inst.workdir).href, name: basename(inst.workdir) || inst.workdir }] }
+          : undefined,
+      attached: () => (inst ? [...inst.clients] : []),
       onBroadcast: (method, params) => this.onBroadcast(inst, method, params),
       onClose: (reason) => {
         if (this.instances.get(k.key) === inst) this.instances.delete(k.key);
         this.opts.log?.(`stopped ${inst.upstream.label} (${reason})`);
       },
+      ...(this.opts.log ? { log: this.opts.log } : {}),
     });
     inst = {
       key: k.key,
       descKey: k.descKey,
       server,
+      defFp: k.defFp,
+      scope: k.scope,
       variant: k.variant,
       upstream,
       clients: new Set(),
       workdir: k.workdir,
+      workdirKnown: k.workdirKnown,
+      subscriptions: new Map(),
       ...(k.pid ? { pid: k.pid } : {}),
     };
     await upstream.start();
     this.instances.set(k.key, inst);
     this.opts.log?.(`started ${upstream.label} pid=${upstream.pid ?? "-"} key=${k.key}`);
+    // Every real start relists: a server updated in place (npx, uvx, a new build) shows its new tools.
+    inst.described = this.relist(inst);
+    inst.described.catch((err) => this.opts.log?.(`relist ${upstream.label} failed: ${(err as Error).message}`));
     return inst;
   }
 
   private onBroadcast(inst: Instance, method: string, params: Record<string, unknown> | undefined): void {
+    if (method === "notifications/resources/updated") {
+      const uri = typeof params?.uri === "string" ? params.uri : "";
+      for (const c of inst.subscriptions.get(uri) ?? []) c.notify(method, params);
+      return;
+    }
+    if (method === "notifications/resources/list_changed") {
+      // Resources are not cached: tell this instance's clients, then refresh the templates quietly.
+      for (const c of inst.clients) c.notify(method, params);
+      this.relist(inst, [method]).catch((err) => this.opts.log?.(`refresh ${inst.upstream.label} failed: ${(err as Error).message}`));
+      return;
+    }
     if (method.endsWith("/list_changed")) {
-      this.refreshDescription(inst)
-        .then(() => {
-          for (const c of this.clients) {
-            if (this.keyOf(c.ctx).descKey === inst.descKey) c.notify(method, params);
-          }
-        })
-        .catch((err) => this.opts.log?.(`refresh ${inst.upstream.label} failed: ${(err as Error).message}`));
+      this.relist(inst).catch((err) => this.opts.log?.(`refresh ${inst.upstream.label} failed: ${(err as Error).message}`));
       return;
     }
     for (const c of inst.clients) c.notify(method, params);
@@ -284,14 +553,22 @@ export class InstanceManager {
     if (!inst.holder || s.kind !== "stdio") return;
     const h = inst.holder;
     const dead = h.ctx.pid ? !this.isAlive(h.ctx.pid) : false;
-    const idle = this.now() - h.lastSeen > s.lease * 1000;
+    // A long call keeps the lease: the holder is busy, not idle.
+    const idle = inst.upstream.inflightFor(h) === 0 && this.now() - h.lastSeen > s.lease * 1000;
     if (dead || idle || !this.clients.has(h)) {
       delete inst.holder;
       delete inst.holderSince;
     }
   }
 
-  /** Stop instances whose owner died or that sat idle too long; forget dead clients. */
+  /** Whether an instance still matches the manifest (false once its definition changed or went away). */
+  private current(inst: Instance): boolean {
+    if (!this.manifest) return true;
+    const def = this.manifest().servers[inst.server.name];
+    return def !== undefined && definitionFingerprint(def) === inst.defFp;
+  }
+
+  /** Stop instances whose owner died, whose definition changed, or that sat idle too long; forget dead clients. */
   async reap(): Promise<string[]> {
     const stopped: string[] = [];
     for (const c of [...this.clients]) {
@@ -299,14 +576,17 @@ export class InstanceManager {
     }
     for (const inst of [...this.instances.values()]) {
       this.expireLease(inst);
-      const s = inst.server;
-      const idleLimit = (s.kind === "stdio" ? s.idle : s.idle) * 1000;
-      const ownerDead = inst.pid !== undefined && !this.isAlive(inst.pid);
-      const idle = inst.upstream.inflight === 0 && this.now() - inst.upstream.lastActivity > idleLimit;
-      if (ownerDead || idle) {
+      const quiet = inst.upstream.inflight === 0;
+      const ownerAlive = inst.pid !== undefined && this.isAlive(inst.pid);
+      const ownerDead = inst.pid !== undefined && !ownerAlive;
+      const stale = quiet && !this.current(inst);
+      // A session server lives as long as its session: its state (a browser, a login) is the point.
+      const idleApplies = !(inst.scope === "session" && ownerAlive);
+      const idle = idleApplies && quiet && this.now() - inst.upstream.lastActivity > inst.server.idle * 1000;
+      if (ownerDead || stale || idle) {
         this.instances.delete(inst.key);
         await inst.upstream.close();
-        stopped.push(`${inst.upstream.label}: ${ownerDead ? "owner exited" : "idle"}`);
+        stopped.push(`${inst.upstream.label}: ${ownerDead ? "owner exited" : stale ? "definition changed" : "idle"}`);
       }
     }
     return stopped;
@@ -336,19 +616,25 @@ export class InstanceManager {
 }
 
 /**
- * Resolve a command against an installed package (turno mcp install). A declared package
- * that is not installed yet runs through `npx -y -p <package> <command>` so it still works.
+ * Resolve a command against an installed package (turno mcp install). A declared package that
+ * is not installed still runs through `npx -y -p <package> <command>`, with a warning: `mcp
+ * import` writes `package` and `mcp install` is a separate step, so failing here would break
+ * imported setups (ADR 0016).
  */
 export function resolveCommand(
   server: StdioServer,
   command: string,
   args: string[],
   serversDir: string,
-): { command: string; args: string[] } {
+): { command: string; args: string[]; warning?: string } {
   if (server.package) {
     const local = join(serversDir, server.name, "node_modules", ".bin", command);
     if (existsSync(local)) return { command: local, args };
-    return { command: "npx", args: ["-y", "-p", server.package, command, ...args] };
+    return {
+      command: "npx",
+      args: ["-y", "-p", server.package, command, ...args],
+      warning: `${server.name}: package ${server.package} is not installed, so npx resolves and runs it at every start. Run \`turno mcp install ${server.name}\` to install it once.`,
+    };
   }
   return { command, args };
 }

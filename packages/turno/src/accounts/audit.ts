@@ -3,7 +3,7 @@ import { chmodSync, closeSync, fstatSync, mkdirSync, openSync, readFileSync, rea
 import { dirname } from "node:path";
 import { PRIVATE_FILE_MODE, ensurePrivateDir, paths } from "../core/paths.js";
 
-export type AuditOutcome = "ok" | "error" | "refused";
+export type AuditOutcome = "ok" | "error" | "refused" | "cancelled";
 
 /** One line of ~/.local/state/turno/audit.jsonl: a call to the accounts bridge. */
 export interface AuditEntry {

@@ -176,7 +176,7 @@ describe("gateway entries per agent", () => {
       url: "http://127.0.0.1:47821/mcp/calendar",
       bearer_token_env_var: "TURNO_MCPD_TOKEN",
       http_headers: { "X-Turno-Profile": "cx" },
-      env_http_headers: { "X-Turno-Pid": "TURNO_SESSION_PID", "X-Turno-Cwd": "PWD" },
+      env_http_headers: { "X-Turno-Pid": "TURNO_SESSION_PID", "X-Turno-Cwd-B64": "TURNO_SESSION_CWD_B64" },
     });
   });
 
@@ -226,7 +226,7 @@ describe("syncing MCP entries", () => {
     const cfg = parse(text) as { mcp_servers: Record<string, Record<string, unknown>> };
     expect(Object.keys(cfg.mcp_servers).sort()).toEqual(["calendar", "mine"]);
     expect(cfg.mcp_servers.calendar!.bearer_token_env_var).toBe("TURNO_MCPD_TOKEN");
-    expect(cfg.mcp_servers.calendar!.env_http_headers).toEqual({ "X-Turno-Pid": "TURNO_SESSION_PID", "X-Turno-Cwd": "PWD" });
+    expect(cfg.mcp_servers.calendar!.env_http_headers).toEqual({ "X-Turno-Pid": "TURNO_SESSION_PID", "X-Turno-Cwd-B64": "TURNO_SESSION_CWD_B64" });
     expect(statSync(file).mode & 0o777).toBe(0o600);
 
     const again = syncCodexToml(file, wanted, ["calendar"]);

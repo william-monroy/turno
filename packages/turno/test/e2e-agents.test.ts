@@ -71,7 +71,7 @@ describe("other agents against mcpd", () => {
       url: "http://127.0.0.1:47821/mcp/fx",
       bearer_token_env_var: "TURNO_MCPD_TOKEN",
       http_headers: { "X-Turno-Profile": "cx" },
-      env_http_headers: { "X-Turno-Pid": "TURNO_SESSION_PID", "X-Turno-Cwd": "PWD" },
+      env_http_headers: { "X-Turno-Pid": "TURNO_SESSION_PID", "X-Turno-Cwd-B64": "TURNO_SESSION_CWD_B64" },
     });
     expect(readFileSync(file, "utf8")).not.toContain("secret-token");
     // A fresh profile is logged out: the login is per CODEX_HOME, not the shared Keychain.

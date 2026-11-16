@@ -30,6 +30,12 @@ export const ErrorCode = {
   Unavailable: -32002,
   /** Server-defined: an exclusive server is held by another session. */
   Busy: -32003,
+  /** Server-defined: a server-to-client request could not be tied to one client session. */
+  Ambiguous: -32004,
+  /** Same code the SDK uses for a request that ran out of time. */
+  RequestTimeout: -32001,
+  /** The request was cancelled (by the client, or because the client went away). */
+  RequestCancelled: -32800,
 } as const;
 
 export function toResponse(id: Id, outcome: Outcome): Message {
