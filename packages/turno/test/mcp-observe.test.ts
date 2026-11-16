@@ -12,6 +12,7 @@ import { type CallEvent, type CallRecord, createCallLog, followCalls, readCalls,
 import { type RunningDaemon, readToken, startDaemon } from "../src/mcpd/daemon.js";
 import { ErrorCode } from "../src/mcpd/jsonrpc.js";
 import { RssSampler, parsePs, procfsTable, processTable, treeRss } from "../src/mcpd/rss.js";
+import { profileToken } from "../src/mcpd/tokens.js";
 import { fakeCommand, fakeIo } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 import { waitFor } from "./helpers/wait.js";
@@ -67,7 +68,8 @@ async function daemon(config = ""): Promise<RunningDaemon> {
 async function connect(d: RunningDaemon, headers: Record<string, string> = {}): Promise<Client> {
   const client = new Client({ name: "observer-test", version: "1" }, { capabilities: {} });
   const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${d.port}/mcp/fx`), {
-    requestInit: { headers: { Authorization: `Bearer ${readToken(sb.env)}`, ...headers } },
+    // Sessions authenticate with a profile token (ADR 0023); the master token only opens /status.
+    requestInit: { headers: { Authorization: `Bearer ${profileToken(readToken(sb.env)!, headers["X-Turno-Profile"] ?? "default")}`, ...headers } },
   });
   await client.connect(transport);
   clients.push(client);
