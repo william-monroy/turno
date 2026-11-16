@@ -1,58 +1,118 @@
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { loadConfig } from "../../core/config.js";
+import { ensurePrivateDir, findOnPath } from "../../core/paths.js";
 import { profileFromConfigDir } from "../../core/profiles.js";
 import { type Command, fail } from "../io.js";
 import { checkName } from "./setup.js";
+
+const USAGE = [
+  "Usage: turno open [profile] <url>",
+  "",
+  "claude.ai and claude.com links open in the profile's isolated Google Chrome profile,",
+  'or in the default browser when profiles.<name>.browser = "default". Other links',
+  "always open in the default browser. Only http(s) and mailto links are accepted.",
+  "Claude Code calls this through $BROWSER.",
+].join("\n");
 
 /** claude.ai and claude.com links (and their subdomains) open with the profile's account. */
 export function isClaudeUrl(url: string): boolean {
   return /^https:\/\/([A-Za-z0-9-]+\.)*claude\.(ai|com)\//.test(url);
 }
 
+/**
+ * Links turno hands to the system opener: http(s) and mailto only. `open` and `xdg-open` also
+ * run file paths, file:// URLs and custom schemes, and read a leading `-` as an option.
+ */
+export function isOpenableUrl(url: string): boolean {
+  return !url.startsWith("-") && /^(https?:\/\/[^\s]+|mailto:[^\s]+)$/i.test(url);
+}
+
+/** Chrome executables looked up on PATH on Linux, in order. */
+export const LINUX_CHROMES = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"];
+
 function chromeApp(env: NodeJS.ProcessEnv): string {
   return env.TURNO_CHROME_APP || "/Applications/Google Chrome.app";
 }
 
-/** The `open` invocation for a link: argv for /usr/bin/open. */
-export function openArgs(profile: string | undefined, url: string, env: NodeJS.ProcessEnv = process.env): string[] {
-  if (!isClaudeUrl(url)) return [url];
+/** What to spawn for a link. `detach` is true for a browser started directly (it keeps running). */
+export interface OpenInvocation {
+  command: string;
+  args: string[];
+  detach?: boolean;
+}
+
+/** The Chrome profile a claude.ai link opens in, or undefined for the default browser. */
+function chromeProfile(profile: string | undefined, url: string, env: NodeJS.ProcessEnv): { name: string; dir: string } | undefined {
+  if (!isClaudeUrl(url)) return undefined;
   const config = loadConfig(env);
   const name = profile ?? profileFromConfigDir(env.CLAUDE_CONFIG_DIR, config, env) ?? config.system;
-  if (!name) return [url];
+  if (!name) return undefined;
   checkName(name);
-  if (config.profiles[name]?.browser === "default") return [url];
-  if (!existsSync(chromeApp(env))) return [url];
-  mkdirSync(config.open.chromeDir, { recursive: true });
-  return ["-na", "Google Chrome", "--args", `--user-data-dir=${config.open.chromeDir}`, `--profile-directory=${name}`, url];
+  if (config.profiles[name]?.browser === "default") return undefined;
+  return { name, dir: config.open.chromeDir };
+}
+
+/**
+ * The command that opens `url` on `platform`: `open` on macOS (Chrome through the app bundle),
+ * `xdg-open` on Linux (Chrome found on PATH). Throws a usage error for anything that is not an
+ * http(s) or mailto link, and on other platforms.
+ */
+export function openInvocation(
+  profile: string | undefined,
+  url: string,
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): OpenInvocation {
+  if (!isOpenableUrl(url)) fail(`refusing to open ${JSON.stringify(url)}: only http(s) and mailto links`);
+  if (platform !== "darwin" && platform !== "linux") fail(`turno open supports macOS and Linux, not ${platform}`);
+  const chrome = chromeProfile(profile, url, env);
+  if (platform === "darwin") {
+    if (!chrome || !existsSync(chromeApp(env))) return { command: "open", args: [url] };
+    ensurePrivateDir(chrome.dir, env);
+    return { command: "open", args: ["-na", "Google Chrome", "--args", `--user-data-dir=${chrome.dir}`, `--profile-directory=${chrome.name}`, url] };
+  }
+  const bin = chrome && (env.TURNO_CHROME_BIN || LINUX_CHROMES.map((c) => findOnPath(c, env)).find(Boolean));
+  if (chrome && bin) {
+    ensurePrivateDir(chrome.dir, env);
+    return { command: bin, args: [`--user-data-dir=${chrome.dir}`, `--profile-directory=${chrome.name}`, url], detach: true };
+  }
+  if (!findOnPath("xdg-open", env)) fail("cannot open links: xdg-open is not installed (package xdg-utils)");
+  return { command: "xdg-open", args: [url] };
+}
+
+/** The `open` argv on macOS (kept for callers that only target macOS). */
+export function openArgs(profile: string | undefined, url: string, env: NodeJS.ProcessEnv = process.env): string[] {
+  return openInvocation(profile, url, env, "darwin").args;
 }
 
 export const command: Command = {
   summary: "open a claude.ai link with an account (default: the session's)",
-  usage: [
-    "Usage: turno open [profile] <url>",
-    "",
-    "claude.ai and claude.com links open in the profile's isolated Google Chrome profile,",
-    'or in the default browser when profiles.<name>.browser = "default". Other links',
-    "always open in the default browser. Claude Code calls this through $BROWSER.",
-  ].join("\n"),
+  usage: USAGE,
   async run(args, io) {
-    let profile: string | undefined;
-    let rest = args;
-    if (rest.length >= 2) {
-      profile = rest[0];
-      rest = rest.slice(1);
+    if (args.includes("--help") || args.includes("-h")) {
+      io.out(USAGE);
+      return 0;
     }
-    const url = rest[0];
+    if (args.length > 2) fail("usage: turno open [profile] <url>");
+    const [profile, url] = args.length === 2 ? [args[0], args[1]] : [undefined, args[0]];
     if (!url) fail("usage: turno open [profile] <url>");
-    const argv = openArgs(profile, url, io.env);
+    const inv = openInvocation(profile, url, io.env);
     return new Promise<number>((resolve) => {
-      const child = spawn("open", argv, { stdio: "inherit", env: io.env });
-      child.on("error", (err) => {
-        io.err(`turno: open: ${err.message}`);
+      const child = spawn(inv.command, inv.args, inv.detach ? { stdio: "ignore", env: io.env, detached: true } : { stdio: "inherit", env: io.env });
+      child.on("error", (err: NodeJS.ErrnoException) => {
+        io.err(`turno: open: ${err.code === "ENOENT" ? `${inv.command} not found` : err.message}`);
         resolve(1);
       });
-      child.on("exit", (code) => resolve(code ?? 1));
+      if (inv.detach) {
+        // Chrome either hands the link to a running instance and exits, or becomes the browser.
+        child.on("spawn", () => {
+          child.unref();
+          resolve(0);
+        });
+      } else {
+        child.on("exit", (code) => resolve(code ?? 1));
+      }
     });
   },
 };
