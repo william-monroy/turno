@@ -1,10 +1,10 @@
 import { loadRegistry } from "../../accounts/registry.js";
 import { tildify } from "../../core/paths.js";
-import { JSON_FLAG, bool, parseFlags, printJson } from "../args.js";
+import { DRY_RUN, JSON_FLAG, bool, parseFlags, printJson, str } from "../args.js";
 import { group } from "../group.js";
 import { type Io, fail, paint } from "../io.js";
 import * as accounts from "./accounts.js";
-import { type BrowserModule, dispatch, loadBrowser } from "./browser.js";
+import { type BrowserDeps, type BrowserModule, NOT_INSTALLED, defaultDeps, dispatch } from "./browser.js";
 
 /**
  * Who acts on an outside service for a session: a service account (`linear:work`, run by a
@@ -13,28 +13,26 @@ import { type BrowserModule, dispatch, loadBrowser } from "./browser.js";
  */
 const BROWSER = "browser:";
 
+let deps: BrowserDeps = defaultDeps;
+
 async function browserModule(io: Io): Promise<BrowserModule> {
-  const mod = await loadBrowser();
+  const mod = await deps.load(io);
   if (!mod) {
-    io.err("turno: the browser package (turno-browser) is not installed; browser identities need it");
-    return fail("browser identities are not available");
+    io.err(`turno: ${NOT_INSTALLED}`);
+    return fail("browser identities need turno-browser");
   }
   return mod;
 }
 
-async function onBrowser(mod: BrowserModule, sub: string, args: string[], io: Io): Promise<number> {
-  try {
-    return await dispatch(mod, sub, args, io);
-  } catch (err) {
-    if ((err as Error).name === "IdentityError") return fail((err as Error).message);
-    throw err;
-  }
+/** The first argument that is not a flag or a flag value, without parsing the flags. */
+function firstId(args: string[]): string | undefined {
+  return args.find((a) => !a.startsWith("-"));
 }
 
 async function list(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, JSON_FLAG, 0);
   const reg = loadRegistry(io.env);
-  const mod = await loadBrowser();
+  const mod = await deps.load(io);
   const browsers = mod ? mod.listIdentities(io.env) : [];
   if (bool(p, "json")) {
     printJson(io.out, {
@@ -47,10 +45,14 @@ async function list(args: string[], io: Io): Promise<number> {
     return 0;
   }
   io.out(paint(io, "Service accounts", "1"));
-  accounts.list(io);
+  if (Object.keys(reg.accounts).length === 0 && reg.prefer.length === 0) {
+    io.out("  none yet (turno identity add linear:work --profile work --tools 'mcp__linear__*')");
+  } else {
+    accounts.list(io);
+  }
   io.out("");
   io.out(paint(io, "Browser identities", "1"));
-  if (!mod) io.out("  (the turno-browser package is not installed)");
+  if (!mod) io.out(`  (${NOT_INSTALLED})`);
   else if (!browsers.length) io.out("  none yet (turno identity add browser:<id>)");
   else {
     const w = Math.max(...browsers.map((b) => b.id.length)) + BROWSER.length;
@@ -63,34 +65,41 @@ async function list(args: string[], io: Io): Promise<number> {
 }
 
 async function add(args: string[], io: Io): Promise<number> {
-  const id = args.find((a) => !a.startsWith("-"));
-  if (id?.startsWith(BROWSER)) {
-    if (args.includes("--dry-run")) {
-      io.out(`(dry run) would create browser identity "${id.slice(BROWSER.length)}"`);
-      return 0;
-    }
-    return onBrowser(await browserModule(io), "add", [id.slice(BROWSER.length)], io);
+  if (!firstId(args)?.startsWith(BROWSER)) return accounts.add(args, io);
+  const p = parseFlags(args, DRY_RUN, 1);
+  const id = p.positionals[0]!.slice(BROWSER.length);
+  if (bool(p, "dry-run")) {
+    io.out(`(dry run) would create browser identity "${id}"`);
+    return 0;
   }
-  return accounts.add(args, io);
+  return dispatch(await browserModule(io), "add", [id], io, deps);
 }
 
 async function remove(args: string[], io: Io): Promise<number> {
-  const id = args.find((a) => !a.startsWith("-"));
-  if (id?.startsWith(BROWSER)) {
-    if (args.includes("--dry-run")) {
-      io.out(`(dry run) would delete browser identity "${id.slice(BROWSER.length)}" and its saved logins`);
-      return 0;
-    }
-    return onBrowser(await browserModule(io), "remove", [id.slice(BROWSER.length)], io);
+  if (!firstId(args)?.startsWith(BROWSER)) return accounts.remove(args, io);
+  const p = parseFlags(args, DRY_RUN, 1);
+  const id = p.positionals[0]!.slice(BROWSER.length);
+  if (bool(p, "dry-run")) {
+    io.out(`(dry run) would delete browser identity "${id}" and its saved logins`);
+    return 0;
   }
-  return accounts.remove(args, io);
+  return dispatch(await browserModule(io), "remove", [id], io, deps);
 }
 
 async function login(args: string[], io: Io): Promise<number> {
-  const [id, ...rest] = args;
+  const p = parseFlags(args, { url: { type: "string" } }, 1);
+  const id = p.positionals[0];
   if (!id) return fail("usage: turno identity login browser:<id> [--url <url>]");
-  if (!id.startsWith(BROWSER)) fail(`only browser identities sign in by hand; service accounts sign in through their profile (claude-<profile>)`);
-  return onBrowser(await browserModule(io), "login", [id.slice(BROWSER.length), ...rest], io);
+  if (!id.startsWith(BROWSER)) return fail("only browser identities sign in by hand; service accounts sign in through their profile (claude-<profile>)");
+  const url = str(p, "url");
+  return dispatch(await browserModule(io), "login", [id.slice(BROWSER.length), ...(url !== undefined ? ["--url", url] : [])], io, deps);
+}
+
+/** Swap the turno-browser loader and prompt, for tests. Returns the previous ones. */
+export function setBrowserDeps(next: BrowserDeps): BrowserDeps {
+  const prev = deps;
+  deps = next;
+  return prev;
 }
 
 export const command = group(

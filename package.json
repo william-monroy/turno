@@ -17,6 +17,7 @@
     "changeset": "changeset",
     "version-packages": "changeset version && node scripts/sync-server-json.mjs && pnpm install --lockfile-only",
     "pack:check": "pnpm build && node scripts/pack-check.mjs",
+    "shrinkwrap": "node scripts/shrinkwrap.mjs packages/turno packages/browser",
     "release": "pnpm check && pnpm pack:check && changeset publish",
     "licenses": "node scripts/licenses.mjs --write",
     "hooks": "git config core.hooksPath .githooks"

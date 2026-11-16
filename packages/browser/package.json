@@ -32,6 +32,7 @@
   "files": [
     "dist",
     "!dist/**/*.map",
+    "npm-shrinkwrap.json",
     "LICENSE",
     "NOTICE",
     "README.md",
@@ -41,7 +42,7 @@
     "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/bin/mcp.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "prepack": "pnpm run build && cp ../../LICENSE ../../NOTICE ."
+    "prepack": "pnpm run build && node ../../scripts/shrinkwrap.mjs . && cp ../../LICENSE ../../NOTICE ."
   },
   "dependencies": {
     "patchright-core": "1.64.3"

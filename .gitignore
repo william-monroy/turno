@@ -12,3 +12,6 @@ packages/turno/NOTICE
 packages/browser/LICENSE
 packages/browser/NOTICE
 *.tgz
+
+# Written by scripts/shrinkwrap.mjs when a package is packed (ADR 0019)
+packages/*/npm-shrinkwrap.json

@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 // Check what each package would publish, before any release: the files a user needs are in
-// the tarball, nothing that should stay home is, and no file carries a local path.
+// the tarball, nothing that should stay home is, and no file carries a local path. Published
+// dependencies are exact versions, a package with dependencies ships an npm-shrinkwrap.json
+// that matches pnpm-lock.yaml and the installed tree, and nothing in that tree runs an install
+// script (ADR 0019).
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { homedir } from "node:os";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import { FILE, collectGraph, inexactDependencies, installScripts, shrinkwrapProblems, shrinkwrapText } from "./shrinkwrap.mjs";
 
 const root = new URL("..", import.meta.url).pathname;
 const MAX_BYTES = 20 * 1024 * 1024;
@@ -46,6 +50,52 @@ for (const dir of readdirSync(join(root, "packages"))) {
   }
   if (bytes > MAX_BYTES) fail(pkg.name, `${(bytes / 1e6).toFixed(1)} MB unpacked is over the ${MAX_BYTES / 1e6} MB limit`);
   if (!pkg.license) fail(pkg.name, "no license field");
+  if (!pkg.private) checkTree(cwd, pkg, has);
   console.log(`${failed ? "    " : "ok  "}${pkg.name}@${pkg.version}: ${files.length} files, ${(bytes / 1e6).toFixed(2)} MB${pkg.private ? " (private: not publishable yet)" : ""}`);
 }
 process.exit(failed ? 1 : 0);
+
+/** Exact versions, zero install scripts, and a shrinkwrap that npm itself accepts. */
+function checkTree(cwd, pkg, packed) {
+  for (const d of inexactDependencies(pkg)) fail(pkg.name, `${d} is not an exact version`);
+  for (const s of installScripts(pkg, cwd)) fail(pkg.name, `runs an install script (${s})`);
+  const hasDeps = Object.keys({ ...pkg.dependencies, ...pkg.optionalDependencies }).length > 0;
+  if (!hasDeps) return;
+  if (!packed.has(FILE)) return fail(pkg.name, `${FILE} is not in the tarball (add it to "files")`);
+  const file = join(cwd, FILE);
+  if (!existsSync(file)) return fail(pkg.name, `${FILE} is missing (node scripts/shrinkwrap.mjs packages/<dir>)`);
+  const text = readFileSync(file, "utf8");
+  let graph;
+  try {
+    graph = collectGraph(cwd);
+    if (text !== shrinkwrapText(cwd, readFileSync(join(root, "pnpm-lock.yaml"), "utf8"))) {
+      fail(pkg.name, `${FILE} does not match pnpm-lock.yaml and the installed tree; regenerate it`);
+    }
+  } catch (err) {
+    return fail(pkg.name, `${FILE}: ${err.message}`);
+  }
+  for (const p of shrinkwrapProblems(pkg, JSON.parse(text), graph)) fail(pkg.name, `${FILE}: ${p}`);
+  // npm's own view: every edge of the locked tree resolves to a version in range (offline).
+  const tmp = mkdtempSync(join(tmpdir(), "turno-pack-check-"));
+  try {
+    writeFileSync(join(tmp, "package.json"), JSON.stringify({ name: pkg.name, version: pkg.version, dependencies: pkg.dependencies ?? {} }));
+    writeFileSync(join(tmp, FILE), text);
+    execFileSync("npm", ["ls", "--package-lock-only", "--all", "--offline", "--json"], {
+      cwd: tmp,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, npm_config_logs_max: "0", npm_config_update_notifier: "false" },
+    });
+  } catch (err) {
+    const problems = (() => {
+      try {
+        return JSON.parse(String(err.stdout)).problems ?? [];
+      } catch {
+        return [String(err.stderr || err.message).split("\n")[0]];
+      }
+    })();
+    for (const p of problems) fail(pkg.name, `npm ls on ${FILE}: ${p}`);
+    if (!problems.length) fail(pkg.name, `npm ls on ${FILE} failed`);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+}

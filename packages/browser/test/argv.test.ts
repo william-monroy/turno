@@ -69,4 +69,31 @@ describe("buildArgv", () => {
     expect(() => extractIdentity(["--identity", "../etc"])).toThrow(/invalid identity/);
     expect(() => extractIdentity(["--identity", "School"])).toThrow(/invalid identity/);
   });
+
+  it("refuses to serve a signed-in identity over HTTP without an explicit opt-in", () => {
+    expect(() => buildArgv(["--identity", "school", "--port", "8931"], { env: sb.env })).toThrow(/--allow-http-identity/);
+    expect(() => buildArgv(["--identity=school", "--port=8931"], { env: sb.env })).toThrow(/--allow-http-identity/);
+    expect(() => buildArgv(["--identity", "school", "--host", "127.0.0.1"], { env: sb.env })).toThrow(/--allow-http-identity/);
+  });
+
+  it("with --allow-http-identity binds to 127.0.0.1 only and drops the turno flag", () => {
+    const b = buildArgv(["--identity", "school", "--port", "8931", "--allow-http-identity"], { env: sb.env });
+    expect(b.args).not.toContain("--allow-http-identity");
+    expect(b.args.slice(0, 4)).toEqual(["--port", "8931", "--host", "127.0.0.1"]);
+    const local = buildArgv(["--identity", "school", "--port", "8931", "--host", "localhost", "--allow-http-identity"], { env: sb.env });
+    expect(local.args.filter((a) => a === "--host")).toHaveLength(1);
+  });
+
+  it("never serves an identity on a public address or with the host check off", () => {
+    const opt = ["--identity", "school", "--port", "8931", "--allow-http-identity"];
+    expect(() => buildArgv([...opt, "--host", "0.0.0.0"], { env: sb.env })).toThrow(/loopback/);
+    expect(() => buildArgv([...opt, "--host=192.168.1.5"], { env: sb.env })).toThrow(/loopback/);
+    expect(() => buildArgv([...opt, "--allowed-hosts", "*"], { env: sb.env })).toThrow(/allowed-hosts/);
+  });
+
+  it("keeps --port without an identity (temporary profile, nothing signed in)", () => {
+    const b = buildArgv(["--port", "8931"], { env: sb.env, makeTempDir: fakeTemp });
+    expect(b.args.slice(0, 2)).toEqual(["--port", "8931"]);
+    expect(() => buildArgv(["--port", "8931", "--allow-http-identity"], { env: sb.env, makeTempDir: fakeTemp })).toThrow(/only with --identity/);
+  });
 });

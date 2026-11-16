@@ -7,9 +7,21 @@ import { mcpEntryPath } from "../patchright.js";
 /**
  * turno-browser-mcp [--identity <id>] [playwright-mcp flags]
  *
- * Runs the Patchright build of the Playwright MCP program in this process with stealth
- * defaults (ADR 0005). Speaks MCP over stdio unless `--port` is given.
+ * Runs the Patchright build of the Playwright MCP program in this process with the defaults of
+ * ADR 0005. Speaks MCP over stdio; `--port` with `--identity` needs `--allow-http-identity`.
  */
+
+const HELP = `turno-browser-mcp: a browser MCP server that drives your installed Chrome, with one
+persistent profile per identity (turno identity add browser:<id>).
+
+  --identity <id>          use the identity's saved profile (served one session at a time by mcpd)
+  --allow-http-identity    allow --port or --host together with --identity; the server then
+                           binds to 127.0.0.1 only. Any local process can use that browser.
+
+Every other flag goes to the Playwright MCP program:
+`;
+
+if (process.argv.includes("--help") || process.argv.includes("-h")) process.stdout.write(`${HELP}\n`);
 
 let built: BuiltArgv;
 try {
