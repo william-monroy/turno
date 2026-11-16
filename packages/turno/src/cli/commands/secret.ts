@@ -1,19 +1,18 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { storeKeychainSecret } from "../../core/secrets.js";
 import { readFileSync } from "node:fs";
 import { paths, tildify } from "../../core/paths.js";
+import { SecretError, type SecretStore, requireSecretStore } from "../../core/secrets.js";
 import { type Command, type Io, fail } from "../io.js";
 
-const run = promisify(execFile);
-
 const USAGE = `Usage:
-  turno secret set <service>     read a value from stdin and store it in the Keychain
-  turno secret has <service>     exit 0 when the Keychain item exists
-  turno secret rm <service>      delete the Keychain item
+  turno secret set <service>     read a value from stdin and store it
+  turno secret has <service>     exit 0 when the item exists
+  turno secret rm <service>      delete the item
   turno secret list [--json]     every keychain: reference in mcp.toml and whether it is stored
 
-Reference it in mcp.toml as "keychain:<service>". Values are never printed.`;
+Reference it in mcp.toml as "keychain:<service>". Values are never printed and never passed
+as a command argument. The store is the login Keychain on macOS and the Secret Service
+(libsecret's secret-tool, attributes service=turno account=<service>) on Linux. Without
+either, use "env:NAME" references.`;
 
 async function readStdin(): Promise<string> {
   if (process.stdin.isTTY) {
@@ -47,13 +46,12 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString("utf8").replace(/\r?\n$/, "");
 }
 
-async function exists(service: string): Promise<boolean> {
+/** The store, with its SecretError turned into a one-line usage error. */
+function store(io: Io): SecretStore {
   try {
-    // Without -w: this reads the item's attributes, never its value.
-    await run("security", ["find-generic-password", "-s", service], { timeout: 10_000 });
-    return true;
-  } catch {
-    return false;
+    return requireSecretStore(io.env);
+  } catch (err) {
+    return fail((err as Error).message);
   }
 }
 
@@ -71,7 +69,8 @@ async function list(args: string[], io: Io): Promise<number> {
     text = "";
   }
   const refs = keychainRefs(text);
-  const found = await Promise.all(refs.map((r) => exists(r)));
+  const s = refs.length ? store(io) : undefined;
+  const found = s ? await Promise.all(refs.map((r) => s.has(r))) : [];
   if (json) {
     io.out(JSON.stringify(refs.map((r, i) => ({ service: r, stored: found[i] })), null, 2));
     return 0;
@@ -82,36 +81,47 @@ async function list(args: string[], io: Io): Promise<number> {
 }
 
 export const command: Command = {
-  summary: "store MCP secrets in the macOS Keychain",
+  summary: "store MCP secrets in the Keychain (macOS) or the Secret Service (Linux)",
   usage: USAGE,
   subcommands: { set: { args: ["any"] }, has: { args: ["any"] }, rm: { args: ["any"] }, list: { flags: ["--json"] } },
   async run(args, io) {
     const [sub, service] = args;
+    if (sub === "--help" || sub === "-h" || sub === "help") {
+      io.out(USAGE);
+      return 0;
+    }
     if (sub === "list" || sub === undefined) return list(args.slice(1), io);
     if (!service) return fail(USAGE);
-    switch (sub) {
-      case "set": {
-        const value = await readStdin();
-        if (!value) return fail("empty value");
-        await storeKeychainSecret(service, value);
-        io.out(`stored keychain:${service}`);
-        return 0;
-      }
-      case "has":
-        try {
-          await run("security", ["find-generic-password", "-s", service], { timeout: 10_000 });
-          io.out(`keychain:${service} exists`);
+    try {
+      switch (sub) {
+        case "set": {
+          const s = store(io);
+          const value = await readStdin();
+          if (!value) return fail("empty value");
+          await s.set(service, value);
+          io.out(`stored keychain:${service}`);
           return 0;
-        } catch {
+        }
+        case "has":
+          if (await store(io).has(service)) {
+            io.out(`keychain:${service} exists`);
+            return 0;
+          }
           io.out(`keychain:${service} not found`);
           return 1;
-        }
-      case "rm":
-        await run("security", ["delete-generic-password", "-s", service], { timeout: 10_000 });
-        io.out(`removed keychain:${service}`);
-        return 0;
-      default:
-        return fail(USAGE);
+        case "rm":
+          if (!(await store(io).remove(service))) {
+            io.out(`keychain:${service} not found`);
+            return 1;
+          }
+          io.out(`removed keychain:${service}`);
+          return 0;
+        default:
+          return fail(USAGE);
+      }
+    } catch (err) {
+      if (err instanceof SecretError) return fail(err.message);
+      throw err;
     }
   },
 };
