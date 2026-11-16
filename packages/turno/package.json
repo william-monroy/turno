@@ -38,6 +38,7 @@
   "files": [
     "dist",
     "!dist/**/*.map",
+    "npm-shrinkwrap.json",
     "CHANGELOG.md",
     "README.md",
     "LICENSE",
@@ -48,18 +49,16 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:e2e": "TURNO_E2E_NETWORK=1 vitest run test/e2e-*.test.ts",
-    "prepack": "pnpm run build && node ../../scripts/readme-for-npm.mjs README.md && cp ../../LICENSE ../../NOTICE ."
+    "prepack": "pnpm run build && node ../../scripts/shrinkwrap.mjs . && node ../../scripts/readme-for-npm.mjs README.md && cp ../../LICENSE ../../NOTICE ."
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
     "smol-toml": "1.9.1"
   },
-  "optionalDependencies": {
-    "turno-browser": "workspace:^",
-    "turno-fonts": "workspace:^"
-  },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "turno-browser": "workspace:*",
+    "turno-fonts": "workspace:*",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"
   },

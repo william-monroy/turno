@@ -23,9 +23,10 @@ everything back:
    your user font folder: `~/Library/Fonts` on macOS, `~/.local/share/fonts` on Linux, where it also runs
    `fc-cache`. No admin password is needed. Every file is checked against its pinned SHA-256
    before it is written. A file with the same name and other contents is left alone unless you
-   pass `--force`. Without the `turno-fonts` package the same files are downloaded from the
+   pass `--force`. A normal install of `turno-cli` downloads the files from the
    [Nerd Fonts v3.4.0 tag](https://github.com/ryanoasis/nerd-fonts/tree/v3.4.0/patched-fonts/Meslo/S)
-   and checked against the same checksums.
+   and checks them against those checksums; with the separate `turno-fonts` package installed
+   next to turno (for offline machines), the bundled copies are used instead.
 2. **Status line.** It sets `statusLine` in the hub `~/.claude/settings.json`. Every profile
    links to that file, so one change covers them all. The command is the `turno` on your PATH;
    without one it is the path of the running copy, and `ui install` warns that such a path breaks

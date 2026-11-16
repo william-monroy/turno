@@ -38,7 +38,7 @@ describe("bundled font", () => {
     }
   });
 
-  it("is found through the optional package", async () => {
+  it("is found through turno-fonts when that package is installed", async () => {
     const s = await fontSource();
     expect(s.dir).toBe(fontsPkg.fontsDir);
   });

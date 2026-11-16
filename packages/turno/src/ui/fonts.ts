@@ -22,7 +22,10 @@ export interface FontSource {
 
 const NF = "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/v3.4.0/patched-fonts/Meslo/S/";
 
-/** Same values as turno-fonts, for an install without that optional package. */
+/**
+ * Same values as turno-fonts. turno-cli does not depend on that package (ADR 0019), so a normal
+ * install downloads these files and checks each one against its pinned SHA-256.
+ */
 export const FALLBACK: FontSource = {
   family: "MesloLGS Nerd Font",
   version: "3.4.0",
