@@ -25,19 +25,23 @@ import { paths } from "../core/paths.js";
 import { keychainResolver } from "../core/secrets.js";
 import { packageInfo } from "../core/version.js";
 import { DescriptionCache } from "./cache.js";
+import { createCallLog } from "./calllog.js";
 import { type BuiltinFactory, DefaultConnector } from "./connectors.js";
 import { Gateway, type GatewayOptions } from "./gateway.js";
 import { InstanceManager, descriptionFingerprint, processAlive } from "./instances.js";
 import { describeOwner, peerPid, portOwner } from "./peerpid.js";
+import { RssSampler } from "./rss.js";
 
 /** Files mcpd keeps in the state folder besides `mcpd.token` and `mcpd.port`. */
-export function daemonFiles(env: NodeJS.ProcessEnv = process.env): { lock: string; lastGood: string; error: string; log: string } {
+export function daemonFiles(env: NodeJS.ProcessEnv = process.env): { lock: string; lastGood: string; error: string; log: string; calls: string; rss: string } {
   const p = paths(env);
   return {
     lock: join(p.state, "mcpd.lock"),
     lastGood: join(p.state, "mcp.last-good.toml"),
     error: join(p.state, "mcpd.error.json"),
     log: join(p.logsDir, "mcpd.log"),
+    calls: join(p.logsDir, "calls.jsonl"),
+    rss: join(p.state, "mcpd-rss.json"),
   };
 }
 
@@ -512,6 +516,8 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
   let port = 0;
   try {
     const token = ensureToken(env, (m) => log(m));
+    const calls = config.mcpd.callLog ? createCallLog(files.calls, { onError: (m) => log(m) }) : undefined;
+    const sampler = new RssSampler(files.rss, { env });
     const manager = new InstanceManager({
       cache: new DescriptionCache(p.mcpdCacheDir),
       connector: new DefaultConnector({
@@ -525,6 +531,7 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
       }),
       home: p.home,
       log,
+      ...(calls ? { onCall: (e) => calls.record(e) } : {}),
     });
     const gwOpts: GatewayOptions = { manager, manifest: () => state.manifest, token, peerPid: (rp) => peerPid(rp), log };
     const gateway = new DaemonGateway(gwOpts, () => ({
@@ -533,6 +540,8 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
       startedAt,
       manifest: { source: state.source, servers: Object.keys(state.manifest.servers).length, error: state.error ?? null },
       config: { error: configError ?? null },
+      callLog: { enabled: Boolean(calls) },
+      serverRss: sampler.samples(),
     }));
 
     try {
@@ -605,6 +614,7 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
         .reap()
         .then((stopped) => stopped.forEach((s) => log(`reaped ${s}`)))
         .catch((err) => log(`reap failed: ${(err as Error).message}`));
+      void sampler.sample(manager.list().map((i) => ({ descKey: i.descKey, pid: i.upstream.pid })));
     }, 15_000);
     timer.unref();
 
@@ -624,6 +634,7 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
         await manager.stopAll();
         await gateway.close();
         releaseLock(env, port);
+        calls?.close();
         log("mcpd stopped");
         await log.close();
       },

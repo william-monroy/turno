@@ -9,6 +9,7 @@ import { effectiveLaunch, variantKey } from "../core/manifest.js";
 import type { SecretResolver } from "../core/secrets.js";
 import { resolveRecord } from "../core/secrets.js";
 import { type DescriptionCache, type ServerDescription, fingerprint } from "./cache.js";
+import type { CallEvent } from "./calllog.js";
 import { ErrorCode, type Id, rpcError, type Outcome } from "./jsonrpc.js";
 import { type ClientPort, Upstream } from "./upstream.js";
 
@@ -30,6 +31,8 @@ export interface ClientContext {
   sessionId: string;
   /** What the downstream client declared in initialize (elicitation, roots, ...). Unknown when undefined. */
   clientCapabilities?: Record<string, unknown>;
+  /** The client's name from initialize (clientInfo.name), for the call log. */
+  clientName?: string;
 }
 
 export interface ClientHandle extends ClientPort {
@@ -89,6 +92,8 @@ export interface ManagerOptions {
   breakerThreshold?: number;
   /** First backoff once the breaker is open, doubled on each further failure (default 5 s, max 5 min). */
   breakerBaseMs?: number;
+  /** Called after every relayed request settles (the call log, ADR 0026). Must not throw. */
+  onCall?: (event: CallEvent) => void;
 }
 
 export function processAlive(pid: number): boolean {
@@ -199,6 +204,8 @@ export class InstanceManager {
   private describing = new Map<string, Promise<ServerDescription>>();
   private clients = new Set<ClientHandle>();
   private breakers = new Map<string, Breaker>();
+  /** Starts per instance key since mcpd started; more than one means restarts. */
+  private starts = new Map<string, number>();
   private manifest?: () => Manifest;
   private readonly isAlive: (pid: number) => boolean;
   private readonly now: () => number;
@@ -317,9 +324,21 @@ export class InstanceManager {
    * and retry once on a fresh instance when a remote server forgot our session.
    */
   async forward(client: ClientHandle, method: string, params: Record<string, unknown> | undefined, originId: Id): Promise<Outcome> {
+    const startedAt = Date.now();
+    const t0 = performance.now();
+    let variant: string | undefined;
+    const done = (outcome: Outcome): Outcome => {
+      try {
+        this.opts.onCall?.({ ctx: client.ctx, method, params, ...(variant ? { variant } : {}), outcome, startedAt, durationMs: performance.now() - t0 });
+      } catch {
+        /* observing a call never fails it */
+      }
+      return outcome;
+    };
     for (let attempt = 0; ; attempt++) {
       const inst = await this.acquire(client);
-      if ("error" in inst || "result" in inst) return inst as Outcome;
+      if ("error" in inst || "result" in inst) return done(inst as Outcome);
+      variant = inst.variant;
       const timeout = inst.server.callTimeout ? inst.server.callTimeout * 1000 : undefined;
       const out = await inst.upstream.call(method, params, client, originId, timeout);
       if ("error" in out && inst.upstream.sessionLost && attempt === 0) {
@@ -327,7 +346,7 @@ export class InstanceManager {
         if (this.instances.get(inst.key) === inst) this.instances.delete(inst.key);
         continue;
       }
-      return out;
+      return done(out);
     }
   }
 
@@ -522,6 +541,7 @@ export class InstanceManager {
     };
     await upstream.start();
     this.instances.set(k.key, inst);
+    this.starts.set(k.key, (this.starts.get(k.key) ?? 0) + 1);
     this.opts.log?.(`started ${upstream.label} pid=${upstream.pid ?? "-"} key=${k.key}`);
     // Every real start relists: a server updated in place (npx, uvx, a new build) shows its new tools.
     inst.described = this.relist(inst);
@@ -585,6 +605,8 @@ export class InstanceManager {
       const idle = idleApplies && quiet && this.now() - inst.upstream.lastActivity > inst.server.idle * 1000;
       if (ownerDead || stale || idle) {
         this.instances.delete(inst.key);
+        // That key never comes back (dead PID, old definition): forget its start count.
+        if (ownerDead || stale) this.starts.delete(inst.key);
         await inst.upstream.close();
         stopped.push(`${inst.upstream.label}: ${ownerDead ? "owner exited" : stale ? "definition changed" : "idle"}`);
       }
@@ -594,6 +616,11 @@ export class InstanceManager {
 
   list(): Instance[] {
     return [...this.instances.values()];
+  }
+
+  /** How many times the instance under `key` started again after its first start. */
+  restarts(key: string): number {
+    return Math.max(0, (this.starts.get(key) ?? 0) - 1);
   }
 
   clientCount(): number {

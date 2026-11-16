@@ -27,6 +27,7 @@ const KEYS: Record<string, string> = {
   update_check: "true or false: look for new turno releases once a day",
   "open.chrome_dir": "folder of the isolated Chrome profiles",
   "mcpd.port": "port of the MCP gateway",
+  "mcpd.call_log": "true or false: keep the log of tool calls (turno mcp log)",
   "profiles.<name>.color": "status line pill color",
   "profiles.<name>.browser": "chrome or default",
 };
