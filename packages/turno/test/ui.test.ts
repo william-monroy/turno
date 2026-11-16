@@ -48,19 +48,19 @@ describe("installFonts", () => {
   it("copies, keeps what is there, and skips a different file unless forced", async () => {
     const dir = join(sb.home, "fonts");
     const source = await fontSource();
-    const dry = await installFonts(source, { dir, dryRun: true });
+    const dry = await installFonts(source, { env: sb.env, dir, dryRun: true });
     expect(dry.map((r) => r.action)).toEqual(["copied", "copied", "copied", "copied"]);
     expect(() => readdirSync(dir)).toThrow();
 
-    const first = await installFonts(source, { dir });
+    const first = await installFonts(source, { env: sb.env, dir });
     expect(first.every((r) => r.action === "copied")).toBe(true);
     expect(checkFonts(source, dir).every((c) => c.state === "installed")).toBe(true);
-    expect((await installFonts(source, { dir })).every((r) => r.action === "kept")).toBe(true);
+    expect((await installFonts(source, { env: sb.env, dir })).every((r) => r.action === "kept")).toBe(true);
 
     writeFileSync(join(dir, "MesloLGSNerdFont-Bold.ttf"), "something else");
-    const again = await installFonts(source, { dir });
+    const again = await installFonts(source, { env: sb.env, dir });
     expect(again.find((r) => r.file === "MesloLGSNerdFont-Bold.ttf")?.action).toBe("skipped");
-    const forced = await installFonts(source, { dir, force: true });
+    const forced = await installFonts(source, { env: sb.env, dir, force: true });
     expect(forced.find((r) => r.file === "MesloLGSNerdFont-Bold.ttf")?.action).toBe("copied");
     expect(readdirSync(dir).filter((f) => f.endsWith(".tmp"))).toEqual([]);
   });
@@ -74,13 +74,22 @@ describe("installFonts", () => {
       const f = FALLBACK.files.find((x) => x.url === url)!;
       return new Response(readFileSync(join(fontsPkg.fontsDir, f.file)));
     }) as unknown as typeof fetch;
-    const res = await installFonts(good, { dir, fetch: fetchOk });
+    const res = await installFonts(good, { env: sb.env, dir, fetch: fetchOk });
     expect(res.every((r) => r.action === "downloaded")).toBe(true);
     expect(urls[0]).toBe("https://raw.githubusercontent.com/ryanoasis/nerd-fonts/v3.4.0/patched-fonts/Meslo/S/Regular/MesloLGSNerdFont-Regular.ttf");
 
     const bad = (async () => new Response("not a font")) as unknown as typeof fetch;
-    await expect(installFonts(good, { dir: join(sb.home, "bad"), fetch: bad })).rejects.toThrow(/checksum mismatch/);
+    await expect(installFonts(good, { env: sb.env, dir: join(sb.home, "bad"), fetch: bad })).rejects.toThrow(/checksum mismatch/);
     expect(() => readdirSync(join(sb.home, "bad"))).toThrow();
+  });
+});
+
+describe("installFonts on Linux", () => {
+  it("runs fc-cache with the install env, so its cache lands under that HOME", async () => {
+    fakeCommand(sb, "fc-cache", 'mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/fontconfig" && echo "$HOME" > "${XDG_CACHE_HOME:-$HOME/.cache}/fontconfig/seen"');
+    const dir = join(sb.home, ".local/share/fonts");
+    await installFonts(await fontSource(), { dir, platform: "linux", env: sb.env });
+    expect(readFileSync(join(sb.home, ".cache/fontconfig/seen"), "utf8").trim()).toBe(sb.home);
   });
 });
 

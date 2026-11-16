@@ -138,8 +138,10 @@ export async function installFonts(source: FontSource, opts: InstallOptions): Pr
   }
   const wrote = results.some((r) => r.action === "copied" || r.action === "downloaded");
   if (wrote && !opts.dryRun && (opts.platform ?? process.platform) === "linux") {
-    const fc = findOnPath("fc-cache", opts.env ?? process.env);
-    if (fc) execFileSync(fc, ["-f", opts.dir], { stdio: "ignore" });
+    const env = opts.env ?? process.env;
+    const fc = findOnPath("fc-cache", env);
+    // The same env as the rest of the install: fontconfig writes its cache under HOME or XDG_CACHE_HOME.
+    if (fc) execFileSync(fc, ["-f", opts.dir], { stdio: "ignore", env });
   }
   return results;
 }
