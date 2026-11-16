@@ -73,4 +73,24 @@ describe("turno-browser-mcp", () => {
     }
     expect(status).toBe(2);
   });
+
+  it("refuses to serve an identity over HTTP without --allow-http-identity", () => {
+    let status = 0;
+    let stderr = "";
+    try {
+      execFileSync(process.execPath, [bin, "--identity", "school", "--port", "0"], { env: sb.env, stdio: "pipe" });
+    } catch (err) {
+      status = (err as { status: number }).status;
+      stderr = String((err as { stderr: Buffer }).stderr);
+    }
+    expect(status).toBe(2);
+    expect(stderr).toMatch(/--allow-http-identity/);
+    expect(existsSync(join(sb.home, ".local", "share", "turno", "browser", "identities", "school"))).toBe(false);
+  });
+
+  it("describes the turno flags in --help", () => {
+    const out = execFileSync(process.execPath, [bin, "--help"], { env: sb.env, encoding: "utf8" });
+    expect(out).toMatch(/--allow-http-identity/);
+    expect(out).toMatch(/--identity <id>/);
+  });
 });
