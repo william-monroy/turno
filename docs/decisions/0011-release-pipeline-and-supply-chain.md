@@ -26,8 +26,9 @@ and npm 12 and pnpm 11+ add install-time defenses. Node 20 reached end of life o
   by full SHA, `persist-credentials: false`, Harden-Runner in audit mode, no
   `pull_request_target`. zizmor (pedantic persona) and OpenSSF Scorecard run in CI.
 - Node policy: all LTS lines at release time (22, 24, 26 today); `engines` `>=22.11`.
-- pnpm: `minimumReleaseAge` of three days (own packages excluded), `trustPolicy:
-  no-downgrade`, `engineStrict`. Dependabot groups updates weekly with a three-day cooldown.
+- pnpm: `minimumReleaseAge` of three days, `trustPolicy: no-downgrade`, `engineStrict`. The
+  workspace packages need no exclusion: they are linked with `workspace:`, not downloaded.
+  Dependabot groups updates weekly with a seven-day cooldown (`.github/dependabot.yml`).
 - Commit rules are enforced by a 40-line script (`scripts/commit-msg.mjs`) installed as a
   `commit-msg` hook with `pnpm hooks` (`core.hooksPath`), and run on pull request titles in CI.
   This replaces commitlint plus lefthook: no extra dependencies, no install script, and the

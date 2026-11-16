@@ -2,12 +2,10 @@ packages:
   - packages/*
 
 # Supply-chain settings (https://pnpm.io/supply-chain-security). pnpm rejects unknown keys.
-# Wait three days before installing a newly published version (minutes).
+# Wait three days before installing a newly published version (minutes). The workspace's own
+# packages (turno-cli, turno-browser, turno-fonts) are linked with workspace:, never downloaded,
+# so they need no minimumReleaseAgeExclude entry.
 minimumReleaseAge: 4320
-minimumReleaseAgeExclude:
-  - turno
-  - turno-browser
-  - turno-fonts
 # Fail when a package that had provenance loses it in a newer version.
 trustPolicy: no-downgrade
 # Refuse to install on a Node version outside "engines".
