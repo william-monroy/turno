@@ -51,7 +51,9 @@ async function values(kind: ArgKind | string[], env: NodeJS.ProcessEnv): Promise
       return ["last", ...listJournals(env).filter((j) => j.manifest).map((j) => j.stamp)];
     case "key": {
       const { CONFIG_KEYS } = await import("./config.js");
-      return CONFIG_KEYS.flatMap((k) => (k.includes("<name>") ? profiles().map((p) => k.replace("<name>", p)) : [k]));
+      return CONFIG_KEYS.flatMap((k) =>
+        k.includes("<name>") ? profiles().map((p) => k.replace("<name>", p)) : k.includes("<agent>") ? ["codex", "copilot", "cursor"].map((a) => k.replace("<agent>", a)) : [k],
+      );
     }
     case "shell":
       return ["zsh", "bash", "fish"];

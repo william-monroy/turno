@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { parse } from "smol-toml";
 import { type AgentId, AGENT_IDS, isAgentId } from "../agents/index.js";
-import { expandHome, paths } from "./paths.js";
+import { distance } from "../cli/io.js";
+import { expandHome, paths, tildify } from "./paths.js";
 
 export type BrowserMode = "chrome" | "default";
 
@@ -26,7 +27,10 @@ export interface ProjectRule {
 }
 
 export interface Config {
-  /** Profile that the plain `claude` command (hub config dir) is logged into. */
+  /**
+   * Profile that the plain `claude` command (hub config dir) is logged into. An empty string
+   * means "no default account": `turno auto` refuses to start an agent outside a folder rule.
+   */
   system?: string;
   /** Profile for folders without a rule. */
   default?: string;
@@ -43,6 +47,46 @@ export interface Config {
   projects: ProjectRule[];
   open: { chromeDir: string };
   mcpd: { port: number };
+  /** Keys turno does not know (likely typos), with a suggestion when one is close. */
+  warnings?: string[];
+}
+
+/** Every key config.toml may hold, by table ("" is the top level; `*` stands for any name). */
+export const KNOWN_KEYS: Record<string, readonly string[]> = {
+  "": ["system", "default", "fallback", "icons", "nerd_terminals", "update_check", "profiles", "agents", "projects", "open", "mcpd"],
+  "profiles.*": ["agent", "browser", "color"],
+  "agents.*": ["default", "fallback"],
+  "projects[]": ["path", "profile"],
+  open: ["chrome_dir"],
+  mcpd: ["port"],
+};
+
+/** The known key closest to `key`, when it is a likely typo (or `colour` for `color`). */
+export function suggestKey(key: string, known: readonly string[]): string | undefined {
+  let best: { k: string; d: number } | undefined;
+  for (const k of known) {
+    const d = distance(key, k);
+    if (d <= Math.max(1, Math.min(3, Math.floor(k.length / 3))) && (!best || d < best.d)) best = { k, d };
+  }
+  return best?.k;
+}
+
+function unknownKeys(table: Record<string, unknown>, known: readonly string[], prefix: string, warnings: string[]): void {
+  for (const key of Object.keys(table)) {
+    if (known.includes(key)) continue;
+    const near = suggestKey(key, known);
+    warnings.push(`unknown key ${prefix}${key}${near ? ` (did you mean ${prefix}${near}?)` : ""}; turno ignores it`);
+  }
+}
+
+/** A friendlier text for TOML syntax errors that smol-toml words in parser terms. */
+function tomlMessage(message: string): string {
+  const head = message.split("\n", 1)[0]!.replace(/^Invalid TOML document: /, "");
+  const pos = /\n(\d+):/.exec(message);
+  if (/control characters are not allowed in strings|unterminated string/i.test(head)) {
+    return `line ${pos?.[1] ?? "?"}: a string is not closed (a " is missing at the end of the value)`;
+  }
+  return message;
 }
 
 export class ConfigError extends Error {
@@ -64,13 +108,22 @@ function str(v: unknown, file: string, key: string): string | undefined {
   return v;
 }
 
-export function parseConfig(text: string, file = "config.toml", env: NodeJS.ProcessEnv = process.env): Config {
+function table(v: unknown, file: string, key: string): Record<string, unknown> {
+  if (v === undefined) return {};
+  if (typeof v !== "object" || v === null || Array.isArray(v)) throw new ConfigError(file, `[${key}] must be a table`);
+  return v as Record<string, unknown>;
+}
+
+export function parseConfig(text: string, path = "config.toml", env: NodeJS.ProcessEnv = process.env): Config {
+  const file = tildify(path, env);
   let raw: Record<string, unknown>;
   try {
     raw = parse(text) as Record<string, unknown>;
   } catch (err) {
-    throw new ConfigError(file, (err as Error).message);
+    throw new ConfigError(file, tomlMessage((err as Error).message));
   }
+  const warnings: string[] = [];
+  unknownKeys(raw, KNOWN_KEYS[""]!, "", warnings);
   const p = paths(env);
   const cfg: Config = {
     icons: "auto",
@@ -81,6 +134,7 @@ export function parseConfig(text: string, file = "config.toml", env: NodeJS.Proc
     projects: [],
     open: { chromeDir: p.chromeProfilesDir },
     mcpd: { port: 47821 },
+    warnings,
   };
   cfg.system = str(raw.system, file, "system");
   cfg.default = str(raw.default, file, "default");
@@ -105,11 +159,11 @@ export function parseConfig(text: string, file = "config.toml", env: NodeJS.Proc
     cfg.updateCheck = raw.update_check;
   }
 
-  const profiles = raw.profiles ?? {};
-  if (typeof profiles !== "object" || Array.isArray(profiles)) throw new ConfigError(file, "[profiles] must be a table");
-  for (const [name, value] of Object.entries(profiles as Record<string, unknown>)) {
+  const profiles = table(raw.profiles, file, "profiles");
+  for (const [name, value] of Object.entries(profiles)) {
     if (!isValidProfileName(name)) throw new ConfigError(file, `invalid profile name "${name}"`);
-    const v = (value ?? {}) as Record<string, unknown>;
+    const v = table(value, file, `profiles.${name}`);
+    unknownKeys(v, KNOWN_KEYS["profiles.*"]!, `profiles.${name}.`, warnings);
     const browser = str(v.browser, file, `profiles.${name}.browser`) ?? "chrome";
     if (browser !== "chrome" && browser !== "default") {
       throw new ConfigError(file, `profiles.${name}.browser must be chrome or default`);
@@ -123,13 +177,13 @@ export function parseConfig(text: string, file = "config.toml", env: NodeJS.Proc
     cfg.profiles[name] = { agent, browser, ...(color !== undefined ? { color } : {}) };
   }
 
-  const agents = raw.agents ?? {};
-  if (typeof agents !== "object" || Array.isArray(agents)) throw new ConfigError(file, "[agents] must be a table");
-  for (const [id, value] of Object.entries(agents as Record<string, unknown>)) {
+  const agents = table(raw.agents, file, "agents");
+  for (const [id, value] of Object.entries(agents)) {
     if (!isAgentId(id) || id === "claude") {
       throw new ConfigError(file, `[agents.${id}]: use one of ${AGENT_IDS.filter((a) => a !== "claude").join(", ")} (Claude Code uses the top-level default and fallback)`);
     }
-    const v = (value ?? {}) as Record<string, unknown>;
+    const v = table(value, file, `agents.${id}`);
+    unknownKeys(v, KNOWN_KEYS["agents.*"]!, `agents.${id}.`, warnings);
     const roles: AgentRoles = {};
     const d = str(v.default, file, `agents.${id}.default`);
     const f = str(v.fallback, file, `agents.${id}.fallback`);
@@ -141,18 +195,21 @@ export function parseConfig(text: string, file = "config.toml", env: NodeJS.Proc
   const projects = raw.projects ?? [];
   if (!Array.isArray(projects)) throw new ConfigError(file, "projects must be an array of tables ([[projects]])");
   for (const [i, item] of projects.entries()) {
-    const v = item as Record<string, unknown>;
+    const v = table(item, file, `projects[${i}]`);
+    unknownKeys(v, KNOWN_KEYS["projects[]"]!, `projects[${i}].`, warnings);
     const path = str(v.path, file, `projects[${i}].path`);
     const profile = str(v.profile, file, `projects[${i}].profile`);
     if (!path || !profile) throw new ConfigError(file, `projects[${i}] needs path and profile`);
     cfg.projects.push({ path: expandHome(path, env), profile });
   }
 
-  const open = (raw.open ?? {}) as Record<string, unknown>;
+  const open = table(raw.open, file, "open");
+  unknownKeys(open, KNOWN_KEYS.open!, "open.", warnings);
   const chromeDir = str(open.chrome_dir, file, "open.chrome_dir");
   if (chromeDir) cfg.open.chromeDir = expandHome(chromeDir, env);
 
-  const mcpd = (raw.mcpd ?? {}) as Record<string, unknown>;
+  const mcpd = table(raw.mcpd, file, "mcpd");
+  unknownKeys(mcpd, KNOWN_KEYS.mcpd!, "mcpd.", warnings);
   if (mcpd.port !== undefined) {
     if (typeof mcpd.port !== "number" || !Number.isInteger(mcpd.port) || mcpd.port < 1024 || mcpd.port > 65535) {
       throw new ConfigError(file, "mcpd.port must be an integer between 1024 and 65535");

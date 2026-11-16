@@ -4,19 +4,24 @@ import { parse } from "smol-toml";
 import { loadRegistry } from "../../accounts/registry.js";
 import { editConfig, migrationPending, readConfigText } from "../../core/config-edit.js";
 import { loadConfig } from "../../core/config.js";
+import { type AgentId, adapter, isAgentId } from "../../agents/index.js";
+import { agentOf, configProblems, listProfiles } from "../../core/profiles.js";
 import { Journal } from "../../core/journal.js";
 import { loadManifest } from "../../core/manifest.js";
 import { paths, tildify } from "../../core/paths.js";
 import { type TomlValue, removeValue, setValue } from "../../core/toml-edit.js";
-import { DRY_RUN, JSON_FLAG, bool, parseFlags, printJson } from "../args.js";
+import { DRY_RUN, JSON_FLAG, bool, flagsOf, parseFlags, printJson } from "../args.js";
 import { group } from "../group.js";
-import { type Io, fail, paint } from "../io.js";
+import { type Io, columns, fail, paint } from "../io.js";
+import { parseColor } from "./profile.js";
 
 /** Keys `config set` may change; tables of their own have their own commands. */
 const KEYS: Record<string, string> = {
-  system: "profile the plain claude command (~/.claude) is logged into",
-  default: "profile for folders without a rule",
-  fallback: "profile used while the assigned one is exhausted",
+  system: 'profile the plain claude command (~/.claude) is logged into; "" for none (then turno auto needs a rule)',
+  default: "Claude Code profile for folders without a rule",
+  fallback: "Claude Code profile used while the assigned one is exhausted (opt-in)",
+  "agents.<agent>.default": "the same for codex, copilot or cursor",
+  "agents.<agent>.fallback": "the same for codex, copilot or cursor (opt-in)",
   icons: "auto, nerd or unicode",
   nerd_terminals: "terminals whose font draws Nerd icons",
   update_check: "true or false: look for new turno releases once a day",
@@ -28,8 +33,9 @@ const KEYS: Record<string, string> = {
 
 /** Split a dotted key into its table and key. */
 export function splitKey(key: string): { table: string | undefined; key: string } {
-  const allowed = Object.keys(KEYS).some((k) => new RegExp(`^${k.replace(/\./g, "\\.").replace("<name>", "[a-z0-9][a-z0-9_-]*")}$`).test(key));
-  if (!allowed) fail(`unknown key '${key}'. Keys: ${Object.keys(KEYS).join(", ")}`);
+  const pattern = (k: string) => new RegExp(`^${k.replace(/\./g, "\\.").replace("<name>", "[a-z0-9][a-z0-9_-]*").replace("<agent>", "(codex|copilot|cursor)")}$`);
+  const allowed = Object.keys(KEYS).some((k) => pattern(k).test(key));
+  if (!allowed) fail(`unknown key '${key}' (turno config --help lists them)`);
   const i = key.lastIndexOf(".");
   return i < 0 ? { table: undefined, key } : { table: key.slice(0, i), key: key.slice(i + 1) };
 }
@@ -84,15 +90,66 @@ async function get(args: string[], io: Io): Promise<number> {
   return 0;
 }
 
+/**
+ * Check a value before it is written, with the messages `profile add` uses: profile names
+ * must exist (and run the right agent), colors and enums must be valid. Returns the value to write.
+ */
+export function checkValue(key: string, raw: string, env: NodeJS.ProcessEnv): TomlValue {
+  const value = parseValue(raw);
+  const profile = (name: TomlValue, agent: AgentId) => {
+    if (typeof name !== "string" || !name) fail(`${key} must be a profile name`);
+    const config = loadConfig(env);
+    if (!listProfiles(config, env).includes(name)) fail(`no profile '${name}' (turno profile list)`);
+    const has = agentOf(name, config);
+    if (has !== agent) fail(`${name} is a ${adapter(has).label} profile, but ${key} is for ${adapter(agent).label}`);
+    return name;
+  };
+  const roles = /^(?:agents\.([a-z]+)\.)?(system|default|fallback)$/.exec(key);
+  if (roles) {
+    if (key === "system" && (value === "" || raw === '""')) return "";
+    const agent = roles[1] ?? "claude";
+    if (!isAgentId(agent)) fail(`unknown agent '${agent}'`);
+    return profile(value, agent);
+  }
+  const prof = /^profiles\.([^.]+)\.(color|browser)$/.exec(key);
+  if (prof) {
+    if (!listProfiles(loadConfig(env), env).includes(prof[1]!)) fail(`no profile '${prof[1]}' (turno profile list)`);
+    if (prof[2] === "color") return parseColor(raw, key);
+    if (raw !== "chrome" && raw !== "default") fail(`${key} must be chrome or default`);
+    return raw;
+  }
+  switch (key) {
+    case "icons":
+      if (raw !== "auto" && raw !== "nerd" && raw !== "unicode") fail("icons must be auto, nerd or unicode");
+      return raw;
+    case "update_check":
+      if (typeof value !== "boolean") fail("update_check must be true or false");
+      return value;
+    case "mcpd.port":
+      if (typeof value !== "number" || value < 1024 || value > 65535) fail("mcpd.port must be an integer between 1024 and 65535");
+      return value;
+    case "nerd_terminals":
+      if (!Array.isArray(value)) fail('nerd_terminals must be a list, like ["warp", "vscode"]');
+      return value;
+    case "open.chrome_dir":
+      return raw;
+  }
+  return value;
+}
+
+const SET_SPEC = { ...DRY_RUN };
+
 async function set(args: string[], io: Io): Promise<number> {
-  const p = parseFlags(args, DRY_RUN, 2);
+  const p = parseFlags(args, SET_SPEC, 2);
   const [key, raw] = p.positionals;
   if (!key || raw === undefined) return fail("usage: turno config set <key> <value>");
   const k = splitKey(key);
+  const value = checkValue(key, raw, io.env);
   const dry = bool(p, "dry-run");
   const journal = new Journal(io.env, `config set ${key}`, dry);
-  const { changed } = editConfig(io.env, journal, (t) => setValue(t, k.table, k.key, parseValue(raw)));
-  io.out(`${key} = ${JSON.stringify(parseValue(raw))}${changed ? "" : " (unchanged)"}${dry ? " (dry run)" : ""}`);
+  const { changed } = editConfig(io.env, journal, (t) => setValue(t, k.table, k.key, value));
+  io.out(`${key} = ${JSON.stringify(value)}${changed ? "" : " (unchanged)"}${dry ? " (dry run)" : ""}`);
+  if (/(^|\.)fallback$/.test(key)) io.out('fallback is opt-in: read "Vendor terms" in the README before relying on it.');
   if (journal.hint()) io.out(journal.hint()!);
   return 0;
 }
@@ -140,7 +197,9 @@ async function check(args: string[], io: Io): Promise<number> {
       io.out(`${paint(io, "FAIL", "31")}  ${(err as Error).message}`);
     }
   };
-  one(pp.configFile, () => loadConfig(io.env));
+  const problems: string[] = [];
+  one(pp.configFile, () => problems.push(...configProblems(loadConfig(io.env), io.env)));
+  for (const w of problems) io.out(`${paint(io, "warn", "33")}  ${w}`);
   one(pp.mcpFile, () => loadManifest(io.env));
   one(pp.accountsFile, () => loadRegistry(io.env));
   return failed ? 1 : 0;
@@ -152,16 +211,14 @@ export const command = group(
   {
     path: { summary: "where each config and state file lives", synopsis: "[--json]", flags: ["--json"], run: path },
     get: { summary: "print a value (the whole file as JSON without a key)", synopsis: "[key] [--json]", args: ["key"], flags: ["--json"], run: get },
-    set: { summary: "set a value; the file must still parse", synopsis: "<key> <value> [--dry-run]", args: ["key", "any"], flags: ["--dry-run"], run: set },
+    set: { summary: "set a value, checked like profile add checks it", synopsis: "<key> <value> [--dry-run]", args: ["key", "any"], flags: flagsOf(SET_SPEC), run: set },
     unset: { summary: "remove a value", synopsis: "<key> [--dry-run]", args: ["key"], flags: ["--dry-run"], run: unset },
     edit: { summary: "open config.toml in $VISUAL or $EDITOR, then check it", run: edit },
     check: { summary: "parse config.toml, mcp.toml and accounts.toml", run: check },
   },
   {
     fallback: "path",
-    footer: `Keys:\n${Object.entries(KEYS)
-      .map(([k, d]) => `  ${k.padEnd(26)} ${d}`)
-      .join("\n")}\n\nProjects use turno profile assign; MCP servers live in mcp.toml (turno mcp).`,
+    footer: `Keys:\n${columns(Object.entries(KEYS), 2, 26)}\n\nProjects use turno profile assign; MCP servers live in mcp.toml (turno mcp).`,
   },
 );
 
