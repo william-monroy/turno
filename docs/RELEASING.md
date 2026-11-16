@@ -40,8 +40,10 @@ Releases come from CI, never from a laptop. `.github/workflows/release.yml` runs
 to `main`, in four jobs:
 
 1. **version**: with pending changesets, Changesets opens or updates the pull request
-   "chore(release): version packages", which bumps versions and writes each `CHANGELOG.md`.
-   It cannot publish.
+   "chore(release): version packages", which bumps versions, writes each `CHANGELOG.md` and
+   (through `scripts/sync-server-json.mjs`) the version in `packages/browser/server.json`.
+   It cannot publish. A pull request opened with the workflow token starts no workflows, so
+   close and reopen it to run `ci` before merging.
 2. **build** (after that pull request is merged): `pnpm check`, `pnpm pack:check`, then
    `scripts/release-plan.mjs` packs every public package whose version is not on npm yet and
    writes a CycloneDX SBOM per package. The tarballs go up as a workflow artifact. This job
@@ -52,9 +54,15 @@ to `main`, in four jobs:
    so no project or dependency code runs where the publish token lives.
 4. **tag**: creates the `name@version` git tags and GitHub releases, with the SBOM attached.
 
-npm trusted publishing stages every version: it is scanned, then waits for a maintainer to
-approve it on npmjs.com with 2FA before it becomes installable. A stolen OIDC token can at
-most stage a version nobody approves.
+The gate is the `npm` environment: the publish job waits until a required reviewer approves
+the deployment on GitHub. The trusted publishers allow `npm publish`, so an approved run
+publishes directly (with provenance). Unticking "Allow npm publish" on npmjs.com would make
+every version wait as a staged version for a second approval there, with 2FA.
+
+After a `turno-browser` release, publish its MCP Registry entry by hand from a clean checkout:
+`mcp-publisher login github --token "$(gh auth token)"` (the interactive login cannot read
+organization roles, and the namespace `io.github.wimo-dev` needs an organization owner), then
+`mcp-publisher publish packages/browser/server.json` and `mcp-publisher logout`.
 
 `pnpm pack:check` runs the tarball check locally. Prereleases: `pnpm changeset pre enter next`,
 then releases go to the `next` dist-tag (`turno upgrade --channel next` follows them);
