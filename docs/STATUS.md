@@ -137,8 +137,7 @@ Last updated: 2026-11-16.
 - Folder server sets are not a boundary: a session whose folder mcpd cannot learn sees every
   server, and remote servers written straight into profiles cannot be hidden.
 - Removing a profile does not revoke its gateway token; `turno mcp token rotate` does (for
-  every profile). After `turno mcp logout`, mcpd may use the old access token for up to a
-  minute.
+  every profile).
 - Headless browsing is detectable from the user agent and storage partitioning (ADR 0005).
   Headed is the default.
 - `turno browser login` has not been exercised with a real sign-in yet.
@@ -213,9 +212,8 @@ Last updated: 2026-11-16.
 4. **Follow-ups** from the three waves, still open on main (checked 2026-11-16):
    - mcpd: a random port per install instead of 47821; the session folder header for Copilot
      and Cursor (only Claude Code and Codex send it); tools-only variants sharing the default
-     process; `list_changed` to sessions a config change hides or shows; the memory pressure
-     level in `/status` and `turno mcp top`; persisting pending OAuth tokens on shutdown;
-     `turno mcp logout` telling a running mcpd at once.
+     process (today a variant with only `tools` is its own process and, for OAuth, its own
+     login); `list_changed` for stateless 2026-07-28 clients (sessions get it since 0.2).
    - MCP SDK v2 migration: elicitation and sampling for 2026-07-28 clients, 2026-07-28-only
      upstreams; an end-to-end test once an agent defaults to 2026-07-28.
    - OAuth: host a turno Client ID Metadata Document at a project HTTPS URL; `mcp import`

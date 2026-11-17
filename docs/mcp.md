@@ -35,7 +35,7 @@ launcher fills from `~/.local/state/turno/mcpd-tokens/<profile>.token` (mode 600
 `turno mcp sync`).
 
 The master token never goes into an agent config. It opens only mcpd's own endpoints
-(`/status`, `/refresh`), which `turno` uses; mcpd refuses it for MCP sessions. Configs synced by
+(`/status`, `/refresh`, `/logout`), which `turno` uses; mcpd refuses it for MCP sessions. Configs synced by
 a turno older than per-profile tokens still send it: mcpd answers 403 with "run: turno mcp sync",
 and `turno doctor` and `turno upgrade --finish` say the same (`--finish` offers to run the sync,
 and `--yes` runs it). Removing a profile does not revoke its token; `turno mcp token rotate` does
@@ -132,12 +132,15 @@ is not the one it was fetched for, and answers whose `iss` or `state` does not m
 The tokens go to the secret store (Keychain or Secret Service) as `turno/oauth/<server>@<variant>`,
 never to a file or a log. mcpd refreshes the access token when it expires or the server answers
 401, and saves a rotated refresh token before it uses the new access token. If the secret store
-refuses that write, mcpd keeps the new tokens in memory, tries the write again on each call,
-and notes it in `logs/<server>.log`; a `turno mcp login` or `logout` made meanwhile wins. When
+refuses that write, mcpd keeps the new tokens in memory, tries the write again on each call
+and once more when it stops, and notes it in `logs/<server>.log` (tokens the store still refuses
+at shutdown are lost, and the next refresh needs a login); a `turno mcp login` or `logout` made
+meanwhile wins. When
 the authorization server rejects the refresh token (revoked or expired), calls fail with the
 `turno mcp login` command to run, and `turno mcp list`, `turno mcp doctor` and `turno doctor`
-show the variant as "login required". After a logout, mcpd stops using the old access token
-within a minute.
+show the variant as "login required". `turno mcp logout` tells a running mcpd
+(`POST /logout/<server>?variant=<v>` with the master token), which stops using the old access
+token at once; an mcpd older than 0.2 notices within a minute.
 
 ## Server sets per folder
 
@@ -218,8 +221,11 @@ stays in the secret store, and `tools` filters and folder server sets apply to i
   instances whose definition changed in `mcp.toml`. Open sessions use the new definition on
   their next call. When memory is tight (the kernel pressure level on macOS, PSI on Linux, else
   free memory), the idle limit shrinks to `idle_under_pressure` under `[mcpd]` in config.toml
-  (default `"5m"`, a quarter of it when pressure is critical, `false` turns it off). A session
-  server whose launcher still runs is kept either way.
+  (default `"5m"`, a quarter of it when pressure is critical, `false` turns it off; a change in
+  config.toml applies without a restart). A session server whose launcher still runs is kept
+  either way. `/status` reports it as `memoryPressure`: `level` (`normal`, `warn`, `critical`,
+  or null while the setting is off), `checkedAt`, `idleUnderPressure` and `idleCap` (the idle
+  limit in seconds every server gets now, null when they keep their own).
 - Speaks two MCP revisions on the same endpoint: 2025-11-25 sessions (`initialize`,
   `Mcp-Session-Id`) and 2026-07-28 stateless requests (`MCP-Protocol-Version: 2026-07-28`,
   `Mcp-Method` and `Mcp-Name` headers, `server/discover`, `subscriptions/listen`). List results
@@ -231,7 +237,13 @@ stays in the secret store, and `tools` filters and folder server sets apply to i
   retries with a growing delay (5 s, doubling, up to 5 minutes).
 - Rebuilds a session it does not know (mcpd restarted) from the request headers instead of
   answering 404.
-- Reloads `mcp.toml` when it changes (or on SIGHUP).
+- Reloads `mcp.toml` when it changes (or on SIGHUP). When a change to `mcp.toml` (a tool
+  filter) or to config.toml (a folder's server set) changes what an open session sees, mcpd
+  sends it `notifications/tools/list_changed` (and the prompts and resources ones when the
+  server is hidden or shown), so the agent lists again without reconnecting. Stateless
+  2026-07-28 clients see the change when their list results expire.
+- Drops a call that the client cancels while its server is still starting, instead of sending
+  it once the server is up.
 
 `POST /refresh/<server>` (or `POST /refresh` for all servers) on the gateway, with the master
 token, relists running instances and forgets the cached description of the others, without a
@@ -243,7 +255,7 @@ restart. It answers `{"server", "refreshed": [...], "forgotten": [...], "errors"
 turno mcp log                 # the last 20 tool calls: time, outcome, duration, server, tool, profile, agent, sizes
 turno mcp log -f --server github --profile work   # follow new calls, filtered
 turno mcp log --json -n 500   # one JSON record per line, for jq
-turno mcp top                 # memory, sessions, calls in flight, idle time and restarts per running server
+turno mcp top                 # memory, sessions, calls in flight, idle time and restarts per running server, and memory pressure
 turno mcp savings             # mcpd's memory now against the same sessions without the gateway
 ```
 
@@ -260,7 +272,10 @@ its result, only their sizes. `agent` is the name the client gives in `initializ
 off with `call_log = false` under `[mcpd]` in config.toml (mcpd applies it when the file changes).
 
 `turno mcp top` refreshes every 2 seconds in a terminal and prints one snapshot with `--once`,
-`--json` or when piped. Memory is the resident size of each server process plus its children
+`--json` or when piped. The line under its header shows the memory pressure mcpd reads
+(`normal`, `warn` or `critical`, and the idle limit servers get while memory is tight; no line
+while `idle_under_pressure` is off); `--json` has it as `memoryPressure` (`level`,
+`idleUnderPressureSeconds`, `idleCapSeconds`). Memory is the resident size of each server process plus its children
 (`npx` and shell wrappers start the real server as a child), read with `ps`, or from `/proc` on
 Linux hosts without it.
 
