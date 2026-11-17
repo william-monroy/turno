@@ -130,7 +130,7 @@ export const command: Command = {
     const p = parseFlags(args, JSON_FLAG, 0);
     const d = await statusData(io.env);
     if (bool(p, "json")) {
-      printJson(io.out, d);
+      printJson(io, d);
       return 0;
     }
     const now = Date.now() / 1000;

@@ -17,7 +17,7 @@ export const command: Command = {
     const npx = install.root.includes("/_npx/");
     const data = { name: pkg.name, version: pkg.version, node: process.versions.node, method: npx ? "npx" : install.method, path: tildify(install.root, io.env), latest: latest ?? null };
     if (bool(p, "json")) {
-      printJson(io.out, data);
+      printJson(io, data);
       return 0;
     }
     io.out(`turno ${pkg.version}`);

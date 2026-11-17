@@ -289,7 +289,7 @@ export async function doctor(io: Io, opts: { fix?: boolean; json?: boolean; secu
   }
   const failed = checks.some((c) => c.level === "fail");
   if (opts.json) {
-    printJson(io.out, { ok: !failed, checks: checks.map(({ fix, ...c }) => ({ ...c, fix: fix?.label ?? null })) });
+    printJson(io, { ok: !failed, checks: checks.map(({ fix, ...c }) => ({ ...c, fix: fix?.label ?? null })) });
     return failed ? 1 : 0;
   }
   for (const c of checks) report(io, c);

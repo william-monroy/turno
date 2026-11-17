@@ -75,8 +75,19 @@ export interface Command extends Completion {
   run(args: string[], io: Io): Promise<number>;
 }
 
+/**
+ * Whether output gets ANSI colors: on a terminal, unless NO_COLOR is set (https://no-color.org).
+ * FORCE_COLOR=1 colors a pipe too, and FORCE_COLOR=0 turns colors off on a terminal.
+ */
+export function colors(io: Pick<Io, "env" | "isTty">): boolean {
+  if (io.env.NO_COLOR) return false;
+  const force = io.env.FORCE_COLOR;
+  if (force !== undefined && force !== "") return force !== "0" && force !== "false";
+  return io.isTty;
+}
+
 export function paint(io: Io, text: string, code: string): string {
-  return io.isTty && !io.env.NO_COLOR ? `\x1b[${code}m${text}\x1b[0m` : text;
+  return colors(io) ? `\x1b[${code}m${text}\x1b[0m` : text;
 }
 
 export function fail(message: string): never {

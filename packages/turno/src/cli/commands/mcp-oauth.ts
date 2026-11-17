@@ -96,7 +96,7 @@ export async function login(args: string[], io: Io, deps: OAuthDeps = {}): Promi
       },
     });
     if (json) {
-      printJson(io.out, { server: server.name, variant, ...result });
+      printJson(io, { server: server.name, variant, ...result });
       return 0;
     }
     if (result.planned) {

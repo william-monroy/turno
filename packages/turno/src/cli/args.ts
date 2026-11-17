@@ -1,5 +1,6 @@
 import { parseArgs } from "node:util";
-import { fail } from "./io.js";
+import { highlightJson } from "./highlight.js";
+import { type Io, colors, fail } from "./io.js";
 
 export type FlagSpec = Record<string, { type: "boolean" | "string"; short?: string; multiple?: boolean }>;
 
@@ -57,7 +58,14 @@ export function count(p: Parsed, name: string, fallback: number): number {
   return n;
 }
 
-/** Print a value as indented JSON. */
-export function printJson(out: (line?: string) => void, value: unknown): void {
-  out(JSON.stringify(value, null, 2));
+/**
+ * Print a value as indented JSON, colored on a terminal without NO_COLOR (never in a pipe,
+ * even with FORCE_COLOR, since programs read it).
+ * Given only an output function it prints plain JSON.
+ */
+export function printJson(io: Pick<Io, "out" | "env" | "isTty"> | Io["out"], value: unknown): void {
+  const text: string | undefined = JSON.stringify(value, null, 2);
+  const out = typeof io === "function" ? io : io.out;
+  // Only on a real terminal: --json is read by programs, so FORCE_COLOR never colors a pipe here.
+  out(text !== undefined && typeof io !== "function" && io.isTty && colors(io) ? highlightJson(text) : text);
 }

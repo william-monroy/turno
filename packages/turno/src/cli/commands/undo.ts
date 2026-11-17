@@ -43,7 +43,7 @@ function prune(p: Parsed, io: Io): number {
   const dry = bool(p, "dry-run");
   const r = pruneJournals(io.env, { olderThanMs, keep, dryRun: dry });
   if (bool(p, "json")) {
-    printJson(io.out, { dryRun: dry, pruned: r.pruned, kept: r.kept.map((k) => ({ stamp: k.stamp, path: tildify(k.path, io.env) })) });
+    printJson(io, { dryRun: dry, pruned: r.pruned, kept: r.kept.map((k) => ({ stamp: k.stamp, path: tildify(k.path, io.env) })) });
     return 0;
   }
   const verb = dry ? "would delete" : "deleted";
@@ -83,7 +83,7 @@ export const command: Command = {
     if (bool(p, "list") || !target) {
       const shown = all.slice(0, count(p, "tail", 10));
       if (bool(p, "json")) {
-        printJson(io.out, shown.map((j) => ({ stamp: j.stamp, command: j.manifest?.command ?? null, files: j.manifest?.entries.map((e) => tildify(e.path, io.env)) ?? null, undoneBy: j.manifest?.undoneBy ?? null })));
+        printJson(io, shown.map((j) => ({ stamp: j.stamp, command: j.manifest?.command ?? null, files: j.manifest?.entries.map((e) => tildify(e.path, io.env)) ?? null, undoneBy: j.manifest?.undoneBy ?? null })));
         return 0;
       }
       if (!shown.length) io.out("No changes recorded yet.");
