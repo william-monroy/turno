@@ -62,7 +62,7 @@ function verifyLog(io: Io, json: boolean): number {
   return 0;
 }
 
-export function list(io: Io): number {
+function list(io: Io): number {
   const reg = loadRegistry(io.env);
   const accounts = Object.values(reg.accounts).sort((a, b) => a.id.localeCompare(b.id));
   if (!accounts.length) {

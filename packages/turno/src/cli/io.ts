@@ -123,7 +123,7 @@ export interface Command extends Completion {
 /** When to color output: `--color auto|always|never`, or TURNO_COLOR. */
 export type ColorMode = "auto" | "always" | "never";
 
-export const COLOR_MODES: readonly ColorMode[] = ["auto", "always", "never"];
+const COLOR_MODES: readonly ColorMode[] = ["auto", "always", "never"];
 
 export function isColorMode(v: string | undefined): v is ColorMode {
   return v !== undefined && (COLOR_MODES as readonly string[]).includes(v);
