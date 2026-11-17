@@ -1,3 +1,5 @@
+import { existsSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseManifest } from "../src/core/manifest.js";
 import { definitionFingerprint } from "../src/mcpd/instances.js";
@@ -47,5 +49,29 @@ describe("turno mcp list", () => {
     const j = JSON.parse((await run(["mcp", "list", "--json"])).out) as { name: string; tools: unknown; variantTools?: unknown }[];
     expect(j.find((s) => s.name === "fx")).toMatchObject({ tools: { allow: ["get_*", "list_*"], deny: ["*_delete"] }, variantTools: { work: { deny: ["*"] } } });
     expect(j.find((s) => s.name === "plain")).toMatchObject({ tools: null, variantTools: {} });
+  });
+});
+
+describe("turno mcp sync and profile token files", () => {
+  const tokens = () => join(sb.home, ".local/state/turno/mcpd-tokens");
+
+  it("removes the token files it wrote for profiles that are gone, and leaves the others", async () => {
+    sb.write(".config/turno/config.toml", '[profiles.cx]\nagent = "codex"\n[profiles.cy]\nagent = "codex"\n');
+    expect((await run(["mcp", "sync"])).code).toBe(0);
+    expect(existsSync(join(tokens(), "cx.token"))).toBe(true);
+    // A token file written for a hand-set agent (turno mcp config) is not sync's to remove.
+    writeFileSync(join(tokens(), "manual.token"), "x\n", { mode: 0o600 });
+    sb.write(".config/turno/config.toml", '[profiles.cy]\nagent = "codex"\n');
+    const dry = await run(["mcp", "sync", "--dry-run"]);
+    expect(dry.out).toContain("would remove the gateway token file of cx (no longer a profile)");
+    expect(existsSync(join(tokens(), "cx.token"))).toBe(true);
+    // A sync of some profiles only does not prune.
+    await run(["mcp", "sync", "cy"]);
+    expect(existsSync(join(tokens(), "cx.token"))).toBe(true);
+    const r = await run(["mcp", "sync"]);
+    expect(r.out).toContain("removed the gateway token file of cx (no longer a profile)");
+    expect(existsSync(join(tokens(), "cx.token"))).toBe(false);
+    expect(existsSync(join(tokens(), "cy.token"))).toBe(true);
+    expect(existsSync(join(tokens(), "manual.token"))).toBe(true);
   });
 });

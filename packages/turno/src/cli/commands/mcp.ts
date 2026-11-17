@@ -271,19 +271,33 @@ async function sync(args: string[], io: Io): Promise<number> {
  * with open sessions: those already hold their token, and the next launch needs the new one.
  */
 async function syncTokenFiles(io: Io, config: Config, only: string[], master: string, dryRun: boolean): Promise<void> {
-  const { profileToken, readProfileTokenFile, writeProfileTokenFile } = await import("../../mcpd/tokens.js");
+  const tokens = await import("../../mcpd/tokens.js");
+  const { profileToken, readProfileTokenFile, writeProfileTokenFile } = tokens;
   const { isGenerated, launcherName } = await import("../launchers.js");
   const changed: string[] = [];
   const oldLaunchers: string[] = [];
-  for (const name of listProfiles(config, io.env)) {
+  const profiles = listProfiles(config, io.env);
+  const synced = new Set(tokens.readSyncedTokenProfiles(io.env));
+  const before = synced.size;
+  for (const name of profiles) {
     if (only.length && !only.includes(name)) continue;
     const agent = agentOf(name, config);
     if (!adapter(agent).tokenFromEnv) continue;
+    synced.add(name);
     if (dryRun ? readProfileTokenFile(name, io.env) !== profileToken(master, name) : writeProfileTokenFile(name, master, io.env)) changed.push(name);
     const launcher = join(paths(io.env).bin, launcherName(name, agent));
     if (isGenerated(launcher) && !readFileSync(launcher, "utf8").includes("mcpd-tokens/")) oldLaunchers.push(name);
   }
   if (changed.length) io.out(`${paint(io, dryRun ? "plan" : "token", "32")} ${dryRun ? "would write" : "wrote"} the gateway token of ${changed.join(", ")} for their launchers`);
+  // A full sync removes the token files it wrote for profiles that are gone. The token itself
+  // stays valid until a rotation (ADR 0023); the file is just no longer needed.
+  const gone = only.length ? [] : [...synced].filter((n) => !profiles.includes(n)).sort();
+  for (const name of gone) {
+    synced.delete(name);
+    if (dryRun ? !readProfileTokenFile(name, io.env) : !tokens.removeProfileTokenFile(name, io.env)) continue;
+    io.out(`${paint(io, dryRun ? "plan" : "token", "32")} ${dryRun ? "would remove" : "removed"} the gateway token file of ${name} (no longer a profile)`);
+  }
+  if (!dryRun && (synced.size !== before || gone.length || changed.length)) tokens.writeSyncedTokenProfiles([...synced], io.env);
   for (const name of oldLaunchers) {
     io.err(`${paint(io, "warning", "33")}: the launcher of ${name} still reads the old shared token; rewrite it with: turno profile repair ${name}`);
   }
