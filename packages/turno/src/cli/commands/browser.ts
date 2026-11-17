@@ -283,7 +283,7 @@ export function browserCommand(deps: BrowserDeps = defaultDeps): Command {
       run: withModule("bench"),
     },
   };
-  return group("browser", "developer diagnostic: browser engine compatibility (needs turno-browser)", subs, { footer: FOOTER });
+  return group("browser", "developer tool: compare browser engines (needs turno-browser)", subs, { footer: FOOTER });
 }
 
 export const command: Command = browserCommand();
