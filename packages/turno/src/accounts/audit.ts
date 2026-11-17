@@ -4,7 +4,7 @@ import { dirname } from "node:path";
 import { PRIVATE_FILE_MODE, ensurePrivateDir, paths } from "../core/paths.js";
 import type { ConfirmPolicy } from "./policy.js";
 
-export type AuditOutcome = "ok" | "error" | "refused" | "cancelled";
+type AuditOutcome = "ok" | "error" | "refused" | "cancelled";
 
 /** One line of ~/.local/state/turno/audit.jsonl: a call to the accounts bridge. */
 export interface AuditEntry {
@@ -46,7 +46,7 @@ export interface AuditDecision {
   denied?: string[];
 }
 
-export const TASK_LIMIT = 500;
+const TASK_LIMIT = 500;
 
 /** `prev` of the first chained line of an empty log. */
 export const GENESIS = "0".repeat(64);

@@ -3,9 +3,9 @@
  * and never touch the network, so tests run them on saved snippets.
  */
 
-export type TestStatus = "pass" | "fail" | "warn" | "untriggered";
+type TestStatus = "pass" | "fail" | "warn" | "untriggered";
 
-export interface DetectorTest {
+interface DetectorTest {
   name: string;
   status: TestStatus;
   note: string;
@@ -44,7 +44,7 @@ export function decodeEntities(text: string): string {
 }
 
 /** Drops comments, scripts, styles and templates: markup that is never shown as text. */
-export function stripInvisible(html: string): string {
+function stripInvisible(html: string): string {
   return html
     .replace(/<!--[\s\S]*?-->/g, " ")
     .replace(/<(script|style|template|noscript)\b[\s\S]*?<\/\1\s*>/gi, " ");
@@ -127,7 +127,7 @@ export const CHALLENGE_MARKERS = [
   "request blocked",
 ];
 
-export function titleOf(html: string): string {
+function titleOf(html: string): string {
   const m = /<title\b[^>]*>([\s\S]*?)<\/title\s*>/i.exec(html);
   return m ? textOf(m[1]!) : "";
 }

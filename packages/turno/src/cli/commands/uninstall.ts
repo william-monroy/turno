@@ -1,6 +1,7 @@
-import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parse as parseToml } from "smol-toml";
+import { JSON_MCP_SERVERS, TOML_MCP_SERVERS } from "../../agents/adapter.js";
 import { agentProfileDir } from "../../agents/index.js";
 import { type Config, loadConfig, parseConfig } from "../../core/config.js";
 import { Journal, listJournals } from "../../core/journal.js";
@@ -12,6 +13,7 @@ import { type StatusLine, currentStatusLine, isTurnoStatusLine, readSettings } f
 import { DRY_RUN, bool, parseFlags } from "../args.js";
 import { CliError, type Command, type Io, confirm } from "../io.js";
 import { MARKER } from "../launchers.js";
+import { realOr } from "../../core/fsutil.js";
 
 /**
  * `turno uninstall` (ADR 0025): remove everything turno set up outside its package, through
@@ -75,14 +77,6 @@ function lstat(p: string) {
   }
 }
 
-function real(p: string): string {
-  try {
-    return realpathSync(p);
-  } catch {
-    return p;
-  }
-}
-
 function safeConfig(env: NodeJS.ProcessEnv): Config {
   try {
     return loadConfig(env);
@@ -128,7 +122,7 @@ function turnoLaunchers(env: NodeJS.ProcessEnv): string[] {
  * that changed it to turno's, or none when it had none.
  */
 function statusLineBefore(file: string, env: NodeJS.ProcessEnv): StatusLine | undefined {
-  const target = real(file);
+  const target = realOr(file);
   for (const j of listJournals(env)) {
     if (!j.manifest?.command.startsWith("ui install")) continue;
     const e = j.manifest.entries.find((x) => (x.kind ?? "file") === "file" && x.path === target);
@@ -276,7 +270,7 @@ function describe(plan: UninstallPlan, env: NodeJS.ProcessEnv): string[] {
 
 /** The command that removes the package: Homebrew when this turno runs from a Cellar, else npm. */
 export function packageRemoval(argv1: string | undefined = process.argv[1]): string {
-  const file = argv1 ? real(argv1) : "";
+  const file = argv1 ? realOr(argv1) : "";
   return /\/Cellar\/|\/homebrew\//i.test(file) ? "brew uninstall turno" : "npm uninstall --global turno-cli";
 }
 
@@ -304,11 +298,10 @@ async function apply(plan: UninstallPlan, journal: Journal, io: Io): Promise<voi
     for (let waited = 0; waited < 5000 && liveLock(env); waited += 250) await new Promise((r) => setTimeout(r, 250));
   }
   if (plan.configs.length) {
-    const { syncCodexToml, syncJsonServers } = await import("../../mcpd/sync.js");
+    const { syncServers } = await import("../../mcpd/sync.js");
     for (const c of plan.configs) {
       const at = journal.save(c.file);
-      if (c.file.endsWith(".toml")) syncCodexToml(c.file, {}, c.names);
-      else syncJsonServers(c.file, "mcpServers", {}, c.names);
+      syncServers(c.file, c.file.endsWith(".toml") ? TOML_MCP_SERVERS : JSON_MCP_SERVERS, {}, c.names);
       journal.settle(at);
     }
   }

@@ -1,14 +1,14 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { type AgentId, adapter } from "../agents/index.js";
+import { type AgentId, DEFAULT_AGENT, adapter } from "../agents/index.js";
 import type { Config } from "./config.js";
 import { isValidProfileName, suggestKey } from "./config.js";
 import { loadManifest } from "./manifest.js";
-import { paths, profileDir, tildify } from "./paths.js";
+import { paths, tildify } from "./paths.js";
 
 /** The agent a profile runs: from config.toml, else Claude Code. */
 export function agentOf(name: string, config: Config): AgentId {
-  return config.profiles[name]?.agent ?? "claude";
+  return config.profiles[name]?.agent ?? DEFAULT_AGENT;
 }
 
 /**
@@ -17,7 +17,7 @@ export function agentOf(name: string, config: Config): AgentId {
  * folders matching the pattern (for example a place to keep shared skills) are not accounts.
  * With `agent`, only that agent's profiles.
  */
-export function listProfiles(config: Config, env: NodeJS.ProcessEnv = process.env, agent?: AgentId): string[] {
+export function listProfiles(config: Config, env: NodeJS.ProcessEnv, agent?: AgentId): string[] {
   const p = paths(env);
   const found = new Set<string>(Object.keys(config.profiles));
   let entries: string[] = [];
@@ -41,16 +41,12 @@ export function listProfiles(config: Config, env: NodeJS.ProcessEnv = process.en
   return [...found].filter((n) => !agent || agentOf(n, config) === agent).sort();
 }
 
-export function profileExists(name: string, config: Config, env: NodeJS.ProcessEnv = process.env): boolean {
-  return listProfiles(config, env).includes(name);
-}
-
 /**
  * What is wrong in a config.toml that parses: unknown keys (likely typos) and names of
  * profiles that do not exist in system, default, fallback, [agents.*] and [[projects]].
  * Warnings, not errors, so an older or hand-edited file keeps working.
  */
-export function configProblems(config: Config, env: NodeJS.ProcessEnv = process.env): string[] {
+export function configProblems(config: Config, env: NodeJS.ProcessEnv): string[] {
   const out = [...(config.warnings ?? [])];
   const known = new Set(listProfiles(config, env));
   const missing = (where: string, name: string | undefined) => {
@@ -69,7 +65,7 @@ export function configProblems(config: Config, env: NodeJS.ProcessEnv = process.
   }
   for (const role of ["default", "fallback"] as const) {
     const name = config[role];
-    if (name && known.has(name) && agentOf(name, config) !== "claude") out.push(`${role} = "${name}" is for Claude Code, but ${name} is a ${adapter(agentOf(name, config)).label} profile (use [agents.${agentOf(name, config)}])`);
+    if (name && known.has(name) && agentOf(name, config) !== DEFAULT_AGENT) out.push(`${role} = "${name}" is for ${adapter(DEFAULT_AGENT).label}, but ${name} is a ${adapter(agentOf(name, config)).label} profile (use [agents.${agentOf(name, config)}])`);
   }
   for (const rule of config.projects) {
     if (rule.profile && !known.has(rule.profile)) out.push(`the rule for ${tildify(rule.path, env)} uses profile ${rule.profile}, which does not exist (turno profile list)`);
@@ -83,7 +79,7 @@ export function configProblems(config: Config, env: NodeJS.ProcessEnv = process.
  * remote servers that skip mcpd, which a set cannot hide. Nothing when mcp.toml is missing or
  * broken (its own check reports that).
  */
-export function folderSetProblems(config: Config, env: NodeJS.ProcessEnv = process.env): string[] {
+function folderSetProblems(config: Config, env: NodeJS.ProcessEnv): string[] {
   const rules = config.projects.filter((r) => r.mcp || r.mcpDeny);
   if (!rules.length || !existsSync(paths(env).mcpFile)) return [];
   let servers;
@@ -115,7 +111,7 @@ export function folderSetProblems(config: Config, env: NodeJS.ProcessEnv = proce
 export function profileFromConfigDir(
   configDir: string | undefined,
   config: Config,
-  env: NodeJS.ProcessEnv = process.env,
+  env: NodeJS.ProcessEnv,
 ): string | undefined {
   const p = paths(env);
   const dir = (configDir ?? "").replace(/\/+$/, "");
@@ -126,5 +122,3 @@ export function profileFromConfigDir(
   }
   return config.system;
 }
-
-export { profileDir };

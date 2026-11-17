@@ -28,10 +28,11 @@ import { createCallLog } from "./calllog.js";
 import { type BuiltinFactory, DefaultConnector } from "./connectors.js";
 import { Gateway, type GatewayOptions } from "./gateway.js";
 import { ClientNames } from "./client-names.js";
-import { InstanceManager, descriptionFingerprint, processAlive } from "./instances.js";
+import { InstanceManager, descriptionFingerprint } from "./instances.js";
 import { describeOwner, peerPid, portOwner } from "./peerpid.js";
 import { memoryPressureProbe } from "./pressure.js";
 import { RssSampler } from "./rss.js";
+import { pidAlive } from "../core/fsutil.js";
 
 /** Files mcpd keeps in the state folder besides `mcpd.token` and `mcpd.port`. */
 export function daemonFiles(env: NodeJS.ProcessEnv = process.env): { lock: string; lastGood: string; error: string; log: string; calls: string; rss: string } {
@@ -126,15 +127,6 @@ export function readLock(env: NodeJS.ProcessEnv = process.env): LockInfo | undef
     return Number.isInteger(v.pid) && v.pid > 0 ? v : undefined;
   } catch {
     return undefined;
-  }
-}
-
-function pidAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return (err as NodeJS.ErrnoException).code === "EPERM";
   }
 }
 
@@ -326,7 +318,7 @@ export function createLogger(file: string, opts: { maxBytes?: number; keep?: num
   // Opened synchronously so the file exists before the first rotation renames it.
   const open = (): WriteStream | undefined => {
     try {
-      ensurePrivateDir(dirname(file), opts.env);
+      ensurePrivateDir(dirname(file), opts.env ?? process.env);
       const fd = openSync(file, "a", PRIVATE_FILE_MODE);
       const st = fstatSync(fd);
       if (st.mode & 0o077) fchmodSync(fd, PRIVATE_FILE_MODE);
@@ -551,7 +543,7 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
       log,
       folderRules: () => folderRules,
       home: p.home,
-      clientNames: new ClientNames(join(p.state, "mcpd-clients.json"), processAlive),
+      clientNames: new ClientNames(join(p.state, "mcpd-clients.json"), pidAlive),
       ...(config.mcpd.maxRequestBody ? { maxRequestBodyBytes: config.mcpd.maxRequestBody } : {}),
     };
     const gateway = new DaemonGateway(gwOpts, () => ({
@@ -658,10 +650,12 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
     process.on("SIGHUP", onHup);
 
     const timer = setInterval(() => {
-      gateway.pruneSessions(processAlive);
+      gateway.pruneSessions(pidAlive);
       manager
         .reap()
-        .then((stopped) => stopped.forEach((s) => log(`reaped ${s}`)))
+        .then((stopped) => {
+          for (const s of stopped) log(`reaped ${s}`);
+        })
         .catch((err) => log(`reap failed: ${(err as Error).message}`));
       void sampler.sample(manager.list().map((i) => ({ descKey: i.descKey, pid: i.upstream.pid })));
     }, 15_000);

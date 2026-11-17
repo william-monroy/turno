@@ -18,7 +18,7 @@ import { PRIVATE_FILE_MODE, ensurePrivateDir, isPrivatePath, paths } from "./pat
  * - "chmod": the command changed the mode of `path` from `mode` to `newMode`; undo sets `mode`
  *   again while the mode is still `newMode`.
  */
-export type EntryKind = "file" | "symlink" | "unlink" | "move" | "mkdir" | "rmdir" | "chmod";
+type EntryKind = "file" | "symlink" | "unlink" | "move" | "mkdir" | "rmdir" | "chmod";
 
 export interface JournalEntry {
   /** Missing in journals written before ADR 0025: a file. */
@@ -289,7 +289,7 @@ export interface JournalInfo {
 }
 
 /** Backup folders, newest first. */
-export function listJournals(env: NodeJS.ProcessEnv = process.env): JournalInfo[] {
+export function listJournals(env: NodeJS.ProcessEnv): JournalInfo[] {
   const root = paths(env).backupsDir;
   let names: string[] = [];
   try {
@@ -452,7 +452,7 @@ export function undoJournal(
 }
 
 /** When a journal was written: its manifest, else its stamp (local time), else the folder mtime. */
-export function journalTime(info: JournalInfo): number {
+function journalTime(info: JournalInfo): number {
   const created = info.manifest ? Date.parse(info.manifest.created) : Number.NaN;
   if (!Number.isNaN(created)) return created;
   const m = /^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/.exec(info.stamp);
@@ -468,7 +468,7 @@ export function journalTime(info: JournalInfo): number {
  * The first file a journal can still put back cleanly: not undone, and the file holds exactly
  * what the command left there. Its backup is then the only copy of what was there before.
  */
-export function liveEntry(info: JournalInfo): JournalEntry | undefined {
+function liveEntry(info: JournalInfo): JournalEntry | undefined {
   const m = info.manifest;
   if (!m || m.undoneBy) return undefined;
   return m.entries.find((e) => (e.kind ?? "file") === "file" && e.wrote !== undefined && digest(e.path) === e.wrote);
@@ -496,7 +496,7 @@ export interface PruneResult {
  * live undo point of a file (see liveEntry): pruning it would lose the only copy of what that
  * file held before a change the user has not undone.
  */
-export function pruneJournals(env: NodeJS.ProcessEnv = process.env, opts: PruneOptions = {}): PruneResult {
+export function pruneJournals(env: NodeJS.ProcessEnv, opts: PruneOptions = {}): PruneResult {
   const olderThan = opts.olderThanMs ?? PRUNE_DEFAULT_AGE_MS;
   const keep = opts.keep ?? PRUNE_DEFAULT_KEEP;
   const now = opts.now ?? Date.now();

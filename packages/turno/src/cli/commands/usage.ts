@@ -30,7 +30,7 @@ function authFailure(err: (Error & { code?: unknown; killed?: boolean; signal?: 
  * plan in the state plan dir, where the status line reads it. On failure `why` says what went
  * wrong (claude missing, a timeout, an error line), so callers never show a bare "?".
  */
-export function authStatusResult(profile: string, env: NodeJS.ProcessEnv = process.env): Promise<{ status?: AuthStatus; why?: string }> {
+function authStatusResult(profile: string, env: NodeJS.ProcessEnv = process.env): Promise<{ status?: AuthStatus; why?: string }> {
   return new Promise((resolve) => {
     execFile(
       "claude",
@@ -109,7 +109,7 @@ export function bar(pct: number, width = 30): string {
   return "█".repeat(filled) + "░".repeat(width - filled);
 }
 
-export function resetText(ts: number, now = Date.now() / 1000): string {
+function resetText(ts: number, now = Date.now() / 1000): string {
   const d = Math.floor(ts - now);
   if (d <= 0) return "already reset";
   const h = Math.floor(d / 3600);
@@ -118,7 +118,7 @@ export function resetText(ts: number, now = Date.now() / 1000): string {
   return `resets in ${rel} (${shortTime(ts)})`;
 }
 
-export function agoText(ts: number, now = Date.now() / 1000): string {
+function agoText(ts: number, now = Date.now() / 1000): string {
   const d = Math.floor(now - ts);
   if (d < 60) return "seconds ago";
   if (d < 3600) return `${Math.floor(d / 60)} min ago`;

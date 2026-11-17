@@ -71,7 +71,7 @@ export const NERD: IconSet = {
   left: cp(0xe0b6),
   right: cp(0xe0b4),
 };
-export const UNICODE: IconSet = {
+const UNICODE: IconSet = {
   acct: "◉",
   h5: "⧗",
   d7: "▦",
@@ -140,7 +140,7 @@ export interface RenderInput {
   when?: (epochSeconds: number) => string;
 }
 
-export function fg(n: number, text: string, bold = false): string {
+function fg(n: number, text: string, bold = false): string {
   return text ? `\x1b[${bold ? "1;" : ""}38;5;${n}m${text}\x1b[0m` : "";
 }
 

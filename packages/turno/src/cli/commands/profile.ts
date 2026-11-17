@@ -1,12 +1,12 @@
 import { existsSync, statSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 import { delimiter } from "node:path";
-import { type AgentId, adapter, agentHub, agentProfileDir, isAgentId, AGENT_IDS } from "../../agents/index.js";
+import { type AgentId, DEFAULT_AGENT, adapter, agentHub, agentProfileDir, isAgentId, AGENT_IDS } from "../../agents/index.js";
 import { editConfig } from "../../core/config-edit.js";
 import { type Config, type ProjectRule, loadConfig } from "../../core/config.js";
 import { exhaustedUntil } from "../../core/exhausted.js";
 import { Journal } from "../../core/journal.js";
-import { expandHome, paths, profileDir, tildify } from "../../core/paths.js";
+import { expandHome, paths, tildify } from "../../core/paths.js";
 import { agentOf, listProfiles } from "../../core/profiles.js";
 import { candidateRoots, folderMcpSet, resolveProfile } from "../../core/resolve.js";
 import { type TomlValue, addArrayTable, ensureTable, removeArrayTables, removeTable, setValue } from "../../core/toml-edit.js";
@@ -33,7 +33,7 @@ export function parseColor(v: string, label = "--color"): string | number {
 export async function profilesData(env: NodeJS.ProcessEnv, config: Config, withAccounts = true) {
   const names = listProfiles(config, env);
   // Account details come from `claude auth status`; other agents show whether they are set up.
-  const auth = withAccounts ? await Promise.all(names.map((n) => (agentOf(n, config) === "claude" ? authStatus(n, env) : undefined))) : [];
+  const auth = withAccounts ? await Promise.all(names.map((n) => (adapter(agentOf(n, config)).accountDetails ? authStatus(n, env) : undefined))) : [];
   return names.map((name, i) => {
     const s = auth[i];
     const agent = agentOf(name, config);
@@ -68,7 +68,7 @@ async function list(args: string[], io: Io): Promise<number> {
   const w = Math.max(...rows.map((r) => r.name.length));
   for (const r of rows) {
     const who = r.setUp
-      ? r.agent !== "claude"
+      ? !adapter(r.agent).accountDetails
         ? `${adapter(r.agent).label} (${launcherName(r.name, r.agent)})`
         : r.email
           ? `${r.email}${r.plan ? ` · ${r.plan}` : ""}`
@@ -126,9 +126,9 @@ const ADD_SPEC: FlagSpec = {
 async function add(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, ADD_SPEC, 1);
   const name = p.positionals[0];
-  if (!name) return fail("usage: turno profile add <name> [--agent claude|codex|copilot|cursor] [--color <c>] [--browser chrome|default]");
+  if (!name) return fail(`usage: turno profile add <name> [--agent ${AGENT_IDS.join("|")}] [--color <c>] [--browser chrome|default]`);
   checkName(name);
-  const agent = str(p, "agent") ?? "claude";
+  const agent = str(p, "agent") ?? DEFAULT_AGENT;
   if (!isAgentId(agent)) fail(`--agent must be one of ${AGENT_IDS.join(", ")}`);
   const color = str(p, "color");
   const parsedColor = color ? parseColor(color) : undefined;
@@ -143,7 +143,7 @@ async function add(args: string[], io: Io): Promise<number> {
   const table = `profiles.${name}`;
   const { changed } = editConfig(io.env, journal, (t) => {
     let text = ensureTable(t, table);
-    if (agent !== "claude") text = setValue(text, table, "agent", agent);
+    if (agent !== DEFAULT_AGENT) text = setValue(text, table, "agent", agent);
     if (parsedColor !== undefined) text = setValue(text, table, "color", parsedColor);
     if (browser) text = setValue(text, table, "browser", browser);
     return text;
@@ -161,13 +161,8 @@ async function add(args: string[], io: Io): Promise<number> {
   const offPath = warnPath(io, launcher);
   // `turno <name>` works without ~/.local/bin on PATH.
   const run = offPath ? `turno ${name}` : launcher;
-  const login: Record<AgentId, string> = {
-    claude: `run ${run} and sign in with /login`,
-    codex: `run ${run} login`,
-    copilot: `run ${run} and sign in with /login`,
-    cursor: `run ${run} login`,
-  };
-  io.out(`Next: ${login[agent]}. turno profile list shows the profile.`);
+  const sub = adapter(agent).loginSubcommand;
+  io.out(`Next: ${sub ? `run ${run} ${sub}` : `run ${run} and sign in with /login`}. turno profile list shows the profile.`);
   const hint = journal.hint();
   if (hint) io.out(hint);
   return 0;
@@ -247,7 +242,7 @@ function folder(arg: string | undefined, io: Io): string {
 
 /** How a folder resolves for each agent that has profiles (Claude Code always). */
 export function resolveAll(dir: string, config: Config, env: NodeJS.ProcessEnv) {
-  const agents = AGENT_IDS.filter((a) => a === "claude" || listProfiles(config, env, a).length > 0);
+  const agents = AGENT_IDS.filter((a) => a === DEFAULT_AGENT || listProfiles(config, env, a).length > 0);
   return agents.map((agent) => ({ agent, r: resolveProfile(dir, config, env, undefined, agent) }));
 }
 

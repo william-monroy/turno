@@ -6,7 +6,7 @@ import { isValidProfileName, loadConfig } from "../core/config.js";
 import { paths, tildify } from "../core/paths.js";
 import { listProfiles } from "../core/profiles.js";
 import { CliError, type Io, UsageError } from "./io.js";
-import { executable, findOnPath, launcherName, profileAgent } from "./launchers.js";
+import { executable, launcherName, profileAgent } from "./launchers.js";
 
 export { findOnPath } from "./launchers.js";
 
@@ -56,13 +56,6 @@ export async function execLauncher(file: string, args: string[], env: NodeJS.Pro
       resolve(code ?? 1);
     });
   });
-}
-
-/** Exec a command looked up on PATH, as the shell's `exec cmd "$@"` would. */
-export async function execCommand(cmd: string, args: string[], env: NodeJS.ProcessEnv = process.env): Promise<number> {
-  const file = findOnPath(cmd, env);
-  if (!file) throw new UsageError(`${cmd}: command not found on PATH`);
-  return execLauncher(file, args, env);
 }
 
 /** `turno <profile> [args]`: exec the profile's launcher. */

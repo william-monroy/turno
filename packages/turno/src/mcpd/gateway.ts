@@ -41,7 +41,7 @@ export interface GatewayOptions {
   clientNames?: ClientNames;
 }
 
-export const DEFAULT_MAX_REQUEST_BODY = 32 * 1024 * 1024;
+const DEFAULT_MAX_REQUEST_BODY = 32 * 1024 * 1024;
 
 /** List methods answered from the description cache. resources/list is not one of them. */
 const LIST_METHODS: Record<string, { cap: string; key: keyof ServerDescription; field: string }> = {
@@ -55,9 +55,9 @@ const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 /** What a valid bearer token lets the caller do. */
 type Caller = { admin: true } | { admin: false; profile: string };
 
-export const MASTER_TOKEN_REFUSED =
+const MASTER_TOKEN_REFUSED =
   "this agent config sends the master gateway token, which turno no longer accepts for MCP sessions (each profile has its own token now); run: turno mcp sync";
-export const BAD_TOKEN = "bad token (after an upgrade or turno mcp token rotate, run: turno mcp sync)";
+const BAD_TOKEN = "bad token (after an upgrade or turno mcp token rotate, run: turno mcp sync)";
 
 function header(req: IncomingMessage, name: string): string | undefined {
   const v = req.headers[name];
@@ -76,7 +76,7 @@ function safeEqual(a: string, b: string): boolean {
   return ab.length === bb.length && timingSafeEqual(ab, bb);
 }
 
-export function negotiateVersion(requested: unknown): string {
+function negotiateVersion(requested: unknown): string {
   return typeof requested === "string" && SUPPORTED_PROTOCOL_VERSIONS.includes(requested) ? requested : LATEST_PROTOCOL_VERSION;
 }
 

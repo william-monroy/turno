@@ -39,7 +39,7 @@ export interface ConnectorOptions {
 
 const MAX_LOG = 5 * 1024 * 1024;
 
-export function logFileOf(logsDir: string, label: string): string {
+function logFileOf(logsDir: string, label: string): string {
   return join(logsDir, `${label.replace(/[^A-Za-z0-9_.-]/g, "_")}.log`);
 }
 
@@ -103,7 +103,7 @@ export class RotatingLog {
 }
 
 /** The last lines of a file (at most 16 KiB are read). */
-export function tailFile(file: string, lines = 10): string | undefined {
+function tailFile(file: string, lines = 10): string | undefined {
   let fd: number | undefined;
   try {
     const size = statSync(file).size;

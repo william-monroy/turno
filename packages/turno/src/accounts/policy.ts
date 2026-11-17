@@ -39,7 +39,7 @@ const MESSAGING = new Set([
   "zulip",
 ]);
 
-export function isMessagingService(service: string): boolean {
+function isMessagingService(service: string): boolean {
   return MESSAGING.has(service) || service.includes("mail");
 }
 

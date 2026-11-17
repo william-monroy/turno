@@ -270,7 +270,14 @@ export async function top(args: string[], io: Io, signal?: AbortSignal, everyMs 
       io.out(`\x1b[H\x1b[2J${lines.join("\n")}\n${paint(io, `every ${everyMs / 1000}s · Ctrl-C to quit`, "2")}`);
       await new Promise<void>((r) => {
         const timer = setTimeout(r, everyMs);
-        stop.signal.addEventListener("abort", () => (clearTimeout(timer), r()), { once: true });
+        stop.signal.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(timer);
+            r();
+          },
+          { once: true },
+        );
       });
     }
   } finally {

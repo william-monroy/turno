@@ -1,7 +1,10 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { parse, stringify } from "smol-toml";
-import { paths, tildify } from "../core/paths.js";
+import type { McpStore } from "../agents/adapter.js";
+import { SCAN_ORDER, adapter } from "../agents/index.js";
+import { tildify } from "../core/paths.js";
+import { isObject, readJsonFile } from "../core/fsutil.js";
 
 /** Scope defaults for servers we know; unknown servers default to "project" (safe for folder-bound tools). */
 const KNOWN: { match: RegExp; scope: "shared" | "project" | "session"; note: string }[] = [
@@ -51,7 +54,7 @@ function words(key: string): string[] {
     .filter(Boolean);
 }
 
-export function isSecretKey(key: string): boolean {
+function isSecretKey(key: string): boolean {
   return words(key).some((w) => SECRET_WORDS.has(w));
 }
 
@@ -73,7 +76,7 @@ export function maskSecret(value: string): string {
 }
 
 /** The `env:` reference for a value that is exactly `${VAR}` or `${VAR:-default}`, if it is one. */
-export function envRef(value: string): string | undefined {
+function envRef(value: string): string | undefined {
   const m = WHOLE_VAR.exec(value);
   if (!m || CURSOR_VARS.has(m[1]!)) return undefined;
   return m[2] !== undefined ? `env:${m[1]}:-${m[2]}` : `env:${m[1]}`;
@@ -116,7 +119,7 @@ export function urlSecrets(url: string): string[] {
 }
 
 /** A secret the import would store in the Keychain (only with --write --move-secrets). */
-export interface PendingSecret {
+interface PendingSecret {
   /** `server.KEY`, for messages. */
   where: string;
   service: string;
@@ -348,39 +351,22 @@ function objectsOf(v: unknown): Record<string, Record<string, unknown>> {
   return out;
 }
 
-/** A Codex `[mcp_servers.<name>]` table in Claude Code's shape. */
-function fromCodex(e: Record<string, unknown>): Record<string, unknown> {
-  if (typeof e.command === "string") {
-    const env: Record<string, string> = { ...((e.env as Record<string, string>) ?? {}) };
-    for (const v of (e.env_vars as unknown[]) ?? []) if (typeof v === "string") env[v] = `\${${v}}`;
-    return {
-      type: "stdio",
-      command: e.command,
-      args: (e.args as unknown[]) ?? [],
-      ...(Object.keys(env).length ? { env } : {}),
-      ...(typeof e.cwd === "string" ? { cwd: e.cwd } : {}),
-    };
-  }
-  const headers: Record<string, string> = { ...((e.http_headers as Record<string, string>) ?? {}) };
-  for (const [h, v] of Object.entries((e.env_http_headers as Record<string, string>) ?? {})) headers[h] = `\${${v}}`;
-  if (typeof e.bearer_token_env_var === "string") headers.Authorization = `Bearer \${${e.bearer_token_env_var}}`;
-  return { type: "http", url: e.url, ...(Object.keys(headers).length ? { headers } : {}) };
-}
-
-function readJson(file: string): Record<string, unknown> | undefined {
+/** An agent config as an object: undefined when the file is missing, {} when it holds no object. */
+function readConfig(file: string, store: McpStore): Record<string, unknown> | undefined {
   if (!existsSync(file)) return undefined;
-  const v = JSON.parse(readFileSync(file, "utf8")) as unknown;
+  const text = readFileSync(file, "utf8");
+  if (store.format === "toml") return parse(text) as Record<string, unknown>;
+  const v = JSON.parse(text) as unknown;
   return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
 }
 
 /**
- * Every MCP server configured for an agent on this machine: Claude Code (user and project
- * servers in ~/.claude.json, the folder's .mcp.json), Codex (~/.codex/config.toml), Cursor
- * (~/.cursor/mcp.json) and Copilot CLI (~/.copilot/mcp-config.json). Missing files are skipped;
- * unreadable ones are reported in `problems`.
+ * Every MCP server configured for an agent on this machine, in the order of SCAN_ORDER: each
+ * agent's hub file (Claude Code also its per-project servers and the folder's .mcp.json, Codex
+ * its config.toml tables in Claude Code's shape). Missing files are skipped; unreadable ones are
+ * reported in `problems`.
  */
 export function collectSources(env: NodeJS.ProcessEnv, cwd: string): { sources: Source[]; problems: string[] } {
-  const p = paths(env);
   const sources: Source[] = [];
   const problems: string[] = [];
   const t = (f: string) => tildify(f, env);
@@ -395,35 +381,27 @@ export function collectSources(env: NodeJS.ProcessEnv, cwd: string): { sources: 
     if (Object.keys(servers).length) sources.push({ label, servers });
   };
 
-  attempt(p.hubConfig, () => {
-    const hub = readJson(p.hubConfig);
-    if (!hub) return;
-    add(t(p.hubConfig), objectsOf(hub.mcpServers));
-    for (const [dir, proj] of Object.entries((hub.projects as Record<string, Record<string, unknown>>) ?? {})) {
-      add(`${t(p.hubConfig)} project ${t(dir)}`, objectsOf(proj?.mcpServers));
-    }
-  });
-  const folder = join(cwd, ".mcp.json");
-  attempt(folder, () => {
-    const m = readJson(folder);
-    if (m) add(t(folder), objectsOf(m.mcpServers));
-  });
-  const codex = join(p.home, ".codex", "config.toml");
-  attempt(codex, () => {
-    if (!existsSync(codex)) return;
-    const raw = objectsOf((parse(readFileSync(codex, "utf8")) as Record<string, unknown>).mcp_servers);
-    add(t(codex), Object.fromEntries(Object.entries(raw).map(([k, e]) => [k, fromCodex(e)])));
-  });
-  const cursor = join(p.home, ".cursor", "mcp.json");
-  attempt(cursor, () => {
-    const m = readJson(cursor);
-    if (m) add(t(cursor), objectsOf(m.mcpServers));
-  });
-  const copilot = join(p.home, ".copilot", "mcp-config.json");
-  attempt(copilot, () => {
-    const m = readJson(copilot);
-    if (m) add(t(copilot), objectsOf(m.mcpServers));
-  });
+  for (const id of SCAN_ORDER) {
+    const m = adapter(id).mcp;
+    const shape = (v: unknown) => {
+      const raw = objectsOf(v);
+      const toImport = m.toImport;
+      return toImport ? Object.fromEntries(Object.entries(raw).map(([k, e]) => [k, toImport(e)])) : raw;
+    };
+    const hubFile = m.hubFile(env);
+    attempt(hubFile, () => {
+      const cfg = readConfig(hubFile, m.store);
+      if (!cfg) return;
+      add(t(hubFile), shape(cfg[m.store.key]));
+      for (const [dir, servers] of m.projectServers?.(cfg) ?? []) add(`${t(hubFile)} project ${t(dir)}`, shape(servers));
+    });
+    if (!m.folderFile) continue;
+    const folder = join(cwd, m.folderFile);
+    attempt(folder, () => {
+      const cfg = readConfig(folder, m.store);
+      if (cfg) add(t(folder), shape(cfg[m.store.key]));
+    });
+  }
   return { sources, problems };
 }
 
@@ -492,12 +470,8 @@ export function pluginServers(hub: string): PluginServer[] {
       .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
     const latest = versions[0];
     if (!latest) continue;
-    let mcp: Record<string, unknown> = {};
-    try {
-      mcp = JSON.parse(readFileSync(join(latest, ".mcp.json"), "utf8")) as Record<string, unknown>;
-    } catch {
-      continue;
-    }
+    const mcp = readJsonFile(join(latest, ".mcp.json"));
+    if (!isObject(mcp)) continue;
     const servers = (mcp.mcpServers ?? mcp) as Record<string, Record<string, unknown>>;
     for (const [name, def] of Object.entries(servers)) {
       if (typeof def !== "object" || def === null) continue;

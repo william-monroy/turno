@@ -1,9 +1,10 @@
 import { execFile } from "node:child_process";
-import { accessSync, constants, existsSync, readFileSync, realpathSync } from "node:fs";
+import { accessSync, constants, existsSync, readFileSync } from "node:fs";
 import { basename, delimiter, join } from "node:path";
 import { promisify } from "node:util";
 import type { Journal } from "../core/journal.js";
 import { paths } from "../core/paths.js";
+import { realOr } from "../core/fsutil.js";
 
 const exec = promisify(execFile);
 
@@ -22,7 +23,7 @@ export class ServiceError extends Error {
 }
 
 /** Set in the service environment, so `mcp daemon run` knows a supervisor restarts it. */
-export const SERVICE_ENV = "TURNO_MCPD_SERVICE";
+const SERVICE_ENV = "TURNO_MCPD_SERVICE";
 
 export interface ServiceSpec {
   /** Program and its first arguments; `mcp daemon run` is appended. */
@@ -108,14 +109,6 @@ function whichAll(cmd: string, env: NodeJS.ProcessEnv): string[] {
     .filter(executable);
 }
 
-function real(p: string): string {
-  try {
-    return realpathSync(p);
-  } catch {
-    return p;
-  }
-}
-
 export interface ProgramChoice {
   program: string[];
   /** Why the choice may break later, when it may. */
@@ -129,10 +122,10 @@ export interface ProgramChoice {
  * stable; otherwise the running node and script, with a warning.
  */
 export function chooseProgram(opts: { env: NodeJS.ProcessEnv; execPath: string; script: string }): ProgramChoice {
-  const script = real(opts.script);
+  const script = realOr(opts.script);
   for (const t of whichAll("turno", opts.env)) {
     if (isUnstablePath(t)) continue;
-    const r = real(t);
+    const r = realOr(t);
     if (r === script || basename(r) === "volta-shim") return { program: [t] };
   }
   if (!isUnstablePath(script)) {
@@ -147,7 +140,7 @@ export function chooseProgram(opts: { env: NodeJS.ProcessEnv; execPath: string; 
 }
 
 /** Whether `systemd --user` can be used here. */
-export async function systemdAvailable(env: NodeJS.ProcessEnv): Promise<boolean> {
+async function systemdAvailable(env: NodeJS.ProcessEnv): Promise<boolean> {
   try {
     await exec("systemctl", ["--user", "show-environment"], { timeout: 5000, env });
     return true;

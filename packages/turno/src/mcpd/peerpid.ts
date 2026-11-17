@@ -29,7 +29,7 @@ function hexPort(addr: string | undefined): number {
 }
 
 /** Parse the rows of /proc/net/tcp and /proc/net/tcp6 (empty when they do not exist). */
-export function procTcpRows(procRoot = "/proc"): TcpRow[] {
+function procTcpRows(procRoot = "/proc"): TcpRow[] {
   const rows: TcpRow[] = [];
   for (const name of ["tcp", "tcp6"]) {
     let text: string;
@@ -48,7 +48,7 @@ export function procTcpRows(procRoot = "/proc"): TcpRow[] {
 }
 
 /** PID of the process holding socket `inode`, scanning the fds we are allowed to read. */
-export function pidOfInode(inode: string, procRoot = "/proc", skip?: number): number | undefined {
+function pidOfInode(inode: string, procRoot = "/proc", skip?: number): number | undefined {
   if (!inode || inode === "0") return undefined;
   const want = `socket:[${inode}]`;
   let pids: string[];

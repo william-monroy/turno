@@ -1,7 +1,8 @@
 # Other agents
 
 turno started with Claude Code, and its profiles, folder rules and MCP gateway work with other
-coding agents too. Why and how: [ADR 0013](decisions/0013-agent-adapters.md).
+coding agents too. Why and how: [ADR 0013](decisions/0013-agent-adapters.md); where the code for
+each agent lives: [ADR 0032](decisions/0032-agent-adapter-boundary.md).
 
 | Agent | Profiles and launcher | Gateway entries | Shared from the hub | Notes |
 |---|---|---|---|---|

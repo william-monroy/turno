@@ -10,7 +10,7 @@ import { currentTerminal, nerdHere } from "../../ui/terminal-id.js";
 import { JSON_FLAG, bool, parseFlags, printJson } from "../args.js";
 import { type Command, type Io, paint, plural } from "../io.js";
 import { mcpdStatus } from "./doctor.js";
-import { adapter } from "../../agents/index.js";
+import { DEFAULT_AGENT, adapter } from "../../agents/index.js";
 import { limitsData } from "./limit.js";
 import { profilesData, resolveAll, usingText } from "./profile.js";
 import { sessionsData } from "./session.js";
@@ -49,7 +49,8 @@ export async function statusData(env: NodeJS.ProcessEnv, cwd = process.cwd()) {
       total: sessions.length,
       byProfile: sessions.reduce<Record<string, number>>((acc, s) => {
         const key = s.profile ?? (s.source === "desktop" ? "desktop" : "unknown");
-        return { ...acc, [key]: (acc[key] ?? 0) + 1 };
+        acc[key] = (acc[key] ?? 0) + 1;
+        return acc;
       }, {}),
     },
     mcpd: { running: mcpd.running, port: mcpd.port, problems: mcpdProblems },
@@ -85,11 +86,11 @@ export const command: Command = {
     if (d.migrationPending) io.out(paint(io, "the bash claudio config is not migrated yet: turno migrate", "33"));
     const using = d.here.chosen ?? "plain claude";
     io.out(`here      ${d.here.dir} -> ${using}${d.here.note ? ` (${d.here.assigned} ${d.here.note})` : dim(` (${d.here.reason})`)}`);
-    for (const [agent, a] of Object.entries(d.here.agents)) if (agent !== "claude") io.out(`          ${agent} -> ${a.text}`);
+    for (const [agent, a] of Object.entries(d.here.agents)) if (agent !== DEFAULT_AGENT) io.out(`          ${agent} -> ${a.text}`);
     if (!d.profiles.length) io.out("profiles  none yet (turno profile add <name>)");
     const w = Math.max(0, ...d.profiles.map((x) => x.name.length));
     for (const [i, x] of d.profiles.entries()) {
-      const who = !x.setUp ? "not set up" : x.agent !== "claude" ? adapter(x.agent).label : (x.email ?? "not logged in");
+      const who = !x.setUp ? "not set up" : !adapter(x.agent).accountDetails ? adapter(x.agent).label : (x.email ?? "not logged in");
       const flags = [...x.roles, x.exhaustedUntil ? `exhausted until ${shortTime(x.exhaustedUntil)}` : ""].filter(Boolean).join(", ");
       io.out(`${i === 0 ? "profiles  " : "          "}${x.name.padEnd(w)}  5h ${pct(x.fiveHour, now)}  week ${pct(x.week, now)}  ${who}${x.plan ? ` · ${x.plan}` : ""}${flags ? dim(`  ${flags}`) : ""}`);
     }

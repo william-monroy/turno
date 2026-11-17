@@ -2,6 +2,7 @@ import { lstatSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs"
 import { join } from "node:path";
 import { type Config, isValidProfileName, loadConfig } from "./config.js";
 import { paths, profileDir } from "./paths.js";
+import { pidAlive } from "./fsutil.js";
 
 /** A live Claude Code session, read from `<hub>/sessions/<pid>.json`. */
 export interface LiveSession {
@@ -21,15 +22,9 @@ export interface LiveSession {
   source: "record" | "system" | "desktop";
 }
 
-/** Whether a process is alive. EPERM means it exists but belongs to someone else. */
-export function pidAlive(pid: number): boolean {
-  if (!Number.isInteger(pid) || pid <= 0) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return (err as NodeJS.ErrnoException).code === "EPERM";
-  }
+/** Whether a recorded PID is a live process: process groups (0, negative) never count. */
+function liveProcess(pid: number): boolean {
+  return Number.isInteger(pid) && pid > 0 && pidAlive(pid);
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -51,7 +46,7 @@ export function parseProcStart(text: string): { utc: number; local: number } | u
  * The profile in a launcher's run record, when the record belongs to this process: its mtime
  * must be within 120 s of the process start, so a recycled PID never inherits an old record.
  */
-export function recordProfile(pid: number, procStart: string | undefined, env: NodeJS.ProcessEnv = process.env): string | undefined {
+function recordProfile(pid: number, procStart: string | undefined, env: NodeJS.ProcessEnv): string | undefined {
   const start = parseProcStart(procStart ?? "");
   if (!start) return undefined;
   const p = paths(env);
@@ -71,7 +66,7 @@ export function recordProfile(pid: number, procStart: string | undefined, env: N
 }
 
 /** Remove run records of processes that have ended. */
-export function pruneRunRecords(env: NodeJS.ProcessEnv = process.env): void {
+function pruneRunRecords(env: NodeJS.ProcessEnv): void {
   const dir = paths(env).runDir;
   let entries: string[];
   try {
@@ -80,7 +75,7 @@ export function pruneRunRecords(env: NodeJS.ProcessEnv = process.env): void {
     return;
   }
   for (const entry of entries) {
-    if (/^\d+$/.test(entry) && pidAlive(Number(entry))) continue;
+    if (/^\d+$/.test(entry) && liveProcess(Number(entry))) continue;
     rmSync(join(dir, entry), { force: true, recursive: true });
   }
 }
@@ -120,12 +115,12 @@ function readSessionFiles(dir: string): RawSession[] {
 }
 
 /** Live sessions in the hub, each attributed to a profile. Also prunes dead run records. */
-export function liveSessions(env: NodeJS.ProcessEnv = process.env, config?: Config): LiveSession[] {
+export function liveSessions(env: NodeJS.ProcessEnv, config?: Config): LiveSession[] {
   const cfg = config ?? loadConfig(env);
   const sessions: LiveSession[] = [];
   for (const s of readSessionFiles(join(paths(env).hub, "sessions"))) {
     const pid = typeof s.pid === "number" ? s.pid : Number.parseInt(text(s.pid), 10);
-    if (!pidAlive(pid)) continue;
+    if (!liveProcess(pid)) continue;
     const entrypoint = text(s.entrypoint);
     const procStart = text(s.procStart) || undefined;
     const base = {
@@ -156,7 +151,7 @@ export function displayName(s: LiveSession): string {
 }
 
 /** Profiles with at least one live session. */
-export function busyProfiles(env: NodeJS.ProcessEnv = process.env, config?: Config): Set<string> {
+export function busyProfiles(env: NodeJS.ProcessEnv, config?: Config): Set<string> {
   const out = new Set<string>();
   for (const s of liveSessions(env, config)) if (s.profile) out.add(s.profile);
   return out;
@@ -166,7 +161,7 @@ export function busyProfiles(env: NodeJS.ProcessEnv = process.env, config?: Conf
  * Whether a profile has a live session. Besides the hub, a profile whose `sessions` folder
  * is still its own copy (not yet linked to the hub) is busy when a session in it is alive.
  */
-export function profileBusy(name: string, env: NodeJS.ProcessEnv = process.env, config?: Config): boolean {
+export function profileBusy(name: string, env: NodeJS.ProcessEnv, config?: Config): boolean {
   if (busyProfiles(env, config).has(name)) return true;
   const own = join(profileDir(name, env), "sessions");
   try {
@@ -176,11 +171,11 @@ export function profileBusy(name: string, env: NodeJS.ProcessEnv = process.env, 
   }
   for (const s of readSessionFiles(own)) {
     const pid = typeof s.pid === "number" ? s.pid : Number.parseInt(text(s.pid), 10);
-    if (pidAlive(pid)) return true;
+    if (liveProcess(pid)) return true;
   }
   // Session files are named <pid>.json; trust the name when the content is unreadable.
   try {
-    return readdirSync(own).some((f) => /^\d+\.json$/.test(f) && pidAlive(Number(f.slice(0, -5))));
+    return readdirSync(own).some((f) => /^\d+\.json$/.test(f) && liveProcess(Number(f.slice(0, -5))));
   } catch {
     return false;
   }

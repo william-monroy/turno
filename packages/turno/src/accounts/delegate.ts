@@ -55,7 +55,7 @@ export interface DelegateResult {
 export const DEFAULT_MAX_TURNS = 15;
 export const DEFAULT_TIMEOUT_MS = 5 * 60_000;
 /** The bridge itself: never reachable from a delegated run, so delegation cannot recurse. */
-export const BRIDGE_TOOLS = "mcp__accounts__*";
+const BRIDGE_TOOLS = "mcp__accounts__*";
 
 /** Path of a profile's launcher (`claude-<profile>` in the turno bin dir). */
 export function launcherPath(profile: string, env: NodeJS.ProcessEnv = process.env): string {
@@ -71,7 +71,7 @@ export function launcherExists(profile: string, env: NodeJS.ProcessEnv = process
 }
 
 /** The prompt the owning profile receives. */
-export function delegationPrompt(account: Account, task: string, write: boolean, tools: string[] = account.tools): string {
+function delegationPrompt(account: Account, task: string, write: boolean, tools: string[] = account.tools): string {
   const what = account.description ? `${account.id} (${account.description})` : account.id;
   return [
     "You are running headless on behalf of another Claude Code session, through the turno accounts bridge.",
@@ -93,7 +93,7 @@ export function delegationPrompt(account: Account, task: string, write: boolean,
  * mcpd's environment is dropped: another profile's `CLAUDE_CONFIG_DIR`, API keys, the session
  * variables of whoever started mcpd (ADR 0024).
  */
-export const ENV_ALLOW = [
+const ENV_ALLOW = [
   "HOME",
   "PATH",
   "USER",
@@ -117,7 +117,7 @@ export const ENV_ALLOW = [
 ] as const;
 
 /** The minimal environment of a delegated run, from mcpd's own. */
-export function childEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+function childEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const out: NodeJS.ProcessEnv = {};
   for (const [k, v] of Object.entries(env)) {
     if (v === undefined) continue;
@@ -254,7 +254,7 @@ export function buildDelegation(req: DelegateRequest, run: Pick<RunFolder, "cwd"
 }
 
 /** Default runner: own process group, killed as a whole on timeout or abort. */
-export const spawnRunner: Runner = (spec, signal) =>
+const spawnRunner: Runner = (spec, signal) =>
   new Promise((resolve) => {
     if (signal?.aborted) {
       resolve({ code: null, stdout: "", stderr: "", timedOut: false, cancelled: true });
@@ -324,7 +324,7 @@ interface ClaudeJson {
 }
 
 /** Tool names from the result's `permission_denials` (calls Claude Code refused). */
-export function deniedTools(json: { permission_denials?: unknown } | undefined): string[] {
+function deniedTools(json: { permission_denials?: unknown } | undefined): string[] {
   if (!Array.isArray(json?.permission_denials)) return [];
   const names = json.permission_denials
     .map((d) => (d && typeof d === "object" ? (d as { tool_name?: unknown }).tool_name : undefined))

@@ -13,7 +13,7 @@ export interface Sub extends Completion {
 }
 
 /** Usage text of a group: one line per visible subcommand, then an optional footer. */
-export function groupUsage(name: string, subs: Record<string, Sub>, footer?: string): string {
+function groupUsage(name: string, subs: Record<string, Sub>, footer?: string): string {
   const rows = Object.entries(subs)
     .filter(([, s]) => !s.hidden)
     .map(([n, s]) => [`turno ${name} ${n}${s.synopsis ? ` ${s.synopsis}` : ""}`, s.summary] as const);

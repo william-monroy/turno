@@ -1,5 +1,6 @@
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import type { Journal } from "../core/journal.js";
+import { parseJsonObject, realOr } from "../core/fsutil.js";
 
 export interface StatusLine {
   type: "command";
@@ -10,19 +11,11 @@ export interface StatusLine {
 }
 
 /** Refresh every 30 s so reset countdowns and the clock-driven parts stay current. */
-export const REFRESH_SECONDS = 30;
-
-function real(p: string): string {
-  try {
-    return realpathSync(p);
-  } catch {
-    return p;
-  }
-}
+const REFRESH_SECONDS = 30;
 
 export function readSettings(file: string): Record<string, unknown> {
   if (!existsSync(file)) return {};
-  return JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+  return parseJsonObject(readFileSync(file, "utf8"), file);
 }
 
 export function currentStatusLine(file: string): StatusLine | undefined {
@@ -40,7 +33,7 @@ export function isTurnoStatusLine(s: StatusLine | undefined): boolean {
 }
 
 /** The entry to write: our command, keeping any other keys the user set (padding, ...). */
-export function wantedStatusLine(command: string, existing: StatusLine | undefined): StatusLine {
+function wantedStatusLine(command: string, existing: StatusLine | undefined): StatusLine {
   return { ...(existing ?? {}), type: "command", command, refreshInterval: existing?.refreshInterval ?? REFRESH_SECONDS };
 }
 
@@ -56,7 +49,7 @@ export function setStatusLine(file: string, command: string, journal: Journal): 
   const before = settings.statusLine as StatusLine | undefined;
   const after = wantedStatusLine(command, before);
   const changed = JSON.stringify(before) !== JSON.stringify(after);
-  const result: WriteResult = { file: real(file), changed, after, ...(before ? { before } : {}) };
+  const result: WriteResult = { file: realOr(file), changed, after, ...(before ? { before } : {}) };
   if (changed) journal.write(file, `${JSON.stringify({ ...settings, statusLine: after }, null, 2)}\n`);
   return result;
 }

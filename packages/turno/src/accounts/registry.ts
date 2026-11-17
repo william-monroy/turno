@@ -1,10 +1,11 @@
 import type { Journal } from "../core/journal.js";
-import { chmodSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve, sep } from "node:path";
 import { parse, stringify } from "smol-toml";
 import { ConfigError, isValidProfileName } from "../core/config.js";
 import { PRIVATE_FILE_MODE, ensurePrivateDir, expandHome, paths, tildify } from "../core/paths.js";
 import { CONFIRM_POLICIES, type ConfirmPolicy, isConfirmPolicy, patternCovers } from "./policy.js";
+import { realOr } from "../core/fsutil.js";
 
 /** One service account (a Linear workspace, a Gmail connector) owned by one Claude profile. */
 export interface Account {
@@ -27,7 +28,7 @@ export interface Account {
 }
 
 /** Folder rule: inside `path`, prefer these accounts (service name to account id). */
-export interface PreferRule {
+interface PreferRule {
   /** Absolute path, `~` expanded. */
   path: string;
   accounts: Record<string, string>;
@@ -216,14 +217,6 @@ function normalize(p: string): string {
   return r.length > 1 && r.endsWith(sep) ? r.slice(0, -1) : r;
 }
 
-function real(p: string): string {
-  try {
-    return realpathSync(p);
-  } catch {
-    return p;
-  }
-}
-
 function within(dir: string, root: string): boolean {
   return dir === root || root === sep || dir.startsWith(root + sep);
 }
@@ -233,10 +226,10 @@ function within(dir: string, root: string): boolean {
  * matching path wins. Both the folder and the rule paths are also compared through symlinks.
  */
 export function preferredFor(reg: Registry, cwd: string): Record<string, string> {
-  const dirs = [...new Set([normalize(cwd), normalize(real(cwd))])];
+  const dirs = [...new Set([normalize(cwd), normalize(realOr(cwd))])];
   const best: Record<string, { len: number; account: string }> = {};
   for (const rule of reg.prefer) {
-    const roots = [...new Set([rule.path, normalize(real(rule.path))])];
+    const roots = [...new Set([rule.path, normalize(realOr(rule.path))])];
     const match = roots.filter((r) => dirs.some((d) => within(d, r))).map((r) => r.length);
     if (!match.length) continue;
     const len = Math.max(...match);

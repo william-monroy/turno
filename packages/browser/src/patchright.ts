@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 const require = createRequire(import.meta.url);
 
 /** Install dir of patchright-core, resolved from this package. */
-export function patchrightDir(): string {
+function patchrightDir(): string {
   return dirname(require.resolve("patchright-core/package.json"));
 }
 
@@ -14,11 +14,6 @@ export function patchrightDir(): string {
  */
 export function mcpEntryPath(): string {
   return join(patchrightDir(), "lib", "entry", "mcp.js");
-}
-
-/** True when a package can be resolved from this package or the current folder. */
-export function isResolvable(name: string): boolean {
-  return resolveFrom(name) !== undefined;
 }
 
 export function resolveFrom(name: string): string | undefined {

@@ -1,6 +1,6 @@
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, resolve as resolvePath } from "node:path";
-import { type AgentId, AGENT_IDS, adapter, agentHub, agentProfileDir, isAgentId } from "../../agents/index.js";
+import { type AgentId, AGENT_IDS, DEFAULT_AGENT, adapter, agentHub, agentProfileDir, isAgentId, mcpFileFor } from "../../agents/index.js";
 import { editConfig, migrationPending, MigrationPending, readConfigText } from "../../core/config-edit.js";
 import { type Config, loadConfig, parseConfig } from "../../core/config.js";
 import { Journal } from "../../core/journal.js";
@@ -22,14 +22,6 @@ import { RESERVED, checkName, localCopies, setupProfiles } from "./setup.js";
  * the folders each account was used in), proposes profiles, folder rules, a default and mcp.toml,
  * prints the whole change, and writes it through one journal so one `turno undo` reverts it.
  */
-
-/** Files that mark a folder as an agent home (so ~/.cursor-server or ~/.claude-skills are not accounts). */
-const HOME_MARKERS: Record<AgentId, readonly string[]> = {
-  claude: [".claude.json", ".credentials.json", "settings.json", "projects", "history.jsonl"],
-  codex: ["config.toml", "auth.json", "sessions", "history.jsonl"],
-  copilot: ["config.json", "mcp-config.json", "session-state"],
-  cursor: ["cli-config.json", "mcp.json"],
-};
 
 interface NewProfile {
   name: string;
@@ -87,7 +79,7 @@ function foundFolders(env: NodeJS.ProcessEnv, known: Set<string>, notes: string[
       if (!entry.startsWith(prefix)) continue;
       const name = entry.slice(prefix.length);
       const dir = join(home, entry);
-      if (!isDir(dir) || !HOME_MARKERS[agent].some((m) => existsSync(join(dir, m)))) continue;
+      if (!isDir(dir) || !adapter(agent).homeMarkers.some((m) => existsSync(join(dir, m)))) continue;
       if (known.has(name)) continue;
       if (!/^[a-z0-9][a-z0-9_-]*$/.test(name) || RESERVED.has(name)) {
         notes.push(`${tildify(dir, env)} looks like a ${adapter(agent).label} home, but "${name}" cannot be a profile name; left alone`);
@@ -105,24 +97,20 @@ function foundFolders(env: NodeJS.ProcessEnv, known: Set<string>, notes: string[
   return out;
 }
 
-function projectsOf(file: string): string[] {
-  try {
-    const v = JSON.parse(readFileSync(file, "utf8")) as { projects?: unknown };
-    return v.projects && typeof v.projects === "object" && !Array.isArray(v.projects) ? Object.keys(v.projects) : [];
-  } catch {
-    return [];
-  }
-}
-
-/** Folder -> the Claude Code accounts it was used with ("" is the plain account of ~/.claude). */
-function folderOwners(env: NodeJS.ProcessEnv, claudeProfiles: string[]): Map<string, Set<string>> {
+/**
+ * Folder -> the accounts of the default agent it was used with ("" is the plain account of its
+ * hub), from the folders its configs remember (Claude Code's `projects`).
+ */
+function folderOwners(env: NodeJS.ProcessEnv, profiles: string[]): Map<string, Set<string>> {
   const owners = new Map<string, Set<string>>();
+  const m = adapter(DEFAULT_AGENT).mcp;
+  if (!m.foldersUsed) return owners;
   const add = (dir: string, who: string) => {
     const d = resolvePath(dir);
     owners.set(d, (owners.get(d) ?? new Set()).add(who));
   };
-  for (const d of projectsOf(paths(env).hubConfig)) add(d, "");
-  for (const name of claudeProfiles) for (const d of projectsOf(join(agentProfileDir(name, "claude", env), ".claude.json"))) add(d, name);
+  for (const d of m.foldersUsed(m.hubFile(env))) add(d, "");
+  for (const name of profiles) for (const d of m.foldersUsed(mcpFileFor(name, DEFAULT_AGENT, env))) add(d, name);
   return owners;
 }
 
@@ -221,7 +209,7 @@ function list(p: { values: Record<string, unknown> }, name: string): string[] {
 
 /** `work`, `cx:codex`. */
 function parseProfileArg(arg: string): NewProfile {
-  const [name = "", agent = "claude", ...rest] = arg.split(":");
+  const [name = "", agent = DEFAULT_AGENT, ...rest] = arg.split(":");
   if (rest.length || !isAgentId(agent)) fail(`--profile ${arg}: use <name> or <name>:<agent> (${AGENT_IDS.join(", ")})`);
   checkName(name);
   return { name, agent, adopted: false };
@@ -295,8 +283,8 @@ async function makePlan(args: string[], io: Io, ask: boolean): Promise<{ plan: P
     }
   }
 
-  // Folder rules for Claude Code profiles, from the projects each account was used in.
-  const claude = [...existing.filter((n) => agentOf(n, config) === "claude"), ...profiles.filter((n) => n.agent === "claude").map((n) => n.name)];
+  // Folder rules for profiles of the default agent, from the projects each account was used in.
+  const claude = [...existing.filter((n) => agentOf(n, config) === DEFAULT_AGENT), ...profiles.filter((n) => n.agent === DEFAULT_AGENT).map((n) => n.name)];
   const ruled = config.projects.map((r) => resolvePath(expandHome(r.path, env)));
   const rules = inferRules(folderOwners(env, claude), paths(env).home, ruled);
 
@@ -322,7 +310,7 @@ function editText(text: string, plan: Plan, env: NodeJS.ProcessEnv): string {
   if (plan.default) t = setValue(t, undefined, "default", plan.default);
   for (const np of plan.profiles) {
     t = ensureTable(t, `profiles.${np.name}`);
-    if (np.agent !== "claude") t = setValue(t, `profiles.${np.name}`, "agent", np.agent);
+    if (np.agent !== DEFAULT_AGENT) t = setValue(t, `profiles.${np.name}`, "agent", np.agent);
   }
   for (const r of plan.rules) t = addArrayTable(t, "projects", { path: tildify(r.path, env), profile: r.profile });
   return t;
@@ -384,22 +372,21 @@ function printPlan(io: Io, plan: Plan, before: string, after: string): void {
       );
     }
   }
-  if (!plan.default && !loadConfig(env).default && plan.profiles.some((np) => np.agent === "claude")) {
+  if (!plan.default && !loadConfig(env).default && plan.profiles.some((np) => np.agent === DEFAULT_AGENT)) {
     io.out("");
     io.out("No default profile: folders without a rule open plain claude (set one with --default <profile>).");
   }
 }
 
-const LOGIN: Record<AgentId, (cmd: string) => string> = {
-  claude: (c) => `${c} (then /login)`,
-  codex: (c) => `${c} login`,
-  copilot: (c) => `${c} (then /login)`,
-  cursor: (c) => `${c} login`,
-};
+/** `codex-cx login`, `claude-work (then /login)`. */
+function loginHint(agent: AgentId, command: string): string {
+  const sub = adapter(agent).loginSubcommand;
+  return sub ? `${command} ${sub}` : `${command} (then /login)`;
+}
 
 function printNext(io: Io, plan: Plan): void {
   const steps: string[] = [];
-  if (plan.profiles.length) steps.push(`sign in once per profile where needed: ${plan.profiles.map((np) => LOGIN[np.agent](launcherName(np.name, np.agent))).join(", ")}`);
+  if (plan.profiles.length) steps.push(`sign in once per profile where needed: ${plan.profiles.map((np) => loginHint(np.agent, launcherName(np.name, np.agent))).join(", ")}`);
   const hasServers = plan.mcp.kind === "import" || (plan.mcp.kind === "keep" && plan.mcp.servers > 0);
   if (hasServers) {
     steps.push("turno mcp daemon start   (the gateway, as a login service)");
@@ -407,7 +394,7 @@ function printNext(io: Io, plan: Plan): void {
   }
   steps.push("turno ui install         (optional: the status line and its font)");
   io.out("Next:");
-  steps.forEach((s, i) => io.out(`  ${i + 1}. ${s}`));
+  for (const [i, s] of steps.entries()) io.out(`  ${i + 1}. ${s}`);
 }
 
 // Command -------------------------------------------------------------------------------------

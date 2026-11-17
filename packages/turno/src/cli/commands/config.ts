@@ -4,7 +4,7 @@ import { parse } from "smol-toml";
 import { loadRegistry } from "../../accounts/registry.js";
 import { editConfig, migrationPending, readConfigText } from "../../core/config-edit.js";
 import { IDLE_UNDER_PRESSURE_PROBLEM, loadConfig, parseIdleUnderPressure, requestBodyProblem } from "../../core/config.js";
-import { type AgentId, adapter, isAgentId } from "../../agents/index.js";
+import { type AgentId, DEFAULT_AGENT, adapter, isAgentId } from "../../agents/index.js";
 import { agentOf, configProblems, listProfiles } from "../../core/profiles.js";
 import { Journal } from "../../core/journal.js";
 import { loadManifest } from "../../core/manifest.js";
@@ -110,7 +110,7 @@ export function checkValue(key: string, raw: string, env: NodeJS.ProcessEnv): To
   const roles = /^(?:agents\.([a-z]+)\.)?(system|default|fallback)$/.exec(key);
   if (roles) {
     if (key === "system" && (value === "" || raw === '""')) return "";
-    const agent = roles[1] ?? "claude";
+    const agent = roles[1] ?? DEFAULT_AGENT;
     if (!isAgentId(agent)) fail(`unknown agent '${agent}'`);
     return profile(value, agent);
   }

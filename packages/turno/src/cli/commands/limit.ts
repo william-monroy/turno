@@ -1,3 +1,4 @@
+import { adapter } from "../../agents/index.js";
 import { loadConfig } from "../../core/config.js";
 import { clearExhausted, exhaustedUntil, markExhausted } from "../../core/exhausted.js";
 import { agentOf, listProfiles } from "../../core/profiles.js";
@@ -21,7 +22,7 @@ export async function limitsData(env: NodeJS.ProcessEnv, withAccounts = true) {
   const config = loadConfig(env);
   const profiles = listProfiles(config, env);
   // Usage windows and accounts come from Claude Code; other agents show only exhausted marks.
-  const accounts = withAccounts ? await Promise.all(profiles.map((p) => (agentOf(p, config) === "claude" ? account(p, env) : undefined))) : [];
+  const accounts = withAccounts ? await Promise.all(profiles.map((p) => (adapter(agentOf(p, config)).accountDetails ? account(p, env) : undefined))) : [];
   return profiles.map((p, i) => {
     const snap = usageSnapshot(p, env);
     const limits = snap.rate_limits ?? {};

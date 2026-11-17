@@ -12,6 +12,7 @@ import { nerdHere } from "../../ui/terminal-id.js";
 import { isObj, limits as checkLimits, num, sanitize, sessionId, turns } from "../../statusline/input.js";
 import { NAMED_COLORS, PILL_DEFAULTS, type RenderInput, type Window, render, turnsLeft } from "../../statusline/render.js";
 import type { Command, Io } from "../io.js";
+import { readJsonFile } from "../../core/fsutil.js";
 
 const USAGE = `Usage:
   turno statusline        render the status line from the JSON Claude Code sends on stdin
@@ -34,14 +35,6 @@ function safe<T>(fn: () => T, fallback: T): T {
     return fn();
   } catch {
     return fallback;
-  }
-}
-
-function readJson(file: string): unknown {
-  try {
-    return JSON.parse(readFileSync(file, "utf8")) as unknown;
-  } catch {
-    return undefined;
   }
 }
 
@@ -130,7 +123,7 @@ function accountLimits(usageFile: string, cache: string, sid: string | undefined
   if (Object.keys(limits).length && sid) {
     const sig = stableJson(limits);
     const seenFile = join(cache, `rl-${sid}.json`);
-    const raw = readJson(seenFile);
+    const raw = readJsonFile(seenFile);
     const seen = isObj(raw) ? raw : {};
     if (seen.sig !== sig) {
       changedAt = typeof seen.sig === "string" ? now : 0; // the first time we cannot tell whether the data is new
@@ -140,7 +133,7 @@ function accountLimits(usageFile: string, cache: string, sid: string | undefined
       changedAt = num(seen.changed_at) ?? 0;
     }
   }
-  const shared = readJson(usageFile);
+  const shared = readJsonFile(usageFile);
   if (isObj(shared) && isObj(shared.rate_limits) && (num(shared.updated_at) ?? 0) > changedAt) {
     const theirs = checkLimits(shared.rate_limits);
     if (Object.keys(theirs).length) return theirs;
@@ -206,7 +199,7 @@ function resolveCached(cwd: string, config: Config, env: NodeJS.ProcessEnv, p: P
 function turnHistory(cache: string, sid: string | undefined, promptId: string | undefined, five: Window | undefined): number | undefined {
   if (!sid || !five || five.used_percentage === undefined) return undefined;
   const file = join(cache, `turns-${sid}.json`);
-  const hist = turns(readJson(file));
+  const hist = turns(readJsonFile(file));
   if (promptId) {
     const entry: [string, number, number | null] = [promptId, five.used_percentage, five.resets_at ?? null];
     const last = hist[hist.length - 1];
@@ -277,7 +270,7 @@ interface SessionCost {
 function sessionCost(cache: string, sid: string | undefined, transcript: string | undefined, now: number, jobs: Job[]): SessionCost | undefined {
   if (!sid || !transcript) return undefined;
   const out = join(cache, `cost-${sid}.json`);
-  const raw = readJson(out);
+  const raw = readJsonFile(out);
   const data =
     isObj(raw) && num(raw.total) !== undefined
       ? {
@@ -298,10 +291,10 @@ function sessionCost(cache: string, sid: string | undefined, transcript: string 
 
 /** True when the agents were synced to the gateway (`mcp sync`) and its last check failed. */
 function gatewayDown(p: Paths, cache: string, now: number, jobs: Job[]): boolean {
-  const managed = readJson(p.mcpdManaged);
+  const managed = readJsonFile(p.mcpdManaged);
   if (!isObj(managed) || !Object.values(managed).some((v) => Array.isArray(v) && v.length)) return false;
   const file = join(cache, "mcpd-health.json");
-  const raw = readJson(file);
+  const raw = readJsonFile(file);
   const at = isObj(raw) ? (num(raw.checked_at) ?? 0) : 0;
   if (now - at > HEALTH_EVERY) {
     const job = lockedJob(`${file}.lock`, 30, now, ["--health", file]);

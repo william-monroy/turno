@@ -127,7 +127,7 @@ async function syncedPortCheck(env: NodeJS.ProcessEnv): Promise<McpdCheck | unde
     const ports = syncedPorts(text).filter((p) => p !== port);
     if (ports.length) {
       off.push(tildify(file, env));
-      ports.forEach((p) => seen.add(p));
+      for (const p of ports) seen.add(p);
     }
   }
   if (!off.length) return undefined;
