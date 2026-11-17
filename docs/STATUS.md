@@ -32,8 +32,10 @@ Last updated: 2026-11-16.
   records Nerd-capable terminals in `nerd_terminals`, so `icons = "auto"` never draws empty
   boxes. `migrate` records them too. A test checks every status line icon against the bundled
   font. Guide: [ui.md](ui.md).
-- **Plugin** (`plugins/turno`): rate-limit hook, `switch-account` and `fork-session` skills,
-  and a local marketplace manifest at the repository root.
+- **Plugin** (`plugins/turno`, 0.2.0): rate-limit hook, `switch-account`, `fork-session` and
+  `copy-artifact` skills, and a local marketplace manifest at the repository root.
+  `copy-artifact` (ADR 0038) copies a claude.ai artifact between profiles in two steps, with two
+  dependency-free Node scripts (`pack.mjs`, `relink.mjs`) tested in `scripts/copy-artifact.test.mjs`.
 - **Command tree** (ADR 0006): `profile`, `limit`, `session`, `identity`, `run`, `mcp daemon`,
   plus `config`, `undo`, `completion`, `version`, `upgrade`; the 0.1 and Spanish names stay as
   aliases in `cli/registry.ts`. Shared flags (`--json` on reads, `--dry-run` on writes, `-n`,
