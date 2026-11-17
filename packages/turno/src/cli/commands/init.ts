@@ -8,7 +8,7 @@ import { loadManifest, parseManifest } from "../../core/manifest.js";
 import { expandHome, paths, tildify } from "../../core/paths.js";
 import { agentOf, listProfiles } from "../../core/profiles.js";
 import { addArrayTable, ensureTable, setValue } from "../../core/toml-edit.js";
-import type { ImportReport } from "../../mcpd/importer.js";
+import type { ImportReport, ProfileSource } from "../../mcpd/importer.js";
 import { DRY_RUN, type FlagSpec, bool, flagsOf, parseFlags, str } from "../args.js";
 import { CliError, type Command, type Io, confirm, fail, paint, plural } from "../io.js";
 import { launcherPath } from "../launch.js";
@@ -40,7 +40,7 @@ type McpPlan =
   | { kind: "keep"; servers: number }
   | { kind: "skip" }
   | { kind: "none" }
-  | { kind: "import"; summary: string; notes: string[]; report: ImportReport; servers: string[] };
+  | { kind: "import"; summary: string; notes: string[]; report: ImportReport; servers: string[]; merged: Record<string, Record<string, unknown>> };
 
 interface Plan {
   agents: { id: AgentId; installed: boolean }[];
@@ -221,7 +221,11 @@ async function askYes(io: Io, question: string): Promise<boolean> {
   return !a.startsWith("n");
 }
 
-async function mcpPlan(io: Io, skip: boolean): Promise<McpPlan> {
+/**
+ * The mcp.toml init proposes. Offline: npx servers get a command name guessed from the package,
+ * and `resolveMcp` asks npm for the real one only once the person has said to write.
+ */
+async function mcpPlan(io: Io, skip: boolean, profiles: readonly ProfileSource[]): Promise<McpPlan> {
   if (skip) return { kind: "skip" };
   const file = paths(io.env).mcpFile;
   if (existsSync(file)) {
@@ -234,15 +238,24 @@ async function mcpPlan(io: Io, skip: boolean): Promise<McpPlan> {
     return { kind: "keep", servers };
   }
   const { collectSources, foundSummary, importServers, mergeSources } = await import("../../mcpd/importer.js");
-  const { binOf } = await import("./mcp.js");
-  const { sources, problems } = collectSources(io.env, process.cwd());
+  const { sources, problems } = collectSources(io.env, process.cwd(), profiles);
   for (const pr of problems) io.err(`${paint(io, "warning", "33")}: ${pr}`);
   const merged = mergeSources(sources);
   const names = Object.keys(merged.servers);
   if (!names.length) return { kind: "none" };
-  const report = await importServers(merged.servers, { binOf: (pkg) => binOf(io, pkg) });
+  const report = await importServers(merged.servers);
   parseManifest(report.toml); // never write something that cannot be read back
-  return { kind: "import", summary: foundSummary(names, merged.from), notes: [...merged.notes, ...report.notes], report, servers: names };
+  return { kind: "import", summary: foundSummary(names, merged.from), notes: [...merged.notes, ...report.notes], report, servers: names, merged: merged.servers };
+}
+
+/** The manifest to write, with command names from npm (the only network call of init). */
+async function resolveMcp(io: Io, plan: Extract<McpPlan, { kind: "import" }>): Promise<string> {
+  const { importServers } = await import("../../mcpd/importer.js");
+  const { binOf } = await import("./mcp.js");
+  const report = await importServers(plan.merged, { binOf: (pkg) => binOf(io, pkg) });
+  parseManifest(report.toml);
+  for (const n of report.notes) if (n.includes("npm did not name")) io.err(`  ${n}`);
+  return report.toml;
 }
 
 async function makePlan(args: string[], io: Io, ask: boolean): Promise<{ plan: Plan; before: string; after: string }> {
@@ -299,7 +312,8 @@ async function makePlan(args: string[], io: Io, ask: boolean): Promise<{ plan: P
     }
   }
 
-  const mcp = await mcpPlan(io, bool(p, "no-mcp"));
+  const folders: ProfileSource[] = [...existing.map((name) => ({ name, agent: agentOf(name, config) })), ...profiles.filter((np) => np.adopted)];
+  const mcp = await mcpPlan(io, bool(p, "no-mcp"), folders);
   const plan: Plan = { agents, existing, profiles, rules, ...(def ? { default: def } : {}), mcp, notes };
   const before = readConfigText(env);
   return { plan, before, after: editText(before, plan, env) };
@@ -433,7 +447,7 @@ async function run(args: string[], io: Io): Promise<number> {
   const journal = new Journal(env, "init");
   // config.toml first: setting up a profile reads its agent from it.
   editConfig(env, journal, (text) => (text === before ? after : editText(text, plan, env)));
-  if (plan.mcp.kind === "import") journal.write(paths(env).mcpFile, plan.mcp.report.toml, 0o600);
+  if (plan.mcp.kind === "import") journal.write(paths(env).mcpFile, await resolveMcp(io, plan.mcp), 0o600);
   if (plan.profiles.length) setupProfiles(plan.profiles.map((np) => np.name), io, { journal });
   io.out("");
   io.out(`Done. Undo all of it with: turno undo ${journal.stamp}`);

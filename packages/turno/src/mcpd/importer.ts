@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { parse, stringify } from "smol-toml";
 import type { McpStore } from "../agents/adapter.js";
-import { SCAN_ORDER, adapter } from "../agents/index.js";
+import { type AgentId, SCAN_ORDER, adapter, agentProfileDir } from "../agents/index.js";
 import { tildify } from "../core/paths.js";
 import { isObject, readJsonFile } from "../core/fsutil.js";
 
@@ -128,7 +128,10 @@ interface PendingSecret {
 
 export interface ImportOptions {
   moveSecrets?: boolean;
-  /** Bin name of an npm package (npm view <pkg> bin). Injectable for tests. */
+  /**
+   * Bin name of an npm package (npm view <pkg> bin). Without it the import stays offline and
+   * guesses the name from the package, as previews do.
+   */
   binOf?: (pkg: string) => Promise<string | undefined>;
 }
 
@@ -259,7 +262,11 @@ export async function importServers(servers: Record<string, Record<string, unkno
       if (command === "npx" || command.endsWith("/npx")) {
         const { pkg, rest } = parseNpx(args);
         if (pkg) {
-          const bin = (await opts.binOf?.(packageName(pkg))) ?? packageName(pkg).replace(/^@[^/]+\//, "");
+          const guess = packageName(pkg).replace(/^@[^/]+\//, "");
+          const found = opts.binOf ? await opts.binOf(packageName(pkg)) : undefined;
+          const bin = found ?? guess;
+          if (!opts.binOf) notes.push(`${name}: command name guessed as ${guess}; checked on npm when written`);
+          else if (!found) notes.push(`${name}: npm did not name the command of ${packageName(pkg)}; using ${guess}, check it`);
           server.command = bin;
           server.package = pkg;
           if (rest.length) server.args = rest;
@@ -360,13 +367,20 @@ function readConfig(file: string, store: McpStore): Record<string, unknown> | un
   return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
 }
 
+/** A profile folder whose own agent config is read too: a turno profile or one init adopts. */
+export interface ProfileSource {
+  name: string;
+  agent: AgentId;
+}
+
 /**
  * Every MCP server configured for an agent on this machine, in the order of SCAN_ORDER: each
  * agent's hub file (Claude Code also its per-project servers and the folder's .mcp.json, Codex
- * its config.toml tables in Claude Code's shape). Missing files are skipped; unreadable ones are
- * reported in `problems`.
+ * its config.toml tables in Claude Code's shape), then the config of each profile folder in
+ * `profiles`, so servers set up inside one account are found too (the hub wins a shared name).
+ * Missing files are skipped; unreadable ones are reported in `problems`.
  */
-export function collectSources(env: NodeJS.ProcessEnv, cwd: string): { sources: Source[]; problems: string[] } {
+export function collectSources(env: NodeJS.ProcessEnv, cwd: string, profiles: readonly ProfileSource[] = []): { sources: Source[]; problems: string[] } {
   const sources: Source[] = [];
   const problems: string[] = [];
   const t = (f: string) => tildify(f, env);
@@ -395,12 +409,24 @@ export function collectSources(env: NodeJS.ProcessEnv, cwd: string): { sources: 
       add(t(hubFile), shape(cfg[m.store.key]));
       for (const [dir, servers] of m.projectServers?.(cfg) ?? []) add(`${t(hubFile)} project ${t(dir)}`, shape(servers));
     });
-    if (!m.folderFile) continue;
-    const folder = join(cwd, m.folderFile);
-    attempt(folder, () => {
-      const cfg = readConfig(folder, m.store);
-      if (cfg) add(t(folder), shape(cfg[m.store.key]));
-    });
+    if (m.folderFile) {
+      const folder = join(cwd, m.folderFile);
+      attempt(folder, () => {
+        const cfg = readConfig(folder, m.store);
+        if (cfg) add(t(folder), shape(cfg[m.store.key]));
+      });
+    }
+    for (const p of profiles) {
+      if (p.agent !== id || m.shared) continue;
+      const file = m.file(agentProfileDir(p.name, id, env), env);
+      if (file === hubFile) continue;
+      attempt(file, () => {
+        const cfg = readConfig(file, m.store);
+        if (!cfg) return;
+        add(t(file), shape(cfg[m.store.key]));
+        for (const [dir, servers] of m.projectServers?.(cfg) ?? []) add(`${t(file)} project ${t(dir)}`, shape(servers));
+      });
+    }
   }
   return { sources, problems };
 }

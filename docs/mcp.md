@@ -172,8 +172,12 @@ skip mcpd, which a set cannot hide. `turno profile which <dir>` shows the set of
 
 `turno mcp import` drafts `mcp.toml` from the servers your agents already use: user and project
 servers in `~/.claude.json`, `.mcp.json` in the current folder, `~/.codex/config.toml`,
-`~/.cursor/mcp.json` and `~/.copilot/mcp-config.json`. It is a preview until `--write`: secrets
-are shown masked and nothing is stored. `--write --move-secrets` stores env and header secrets
+`~/.cursor/mcp.json` and `~/.copilot/mcp-config.json`, then the config inside each turno profile
+folder (`~/.claude-<name>/.claude.json`, `~/.codex-<name>/config.toml`, ...), so servers you set
+up in one account only are found too; when two define the same name, the main config wins.
+`turno init` reads the folders it is about to adopt the same way. It is a preview until
+`--write`: secrets are shown masked, nothing is stored and nothing goes online (the command name
+of an npx server is guessed from the package and checked on npm when written). `--write --move-secrets` stores env and header secrets
 in the Keychain and writes `keychain:` references; secrets in args or URLs stay literal (they
 cannot come from the Keychain). `${VAR}` and `${VAR:-default}` become `env:VAR` and
 `env:VAR:-default`.

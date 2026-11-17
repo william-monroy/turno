@@ -100,6 +100,31 @@ describe("turno init", () => {
     expect(listJournals(sb.env)).toHaveLength(0);
   });
 
+  it("imports MCP servers from the agent folders it adopts, not only the main configs", async () => {
+    existingSetup();
+    sb.write(".claude-work/.claude.json", JSON.stringify({ mcpServers: { linear: { type: "http", url: "https://mcp.linear.app/mcp" } }, projects: { [home("code/acme/api")]: { mcpServers: { db: { command: "db-mcp" } } } } }));
+    sb.write(".codex-cx/config.toml", 'model = "o4"\n\n[mcp_servers.postgres]\ncommand = "pg-mcp"\n');
+    const r = await run(["init", "--dry-run"]);
+    expect(r.code).toBe(0);
+    for (const s of ["linear", "db", "postgres"]) expect(r.out).toContain(`[server.${s}]`);
+    expect(r.out).toContain("1 in ~/.codex-cx/config.toml (postgres)");
+  });
+
+  it("previews without asking npm, and asks it only when it writes", async () => {
+    existingSetup();
+    const log = home("npm.log");
+    fakeCommand(sb, "npm", `echo "$*" >> "${log}"; echo '{"mcp-server-memory":"dist/index.js"}'`);
+    const dry = await run(["init", "--dry-run"]);
+    expect(dry.code).toBe(0);
+    expect(existsSync(log)).toBe(false);
+    expect(dry.out).toContain('command = "server-memory"');
+    expect(dry.err + dry.out).toMatch(/memory: command name guessed as server-memory; checked on npm when written/);
+    const yes = await run(["init", "--yes"]);
+    expect(yes.code).toBe(0);
+    expect(read(log)).toContain("view @modelcontextprotocol/server-memory bin --json");
+    expect(read(mcpFile())).toContain('command = "mcp-server-memory"');
+  });
+
   it("without a terminal it needs --yes, and changes nothing", async () => {
     existingSetup();
     const r = await run(["init"]);

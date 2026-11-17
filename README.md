@@ -358,8 +358,10 @@ Interactive commands ask the npm registry for a newer version at most once a day
 the package name. Turn it off with `update_check = false` in config.toml, `DO_NOT_TRACK=1`,
 `NO_UPDATE_NOTIFIER=1` or `TURNO_NO_UPDATE_CHECK=1`; it is also off in CI and outside a
 terminal. Apart from that, turno only goes online when you ask it to: `turno ui install`
-downloads the status line font, `turno mcp install` and `turno upgrade` fetch packages from npm, and
-`turno mcp login` talks to that server's authorization server. There is no telemetry.
+downloads the status line font, `turno mcp install` and `turno upgrade` fetch packages from npm,
+`turno mcp import --write` and `turno init` (once you confirm) ask npm for the command name of
+servers you ran with npx, and `turno mcp login` talks to that server's authorization server.
+Previews (`--dry-run`, `turno mcp import` without `--write`) stay offline. There is no telemetry.
 
 ## Contributing
 
