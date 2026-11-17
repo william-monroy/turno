@@ -204,7 +204,7 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
   const version = packageInfo().version;
   const recorded = recordedVersion(env);
   if (recorded && recorded !== version) {
-    add("turno", "warn", `turno ${version} runs, but ${recorded} set up the launchers`, { label: "turno upgrade --finish", run: (io) => finishUpgrade(io) });
+    add("turno", "warn", `turno ${version} runs, but ${recorded} set up the launchers`, { label: "turno upgrade --finish", run: (io) => finishUpgrade(io, { sync: "no" }) });
   } else add("turno", "ok", `turno ${version}`);
   const newer = availableUpdate(env);
   if (newer) add("turno", "info", `turno ${newer} is available (turno upgrade)`);

@@ -1,4 +1,4 @@
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseManifest } from "../src/core/manifest.js";
@@ -73,5 +73,45 @@ describe("turno mcp sync and profile token files", () => {
     expect(existsSync(join(tokens(), "cx.token"))).toBe(false);
     expect(existsSync(join(tokens(), "cy.token"))).toBe(true);
     expect(existsSync(join(tokens(), "manual.token"))).toBe(true);
+  });
+});
+
+describe("turno upgrade --finish and mcp sync", () => {
+  async function staleSetup() {
+    const { masterToken } = await import("../src/mcpd/daemon.js");
+    masterToken(sb.env, "ensure");
+    sb.write(".config/turno/config.toml", '[profiles.cx]\nagent = "codex"\n');
+    sb.write(".local/state/turno/mcpd-tokens/cx.token", "tp1.cx.stale\n", 0o600);
+    sb.write(".local/state/turno/mcp-managed.json", "{}\n", 0o600);
+    const { profileTokenFile } = await import("../src/mcpd/tokens.js");
+    return () => readFileSync(profileTokenFile("cx", sb.env), "utf8").trim();
+  }
+
+  it("only names the sync outside a terminal", async () => {
+    const token = await staleSetup();
+    const { finishUpgrade } = await import("../src/cli/commands/upgrade.js");
+    const io = fakeIo(sb.env);
+    expect(await finishUpgrade(io)).toBe(0);
+    expect(io.lines.join("\n")).toContain("run: turno mcp sync");
+    expect(token()).toBe("tp1.cx.stale");
+  });
+
+  it("asks in a terminal, and --yes runs it without asking", async () => {
+    const token = await staleSetup();
+    const { finishUpgrade } = await import("../src/cli/commands/upgrade.js");
+    const asked: string[] = [];
+    const no = { ...fakeIo(sb.env), ask: async (q: string) => (asked.push(q), "n") };
+    await finishUpgrade(no);
+    expect(asked).toEqual(["run turno mcp sync now? [y/N] "]);
+    expect(token()).toBe("tp1.cx.stale");
+    const yes = { ...fakeIo(sb.env), ask: async () => "y" };
+    expect(await finishUpgrade(yes)).toBe(0);
+    expect(token()).not.toBe("tp1.cx.stale");
+
+    const again = await staleSetup();
+    const io = fakeIo(sb.env);
+    expect((await run(["upgrade", "--finish", "--yes"])).code).toBe(0);
+    expect(again()).not.toBe("tp1.cx.stale");
+    expect(io.lines).toEqual([]);
   });
 });
