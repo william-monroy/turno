@@ -27,7 +27,7 @@ only when a tool is called, behind one local gateway that every session of every
 ([benchmark](BENCHMARKS.md)). It also gives each folder its own account, so work repositories
 open with your work login and everything else with your personal one.
 
-![turno: profiles for two agents, one gateway, the status line](docs/assets/demo.gif)
+![turno demo: two profiles, one gateway, the status line, the picker and turno doctor, in a throwaway HOME](docs/assets/demo.gif)
 
 ## Install
 

@@ -21,7 +21,7 @@ mientras están inactivos** ([benchmark](BENCHMARKS.md)). Además, cada carpeta 
 cuenta y su propio conjunto de servidores MCP: los repositorios del trabajo abren con tu cuenta
 del trabajo y lo demás con la personal.
 
-![turno: perfiles de dos agentes, un gateway y la status line](docs/assets/demo.gif)
+![turno demo: dos perfiles, un gateway, la status line, el selector y turno doctor, en un HOME desechable](docs/assets/demo.gif)
 
 ## Instalación
 
