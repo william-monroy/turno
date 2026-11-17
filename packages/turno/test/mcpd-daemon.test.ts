@@ -295,8 +295,8 @@ describe("service files", () => {
     expect(chooseProgram({ env: { PATH: bin }, execPath: "/x/.nvm/versions/node/v1/bin/node", script }).program).toEqual([join(bin, "turno")]);
     expect(chooseProgram({ env: { PATH: "" }, execPath: "/usr/bin/node", script })).toEqual({ program: ["/usr/bin/node", script] });
     const nvmScript = sb.write(".nvm/versions/node/v1/lib/node_modules/turno-cli/dist/cli/main.js", "");
-    const pinned = chooseProgram({ env: { PATH: "" }, execPath: "/x/.nvm/versions/node/v1/bin/node", script: nvmScript });
-    expect(pinned.warning).toContain("version manager");
+    const pinned = chooseProgram({ env: { PATH: "", HOME: "/x" }, execPath: "/x/.nvm/versions/node/v1/bin/node", script: nvmScript });
+    expect(pinned.warning).toBe("the service runs node from ~/.nvm/versions/node/v1/bin/node; after switching Node versions run `turno upgrade --finish`");
   });
 
   it("gives one clear line when there is no service manager", async () => {

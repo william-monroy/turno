@@ -3,7 +3,7 @@ import { accessSync, constants, existsSync, readFileSync } from "node:fs";
 import { basename, delimiter, join } from "node:path";
 import { promisify } from "node:util";
 import type { Journal } from "../core/journal.js";
-import { paths } from "../core/paths.js";
+import { paths, tildify } from "../core/paths.js";
 import { realOr } from "../core/fsutil.js";
 
 const exec = promisify(execFile);
@@ -135,7 +135,7 @@ export function chooseProgram(opts: { env: NodeJS.ProcessEnv; execPath: string; 
   }
   return {
     program: [opts.execPath, script],
-    warning: `the service runs ${opts.execPath} ${script}, a path that changes when your version manager or Homebrew switches versions; run \`turno upgrade --finish\` after that, or install turno where it has a stable path`,
+    warning: `the service runs node from ${tildify(opts.execPath, opts.env)}; after switching Node versions run \`turno upgrade --finish\``,
   };
 }
 

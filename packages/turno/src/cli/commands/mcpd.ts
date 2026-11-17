@@ -6,6 +6,7 @@ import { paths, tildify } from "../../core/paths.js";
 import { DRY_RUN, JSON_FLAG, TAIL, bool, count, parseFlags, printJson, str } from "../args.js";
 import { type Sub, group } from "../group.js";
 import { type Command, type Io, fail, paint, plural } from "../io.js";
+import { duration, spinner, style } from "../style.js";
 
 /** GET /status from the running daemon. */
 export async function fetchStatus(env: NodeJS.ProcessEnv): Promise<Record<string, unknown> | undefined> {
@@ -252,8 +253,8 @@ export async function installDaemonService(io: Io, opts: { dryRun?: boolean; com
       io.out(`would write ${tildify(r.file, io.env)}${r.changed ? "" : " (unchanged)"} and load the ${backend.noun}:`);
       io.out("");
       io.out(r.text.trimEnd());
-    } else io.out(`${backend.noun} ${r.changed ? "written" : "unchanged"}: ${tildify(r.file, io.env)}`);
-    if (choice.warning) io.err(`turno: warning: ${choice.warning}`);
+    } else io.out(style(io).note("ok", `${backend.noun} ${r.changed ? "written" : "unchanged"}: ${tildify(r.file, io.env)}`));
+    if (choice.warning) io.err(style(io).note("warn", `warning: ${choice.warning}`));
     const hint = opts.journal ? undefined : journal.hint();
     if (hint) io.out(hint);
     return 0;
@@ -264,11 +265,15 @@ export async function installDaemonService(io: Io, opts: { dryRun?: boolean; com
 export async function startDaemonService(io: Io, opts: { journal?: Journal } = {}): Promise<number> {
   const code = await installDaemonService(io, opts);
   if (code) return code;
-  if (await waitFor(async () => Boolean(await fetchStatus(io.env)), 5000)) {
-    io.out("mcpd is running");
+  const st = style(io);
+  const spin = spinner(io, "waiting for mcpd to answer");
+  const up = await waitFor(async () => Boolean(await fetchStatus(io.env)), 5000);
+  const ms = spin.stop();
+  if (up) {
+    io.out(st.note("ok", `mcpd is running ${st.muted(`(${duration(ms)})`)}`));
     return 0;
   }
-  io.err("mcpd did not answer yet; see turno mcp daemon status and turno mcp daemon logs");
+  io.err(st.note("err", "mcpd did not answer yet; see turno mcp daemon status and turno mcp daemon logs"));
   return 1;
 }
 

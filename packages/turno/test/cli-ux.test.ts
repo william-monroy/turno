@@ -130,7 +130,7 @@ describe("profile which and status show every agent", () => {
     expect(JSON.parse(j.io.lines.join("\n")).agents.codex).toMatchObject({ chosen: "cx", assigned: "cx" });
     const s = await statusData(sb.env, acme);
     expect(s.here.agents.codex).toEqual({ chosen: "cx", text: "cx (project ~/code/acme)" });
-    expect((await run(["status"])).io.lines.some((l) => l.startsWith("sessions  0 live sessions"))).toBe(true);
+    expect((await run(["status"])).io.lines).toContain("  sessions  0 live sessions");
   });
 });
 
@@ -221,8 +221,9 @@ describe("one help path (02-H8, 02-H9)", () => {
     const out = r.io.lines.join("\n");
     expect(r.io.lines[0]).toBe("turno: one MCP gateway and per-folder accounts for Claude Code, Codex, Copilot");
     expect(out).toContain("Start here: turno init, or turno demo to try turno in a throwaway HOME.");
-    expect(out).toContain("Get started:\n  turno init");
-    expect(out).toContain("Developer tools:\n  turno browser     developer tool: compare browser engines (needs");
+    expect(out).toContain("Get started\n  init        set turno up in one step");
+    expect(out).toContain("Developer tools\n  browser     developer tool: compare browser engines (needs turno-browser)");
+    expect(out).toContain("Examples\n  $ turno init ");
     expect(out).not.toMatch(/migrate|Older names|claudio|Orca/);
     for (const l of r.io.lines) expect(l.length, l).toBeLessThanOrEqual(80);
   });

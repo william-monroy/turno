@@ -228,7 +228,7 @@ describe("turno undo and folder modes", () => {
     expect(statSync(dir).mode & 0o777).toBe(0o700);
     const u = await run(["undo", "last"]);
     expect(u.code).toBe(0);
-    expect(u.out).toContain("mode 755 again ~/.claude-old");
+    expect(u.out).toMatch(/~\/\.claude-old +.*folder mode put back/);
     expect(statSync(dir).mode & 0o777).toBe(0o755);
   });
 

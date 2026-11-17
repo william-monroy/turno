@@ -83,7 +83,7 @@ describe("journal and undo", () => {
     expect(await undo.run(["last"], undone)).toBe(0);
     expect(readFileSync(a, "utf8")).toBe("old a\n");
     expect(existsSync(b)).toBe(false);
-    const redo = undone.lines.find((l) => l.startsWith("redo with:"))!.split(" ").pop()!;
+    const redo = undone.lines.find((l) => l.startsWith("Redo with:"))!.split(" ").pop()!;
     expect(await undo.run([redo], fakeIo(sb.env))).toBe(0);
     expect(readFileSync(a, "utf8")).toBe("new a\n");
     expect(readFileSync(b, "utf8")).toBe("new b\n");
@@ -205,8 +205,8 @@ describe("limit and old names", () => {
     const io = fakeIo(sb.env);
     await main(["--help"], io);
     const out = io.lines.join("\n");
-    expect(out).toContain("Accounts:");
-    expect(out).toMatch(/turno profile +accounts \(profiles\) for each agent/);
+    expect(out).toContain("Accounts\n");
+    expect(out).toMatch(/^ {2}profile +accounts \(profiles\) for each agent/m);
     expect(out).not.toMatch(/turno exhausted/);
     const g = fakeIo(sb.env);
     await main(["profile", "--help"], g);

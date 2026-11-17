@@ -2,26 +2,18 @@
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { enableCompileCache } from "./compile-cache.js";
-import { CliError, type Io, UsageError, WIDTH, closest, columns, defaultIo, fail, noInputReason, paint, withoutAsk, wrap } from "./io.js";
+import { CliError, type Io, UsageError, closest, defaultIo, fail, noInputReason, paint, withoutAsk } from "./io.js";
 import { COMMANDS, HELP_SUMMARY, QUIET, SECTIONS, expand, visibleCommands } from "./registry.js";
 
 async function help(io: Io): Promise<number> {
-  for (const l of wrap("turno: one MCP gateway and per-folder accounts for Claude Code, Codex, Copilot CLI and Cursor CLI.", WIDTH)) io.out(l);
-  io.out("");
-  io.out("Start here: turno init, or turno demo to try turno in a throwaway HOME.");
-  io.out("");
   const sections = await Promise.all(
     SECTIONS.map(async (s) => ({
       title: s.title,
-      rows: await Promise.all(s.commands.map(async (n) => [`turno ${n}`, HELP_SUMMARY[n] ?? (await COMMANDS[n]!()).command.summary] as const)),
+      rows: await Promise.all(s.commands.map(async (n) => [n, HELP_SUMMARY[n] ?? (await COMMANDS[n]!()).command.summary] as const)),
     })),
   );
-  const w = Math.max(...sections.flatMap((s) => s.rows.map(([l]) => l.length)));
-  io.out("Usage:");
-  io.out(columns([["turno <profile>", "open that profile with its agent; the arguments after it go to the agent"]], 2, w, w));
-  for (const s of sections) io.out(`\n${s.title}:\n${columns(s.rows, 2, w, w)}`);
-  io.out("\nRun turno <command> --help, or turno help <command>, for details.");
-  io.out("Scripts and agents: --no-input or TURNO_NO_INPUT=1 never asks (exit 2 instead).");
+  const { renderHelp } = await import("./help.js");
+  for (const line of renderHelp(io, sections)) io.out(line);
   return 0;
 }
 

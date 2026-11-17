@@ -11,10 +11,11 @@ import { addArrayTable, ensureTable, setValue } from "../../core/toml-edit.js";
 import type { ImportReport, ProfileSource } from "../../mcpd/importer.js";
 import { DRY_RUN, type FlagSpec, bool, flagsOf, parseFlags, str } from "../args.js";
 import { highlightTomlLine, tomlState } from "../highlight.js";
-import { type Command, type Io, colors, confirm, fail, needsAnswer, paint, plural } from "../io.js";
+import { type Command, type Io, colors, confirm, fail, needsAnswer, paint, plural, wrap } from "../io.js";
+import { type Style, duration, profileColor, spinner, style, visibleWidth } from "../style.js";
 import { launcherPath } from "../launch.js";
 import { findOnPath, launcherName, refuseNpx } from "../launchers.js";
-import { warnPath } from "./profile.js";
+import { resolveAll, warnPath } from "./profile.js";
 import { RESERVED, checkName, localCopies, setupProfiles } from "./setup.js";
 
 /**
@@ -178,6 +179,7 @@ export function lineDiff(before: string, after: string): [" " | "+" | "-", strin
 
 /** The diff with two lines of context around each change; skipped runs show as "...". */
 function printDiff(io: Io, before: string, after: string): void {
+  const st = style(io);
   const d = lineDiff(before, after);
   const near = d.map((_, k) => d.slice(Math.max(0, k - 2), k + 3).some(([op]) => op !== " "));
   // Added and unchanged lines are the new text in order: highlight them as one TOML text.
@@ -186,19 +188,20 @@ function printDiff(io: Io, before: string, after: string): void {
   for (const [k, [op, line]] of d.entries()) {
     const shown = op === "-" || !colors(io) ? line : highlightTomlLine(line, toml);
     if (!near[k]) {
-      if (!gap) io.out("  ...");
+      if (!gap) io.out(paint(io, "      ...", "2"));
       gap = true;
       continue;
     }
     gap = false;
-    io.out(op === "+" ? `${paint(io, "+", "32")}${shown}` : op === "-" ? paint(io, `-${line}`, "31") : ` ${shown}`);
+    io.out(op === "+" ? st.wrap(`    ${paint(io, "+", "32")}`, shown) : op === "-" ? st.wrap("    ", paint(io, `-${line}`, "31")) : st.wrap("     ", shown));
   }
 }
 
 /** New text shown as all added lines: a green `+`, then the line highlighted as TOML. */
 function printAdded(io: Io, text: string): void {
   const toml = tomlState();
-  for (const line of text.replace(/\n$/, "").split("\n")) io.out(`${paint(io, "+", "32")}${colors(io) ? highlightTomlLine(line, toml) : line}`);
+  const st = style(io);
+  for (const line of text.replace(/\n$/, "").split("\n")) io.out(st.wrap(`    ${paint(io, "+", "32")}`, colors(io) ? highlightTomlLine(line, toml) : line));
 }
 
 // Plan ----------------------------------------------------------------------------------------
@@ -251,7 +254,7 @@ async function mcpPlan(io: Io, skip: boolean, profiles: readonly ProfileSource[]
   }
   const { collectSources, foundSummary, importServers, mergeSources } = await import("../../mcpd/importer.js");
   const { sources, problems } = collectSources(io.env, process.cwd(), profiles);
-  for (const pr of problems) io.err(`${paint(io, "warning", "33")}: ${pr}`);
+  for (const pr of problems) io.err(style(io).wrap("", `${paint(io, "warning", "33")}: ${pr}`));
   const merged = mergeSources(sources);
   const names = Object.keys(merged.servers);
   if (!names.length) return { kind: "none" };
@@ -261,13 +264,12 @@ async function mcpPlan(io: Io, skip: boolean, profiles: readonly ProfileSource[]
 }
 
 /** The manifest to write, with command names from npm (the only network call of init). */
-async function resolveMcp(io: Io, plan: Extract<McpPlan, { kind: "import" }>): Promise<string> {
+async function resolveMcp(io: Io, plan: Extract<McpPlan, { kind: "import" }>): Promise<{ toml: string; notes: string[] }> {
   const { importServers } = await import("../../mcpd/importer.js");
   const { binOf } = await import("./mcp.js");
   const report = await importServers(plan.merged, { binOf: (pkg) => binOf(io, pkg) });
   parseManifest(report.toml);
-  for (const n of report.notes) if (n.includes("npm did not name")) io.err(`  ${n}`);
-  return report.toml;
+  return { toml: report.toml, notes: report.notes.filter((n) => n.includes("npm did not name")) };
 }
 
 async function makePlan(args: string[], io: Io, ask: boolean): Promise<{ plan: Plan; before: string; after: string }> {
@@ -344,64 +346,115 @@ function editText(text: string, plan: Plan, env: NodeJS.ProcessEnv): string {
 
 // Output --------------------------------------------------------------------------------------
 
-function printFound(io: Io, plan: Plan): void {
+const KEY = "not installed".length;
+
+/** `  ✓ key       value`, the value wrapped under its column within the terminal width. */
+function field(io: Io, st: Style, state: "ok" | "skip" | "info" | "warn", key: string, value: string): void {
+  const lead = `  ${st.check(state, "")}`;
+  const col = visibleWidth(lead) + KEY + 1;
+  // Wrapped on a terminal; whole lines in a pipe, so a search finds them.
+  const lines = st.color ? wrap(value, Math.max(30, st.width - col)) : [value];
+  io.out(`${lead}${st.muted(key.padEnd(KEY))} ${lines[0]}`);
+  for (const l of lines.slice(1)) io.out(`${" ".repeat(col)}${l}`);
+}
+
+function printFound(io: Io, plan: Plan, st: Style): void {
   const env = io.env;
   const label = (id: AgentId) => adapter(id).label;
   const installed = plan.agents.filter((a) => a.installed).map((a) => `${label(a.id)} (${adapter(a.id).command})`);
   const missing = plan.agents.filter((a) => !a.installed).map((a) => label(a.id));
-  io.out("turno init found:");
-  io.out(`  agents: ${installed.join(", ") || "none on PATH"}${missing.length ? `; not installed: ${missing.join(", ")}` : ""}`);
-  if (plan.existing.length) io.out(`  turno profiles: ${plan.existing.join(", ")}`);
+  io.out(st.header("Found"));
+  field(io, st, installed.length ? "ok" : "warn", "agents", installed.join(", ") || "none on PATH");
+  if (missing.length) field(io, st, "skip", "not installed", missing.join(", "));
+  if (plan.existing.length) field(io, st, "ok", "profiles", plan.existing.join(", "));
   const adopted = plan.profiles.filter((np) => np.adopted);
-  if (adopted.length) io.out(`  agent folders made by hand: ${adopted.map((np) => tildify(agentProfileDir(np.name, np.agent, env), env)).join(", ")}`);
+  if (adopted.length) field(io, st, "ok", "folders", `${adopted.map((np) => tildify(agentProfileDir(np.name, np.agent, env), env)).join(", ")} (made by hand)`);
   const m = plan.mcp;
-  if (m.kind === "keep") io.out(`  mcp.toml: ${tildify(paths(env).mcpFile, env)} with ${plural(m.servers, "server")} (kept as it is)`);
-  else if (m.kind === "import") io.out(`  MCP servers: ${m.summary.replace(/^found /, "")}`);
-  else if (m.kind === "none") io.out("  MCP servers: none in Claude Code, Codex, Cursor or Copilot CLI configs");
-  for (const n of plan.notes) io.err(`  note: ${n}`);
+  if (m.kind === "keep") field(io, st, "ok", "mcp.toml", `${tildify(paths(env).mcpFile, env)} with ${plural(m.servers, "server")} (kept as it is)`);
+  else if (m.kind === "import") field(io, st, "ok", "MCP", m.summary.replace(/^found /, ""));
+  else if (m.kind === "none") field(io, st, "skip", "MCP", "none in Claude Code, Codex, Cursor or Copilot CLI configs");
+  for (const n of plan.notes) io.err(st.note("info", st.muted(`note: ${n}`)));
 }
 
 /** What setting up each profile does to its folder: shared links, and own files moved aside. */
-function printProfiles(io: Io, plan: Plan, config: Config): void {
+function printProfiles(io: Io, plan: Plan, config: Config, st: Style): void {
   const env = io.env;
   if (!plan.profiles.length) return;
   const own = new Map(localCopies(plan.profiles.map((np) => np.name), env, config).map((x) => [x.name, x.items]));
-  io.out("");
-  io.out("Profiles:");
+  const rows: string[][] = [];
+  const asides = new Map<number, string>();
   for (const np of plan.profiles) {
     const dir = tildify(agentProfileDir(np.name, np.agent, env), env);
     const hub = tildify(agentHub(np.agent, env), env);
-    io.out(`  + ${np.name} (${adapter(np.agent).label}): ${dir}${np.adopted ? " (exists)" : ""}, shared folders linked from ${hub}, command ${launcherName(np.name, np.agent)}`);
+    rows.push([
+      st.icon("add"),
+      st.profile(np.name, profileColor(config.profiles, np.name)),
+      adapter(np.agent).label,
+      `${dir}${np.adopted ? st.muted(" (exists)") : ""}`,
+      `${st.muted("command")} ${st.bold(launcherName(np.name, np.agent))}`,
+      st.muted(`shares ${hub}`),
+    ]);
     const items = own.get(np.name) ?? [];
-    if (items.length) io.out(`    ! moves your own ${items.join(", ")} to ${dir}/.aside-<time>/ (turno undo puts ${items.length === 1 ? "it" : "them"} back)`);
+    if (items.length) asides.set(rows.length - 1, `moves your own ${items.join(", ")} to ${dir}/.aside-<time>/ (turno undo puts ${items.length === 1 ? "it" : "them"} back)`);
+  }
+  for (const [i, lines] of st.tableRows(rows, { columns: [{}, {}, { drop: 2 }, {}, {}, { drop: 3 }] }).entries()) {
+    for (const line of lines) io.out(line);
+    const aside = asides.get(i);
+    if (aside) io.out(st.wrap(`      ${st.warn(st.icon("warn"))} `, st.muted(aside)));
   }
 }
 
-function printPlan(io: Io, plan: Plan, before: string, after: string): void {
+function printPlan(io: Io, plan: Plan, before: string, after: string, st: Style): void {
   const env = io.env;
-  printFound(io, plan);
-  printProfiles(io, plan, parseConfig(after, paths(env).configFile, env));
+  printFound(io, plan, st);
+  io.out("");
+  io.out(st.header("Plan"));
+  printProfiles(io, plan, parseConfig(after, paths(env).configFile, env), st);
   if (after !== before) {
     io.out("");
-    io.out(`${tildify(paths(env).configFile, env)}${before ? "" : " (new file)"}:`);
+    io.out(`  ${st.bold(tildify(paths(env).configFile, env))}${before ? "" : st.muted(" (new file)")}`);
     printDiff(io, before, after);
   }
   if (plan.mcp.kind === "import") {
     const m = plan.mcp;
     io.out("");
-    io.out(`${tildify(paths(env).mcpFile, env)} (new file, mode 600):`);
+    io.out(`  ${st.bold(tildify(paths(env).mcpFile, env))}${st.muted(" (new file, mode 600)")}`);
     printAdded(io, m.report.preview);
-    for (const n of m.notes) io.err(`  ${n}`);
+    for (const n of groupNotes(m.notes)) io.err(st.note("info", st.muted(n)));
     if (m.report.literalSecrets.length) {
-      io.err(
-        `  ${paint(io, "warning", "33")}: mcp.toml keeps literal secrets (${m.report.literalSecrets.join(", ")}); move them to the Keychain afterwards with: turno mcp import --write --move-secrets --force`,
-      );
+      io.err(st.note("warn", `${st.warn("warning")}: mcp.toml keeps literal secrets (${m.report.literalSecrets.join(", ")}); move them to the Keychain afterwards with: turno mcp import --write --move-secrets --force`));
     }
   }
   if (!plan.default && !loadConfig(env).default && plan.profiles.some((np) => np.agent === DEFAULT_AGENT)) {
     io.out("");
-    io.out("No default profile: folders without a rule open plain claude (set one with --default <profile>).");
+    io.out(st.wrap("  ", st.muted("No default profile: folders without a rule open plain claude (set one with --default <profile>).")));
   }
+}
+
+const SCOPE_UNKNOWN = 'scope project: unknown server, one process per project folder; set scope = "shared" if it ignores its folder';
+
+/**
+ * Importer notes with the same text for several servers, as one note: `name: text` for one
+ * server, `a, b: text` for more, and plain words for the common scope note.
+ */
+export function groupNotes(notes: readonly string[]): string[] {
+  const groups = new Map<string, string[]>();
+  const order: string[] = [];
+  for (const n of notes) {
+    const m = /^([\w.@/-]+): (.+)$/.exec(n);
+    const key = m ? m[2]! : n;
+    if (!groups.has(key)) order.push(key);
+    groups.set(key, [...(groups.get(key) ?? []), ...(m ? [m[1]!] : [])]);
+  }
+  return order.map((text) => {
+    const names = groups.get(text)!;
+    if (!names.length) return text;
+    if (names.length === 1) return `${names[0]}: ${text}`;
+    if (text === SCOPE_UNKNOWN) {
+      return `scope project for ${names.join(", ")} (unknown servers: one process per project folder; set scope = "shared" for those that ignore their folder)`;
+    }
+    return `${names.join(", ")}: ${text}`;
+  });
 }
 
 /** `codex-cx login`, `claude-work (then /login)`. */
@@ -415,18 +468,38 @@ function hasServers(plan: Plan): boolean {
   return plan.mcp.kind === "import" || (plan.mcp.kind === "keep" && plan.mcp.servers > 0);
 }
 
-function printNext(io: Io, plan: Plan, started: boolean): void {
-  const steps: string[] = [];
-  if (plan.profiles.length) steps.push(`sign in once per profile where needed: ${plan.profiles.map((np) => loginHint(np.agent, launcherName(np.name, np.agent))).join(", ")}`);
-  if (hasServers(plan) && !started) {
-    steps.push("turno mcp daemon start   (the gateway, as a login service)");
-    steps.push("turno mcp sync           (point every profile at it)");
+/**
+ * The launcher to try first: the profile this folder now resolves to, when init made it or it
+ * exists; else the first new profile.
+ */
+function tryLauncher(io: Io, plan: Plan): string | undefined {
+  try {
+    const config = loadConfig(io.env);
+    const chosen = resolveAll(process.cwd(), config, io.env)[0]?.r.chosen;
+    if (chosen && listProfiles(config, io.env).includes(chosen)) return launcherName(chosen, agentOf(chosen, config));
+  } catch {
+    /* fall back below */
   }
-  steps.push("turno ui install         (optional: the status line and its font)");
-  io.out("Next:");
-  for (const [i, s] of steps.entries()) io.out(`  ${i + 1}. ${s}`);
   const first = plan.profiles[0];
-  if (first) io.out(`\nTry it: ${launcherName(first.name, first.agent)}`);
+  return first ? launcherName(first.name, first.agent) : undefined;
+}
+
+function printNext(io: Io, plan: Plan, started: boolean, st: Style): void {
+  const steps: [string, string][] = [];
+  if (plan.profiles.length) steps.push([`sign in once per profile where needed: ${plan.profiles.map((np) => loginHint(np.agent, launcherName(np.name, np.agent))).join(", ")}`, ""]);
+  if (hasServers(plan) && !started) {
+    steps.push(["turno mcp daemon start", "the gateway, as a login service"]);
+    steps.push(["turno mcp sync", "point every profile at it"]);
+  }
+  steps.push(["turno ui install", "optional: the status line and its font"]);
+  io.out(st.header("Next"));
+  const w = Math.max(...steps.filter(([, why]) => why).map(([c]) => c.length));
+  for (const [i, [cmd, why]] of steps.entries()) {
+    if (why) io.out(`  ${st.muted(`${i + 1}.`)} ${st.bold(cmd.padEnd(w))}   ${st.muted(`(${why})`)}`);
+    else for (const [k, l] of (st.color ? wrap(cmd, st.width - 5) : [cmd]).entries()) io.out(`  ${k ? "  " : st.muted(`${i + 1}.`)} ${l}`);
+  }
+  const launcher = tryLauncher(io, plan);
+  if (launcher) io.out(`\n${st.lead("next", `${st.bold("Try it:")} ${st.accent(launcher)}`)}`);
 }
 
 // Command -------------------------------------------------------------------------------------
@@ -439,14 +512,15 @@ async function run(args: string[], io: Io): Promise<number> {
   // Questions only when a person can answer and has not answered everything with --yes.
   const ask = !dry && !yes && Boolean(io.ask);
   const { plan, before, after } = await makePlan(args, io, ask);
+  const st = style(io);
   const writesMcp = plan.mcp.kind === "import";
   if (after === before && !writesMcp && !plan.profiles.length) {
-    printFound(io, plan);
+    printFound(io, plan, st);
     io.out("");
-    io.out("Nothing to set up: turno already knows this machine. turno doctor checks it.");
+    io.out(st.lead("ok", "Nothing to set up: turno already knows this machine. turno doctor checks it."));
     return 0;
   }
-  printPlan(io, plan, before, after);
+  printPlan(io, plan, before, after, st);
   io.out("");
   // Start the gateway and connect the profiles in the same run: asked in a terminal (yes by
   // default), --start with --yes, never with --no-start. Both steps go in init's journal.
@@ -455,8 +529,8 @@ async function run(args: string[], io: Io): Promise<number> {
     start = await askYes(io, "Also start the gateway and connect the profiles to it (turno mcp daemon start, turno mcp sync)?");
   }
   if (dry) {
-    if (start) io.out("Then: start the gateway as a login service and point every profile at it (turno mcp daemon start, turno mcp sync).");
-    io.out(`Nothing written (dry run). turno init --yes${hasServers(plan) ? " --start" : ""} writes all of it; one turno undo reverts it.`);
+    if (start) io.out(st.wrap("", "Then: start the gateway as a login service and point every profile at it (turno mcp daemon start, turno mcp sync)."));
+    io.out(st.wrap("", `${st.lead("info", "Nothing written (dry run).")} ${st.bold(`turno init --yes${hasServers(plan) ? " --start" : ""}`)} writes all of it; one turno undo reverts it.`));
     return 0;
   }
   // Launchers keep the path of this turno; a path into npx's cache disappears.
@@ -470,24 +544,46 @@ async function run(args: string[], io: Io): Promise<number> {
   }
 
   const env = io.env;
+  const started = Date.now();
   const journal = new Journal(env, "init");
+  io.out(st.header("Write"));
   // config.toml first: setting up a profile reads its agent from it.
   editConfig(env, journal, (text) => (text === before ? after : editText(text, plan, env)));
-  if (plan.mcp.kind === "import") journal.write(paths(env).mcpFile, await resolveMcp(io, plan.mcp), 0o600);
-  if (plan.profiles.length) setupProfiles(plan.profiles.map((np) => np.name), io, { journal });
-  let started = false;
+  io.out(`  ${st.check("ok", `wrote ${tildify(paths(env).configFile, env)}`)}`);
+  if (plan.mcp.kind === "import") {
+    const spin = spinner(io, "asking npm for the command names of MCP packages");
+    let resolved: { toml: string; notes: string[] };
+    try {
+      resolved = await resolveMcp(io, plan.mcp);
+    } finally {
+      spin.stop();
+    }
+    journal.write(paths(env).mcpFile, resolved.toml, 0o600);
+    io.out(`  ${st.check("ok", `wrote ${tildify(paths(env).mcpFile, env)} ${st.muted(`(${plural(plan.mcp.servers.length, "server")}, mode 600)`)}`)}`);
+    for (const n of resolved.notes) io.err(st.note("warn", st.muted(n), 4));
+  }
+  // Setup lines sit under the Write header.
+  // Two columns narrower, so what setup wraps still fits after the indent.
+  const indented: Io = { ...io, env: { ...io.env, COLUMNS: String(st.width - 2) }, out: (line = "") => io.out(line ? line.replace(/^/gm, "  ") : line) };
+  if (plan.profiles.length) setupProfiles(plan.profiles.map((np) => np.name), indented, { journal, brief: true });
+  let gatewayUp = false;
   if (start) {
     io.out("");
+    io.out(st.header("Gateway"));
     const { startDaemonService } = await import("./mcpd.js");
     const { syncProfiles } = await import("./mcp.js");
-    started = (await startDaemonService(io, { journal })) === 0;
+    gatewayUp = (await startDaemonService(io, { journal })) === 0;
+    io.out("");
+    io.out(st.header("Sync"));
     await syncProfiles(io, { journal });
   }
   io.out("");
-  io.out(`Done. Undo all of it with: turno undo ${journal.stamp}${start ? " (the gateway keeps running until turno mcp daemon stop)" : ""}`);
+  io.out(st.wrap(st.color ? `${st.icon("ok")} ` : "ok ", `${st.bold("Done")} in ${duration(Date.now() - started)}. ${st.muted("Undo all of it with:")} ${st.bold(`turno undo ${journal.stamp}`)}`));
+  if (start) io.out(st.muted("  (the gateway keeps running until turno mcp daemon stop)"));
   const first = plan.profiles[0];
   if (first) warnPath(io, launcherName(first.name, first.agent));
-  printNext(io, plan, started);
+  io.out("");
+  printNext(io, plan, gatewayUp, st);
   return 0;
 }
 

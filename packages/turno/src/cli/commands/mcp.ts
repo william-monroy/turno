@@ -14,6 +14,7 @@ import { DRY_RUN, FORCE, type FlagSpec, JSON_FLAG, bool, parseFlags, printJson, 
 import { type Sub, group } from "../group.js";
 import { highlightJson, highlightToml } from "../highlight.js";
 import { type Io, colors, fail, paint, plural } from "../io.js";
+import { duration, profileColor, style } from "../style.js";
 import { LOG_FLAGS, SAVINGS_FLAGS, TOP_FLAGS } from "./mcp-observe.js";
 import { LOGIN_FLAGS, LOGOUT_FLAGS, type LoginRow, describeLogin, oauthLogins } from "./mcp-oauth.js";
 
@@ -232,15 +233,21 @@ export async function syncProfiles(io: Io, opts: SyncOptions = {}): Promise<{ ch
   let changed = 0;
   let gatewayTargets = 0;
   const journal = opts.journal ?? new Journal(io.env, opts.command ?? "mcp sync", dryRun);
+  const st = style(io);
+  const started = Date.now();
+  const rows: string[][] = [];
+  const notes: string[] = [];
   for (const t of targets(io, config, only)) {
     const where = tildify(t.file, io.env);
     const a = adapter(t.agent);
     const label = t.plain
-      ? `plain ${a.command}${config.system ? `, profile ${config.system}` : ""} (${where})`
-      : `${t.profile || `${a.label} profiles`} (${where})`;
+      ? st.bold(`plain ${a.command}${config.system ? `, profile ${config.system}` : ""}`)
+      : t.profile
+        ? st.profile(t.profile, profileColor(config.profiles, t.profile))
+        : st.bold(`${a.label} profiles`);
     const isBusy = t.plain ? busy.plain || busy.profiles.has(t.profile) : Boolean(t.profile) && busy.profiles.has(t.profile);
     if (isBusy && !force) {
-      io.out(`${paint(io, dryRun ? "would skip" : "skip", "33")} ${label}: has open sessions; close them or use --force`);
+      rows.push([st.icon("warn"), label, st.muted(where), st.warn(`${dryRun ? "would skip" : "skipped"}: has open sessions; close them or use --force`)]);
       skipped++;
       continue;
     }
@@ -259,19 +266,21 @@ export async function syncProfiles(io: Io, opts: SyncOptions = {}): Promise<{ ch
     if (!dryRun) managed[t.file] = Object.keys(wanted);
     const verbs = dryRun ? ["would add", "would update", "would remove", "would leave alone"] : ["added", "updated", "removed", "left alone"];
     const parts = [res.added, res.updated, res.removed, res.foreign].map((names, i) => (names.length ? `${verbs[i]} ${names.join(", ")}` : "")).filter(Boolean);
-    const tag = dryRun ? "plan" : res.changed ? "sync" : "same";
-    const detail = parts.length ? `: ${parts.join("; ")}` : dryRun && !res.changed ? ": no changes" : "";
-    io.out(`${paint(io, tag, res.changed ? "32" : "2")} ${label}${detail}`);
+    const detail = parts.length ? parts.join("; ") : res.changed ? "" : st.muted("no changes");
+    rows.push([st.icon(!res.changed ? "skip" : dryRun ? "info" : "ok"), label, st.muted(where), detail]);
     const after = res.added.length && !dryRun ? a.mcp.afterSync?.(res.added) : undefined;
-    if (after) io.out(after);
+    if (after) notes.push(after);
   }
+  for (const line of st.table(rows, { columns: [{}, {}, { drop: 1 }, {}] })) io.out(line);
+  for (const n of notes) io.out(n);
   if (!dryRun && JSON.stringify(managed) !== managedBefore) writeManaged(p.mcpdManaged, managed);
   await syncTokenFiles(io, config, only, token, dryRun);
-  if (!dryRun && changed) io.out("New sessions pick this up; open sessions keep their old servers until restarted.");
+  if (!dryRun && changed) io.out(st.wrap("  ", st.muted("New sessions pick this up; open sessions keep their old servers until restarted.")));
+  if (!opts.journal) io.out(`  ${st.muted(`${dryRun ? "Planned" : "Synced"} ${plural(rows.length, "config")} in ${duration(Date.now() - started)}.`)}`);
   const hint = changed && !dryRun && !opts.journal ? journal.hint() : undefined;
   if (hint) io.out(hint);
   if (gatewayTargets && !(await mcpdAnswers(io.env))) {
-    io.err(`${paint(io, "warning", "33")}: mcpd is not running, so these profiles have no local MCP servers until you run: turno mcp daemon start`);
+    io.err(st.wrap("", `${paint(io, "warning", "33")}: mcpd is not running, so these profiles have no local MCP servers until you run: turno mcp daemon start`));
   }
   return { changed, skipped };
 }
@@ -299,18 +308,19 @@ async function syncTokenFiles(io: Io, config: Config, only: string[], master: st
     const launcher = join(paths(io.env).bin, launcherName(name, agent));
     if (isGenerated(launcher) && !readFileSync(launcher, "utf8").includes("mcpd-tokens/")) oldLaunchers.push(name);
   }
-  if (changed.length) io.out(`${paint(io, dryRun ? "plan" : "token", "32")} ${dryRun ? "would write" : "wrote"} the gateway token of ${changed.join(", ")} for their launchers`);
+  const st = style(io);
+  if (changed.length) io.out(st.note(dryRun ? "info" : "ok", `${dryRun ? "would write" : "wrote"} the gateway token of ${changed.join(", ")} for their launchers`));
   // A full sync removes the token files it wrote for profiles that are gone. The token itself
   // stays valid until a rotation (ADR 0023); the file is just no longer needed.
   const gone = only.length ? [] : [...synced].filter((n) => !profiles.includes(n)).sort();
   for (const name of gone) {
     synced.delete(name);
     if (dryRun ? !readProfileTokenFile(name, io.env) : !tokens.removeProfileTokenFile(name, io.env)) continue;
-    io.out(`${paint(io, dryRun ? "plan" : "token", "32")} ${dryRun ? "would remove" : "removed"} the gateway token file of ${name} (no longer a profile)`);
+    io.out(st.note(dryRun ? "info" : "ok", `${dryRun ? "would remove" : "removed"} the gateway token file of ${name} (no longer a profile)`));
   }
   if (!dryRun && (synced.size !== before || gone.length || changed.length)) tokens.writeSyncedTokenProfiles([...synced], io.env);
   for (const name of oldLaunchers) {
-    io.err(`${paint(io, "warning", "33")}: the launcher of ${name} still reads the old shared token; rewrite it with: turno profile repair ${name}`);
+    io.err(st.wrap("", `${paint(io, "warning", "33")}: the launcher of ${name} still reads the old shared token; rewrite it with: turno profile repair ${name}`));
   }
 }
 

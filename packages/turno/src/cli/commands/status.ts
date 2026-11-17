@@ -10,13 +10,14 @@ import { FALLBACK, checkFonts, userFontDir } from "../../ui/fonts.js";
 import { currentStatusLine, isTurnoStatusLine } from "../../ui/settings.js";
 import { currentTerminal, nerdHere } from "../../ui/terminal-id.js";
 import { JSON_FLAG, bool, parseFlags, printJson } from "../args.js";
-import { type Command, type Io, paint, plural } from "../io.js";
+import { type Command, type Io, plural } from "../io.js";
+import { type Style, profileColor, style, visibleWidth } from "../style.js";
 import { mcpdStatus } from "./doctor.js";
 import { DEFAULT_AGENT, adapter } from "../../agents/index.js";
 import { limitsData } from "./limit.js";
 import { profilesData, resolveAll, usingText } from "./profile.js";
 import { sessionsData } from "./session.js";
-import { bar, shortTime } from "./usage.js";
+import { shortTime } from "./usage.js";
 
 /** The one thing to do next, if any: what `turno` and `turno status` end with. */
 export interface NextStep {
@@ -116,10 +117,83 @@ async function statusBase(env: NodeJS.ProcessEnv, cwd: string) {
   };
 }
 
-function pct(w: { used: number; resetsAt: number | null } | null, now: number): string {
-  if (!w) return `${"-".padStart(7)}${" ".repeat(6)}`;
-  const used = w.resetsAt && w.resetsAt < now ? 0 : w.used;
-  return `${bar(used, 8)} ${used.toFixed(0).padStart(3)}%`;
+/** "33m", "2h06m", "5d 18h": time left until a window resets. */
+export function resetIn(resetsAt: number | null, now: number): string {
+  if (!resetsAt || resetsAt <= now) return "";
+  const d = Math.floor(resetsAt - now);
+  const h = Math.floor(d / 3600);
+  const m = Math.floor((d % 3600) / 60);
+  return h >= 24 ? `${Math.floor(h / 24)}d ${h % 24}h` : h ? `${h}h${String(m).padStart(2, "0")}m` : `${m}m`;
+}
+
+type StatusData = Awaited<ReturnType<typeof statusData>>;
+
+/** The status screen as lines: the same layout with colors on a terminal and as plain text. */
+export function renderStatus(d: StatusData, io: Io, opts: { now?: number; colors?: Record<string, { color?: string | number }> } = {}): string[] {
+  const now = opts.now ?? Date.now() / 1000;
+  const s = style(io, { nerd: d.look.icons === "nerd" });
+  const pill = (name: string) => s.profile(name, opts.colors ? profileColor(opts.colors, name) : undefined);
+  const out: string[] = [];
+  const using = d.here.chosen ? pill(d.here.chosen) : "plain claude";
+  out.push(s.wrap(`${s.bold(s.accent("turno"))} ${s.muted(d.version)}  `, `${d.here.dir} ${s.icon("arrow")} ${using}`));
+  if (d.update) out.push(s.warn(`${s.icon("info")} turno ${d.update} is available: turno upgrade`));
+  if (d.migrationPending) out.push(s.warn(`${s.icon("warn")} the bash claudio config is not migrated yet: turno migrate`));
+
+  // Here: what each agent opens in this folder.
+  out.push("", s.header("Here"));
+  const why = d.here.note ? `${d.here.assigned} ${d.here.note}` : d.here.reason;
+  const here: string[][] = [[s.muted(DEFAULT_AGENT), d.here.chosen ? pill(d.here.chosen) : "plain claude", s.muted(why)]];
+  for (const [agent, a] of Object.entries(d.here.agents)) {
+    if (agent === DEFAULT_AGENT) continue;
+    const m = /^(.*) \((.*)\)$/.exec(a.text);
+    here.push([s.muted(agent), a.chosen ? pill(a.chosen) : (m?.[1] ?? a.text), s.muted(m?.[2] ?? "")]);
+  }
+  out.push(...s.table(here, { columns: [{}, {}, { drop: 1 }] }));
+
+  // Profiles: usage of each account with its reset time, and who it is.
+  out.push("", s.header("Profiles"));
+  if (!d.profiles.length) out.push(`  none yet ${s.muted("(turno profile add <name>)")}`);
+  else {
+    const win = (w: { used: number; resetsAt: number | null } | null) => {
+      if (!w) return [s.muted("-"), ""];
+      const used = w.resetsAt && w.resetsAt < now ? 0 : w.used;
+      return [s.bar(used, 8), s.muted(resetIn(w.resetsAt, now))];
+    };
+    const rows: string[][] = [["", s.muted("5 hours"), "", s.muted("week"), "", s.muted("account")]];
+    for (const x of d.profiles) {
+      const who = !x.setUp ? s.warn("not set up") : !adapter(x.agent).accountDetails ? adapter(x.agent).label : x.email ? x.email : s.warn("not logged in");
+      const flags = [...x.roles, x.exhaustedUntil ? `exhausted until ${shortTime(x.exhaustedUntil)}` : ""].filter(Boolean).join(", ");
+      const usage = adapter(x.agent).accountDetails ? [...win(x.fiveHour), ...win(x.week)] : [s.muted("-"), "", s.muted("-"), ""];
+      rows.push([pill(x.name), ...usage, `${who}${x.plan ? s.muted(` · ${x.plan}`) : ""}${flags ? s.muted(`  ${flags}`) : ""}`]);
+    }
+    out.push(...s.table(rows, { columns: [{}, {}, { drop: 3 }, {}, { drop: 4 }, {}] }));
+  }
+
+  // The machine: gateway, sessions and the look.
+  out.push("", s.header("Machine"));
+  const by = Object.entries(d.sessions.byProfile)
+    .map(([k, v]) => `${k} ${v}`)
+    .join(", ");
+  const gateway = d.mcpd.running
+    ? `${s.lead("on", "running")} ${s.muted(`on port ${d.mcpd.port}`)}`
+    : `${s.lead("off", s.warn("not running"))} ${s.muted("(turno mcp daemon start)")}`;
+  const lineText = d.look.statusLine === "turno" ? "turno status line" : d.look.statusLine ? `status line \`${d.look.statusLine}\`` : "no status line";
+  const look = [lineText, d.look.font ? "font installed" : `font missing ${s.muted("(turno ui install)")}`, `${d.look.icons} icons here`].join(s.muted(" · "));
+  out.push(s.kv("gateway", gateway, 8));
+  for (const problem of d.mcpd.problems) out.push(s.wrap(`  ${" ".repeat(8)}  ${s.warn(s.icon("warn"))} `, s.warn(problem)));
+  out.push(s.kv("sessions", `${plural(d.sessions.total, "live session")}${by ? s.muted(` (${by})`) : ""}`, 8));
+  out.push(s.kv("look", look, 8));
+
+  out.push("", ...nextLines(s, d.next));
+  out.push("", s.muted("turno doctor checks each part; turno limit, session and profile show more."));
+  return out;
+}
+
+function nextLines(s: Style, next: NextStep | null): string[] {
+  const label = s.lead("next", s.bold(s.accent("Next")));
+  if (!next) return [`${label}  ${s.ok("nothing to do: everything is set up")}`];
+  const pad = " ".repeat(visibleWidth(label) + 2);
+  return [s.wrap(`${label}  `, s.bold(next.command)), s.wrap(pad, s.muted(next.why))];
 }
 
 export const command: Command = {
@@ -133,37 +207,16 @@ export const command: Command = {
       printJson(io, d);
       return 0;
     }
-    const now = Date.now() / 1000;
-    const dim = (s: string) => paint(io, s, "2");
-    io.out(`${paint(io, `turno ${d.version}`, "1")}${d.update ? paint(io, `  (${d.update} available: turno upgrade)`, "33") : ""}`);
-    if (d.migrationPending) io.out(paint(io, "the bash claudio config is not migrated yet: turno migrate", "33"));
-    const using = d.here.chosen ?? "plain claude";
-    io.out(`here      ${d.here.dir} -> ${using}${d.here.note ? ` (${d.here.assigned} ${d.here.note})` : dim(` (${d.here.reason})`)}`);
-    for (const [agent, a] of Object.entries(d.here.agents)) if (agent !== DEFAULT_AGENT) io.out(`          ${agent} -> ${a.text}`);
-    if (!d.profiles.length) io.out("profiles  none yet (turno profile add <name>)");
-    const w = Math.max(0, ...d.profiles.map((x) => x.name.length));
-    for (const [i, x] of d.profiles.entries()) {
-      const who = !x.setUp ? "not set up" : !adapter(x.agent).accountDetails ? adapter(x.agent).label : (x.email ?? "not logged in");
-      const flags = [...x.roles, x.exhaustedUntil ? `exhausted until ${shortTime(x.exhaustedUntil)}` : ""].filter(Boolean).join(", ");
-      io.out(`${i === 0 ? "profiles  " : "          "}${x.name.padEnd(w)}  5h ${pct(x.fiveHour, now)}  week ${pct(x.week, now)}  ${who}${x.plan ? ` · ${x.plan}` : ""}${flags ? dim(`  ${flags}`) : ""}`);
+    let profiles: Record<string, { color?: string | number }> = {};
+    try {
+      profiles = loadConfig(io.env).profiles;
+    } catch {
+      /* statusData already read it */
     }
-    const by = Object.entries(d.sessions.byProfile).map(([k, v]) => `${k} ${v}`).join(", ");
-    io.out(`sessions  ${plural(d.sessions.total, "live session")}${by ? ` (${by})` : ""}`);
-    io.out(`mcpd      ${d.mcpd.running ? `running on port ${d.mcpd.port}` : "not running (turno mcp daemon start)"}`);
-    for (const problem of d.mcpd.problems) io.out(`          ${paint(io, problem, "33")}`);
-    const lineText = d.look.statusLine === "turno" ? "turno status line" : d.look.statusLine ? `status line \`${d.look.statusLine}\`` : "no status line";
-    io.out(`look      ${lineText}, ${d.look.font ? "font installed" : "font missing (turno ui install)"}, ${d.look.icons} icons here`);
-    printNext(io, d.next);
-    io.out(dim("\nturno doctor checks each part; turno limit, session and profile show more."));
+    for (const line of renderStatus(d, io, { colors: profiles })) io.out(line);
     return 0;
   },
 };
-
-function printNext(io: Io, next: NextStep | null): void {
-  io.out("");
-  if (next) io.out(`${paint(io, "next", "1;36")}      ${paint(io, next.command, "1")}  ${paint(io, `(${next.why})`, "2")}`);
-  else io.out(`${paint(io, "next", "1;36")}      nothing to do: everything is set up`);
-}
 
 /**
  * What bare `turno` shows: this screen once turno is set up, the help before that (so a new

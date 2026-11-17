@@ -1,6 +1,6 @@
 import { accessSync, chmodSync, closeSync, constants, fchmodSync, fstatSync, mkdirSync, openSync, statSync, writeSync } from "node:fs";
 import { homedir } from "node:os";
-import { delimiter, dirname, isAbsolute, join, relative, sep } from "node:path";
+import { delimiter, dirname, isAbsolute, join, normalize, relative, sep } from "node:path";
 
 /**
  * Every path turno touches, derived from HOME and the XDG variables so tests can run
@@ -79,8 +79,10 @@ export function profileDir(name: string, env: NodeJS.ProcessEnv): string {
 
 /** Replace the home prefix with ~ for display. */
 export function tildify(p: string, env: NodeJS.ProcessEnv): string {
-  const home = paths(env).home;
-  return p === home ? "~" : p.startsWith(`${home}/`) ? `~${p.slice(home.length)}` : p;
+  // HOME may come with a trailing slash or doubled slashes (HOME=/Users/a/): compare normalized.
+  const home = normalize(paths(env).home).replace(/(.)\/+$/, "$1");
+  const q = isAbsolute(p) ? normalize(p) : p;
+  return q === home ? "~" : home !== "/" && q.startsWith(`${home}/`) ? `~${q.slice(home.length)}` : p;
 }
 
 /** Expand a leading ~ to the home directory. */

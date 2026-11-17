@@ -8,6 +8,7 @@ import { tildify } from "../../core/paths.js";
 import { agentOf } from "../../core/profiles.js";
 import { profileBusy } from "../../core/sessions.js";
 import { type Command, type Io, fail, plural } from "../io.js";
+import { style } from "../style.js";
 import { launcherName, refuseNpx, resolveTurnoCommand, writeHelperLaunchers, writeLauncher } from "../launchers.js";
 
 /** Names a profile cannot take: every command, alias and legacy word. */
@@ -103,14 +104,20 @@ export function localCopies(names: string[], env: NodeJS.ProcessEnv, config: Con
 }
 
 /** Print what linking did: one line, or every item with `verbose`. */
-function reportLinks(name: string, label: string, dir: string, hub: string, results: [string, Link][], aside: string, io: Io, verbose: boolean): void {
+function reportLinks(name: string, label: string, dir: string, hub: string, results: [string, Link][], aside: string, io: Io, verbose: boolean, brief = false): void {
   const env = io.env;
   const dirs = results.length;
-  io.out(`▸ ${name}${label} → ${tildify(dir, env)}: shares ${plural(dirs, "item")} with ${tildify(hub, env)}${verbose || !dirs ? "" : " (-v lists them)"}`);
-  if (verbose) for (const [item, r] of results) io.out(`  ${r === "same" ? "=" : "↔"} ${item}`);
+  const st = style(io);
+  const more = verbose || !dirs ? "" : st.muted(" (-v lists them)");
+  io.out(st.wrap(`${st.accent("▸")} `, `${st.bold(name)}${label} → ${tildify(dir, env)}: shares ${plural(dirs, "item")} with ${tildify(hub, env)}${more}`));
+  if (verbose) for (const [item, r] of results) io.out(`  ${r === "same" ? st.muted("=") : st.accent("↔")} ${item}`);
   const moved = results.filter(([, r]) => r === "aside").map(([item]) => item);
   if (moved.length) {
-    io.out(`  ! moved your own ${moved.join(", ")} to ${tildify(aside, env)}/ (merge by hand if useful; turno undo puts them back)`);
+    const it = moved.length === 1 ? "it" : "them";
+    const text = brief
+      ? `moved ${moved.join(", ")} aside ${st.muted(`(turno undo puts ${it} back)`)}`
+      : `moved your own ${moved.join(", ")} to ${tildify(aside, env)}/ ${st.muted("(merge by hand if useful; turno undo puts them back)")}`;
+    io.out(st.wrap(`  ${st.warn("!")} `, text));
   }
 }
 
@@ -119,6 +126,8 @@ export interface SetupOptions {
   turno?: string;
   /** List every shared item instead of one summary line. */
   verbose?: boolean;
+  /** Shorter lines, for turno init, whose plan already said what moves where. */
+  brief?: boolean;
   /**
    * Records links, moves, folders, seeds and launchers. Without one, setupProfiles opens its
    * own ("profile repair ...") and prints its undo hint.
@@ -130,7 +139,7 @@ export interface SetupOptions {
  * Set up one profile: its folder (0700), the hub links, the agent's own steps (ADR 0032) and
  * its launcher. Local copies of shared items move to .aside-<stamp>/.
  */
-function setupProfile(name: string, agent: AgentId, io: Io, verbose: boolean, journal: Journal, config: Config): void {
+function setupProfile(name: string, agent: AgentId, io: Io, verbose: boolean, journal: Journal, config: Config, brief = false): void {
   const a = adapter(agent);
   const step: SetupStep = {
     name,
@@ -158,11 +167,12 @@ function setupProfile(name: string, agent: AgentId, io: Io, verbose: boolean, jo
     results.push([item, linkItem(s.dir, item, aside, journal, s.hub)]);
   }
   for (const item of s.files) results.push([item, linkItem(s.dir, item, aside, journal, s.hub)]);
-  reportLinks(name, agent === DEFAULT_AGENT ? "" : ` (${a.label})`, s.dir, s.hub, results, aside, io, verbose);
-  for (const why of held) io.out(`  ! ${why}`);
+  reportLinks(name, agent === DEFAULT_AGENT ? "" : ` (${a.label})`, s.dir, s.hub, results, aside, io, verbose, brief);
+  const st = style(io);
+  for (const why of held) io.out(st.wrap(`  ${st.warn("!")} `, why));
   a.setup?.after?.(step);
   writeLauncher(name, io.env, agent, journal);
-  io.out(`  + command ${launcherName(name, agent)}`);
+  io.out(`  ${st.ok("+")} command ${st.bold(launcherName(name, agent))}`);
 }
 
 export function setupProfiles(names: string[], io: Io, opts: SetupOptions = {}): void {
@@ -174,7 +184,7 @@ export function setupProfiles(names: string[], io: Io, opts: SetupOptions = {}):
   const verbose = Boolean(opts.verbose);
   const config = loadConfig(io.env);
   const journal = opts.journal ?? new Journal(io.env, `profile repair ${names.join(" ")}`);
-  for (const name of names) setupProfile(name, agentOf(name, config), io, verbose, journal, config);
+  for (const name of names) setupProfile(name, agentOf(name, config), io, verbose, journal, config, Boolean(opts.brief));
   const written = writeHelperLaunchers(io.env, turno.words, journal);
   if (verbose) for (const w of written) io.out(`+ command ${w}`);
   if (turno.warning) io.out(`! turno-auto and turno-open: ${turno.warning}`);
