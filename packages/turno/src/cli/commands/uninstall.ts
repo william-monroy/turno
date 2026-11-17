@@ -11,6 +11,7 @@ import type { ServiceBackend } from "../../mcpd/service.js";
 import { profileTokenFile } from "../../mcpd/tokens.js";
 import { type StatusLine, currentStatusLine, isTurnoStatusLine, readSettings } from "../../ui/settings.js";
 import { DRY_RUN, bool, parseFlags } from "../args.js";
+import { compileCacheDir } from "../compile-cache.js";
 import { type Command, type Io, confirm, needsAnswer } from "../io.js";
 import { MARKER } from "../launchers.js";
 import { realOr } from "../../core/fsutil.js";
@@ -229,6 +230,8 @@ export async function planUninstall(env: NodeJS.ProcessEnv, opts: { keepConfig?:
   if (existsSync(p.chromeProfilesDir)) plan.kept.push(`${tildify(p.chromeProfilesDir, env)} (browser profiles with their logins) stays`);
   if (existsSync(p.data)) plan.kept.push(`${tildify(p.data, env)} (installed MCP servers, caches) stays`);
   plan.kept.push(`${tildify(p.state, env)} (backups for turno undo, logs) stays`);
+  const cache = dirname(compileCacheDir(env));
+  if (existsSync(cache)) plan.kept.push(`${tildify(cache, env)} (compiled code, safe to delete) stays`);
   plan.kept.push("secrets you stored with turno secret stay in the Keychain or Secret Service (turno secret --help)");
   return plan;
 }
