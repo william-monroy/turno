@@ -177,6 +177,39 @@ describe("runPicker", () => {
   });
 });
 
+describe("picker resize", () => {
+  it("redraws to the new width when the terminal is resized", async () => {
+    const wide = [item("work", "alice.longer.name@example.com")];
+    let cols = 100;
+    let onKey: (c: string) => void = () => {};
+    let onResize: (() => void) | undefined;
+    let out = "";
+    const term: Terminal = {
+      columns: () => cols,
+      rows: () => 30,
+      write: (t) => {
+        out += t;
+      },
+      start(data, resize) {
+        onKey = data;
+        onResize = resize;
+        return () => {};
+      },
+    };
+    const styleAt = (c: number) => style({ env: { COLUMNS: String(c) }, isTty: true });
+    const done = runPicker(term, styleAt(100), wide, { title: "Pick", maxRows: 10, styleAt });
+    expect(stripAnsi(out)).toContain("Claude Code");
+    cols = 40;
+    out = "";
+    onResize!();
+    // At 40 columns the agent column goes first.
+    expect(stripAnsi(out)).not.toContain("Claude Code");
+    expect(stripAnsi(out)).toContain("alice.longer.name@example.com");
+    onKey("\r");
+    expect(await done).toBe("work");
+  });
+});
+
 describe("realTerminal", () => {
   function fakes() {
     const input = Object.assign(new EventEmitter(), {
@@ -370,7 +403,8 @@ describe("profile and session lists", () => {
     const io = { ...fakeIo({ ...sb.env, COLUMNS: "100" }), isTty: true };
     expect(await main(["profile", "list"], io)).toBe(0);
     expect(stripAnsi(io.lines[0]!)).toMatch(/^Profiles ─+$/);
-    expect(io.lines[2]).toContain("\x1b[48;5;91;1;38;5;255m work \x1b[0m");
+    expect(stripAnsi(io.lines[1]!)).toMatch(/^ {2}\s+agent\s+account\s+folders\s+role$/);
+    expect(io.lines[3]).toContain("\x1b[48;5;91;1;38;5;255m work \x1b[0m");
     expect(stripAnsi(io.lines.at(-1)!)).toContain("turno <name> opens one");
   });
 });

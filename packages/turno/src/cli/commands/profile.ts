@@ -82,7 +82,7 @@ export function renderProfiles(rows: Awaited<ReturnType<typeof profilesData>>, c
     const who = !r.setUp
       ? s.warn(`not set up (turno profile repair ${r.name})`)
       : !a.accountDetails
-        ? s.muted(launcherName(r.name, r.agent))
+        ? s.muted(s.color ? "-" : launcherName(r.name, r.agent))
         : r.email
           ? `${r.email}${r.plan ? s.muted(` · ${r.plan}`) : ""}`
           : s.warn("not logged in");
@@ -91,7 +91,9 @@ export function renderProfiles(rows: Awaited<ReturnType<typeof profilesData>>, c
     return [s.profile(r.name, profileColor(config.profiles, r.name)), s.muted(a.label), who, s.muted(r.projects ? plural(r.projects, "folder") : "no folders"), flags];
   });
   if (!s.color) return s.table(table, { indent: 0 });
-  return [s.header("Profiles"), ...s.table(table, { columns: [{}, { drop: 2 }, {}, { drop: 1 }, {}] }), "", s.muted("turno <name> opens one; turno profile assign <dir> gives a folder its profile.")];
+  // turno reads no account for agents without account details: a "-" there, not the launcher.
+  const head = ["", "agent", "account", "folders", "role"].map((h) => s.muted(h));
+  return [s.header("Profiles"), ...s.table([head, ...table], { columns: [{}, { drop: 2 }, {}, { drop: 1 }, {}] }), "", s.muted("turno <name> opens one; turno profile assign <dir> gives a folder its profile.")];
 }
 
 /** The PATH line for a shell, or undefined when `dir` is on PATH. */

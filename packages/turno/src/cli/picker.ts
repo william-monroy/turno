@@ -17,7 +17,6 @@ import { agentOf, listProfiles } from "../core/profiles.js";
 import { candidateRoots, resolveProfile } from "../core/resolve.js";
 import { CliError, type Io, fail, needsAnswer } from "./io.js";
 import { launcherPath } from "./launch.js";
-import { launcherName } from "./launchers.js";
 import { type Style, profileColor, style, visibleWidth } from "./style.js";
 
 /** One choice: its value, the cells drawn for it, and the text the filter searches. */
@@ -279,6 +278,8 @@ export interface RunOptions extends RenderOptions {
   update?: Promise<readonly PickItem[]>;
   /** The line left on the terminal after a choice; nothing is left after a cancel. */
   chosen?: (value: string) => string;
+  /** The style for a terminal this many columns wide, so a resize redraws to the new width. */
+  styleAt?: (columns: number) => Style;
 }
 
 /**
@@ -297,7 +298,7 @@ export function runPicker(term: Terminal, s: Style, items: readonly PickItem[], 
     };
     const draw = () => {
       const maxRows = Math.max(3, Math.min(opts.maxRows, term.rows() - 4));
-      const lines = renderPicker(state, s, { ...opts, maxRows });
+      const lines = renderPicker(state, opts.styleAt ? opts.styleAt(term.columns()) : s, { ...opts, maxRows });
       erase();
       term.write(lines.join("\n"));
       drawn = physicalRows(lines, term.columns());
@@ -390,7 +391,8 @@ export type PickIo = Io & { terminal?: Terminal };
 /** "alice@example.com", "not logged in", or the launcher of an agent without account details. */
 async function accountText(name: string, agent: AgentId, env: NodeJS.ProcessEnv): Promise<{ text: string; warn: boolean }> {
   if (!launcherPath(name, env, agent)) return { text: "not set up", warn: true };
-  if (!adapter(agent).accountDetails) return { text: launcherName(name, agent), warn: false };
+  // turno reads no account for these agents (Codex, Copilot, Cursor).
+  if (!adapter(agent).accountDetails) return { text: "-", warn: false };
   const { authStatus } = await import("./commands/usage.js");
   const s = await authStatus(name, env);
   if (!s) return { text: "account unknown", warn: true };
@@ -419,7 +421,8 @@ export async function pickProfile(io: PickIo, opts: PickProfileOptions): Promise
   const initial = opts.initial && names.includes(opts.initial) ? opts.initial : folderPick;
 
   const term = io.terminal ?? (process.stdin.isTTY && process.stderr.isTTY ? realTerminal() : undefined);
-  const s = style({ env: term ? { ...io.env, COLUMNS: String(term.columns()) } : io.env, isTty: Boolean(term) || Boolean(process.stderr.isTTY) });
+  const styleAt = (columns: number) => style({ env: { ...io.env, COLUMNS: String(columns) }, isTty: true });
+  const s = term ? styleAt(term.columns()) : style({ env: io.env, isTty: Boolean(process.stderr.isTTY) });
   const pill = (n: string) => s.profile(n, profileColor(config.profiles, n));
   const now = Date.now() / 1000;
   const mark = (n: string) => {
@@ -444,6 +447,7 @@ export async function pickProfile(io: PickIo, opts: PickProfileOptions): Promise
       maxRows: 10,
       ...(initial ? { initial } : {}),
       update: withAccounts,
+      styleAt,
       chosen: (v) => `${s.icon("ok")} ${opts.title} ${pill(v)}`,
     });
   } else {
