@@ -59,11 +59,13 @@ export function count(p: Parsed, name: string, fallback: number): number {
 }
 
 /**
- * Print a value as indented JSON, colored when `io` colors (a terminal without NO_COLOR).
+ * Print a value as indented JSON, colored on a terminal without NO_COLOR (never in a pipe,
+ * even with FORCE_COLOR, since programs read it).
  * Given only an output function it prints plain JSON.
  */
 export function printJson(io: Pick<Io, "out" | "env" | "isTty"> | Io["out"], value: unknown): void {
   const text: string | undefined = JSON.stringify(value, null, 2);
   const out = typeof io === "function" ? io : io.out;
-  out(text !== undefined && typeof io !== "function" && colors(io) ? highlightJson(text) : text);
+  // Only on a real terminal: --json is read by programs, so FORCE_COLOR never colors a pipe here.
+  out(text !== undefined && typeof io !== "function" && io.isTty && colors(io) ? highlightJson(text) : text);
 }
