@@ -12,7 +12,8 @@ import { paths, tildify } from "../../core/paths.js";
 import { type TomlValue, removeValue, setValue } from "../../core/toml-edit.js";
 import { DRY_RUN, JSON_FLAG, bool, flagsOf, parseFlags, printJson } from "../args.js";
 import { group } from "../group.js";
-import { type Io, columns, fail, paint } from "../io.js";
+import { highlightToml } from "../highlight.js";
+import { type Io, colors, columns, fail, paint } from "../io.js";
 import { parseColor } from "./profile.js";
 
 /** Keys `config set` may change; tables of their own have their own commands. */
@@ -69,7 +70,7 @@ async function path(args: string[], io: Io): Promise<number> {
   const pp = paths(env);
   const files = { config: pp.configFile, mcp: pp.mcpFile, accounts: pp.accountsFile, state: pp.state, backups: pp.backupsDir };
   if (bool(p, "json")) {
-    printJson(io.out, Object.fromEntries(Object.entries(files).map(([k, v]) => [k, { path: tildify(v, env), exists: existsSync(v) }])));
+    printJson(io, Object.fromEntries(Object.entries(files).map(([k, v]) => [k, { path: tildify(v, env), exists: existsSync(v) }])));
     return 0;
   }
   for (const [k, v] of Object.entries(files)) io.out(`${k.padEnd(9)} ${tildify(v, env)}${existsSync(v) ? "" : paint(io, "  (not there yet)", "2")}`);
@@ -88,7 +89,7 @@ async function get(args: string[], io: Io): Promise<number> {
     io.err(`${key} is not set`);
     return 1;
   }
-  if (bool(p, "json") || typeof v === "object") printJson(io.out, v);
+  if (bool(p, "json") || typeof v === "object") printJson(io, v);
   else io.out(String(v));
   return 0;
 }
@@ -159,7 +160,8 @@ async function set(args: string[], io: Io): Promise<number> {
   const dry = bool(p, "dry-run");
   const journal = new Journal(io.env, `config set ${key}`, dry);
   const { changed } = editConfig(io.env, journal, (t) => setValue(t, k.table, k.key, value));
-  io.out(`${key} = ${JSON.stringify(value)}${changed ? "" : " (unchanged)"}${dry ? " (dry run)" : ""}`);
+  const line = `${key} = ${JSON.stringify(value)}`;
+  io.out(`${colors(io) ? highlightToml(line) : line}${changed ? "" : " (unchanged)"}${dry ? " (dry run)" : ""}`);
   if (/(^|\.)fallback$/.test(key)) io.out('fallback is opt-in: read "Vendor terms" in the README before relying on it.');
   if (journal.hint()) io.out(journal.hint()!);
   return 0;

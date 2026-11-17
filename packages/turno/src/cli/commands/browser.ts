@@ -152,7 +152,7 @@ async function bench(mod: BrowserModule, args: string[], io: Io, deps: BrowserDe
     onProgress: (m) => io.err(paint(io, m, "2")),
   });
   if (bool(p, "json")) {
-    printJson(io.out, report);
+    printJson(io, report);
   } else {
     io.out(mod.formatBenchTable(report));
     if (report.file) io.out(`\nreport: ${tildify(report.file, io.env)}`);
@@ -164,8 +164,7 @@ function identities(mod: BrowserModule, args: string[], io: Io): number {
   const p = parseFlags(args, JSON_FLAG, 0);
   const list = mod.listIdentities(io.env);
   if (bool(p, "json")) {
-    printJson(
-      io.out,
+    printJson(io,
       list.map((i) => ({ id: i.id, inUse: i.inUse, dir: tildify(i.dir, io.env) })),
     );
     return 0;

@@ -8,7 +8,7 @@ import { paths } from "../../core/paths.js";
 import { literal, setValue } from "../../core/toml-edit.js";
 import type { RunningDaemon } from "../../mcpd/daemon.js";
 import { parseFlags } from "../args.js";
-import { type Command, type Io, paint } from "../io.js";
+import { type Command, type Io, colors, paint } from "../io.js";
 import { findOnPath } from "../launchers.js";
 import { setupProfiles } from "./setup.js";
 import { pidAlive } from "../../core/fsutil.js";
@@ -200,7 +200,7 @@ export async function startDemo(io: Io, opts: DemoOptions = {}): Promise<Demo> {
 const strip = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
 
 function intro(io: Io, d: Demo): void {
-  const color = io.isTty && !io.env.NO_COLOR;
+  const color = colors(io);
   io.out(`${paint(io, "turno demo", "1")}: a throwaway HOME at ${d.home}`);
   io.out("  Claude Code profiles work (for ~/code/acme) and personal (every other folder)");
   io.out(`  mcpd on 127.0.0.1:${d.port} with two MCP servers (docs, issues), synced into both profiles`);

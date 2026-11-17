@@ -21,7 +21,7 @@ export function sessionsData(env: NodeJS.ProcessEnv) {
 async function list(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, JSON_FLAG, 0);
   if (bool(p, "json")) {
-    printJson(io.out, sessionsData(io.env).map((s) => ({ ...s, cwd: tildify(s.cwd, io.env) })));
+    printJson(io, sessionsData(io.env).map((s) => ({ ...s, cwd: tildify(s.cwd, io.env) })));
     return 0;
   }
   return sessions.run([], io);

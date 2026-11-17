@@ -46,7 +46,7 @@ async function show(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, SHOW_SPEC, 0);
   if (bool(p, "json")) {
     if (bool(p, "watch")) fail("--json and --watch do not go together");
-    printJson(io.out, await limitsData(io.env));
+    printJson(io, await limitsData(io.env));
     return 0;
   }
   const config = loadConfig(io.env);

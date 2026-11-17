@@ -149,7 +149,7 @@ async function measure(env: NodeJS.ProcessEnv): Promise<ProcTable | undefined> {
 }
 
 function notRunning(io: Io, json: boolean): number {
-  if (json) printJson(io.out, { running: false });
+  if (json) printJson(io, { running: false });
   else io.out("mcpd is not running (turno mcp daemon start)");
   return 1;
 }
@@ -258,7 +258,7 @@ export async function top(args: string[], io: Io, signal?: AbortSignal, everyMs 
   if (once) {
     const t = await snap();
     if (!t) return notRunning(io, json);
-    if (json) printJson(io.out, t);
+    if (json) printJson(io, t);
     else for (const l of renderTop(io, t)) io.out(l);
     return 0;
   }
@@ -390,7 +390,7 @@ export async function savings(args: string[], io: Io): Promise<number> {
   if (!status) return notRunning(io, json);
   const procs = await measure(io.env);
   if (!procs) {
-    if (json) printJson(io.out, { running: true, error: MEMORY_UNKNOWN });
+    if (json) printJson(io, { running: true, error: MEMORY_UNKNOWN });
     else io.err(`turno: ${MEMORY_UNKNOWN}`);
     return 1;
   }
@@ -399,7 +399,7 @@ export async function savings(args: string[], io: Io): Promise<number> {
   if (state.error && !json) io.err(`${paint(io, "warning", "33")}: mcp.toml is invalid, so the estimate uses the ${state.source}: ${state.error}`);
   const s = await computeSavings(status, procs, state.manifest);
   if (json) {
-    printJson(io.out, s);
+    printJson(io, s);
     return 0;
   }
   const w = s.withTurno;

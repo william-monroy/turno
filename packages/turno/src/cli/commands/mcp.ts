@@ -12,7 +12,8 @@ import { agentOf, listProfiles } from "../../core/profiles.js";
 import { liveSessions } from "../../core/sessions.js";
 import { DRY_RUN, FORCE, type FlagSpec, JSON_FLAG, bool, parseFlags, printJson, str } from "../args.js";
 import { type Sub, group } from "../group.js";
-import { type Io, fail, paint, plural } from "../io.js";
+import { highlightJson, highlightToml } from "../highlight.js";
+import { type Io, colors, fail, paint, plural } from "../io.js";
 import { LOG_FLAGS, SAVINGS_FLAGS, TOP_FLAGS } from "./mcp-observe.js";
 import { LOGIN_FLAGS, LOGOUT_FLAGS, type LoginRow, describeLogin, oauthLogins } from "./mcp-oauth.js";
 
@@ -80,8 +81,7 @@ async function list(args: string[], io: Io): Promise<number> {
   const logins = await oauthLogins(io.env);
   const loginsOf = (name: string) => logins.filter((l) => l.server === name);
   if (bool(flags, "json")) {
-    printJson(
-      io.out,
+    printJson(io,
       names.map((n) => {
         const s = m.servers[n]!;
         const tools = s.tools ?? null;
@@ -337,12 +337,12 @@ async function config(args: string[], io: Io): Promise<number> {
   if (isValidProfileName(profile)) writeProfileTokenFile(profile, ensureToken(io.env), io.env);
   const s = gatewaySnippet(agent, servers, mcpdPort(io.env), profile, tildify(profileTokenFile(profile, io.env), io.env));
   if (bool(p, "json")) {
-    printJson(io.out, { agent, profile, servers, file: s.file, notes: s.notes, text: s.text });
+    printJson(io, { agent, profile, servers, file: s.file, notes: s.notes, text: s.text });
     return 0;
   }
-  io.out(`# ${s.file}`);
-  for (const n of s.notes) io.out(`# ${n}`);
-  io.out(s.text.trimEnd());
+  io.out(paint(io, `# ${s.file}`, "2"));
+  for (const n of s.notes) io.out(paint(io, `# ${n}`, "2"));
+  io.out(colors(io) && s.file.includes(".json") ? highlightJson(s.text.trimEnd()) : s.text.trimEnd());
   return 0;
 }
 
@@ -403,7 +403,7 @@ async function importCmd(args: string[], io: Io): Promise<number> {
   const exists = existsSync(p.mcpFile);
   if (!write) {
     for (const s of report.secrets) io.err(`  would move ${s.where} to keychain:${s.service}`);
-    io.out(report.preview.trimEnd());
+    io.out(colors(io) ? highlightToml(report.preview.trimEnd()) : report.preview.trimEnd());
     const again = ["turno mcp import --write", moveSecrets || report.literalSecrets.length ? "--move-secrets" : "", exists ? "--force" : ""].filter(Boolean).join(" ");
     io.err(`Nothing written. Write it with: ${again}`);
     return 0;
@@ -666,7 +666,7 @@ async function doctor(args: string[], io: Io): Promise<number> {
   const missing = logins.filter((l) => l.state === "not logged in" || l.state === "login required");
   const code = plugins.length + direct.length + missing.length ? 1 : 0;
   if (bool(flags, "json")) {
-    printJson(io.out, { ok: code === 0, ...found, ...(logins.length ? { logins: missing } : {}) });
+    printJson(io, { ok: code === 0, ...found, ...(logins.length ? { logins: missing } : {}) });
     return code;
   }
   if (missing.length) {

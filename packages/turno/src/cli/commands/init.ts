@@ -10,7 +10,8 @@ import { agentOf, listProfiles } from "../../core/profiles.js";
 import { addArrayTable, ensureTable, setValue } from "../../core/toml-edit.js";
 import type { ImportReport, ProfileSource } from "../../mcpd/importer.js";
 import { DRY_RUN, type FlagSpec, bool, flagsOf, parseFlags, str } from "../args.js";
-import { CliError, type Command, type Io, confirm, fail, paint, plural } from "../io.js";
+import { highlightTomlLine, tomlState } from "../highlight.js";
+import { CliError, type Command, type Io, colors, confirm, fail, paint, plural } from "../io.js";
 import { launcherPath } from "../launch.js";
 import { findOnPath, launcherName, refuseNpx } from "../launchers.js";
 import { warnPath } from "./profile.js";
@@ -179,16 +180,25 @@ export function lineDiff(before: string, after: string): [" " | "+" | "-", strin
 function printDiff(io: Io, before: string, after: string): void {
   const d = lineDiff(before, after);
   const near = d.map((_, k) => d.slice(Math.max(0, k - 2), k + 3).some(([op]) => op !== " "));
+  // Added and unchanged lines are the new text in order: highlight them as one TOML text.
+  const toml = tomlState();
   let gap = false;
   for (const [k, [op, line]] of d.entries()) {
+    const shown = op === "-" || !colors(io) ? line : highlightTomlLine(line, toml);
     if (!near[k]) {
       if (!gap) io.out("  ...");
       gap = true;
       continue;
     }
     gap = false;
-    io.out(op === "+" ? paint(io, `+${line}`, "32") : op === "-" ? paint(io, `-${line}`, "31") : ` ${line}`);
+    io.out(op === "+" ? `${paint(io, "+", "32")}${shown}` : op === "-" ? paint(io, `-${line}`, "31") : ` ${shown}`);
   }
+}
+
+/** New text shown as all added lines: a green `+`, then the line highlighted as TOML. */
+function printAdded(io: Io, text: string): void {
+  const toml = tomlState();
+  for (const line of text.replace(/\n$/, "").split("\n")) io.out(`${paint(io, "+", "32")}${colors(io) ? highlightTomlLine(line, toml) : line}`);
 }
 
 // Plan ----------------------------------------------------------------------------------------
@@ -380,7 +390,7 @@ function printPlan(io: Io, plan: Plan, before: string, after: string): void {
     const m = plan.mcp;
     io.out("");
     io.out(`${tildify(paths(env).mcpFile, env)} (new file, mode 600):`);
-    for (const line of m.report.preview.replace(/\n$/, "").split("\n")) io.out(paint(io, `+${line}`, "32"));
+    printAdded(io, m.report.preview);
     for (const n of m.notes) io.err(`  ${n}`);
     if (m.report.literalSecrets.length) {
       io.err(

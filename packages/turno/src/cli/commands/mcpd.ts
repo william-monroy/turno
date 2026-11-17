@@ -64,7 +64,7 @@ async function status(args: string[], io: Io): Promise<number> {
   const s = await fetchStatus(io.env);
   if (!s) {
     const reasons = await downReasons(io.env);
-    if (bool(p, "json")) printJson(io.out, { running: false, problems: reasons });
+    if (bool(p, "json")) printJson(io, { running: false, problems: reasons });
     else {
       io.out("mcpd is not running (turno mcp daemon start)");
       for (const r of reasons) io.out(`  ${r}`);
@@ -72,7 +72,7 @@ async function status(args: string[], io: Io): Promise<number> {
     return 1;
   }
   if (bool(p, "json")) {
-    printJson(io.out, s);
+    printJson(io, s);
     return 0;
   }
   const instances = (s.instances as Record<string, unknown>[]) ?? [];

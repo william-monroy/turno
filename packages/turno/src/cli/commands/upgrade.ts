@@ -153,13 +153,13 @@ export const command: Command = {
     if (bool(p, "check")) {
       if (pkg.private || !fromRegistry) {
         const why = pkg.private ? "this copy is not published to a registry" : `installed from ${install.method}`;
-        if (bool(p, "json")) printJson(io.out, { current: pkg.version, latest: null, method: install.method, note: why });
+        if (bool(p, "json")) printJson(io, { current: pkg.version, latest: null, method: install.method, note: why });
         else io.out(`turno ${pkg.version} (${why}; turno upgrade pulls the source)`);
         return 0;
       }
       const s = await fetchLatest(io.env, channel);
       const newer = s.latest && compareVersions(s.latest, pkg.version) > 0;
-      if (bool(p, "json")) printJson(io.out, { current: pkg.version, latest: s.latest ?? null, channel, method: install.method, updateAvailable: Boolean(newer), error: s.error ?? null });
+      if (bool(p, "json")) printJson(io, { current: pkg.version, latest: s.latest ?? null, channel, method: install.method, updateAvailable: Boolean(newer), error: s.error ?? null });
       else if (s.error) io.out(`could not reach the registry: ${s.error}`);
       else io.out(newer ? `turno ${s.latest} is available (you have ${pkg.version}): turno upgrade` : `turno ${pkg.version} is the newest on ${channel}`);
       return s.error ? 1 : 0;

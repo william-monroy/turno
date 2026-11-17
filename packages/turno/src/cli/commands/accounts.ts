@@ -46,7 +46,7 @@ function verifyLog(io: Io, json: boolean): number {
   const v = verifyAudit(io.env);
   const file = tildify(paths(io.env).auditLog, io.env);
   if (json) {
-    printJson(io.out, { file, ...v, line: v.line ?? null, reason: v.reason ?? null });
+    printJson(io, { file, ...v, line: v.line ?? null, reason: v.reason ?? null });
     return v.ok ? 0 : 1;
   }
   if (!v.ok) {
@@ -200,7 +200,7 @@ export function log(args: string[], io: Io): number {
   const n = count(p, "tail", 20);
   const entries = readAudit(n, io.env);
   if (bool(p, "json")) {
-    printJson(io.out, entries);
+    printJson(io, entries);
     return 0;
   }
   if (!entries.length) {

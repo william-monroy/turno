@@ -58,7 +58,7 @@ async function list(args: string[], io: Io): Promise<number> {
   const config = loadConfig(io.env);
   const rows = await profilesData(io.env, config);
   if (bool(p, "json")) {
-    printJson(io.out, rows);
+    printJson(io, rows);
     return 0;
   }
   if (!rows.length) {
@@ -262,7 +262,7 @@ export async function whichCommand(args: string[], io: Io): Promise<number> {
   if (bool(p, "json")) {
     const one = (x: typeof r) => ({ assigned: x.assigned || null, chosen: x.chosen || null, reason: x.reason, note: x.note || null });
     const mcp = set ? { rule: tildify(set.path, io.env), allow: set.mcp ?? null, deny: set.mcpDeny ?? null } : null;
-    printJson(io.out, { dir: tildify(dir, io.env), ...one(r), agents: Object.fromEntries(all.map(({ agent, r: x }) => [agent, one(x)])), mcp });
+    printJson(io, { dir: tildify(dir, io.env), ...one(r), agents: Object.fromEntries(all.map(({ agent, r: x }) => [agent, one(x)])), mcp });
     return 0;
   }
   io.out(tildify(dir, io.env));

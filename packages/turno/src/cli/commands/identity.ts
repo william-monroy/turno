@@ -36,7 +36,7 @@ async function list(args: string[], io: Io): Promise<number> {
   const mod = await deps.load(io);
   const browsers = mod ? mod.listIdentities(io.env) : [];
   if (bool(p, "json")) {
-    printJson(io.out, {
+    printJson(io, {
       services: Object.values(reg.accounts)
         .sort((a, b) => a.id.localeCompare(b.id))
         .map((a) => ({
