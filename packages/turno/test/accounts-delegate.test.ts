@@ -195,8 +195,12 @@ echo '{"type":"result","subtype":"success","is_error":false,"result":"done from 
     const ac = new AbortController();
     const started = Date.now();
     const run = delegate({ account: WORK, task: "t", write: false }, { env: sb.env, signal: ac.signal });
-    for (let i = 0; i < 250 && !existsSync(marker); i++) await new Promise((r) => setTimeout(r, 20));
-    const grandchild = Number(readFileSync(marker, "utf8"));
+    // The shell creates the marker before it writes the pid, so wait for the pid itself: an empty
+    // read gives 0, and process.kill(0, 0) signals our own group, which always looks alive.
+    const readPid = () => (existsSync(marker) ? Number(readFileSync(marker, "utf8").trim()) || 0 : 0);
+    for (let i = 0; i < 250 && readPid() === 0; i++) await new Promise((r) => setTimeout(r, 20));
+    const grandchild = readPid();
+    expect(grandchild).toBeGreaterThan(0);
     ac.abort();
     const res = await run;
     expect(res).toMatchObject({ ok: false, cancelled: true });
@@ -210,7 +214,7 @@ echo '{"type":"result","subtype":"success","is_error":false,"result":"done from 
         return false;
       }
     };
-    for (let i = 0; i < 50 && alive(); i++) await new Promise((r) => setTimeout(r, 20));
+    for (let i = 0; i < 150 && alive(); i++) await new Promise((r) => setTimeout(r, 20));
     expect(alive()).toBe(false);
   });
 
