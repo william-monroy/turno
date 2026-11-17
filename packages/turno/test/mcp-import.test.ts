@@ -173,6 +173,30 @@ describe("turno mcp import", () => {
     expect(text).toContain('"env:OTHER"');
   });
 
+  it("reads the MCP servers of turno profiles too", async () => {
+    sb.write(".config/turno/config.toml", "[profiles.work]\n\n[profiles.cx]\nagent = \"codex\"\n");
+    sb.write(".claude-work/.claude.json", JSON.stringify({ mcpServers: { w1: { command: "w-mcp" } } }));
+    sb.write(".codex-cx/config.toml", '[mcp_servers.c1]\ncommand = "c-mcp"\n');
+    const { code, all } = await main([]);
+    expect(code).toBe(0);
+    expect(all).toContain("1 in ~/.claude-work/.claude.json (w1)");
+    expect(all).toContain("1 in ~/.codex-cx/config.toml (c1)");
+  });
+
+  it("asks npm for command names only with --write", async () => {
+    const log = join(sb.home, "npm.log");
+    writeFileSync(join(sb.home, "fakebin", "npm"), `#!/bin/sh\necho "$*" >> "${log}"\necho null\n`);
+    sb.write(".claude.json", JSON.stringify({ mcpServers: { mem: { command: "npx", args: ["-y", "@modelcontextprotocol/server-memory"] } } }));
+    const preview = await main([]);
+    expect(preview.code).toBe(0);
+    expect(existsSync(log)).toBe(false);
+    expect(preview.all).toContain("mem: command name guessed as server-memory; checked on npm when written");
+    const write = await main(["--write"]);
+    expect(write.code).toBe(0);
+    expect(readFileSync(log, "utf8")).toContain("view @modelcontextprotocol/server-memory bin --json");
+    expect(write.all).toContain("mem: npm did not name the command of @modelcontextprotocol/server-memory; using server-memory, check it");
+  });
+
   it("works for a Codex-only user and says so clearly when nothing is found", async () => {
     const none = await main(["--write"]);
     expect(none.code).toBe(1);

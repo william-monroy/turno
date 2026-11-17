@@ -364,17 +364,20 @@ async function importCmd(args: string[], io: Io): Promise<number> {
   if (write && bool(flags, "dry-run")) fail("--dry-run and --write do not go together (without --write it is a preview)");
   const { collectSources, foundSummary, importServers, mergeSources } = await import("../../mcpd/importer.js");
   const p = paths(io.env);
-  const { sources, problems } = collectSources(io.env, process.cwd());
+  const config = loadConfig(io.env);
+  const profiles = listProfiles(config, io.env).map((name) => ({ name, agent: agentOf(name, config) }));
+  const { sources, problems } = collectSources(io.env, process.cwd(), profiles);
   for (const pr of problems) io.err(`${paint(io, "warning", "33")}: ${pr}`);
   const merged = mergeSources(sources);
   const names = Object.keys(merged.servers);
   if (!names.length) {
-    io.out("No MCP servers found in Claude Code (~/.claude.json, .mcp.json), Codex, Cursor or Copilot CLI configs.");
+    io.out("No MCP servers found in Claude Code (~/.claude.json, .mcp.json), Codex, Cursor or Copilot CLI configs, or in turno profile folders.");
     io.out("Nothing written. Add servers to mcp.toml by hand: see docs/mcp.md in the turno repository.");
     return write ? 1 : 0;
   }
   io.err(foundSummary(names, merged.from));
-  const report = await importServers(merged.servers, { moveSecrets, binOf: (pkg) => binOf(io, pkg) });
+  // A preview stays offline; only --write asks npm for the command names of npx servers.
+  const report = await importServers(merged.servers, write ? { moveSecrets, binOf: (pkg) => binOf(io, pkg) } : { moveSecrets });
   parseManifest(report.toml); // never write something we cannot read back
   for (const n of [...merged.notes, ...report.notes]) io.err(`  ${n}`);
   if (report.literalSecrets.length) {
