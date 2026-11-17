@@ -1,5 +1,5 @@
 import { chmodSync, existsSync, lstatSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { verifyAudit } from "../accounts/audit.js";
 import { mcpFileFor } from "../agents/index.js";
@@ -8,6 +8,7 @@ import { loadManifest } from "../core/manifest.js";
 import { paths, privateRoots, tildify } from "../core/paths.js";
 import { agentOf, listProfiles } from "../core/profiles.js";
 import { secretStore } from "../core/secrets.js";
+import { profileTokenFile, tokenProfile } from "../mcpd/tokens.js";
 import type { Check } from "./commands/doctor.js";
 
 /**
@@ -426,22 +427,57 @@ async function versionChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
 
 // ---- gateway token
 
-function tokenAgeCheck(env: NodeJS.ProcessEnv, now = Date.now()): Check | undefined {
+function tokenAgeCheck(env: NodeJS.ProcessEnv, now = Date.now()): Check[] {
   const file = paths(env).mcpdToken;
   let mtime: number;
+  let master: string;
   try {
     mtime = statSync(file).mtimeMs;
+    master = readFileSync(file, "utf8").trim();
   } catch {
-    return undefined;
+    return [];
   }
+  // Profile tokens (ADR 0023) derive from the master token, so they share its age; a token file
+  // that does not match it was written before a rotation and no longer opens mcpd.
+  const dir = dirname(profileTokenFile("x", env));
+  let names: string[] = [];
+  try {
+    names = readdirSync(dir).filter((f) => f.endsWith(".token"));
+  } catch {
+    /* no profile token files */
+  }
+  const stale: string[] = [];
+  for (const f of names) {
+    let text = "";
+    try {
+      text = readFileSync(join(dir, f), "utf8").trim();
+    } catch {
+      /* unreadable: counted as stale */
+    }
+    if (tokenProfile(master, text) !== f.slice(0, -".token".length)) stale.push(join(dir, f));
+  }
+  const fresh = names.length - stale.length;
+  const derived = fresh ? ` (${fresh} profile token${fresh === 1 ? "" : "s"} derived from it)` : "";
   const days = Math.floor((now - mtime) / DAY_MS);
+  const out: Check[] = [];
   if (days > TOKEN_MAX_AGE_DAYS) {
-    return check({
-      level: "warn",
-      text: `the mcpd token is ${days} days old (more than ${TOKEN_MAX_AGE_DAYS}); rotate it: turno mcp token rotate, then turno mcp sync`,
-    });
+    out.push(
+      check({
+        level: "warn",
+        text: `the mcpd token is ${days} days old (more than ${TOKEN_MAX_AGE_DAYS})${derived}; rotate it: turno mcp token rotate, then turno mcp sync`,
+      }),
+    );
+  } else out.push(check({ level: "ok", text: `the mcpd token is ${days} day${days === 1 ? "" : "s"} old${derived}` }));
+  if (stale.length) {
+    const one = stale.length === 1;
+    out.push(
+      check({
+        level: "warn",
+        text: `${stale.length} profile token file${one ? " predates" : "s predate"} the mcpd token, so ${one ? "its agent" : "their agents"} cannot reach mcpd (${listPaths(stale, env)}); run turno mcp sync`,
+      }),
+    );
   }
-  return check({ level: "ok", text: `the mcpd token is ${days} day${days === 1 ? "" : "s"} old` });
+  return out;
 }
 
 // ---- audit log
@@ -472,8 +508,7 @@ export async function securityChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
   out.push(await portCheck(env));
   out.push(...(await secretChecks(env, config)));
   out.push(...(await versionChecks(env)));
-  const token = tokenAgeCheck(env);
-  if (token) out.push(token);
+  out.push(...tokenAgeCheck(env));
   const audit = auditCheck(env);
   if (audit) out.push(audit);
   return out;

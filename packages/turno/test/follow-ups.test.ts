@@ -231,3 +231,20 @@ describe("turno undo and folder modes", () => {
     expect(statSync(dir).mode & 0o777).toBe(0o750);
   });
 });
+
+describe("turno doctor --security and profile tokens", () => {
+  it("names profile token files that predate the master token, next to its age", async () => {
+    const { masterToken } = await import("../src/mcpd/daemon.js");
+    const { profileToken } = await import("../src/mcpd/tokens.js");
+    const { securityChecks } = await import("../src/cli/security.js");
+    const master = masterToken(sb.env, "ensure")!;
+    sb.write(".local/state/turno/mcpd-tokens/fresh.token", `${profileToken(master, "fresh")}\n`, 0o600);
+    let checks = await securityChecks(sb.env);
+    expect(checks.find((c) => c.text.startsWith("the mcpd token"))?.text).toBe("the mcpd token is 0 days old (1 profile token derived from it)");
+    sb.write(".local/state/turno/mcpd-tokens/old.token", `${profileToken("x".repeat(64), "old")}\n`, 0o600);
+    checks = await securityChecks(sb.env);
+    const stale = checks.find((c) => c.text.includes("predate"));
+    expect(stale).toMatchObject({ level: "warn" });
+    expect(stale!.text).toBe("1 profile token file predates the mcpd token, so its agent cannot reach mcpd (~/.local/state/turno/mcpd-tokens/old.token); run turno mcp sync");
+  });
+});

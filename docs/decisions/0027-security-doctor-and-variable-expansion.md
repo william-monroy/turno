@@ -76,5 +76,6 @@ error, which mcpd treats as for any broken `config.toml` (defaults, error shown 
   ADR 0018 intended.
 - A server whose args used `${VAR}` and happened to work because it ignored the text now gets
   the value, or fails to start when the variable is missing. The error names the variable.
-- Per-profile gateway tokens are not checked for age yet; when they land, their age check
-  belongs next to the master token's.
+- Per-profile gateway tokens derive from the master token and share its age; the token age line
+  counts them, and a profile token file that predates the master token is a warning (added after
+  this ADR).
