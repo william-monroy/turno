@@ -103,7 +103,10 @@ describe("style: nothing runs past the terminal width", () => {
     expect(wrapAnsi("aaa bbb ccc", 7)).toEqual(["aaa bbb", "ccc"]);
     expect(wrapAnsi("  a  b", 10)).toEqual(["  a  b"]);
     expect(wrapAnsi("\x1b[2maaa bbb\x1b[0m ccc", 7).map(stripAnsi)).toEqual(["aaa bbb", "ccc"]);
-    expect(wrapAnsi("x".repeat(12), 5)).toEqual(["x".repeat(12)]);
+    // A word longer than the line (a long path) is cut at the width, ANSI codes and all.
+    expect(wrapAnsi("x".repeat(12), 5)).toEqual(["xxxxx", "xxxxx", "xx"]);
+    expect(wrapAnsi(`go \x1b[36m${"y".repeat(7)}\x1b[0m`, 5).map(stripAnsi)).toEqual(["go", "yyyyy", "yy"]);
+    expect(wrapAnsi(`\x1b[36m${"y".repeat(7)}\x1b[0m`, 5).join("")).toBe(`\x1b[36m${"y".repeat(7)}\x1b[0m`);
   });
 
   it("hangs wrapped lines under where the text starts, on a terminal only", () => {

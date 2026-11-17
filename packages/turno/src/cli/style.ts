@@ -101,14 +101,40 @@ export function level(pct: number): "ok" | "warn" | "err" {
   return pct < 60 ? "ok" : pct < 85 ? "warn" : "err";
 }
 
+/** Cut a word that may hold ANSI codes into pieces of at most `width` visible columns. */
+function chop(word: string, width: number): string[] {
+  const pieces: string[] = [];
+  let piece = "";
+  let w = 0;
+  // ANSI codes take no columns and stay with the character after them.
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: matching ANSI escapes is the point
+  for (const m of word.matchAll(/\x1b\[[0-9;]*m|[^\x1b]/gu)) {
+    const t = m[0];
+    if (t.startsWith("\x1b")) {
+      piece += t;
+      continue;
+    }
+    if (w === width) {
+      pieces.push(piece);
+      piece = "";
+      w = 0;
+    }
+    piece += t;
+    w++;
+  }
+  if (piece) pieces.push(piece);
+  return pieces;
+}
+
 /**
  * Break text that may hold ANSI codes into lines of at most `width` visible columns, at spaces.
- * A word longer than the width stays whole. Colors carry over: a terminal keeps the active SGR
- * across a line break.
+ * A word longer than the width (a long path) is cut at the width. Colors carry over: a terminal
+ * keeps the active SGR across a line break.
  */
 export function wrapAnsi(text: string, width: number): string[] {
   if (visibleWidth(text) <= width) return [text];
-  const [first = "", ...rest] = text.split(" ");
+  const words = text.split(" ").flatMap((word) => (visibleWidth(word) > width ? chop(word, width) : [word]));
+  const [first = "", ...rest] = words;
   const lines: string[] = [];
   let line = first;
   let w = visibleWidth(first);
@@ -127,6 +153,9 @@ export function wrapAnsi(text: string, width: number): string[] {
   lines.push(line);
   return lines;
 }
+
+/** Columns a wrapping last table column keeps before other columns are dropped for it. */
+const LAST_MIN = 24;
 
 interface TableOptions {
   columns?: Column[];
@@ -224,7 +253,9 @@ export function style(io: Pick<Io, "env" | "isTty" | "color">, opts: { nerd?: bo
     const n = Math.max(0, ...rows.map((r) => r.length));
     let keep = Array.from({ length: n }, (_, i) => i);
     const widthOf = (i: number) => Math.max(0, ...rows.map((r) => visibleWidth(r[i] ?? "")));
-    const total = (ks: number[]) => indent + ks.reduce((a, i) => a + widthOf(i), 0) + gap * Math.max(0, ks.length - 1);
+    // The last column wraps under itself, so it only needs LAST_MIN columns to fit.
+    const total = (ks: number[]) =>
+      indent + ks.reduce((a, i, k) => a + (k === ks.length - 1 ? Math.min(widthOf(i), LAST_MIN) : widthOf(i)), 0) + gap * Math.max(0, ks.length - 1);
     // Only a terminal drops columns: a pipe keeps everything for whoever reads it.
     while (color && total(keep) > width) {
       const droppable = keep.filter((i) => cols[i]?.drop !== undefined).sort((a, b) => cols[b]!.drop! - cols[a]!.drop!);
