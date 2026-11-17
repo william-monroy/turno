@@ -3,7 +3,7 @@ import { parse } from "smol-toml";
 import { ConfigError, isValidProfileName } from "./config.js";
 import { paths } from "./paths.js";
 
-export type Scope = "shared" | "project" | "session";
+type Scope = "shared" | "project" | "session";
 
 /**
  * Which tools of a server a session sees (ADR 0023): glob patterns (`*` any run of characters,
@@ -16,7 +16,7 @@ export interface ToolFilter {
 }
 
 /** Settings a profile variant may override. */
-export interface ServerVariant {
+interface ServerVariant {
   command?: string;
   args?: string[];
   env: Record<string, string>;
@@ -71,7 +71,7 @@ export interface OAuthSettings {
 }
 
 /** Settings a profile variant of a remote server may override (OAuth servers only). */
-export interface RemoteVariant {
+interface RemoteVariant {
   tools?: ToolFilter;
 }
 
@@ -109,14 +109,14 @@ export interface Manifest {
 }
 
 /** A value resolved at spawn time: "keychain:<service>" or "env:<NAME>". */
-export function isSecretRef(v: string): boolean {
+function isSecretRef(v: string): boolean {
   return v.startsWith("keychain:") || v.startsWith("env:");
 }
 
 const SERVER_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 
 /** "90s", "15m", "2h" or a number of seconds. */
-export function parseDuration(v: unknown, file: string, key: string): number {
+function parseDuration(v: unknown, file: string, key: string): number {
   if (typeof v === "number" && v >= 0) return v;
   if (typeof v === "string") {
     const m = /^(\d+(?:\.\d+)?)\s*(s|m|h)?$/.exec(v.trim());

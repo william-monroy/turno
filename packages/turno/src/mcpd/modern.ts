@@ -14,18 +14,18 @@ import { ErrorCode, type Id, type Message, type Outcome, rpcError } from "./json
  * the upstream servers are still spoken to as 2025-11-25 clients.
  */
 export const MODERN_PROTOCOL_VERSION = "2026-07-28";
-export const MODERN_PROTOCOL_VERSIONS: readonly string[] = [MODERN_PROTOCOL_VERSION];
+const MODERN_PROTOCOL_VERSIONS: readonly string[] = [MODERN_PROTOCOL_VERSION];
 /** What `server/discover` and UnsupportedProtocolVersion list: modern first, then every legacy one. */
-export const ALL_PROTOCOL_VERSIONS: readonly string[] = [...MODERN_PROTOCOL_VERSIONS, ...SUPPORTED_PROTOCOL_VERSIONS];
+const ALL_PROTOCOL_VERSIONS: readonly string[] = [...MODERN_PROTOCOL_VERSIONS, ...SUPPORTED_PROTOCOL_VERSIONS];
 
 /** Freshness hint for lists checked against a running server since mcpd started. */
-export const LIST_TTL_MS = 5 * 60_000;
+const LIST_TTL_MS = 5 * 60_000;
 /** A stateless client with nothing in flight is forgotten after this long without requests. */
-export const STATELESS_IDLE_MS = 30 * 60_000;
+const STATELESS_IDLE_MS = 30 * 60_000;
 /** SSE comment sent on quiet `subscriptions/listen` streams. */
-export const KEEPALIVE_MS = 25_000;
+const KEEPALIVE_MS = 25_000;
 
-export const ModernErrorCode = {
+const ModernErrorCode = {
   HeaderMismatch: -32020,
   MissingRequiredClientCapability: -32021,
   UnsupportedProtocolVersion: -32022,

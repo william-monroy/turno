@@ -32,11 +32,6 @@ export function tokenProfile(master: string, token: string): string | undefined 
   return want.length === got.length && timingSafeEqual(want, got) ? m[1] : undefined;
 }
 
-/** Whether a string looks like a profile token (any master). */
-export function isProfileTokenShape(token: string): boolean {
-  return SHAPE.test(token);
-}
-
 /**
  * Where a profile's token waits for launchers of agents that read it from the environment
  * (Codex, Copilot, Cursor, and agents set up by hand from `turno mcp config`).

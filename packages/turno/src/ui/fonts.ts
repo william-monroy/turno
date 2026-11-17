@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { findOnPath } from "../cli/launch.js";
 import type { Journal } from "../core/journal.js";
 
-export interface FontFile {
+interface FontFile {
   file: string;
   /** Where the file is published, for installs without turno-fonts. */
   url: string;
@@ -73,7 +73,7 @@ export function userFontDir(env: NodeJS.ProcessEnv, platform: NodeJS.Platform = 
 
 export const sha256 = (buf: Buffer) => createHash("sha256").update(buf).digest("hex");
 
-export type FontState = "installed" | "missing" | "different";
+type FontState = "installed" | "missing" | "different";
 
 export interface FontCheck extends FontFile {
   target: string;
@@ -100,7 +100,7 @@ export interface InstallOptions {
   journal?: Journal;
 }
 
-export type FontAction = "copied" | "downloaded" | "kept" | "skipped";
+type FontAction = "copied" | "downloaded" | "kept" | "skipped";
 
 export interface FontResult extends FontCheck {
   action: FontAction;

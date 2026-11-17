@@ -27,7 +27,7 @@ function file(env: NodeJS.ProcessEnv): string {
   return join(paths(env).state, "update.json");
 }
 
-export function readUpdateState(env: NodeJS.ProcessEnv): UpdateState | undefined {
+function readUpdateState(env: NodeJS.ProcessEnv): UpdateState | undefined {
   try {
     return JSON.parse(readFileSync(file(env), "utf8")) as UpdateState;
   } catch {

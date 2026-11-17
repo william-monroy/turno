@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { JSON_MCP_SERVERS, TOML_MCP_SERVERS } from "../../agents/adapter.js";
@@ -13,6 +13,7 @@ import { type StatusLine, currentStatusLine, isTurnoStatusLine, readSettings } f
 import { DRY_RUN, bool, parseFlags } from "../args.js";
 import { CliError, type Command, type Io, confirm } from "../io.js";
 import { MARKER } from "../launchers.js";
+import { realOr } from "../../core/fsutil.js";
 
 /**
  * `turno uninstall` (ADR 0025): remove everything turno set up outside its package, through
@@ -76,14 +77,6 @@ function lstat(p: string) {
   }
 }
 
-function real(p: string): string {
-  try {
-    return realpathSync(p);
-  } catch {
-    return p;
-  }
-}
-
 function safeConfig(env: NodeJS.ProcessEnv): Config {
   try {
     return loadConfig(env);
@@ -129,7 +122,7 @@ function turnoLaunchers(env: NodeJS.ProcessEnv): string[] {
  * that changed it to turno's, or none when it had none.
  */
 function statusLineBefore(file: string, env: NodeJS.ProcessEnv): StatusLine | undefined {
-  const target = real(file);
+  const target = realOr(file);
   for (const j of listJournals(env)) {
     if (!j.manifest?.command.startsWith("ui install")) continue;
     const e = j.manifest.entries.find((x) => (x.kind ?? "file") === "file" && x.path === target);
@@ -277,7 +270,7 @@ function describe(plan: UninstallPlan, env: NodeJS.ProcessEnv): string[] {
 
 /** The command that removes the package: Homebrew when this turno runs from a Cellar, else npm. */
 export function packageRemoval(argv1: string | undefined = process.argv[1]): string {
-  const file = argv1 ? real(argv1) : "";
+  const file = argv1 ? realOr(argv1) : "";
   return /\/Cellar\/|\/homebrew\//i.test(file) ? "brew uninstall turno" : "npm uninstall --global turno-cli";
 }
 

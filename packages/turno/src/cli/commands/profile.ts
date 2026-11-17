@@ -6,7 +6,7 @@ import { editConfig } from "../../core/config-edit.js";
 import { type Config, type ProjectRule, loadConfig } from "../../core/config.js";
 import { exhaustedUntil } from "../../core/exhausted.js";
 import { Journal } from "../../core/journal.js";
-import { expandHome, paths, profileDir, tildify } from "../../core/paths.js";
+import { expandHome, paths, tildify } from "../../core/paths.js";
 import { agentOf, listProfiles } from "../../core/profiles.js";
 import { candidateRoots, folderMcpSet, resolveProfile } from "../../core/resolve.js";
 import { type TomlValue, addArrayTable, ensureTable, removeArrayTables, removeTable, setValue } from "../../core/toml-edit.js";

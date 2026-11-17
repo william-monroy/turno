@@ -1,8 +1,9 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { parse } from "smol-toml";
 import type { McpStore } from "../agents/adapter.js";
 import { type AgentId, DEFAULT_AGENT, adapter } from "../agents/index.js";
+import { atomicWrite } from "../core/journal.js";
 import { PRIVATE_DIR_MODE, PRIVATE_FILE_MODE } from "../core/paths.js";
 import type { Manifest } from "../core/manifest.js";
 import { servesProfile } from "../core/manifest.js";
@@ -111,14 +112,6 @@ function plan(
   return res;
 }
 
-function writeAtomic(file: string, text: string): void {
-  mkdirSync(dirname(file), { recursive: true });
-  const tmp = `${file}.turno-${process.pid}.tmp`;
-  writeFileSync(tmp, text, { mode: 0o600 });
-  chmodSync(tmp, 0o600);
-  renameSync(tmp, file);
-}
-
 /**
  * Rewrite the server map under `key` of a JSON config file (Claude Code `.claude.json`,
  * Copilot `mcp-config.json`, Cursor `mcp.json`): add or update manifest entries, remove
@@ -134,7 +127,7 @@ export function syncJsonServers(
   const cfg = existsSync(configFile) ? (JSON.parse(readFileSync(configFile, "utf8")) as Record<string, unknown>) : {};
   const servers = { ...((cfg[key] as Record<string, unknown>) ?? {}) };
   const res = plan(servers, wanted, previouslyManaged, opts);
-  if (res.changed && !opts.dryRun) writeAtomic(configFile, `${JSON.stringify({ ...cfg, [key]: servers }, null, 2)}\n`);
+  if (res.changed && !opts.dryRun) atomicWrite(configFile, `${JSON.stringify({ ...cfg, [key]: servers }, null, 2)}\n`, 0o600);
   return res;
 }
 
@@ -225,7 +218,7 @@ function syncTomlServers(
   }
   const next = `${lines.join("\n")}\n`;
   parse(next); // never write a file the agent cannot read
-  writeAtomic(configFile, next);
+  atomicWrite(configFile, next, 0o600);
   return res;
 }
 

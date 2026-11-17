@@ -34,13 +34,13 @@ export const SHARED_DIRS = [
 ] as const;
 
 /** Hub files shared by every profile (linked only when they exist in the hub). */
-export const SHARED_FILES = ["CLAUDE.md", "settings.json", "keybindings.json", "statusline-command.sh", ".mcp.json"] as const;
+const SHARED_FILES = ["CLAUDE.md", "settings.json", "keybindings.json", "statusline-command.sh", ".mcp.json"] as const;
 
 /**
  * Owned by each account and never linked. history.jsonl cannot be a symlink: Claude Code
  * ignores it unless it is a regular file with a single link.
  */
-export const PER_ACCOUNT = [
+const PER_ACCOUNT = [
   ".claude.json",
   ".credentials.json",
   "history.jsonl",

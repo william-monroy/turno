@@ -26,7 +26,7 @@ A delegated read gets only --read-tools; an account without them has every call 
 --confirm defaults to "always" for mail and messaging services and "writes" elsewhere.`;
 
 /** Flags of each subcommand, shared with completion through flagsOf. */
-export const ADD_SPEC: FlagSpec = {
+const ADD_SPEC: FlagSpec = {
   profile: { type: "string" },
   tools: { type: "string" },
   "read-tools": { type: "string" },
@@ -88,7 +88,7 @@ export function list(io: Io): number {
 }
 
 /** How the bridge treats an account: its confirm policy and what a read may call. */
-export function policyLine(a: Account): string {
+function policyLine(a: Account): string {
   const policy = `confirm ${effectivePolicy(a)}${a.confirm ? "" : " (default)"}`;
   if (a.readTools) return `${policy}; reads: ${a.readTools.join(", ")}`;
   return `${policy}; no read_tools: ${effectivePolicy(a) === "never" ? "reads get every tool" : "every call is confirmed"}`;

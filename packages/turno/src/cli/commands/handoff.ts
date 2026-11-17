@@ -1,10 +1,11 @@
-import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig } from "../../core/config.js";
 import { paths, profileDir } from "../../core/paths.js";
 import { listProfiles, profileFromConfigDir } from "../../core/profiles.js";
 import { type FlagSpec, bool, flagsOf, parseFlags } from "../args.js";
 import { type Command, type Io, fail } from "../io.js";
+import { realOr } from "../../core/fsutil.js";
 
 const USAGE = `Usage:
   turno session handoff <profile|auto> [--fork] [--copy]
@@ -23,7 +24,7 @@ function shellQuote(s: string): string {
 }
 
 /** The first `cwd` recorded in a transcript: where the session started. */
-export function transcriptCwd(file: string): string | undefined {
+function transcriptCwd(file: string): string | undefined {
   const text = readFileSync(file, "utf8");
   for (const line of text.split("\n")) {
     if (!line.includes('"cwd"')) continue;
@@ -37,7 +38,7 @@ export function transcriptCwd(file: string): string | undefined {
   return undefined;
 }
 
-export function findTranscript(configDir: string, sessionId: string): string | undefined {
+function findTranscript(configDir: string, sessionId: string): string | undefined {
   const projects = join(configDir, "projects");
   if (!existsSync(projects)) return undefined;
   for (const dir of readdirSync(projects)) {
@@ -45,14 +46,6 @@ export function findTranscript(configDir: string, sessionId: string): string | u
     if (existsSync(f)) return f;
   }
   return undefined;
-}
-
-function real(p: string): string {
-  try {
-    return realpathSync(p);
-  } catch {
-    return p;
-  }
 }
 
 export interface Handoff {
@@ -75,7 +68,7 @@ export function buildHandoff(target: string, fork: boolean, env: NodeJS.ProcessE
   const warnings: string[] = [];
   const current = profileFromConfigDir(env.CLAUDE_CONFIG_DIR, config, env);
   if (!fork && target === current) warnings.push(`this session already runs as '${target}'`);
-  if (target !== "auto" && real(join(cfg, "projects")) !== real(join(profileDir(target, env), "projects"))) {
+  if (target !== "auto" && realOr(join(cfg, "projects")) !== realOr(join(profileDir(target, env), "projects"))) {
     warnings.push(`${target} does not share the projects folder with this profile, so it will not see this session (turno profile repair ${target})`);
   }
   const command = `cd ${shellQuote(cwd!)} && turno ${target} --resume ${sid}${fork ? " --fork-session" : ""}`;

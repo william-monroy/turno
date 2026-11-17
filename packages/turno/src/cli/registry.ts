@@ -58,7 +58,7 @@ export const COMMANDS: Record<string, Loader> = {
  * Earlier names: the 0.1 commands and the Spanish words of the bash script. They keep
  * working so hooks, editors, skills and muscle memory do not break; the help shows the new ones.
  */
-export const ALIASES: Record<string, string[]> = {
+const ALIASES: Record<string, string[]> = {
   which: ["profile", "which"],
   setup: ["profile", "repair"],
   sessions: ["session", "list"],
@@ -78,7 +78,7 @@ export const ALIASES: Record<string, string[]> = {
   "sync-mcp": ["mcp", "sync"],
 };
 
-export const ALIAS_FLAGS: Record<string, Record<string, string>> = {
+const ALIAS_FLAGS: Record<string, Record<string, string>> = {
   uso: { "--vigilar": "--watch" },
   agotada: { hasta: "until" },
 };

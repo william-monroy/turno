@@ -11,6 +11,7 @@ import { parseFlags } from "../args.js";
 import { type Command, type Io, paint } from "../io.js";
 import { findOnPath } from "../launchers.js";
 import { setupProfiles } from "./setup.js";
+import { pidAlive } from "../../core/fsutil.js";
 
 /**
  * `turno demo` (ADR 0030): turno in a throwaway HOME under the OS temp folder, with two Claude
@@ -63,15 +64,6 @@ const PROFILES = [
 
 const SERVERS = ["docs", "issues"] as const;
 
-function alive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return (err as NodeJS.ErrnoException).code === "EPERM";
-  }
-}
-
 /** Remove demo HOMEs left by a demo that was killed (SIGKILL, power loss): their owner is gone. */
 function removeStale(tmp: string): void {
   let names: string[] = [];
@@ -89,7 +81,7 @@ function removeStale(tmp: string): void {
     } catch {
       continue; // not made by turno demo: never touched
     }
-    if (pid > 0 && !alive(pid)) rmSync(dir, { recursive: true, force: true });
+    if (pid > 0 && !pidAlive(pid)) rmSync(dir, { recursive: true, force: true });
   }
 }
 

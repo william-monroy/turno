@@ -6,14 +6,13 @@ import { promisify } from "node:util";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { Manifest, ServerDef, StdioServer } from "../core/manifest.js";
 import { effectiveLaunch, variantKey } from "../core/manifest.js";
-import type { SecretResolver } from "../core/secrets.js";
-import { resolveRecord } from "../core/secrets.js";
 import { type DescriptionCache, type ServerDescription, fingerprint } from "./cache.js";
 import type { CallEvent } from "./calllog.js";
 import { ErrorCode, type Id, rpcError, type Outcome } from "./jsonrpc.js";
 import { LoginRequiredError } from "./oauth.js";
 import { type PressureLevel, type PressureProbe, effectiveIdle } from "./pressure.js";
 import { type ClientPort, Upstream } from "./upstream.js";
+import { pidAlive } from "../core/fsutil.js";
 
 const run = promisify(execFile);
 
@@ -107,15 +106,6 @@ export interface ManagerOptions {
   idleUnderPressure?: number;
 }
 
-export function processAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return (err as NodeJS.ErrnoException).code === "EPERM";
-  }
-}
-
 export function isDirectory(p: string): boolean {
   try {
     return statSync(p).isDirectory();
@@ -170,7 +160,7 @@ export const processCwd: (pid: number, now?: number) => Promise<string | undefin
 });
 
 /** Stdio servers and OAuth remotes have variants per profile; other remotes have only "default". */
-export function variantOf(server: ServerDef, profile: string | undefined): string {
+function variantOf(server: ServerDef, profile: string | undefined): string {
   return variantKey(server, profile);
 }
 
@@ -199,7 +189,7 @@ export function definitionFingerprint(server: ServerDef): string {
 }
 
 /** A server that is gone from the manifest (or no longer proxied) while sessions still use it. */
-export class ServerGoneError extends Error {}
+class ServerGoneError extends Error {}
 
 interface Breaker {
   failures: number;
@@ -234,7 +224,7 @@ export class InstanceManager {
   pressureLevel: PressureLevel = "normal";
 
   constructor(private readonly opts: ManagerOptions) {
-    this.isAlive = opts.isAlive ?? processAlive;
+    this.isAlive = opts.isAlive ?? pidAlive;
     this.now = opts.now ?? Date.now;
     this.bornAt = this.now();
     if (opts.manifest) this.manifest = opts.manifest;
@@ -734,6 +724,3 @@ export function resolveCommand(
   return { command, args };
 }
 
-export async function resolvedEnv(server: StdioServer, variant: string, resolve: SecretResolver): Promise<Record<string, string>> {
-  return resolveRecord(effectiveLaunch(server, variant).env, resolve);
-}

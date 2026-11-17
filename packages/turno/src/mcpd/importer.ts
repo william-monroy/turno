@@ -53,7 +53,7 @@ function words(key: string): string[] {
     .filter(Boolean);
 }
 
-export function isSecretKey(key: string): boolean {
+function isSecretKey(key: string): boolean {
   return words(key).some((w) => SECRET_WORDS.has(w));
 }
 
@@ -75,7 +75,7 @@ export function maskSecret(value: string): string {
 }
 
 /** The `env:` reference for a value that is exactly `${VAR}` or `${VAR:-default}`, if it is one. */
-export function envRef(value: string): string | undefined {
+function envRef(value: string): string | undefined {
   const m = WHOLE_VAR.exec(value);
   if (!m || CURSOR_VARS.has(m[1]!)) return undefined;
   return m[2] !== undefined ? `env:${m[1]}:-${m[2]}` : `env:${m[1]}`;
@@ -118,7 +118,7 @@ export function urlSecrets(url: string): string[] {
 }
 
 /** A secret the import would store in the Keychain (only with --write --move-secrets). */
-export interface PendingSecret {
+interface PendingSecret {
   /** `server.KEY`, for messages. */
   where: string;
   service: string;

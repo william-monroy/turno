@@ -27,7 +27,7 @@ export interface CallRecord {
   responseBytes: number;
 }
 
-export type CallOutcome = "ok" | "error" | "cancelled" | "timeout";
+type CallOutcome = "ok" | "error" | "cancelled" | "timeout";
 
 /** What the instance manager reports after relaying one request (the hook in `forward`). */
 export interface CallEvent {

@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync, closeSync } from "node:fs";
+import { existsSync, mkdirSync, openSync, readSync, readdirSync, renameSync, rmSync, statSync, writeFileSync, closeSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { PRIVATE_DIR_MODE, PRIVATE_FILE_MODE } from "../core/paths.js";
+import { readJsonFile, realOr } from "../core/fsutil.js";
 
 type Price = [number, number, number, number, number];
 
@@ -11,7 +12,7 @@ type Price = [number, number, number, number, number];
  * status line can say "$?" instead of a silent $0.00. Retired models stay so old transcripts
  * keep their cost.
  */
-export const PRICES: Record<string, Price> = {
+const PRICES: Record<string, Price> = {
   "claude-fable-5-2": [8, 40, 10, 16, 0.2],
   "claude-mythos-5-2": [8, 40, 10, 16, 0.2],
   "claude-fable-5-1": [10, 50, 12.5, 20, 0.25],
@@ -78,7 +79,7 @@ interface Usage {
 const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
 /** Tokens a usage record bills: zero for Claude Code's synthetic messages. */
-export function usageTokens(u: Usage): number {
+function usageTokens(u: Usage): number {
   return num(u.input_tokens) + num(u.output_tokens) + num(u.cache_creation_input_tokens) + num(u.cache_read_input_tokens);
 }
 
@@ -124,11 +125,7 @@ export interface CostState {
 }
 
 function readJson<T>(file: string): T | undefined {
-  try {
-    return JSON.parse(readFileSync(file, "utf8")) as T;
-  } catch {
-    return undefined;
-  }
+  return readJsonFile(file) as T | undefined;
 }
 
 function writeJson(file: string, data: unknown): void {
@@ -136,14 +133,6 @@ function writeJson(file: string, data: unknown): void {
   const tmp = `${file}.${process.pid}.tmp`;
   writeFileSync(tmp, JSON.stringify(data), { mode: PRIVATE_FILE_MODE });
   renameSync(tmp, file);
-}
-
-function real(p: string): string {
-  try {
-    return realpathSync(p);
-  } catch {
-    return p;
-  }
 }
 
 function validState(v: unknown): v is CostState {
@@ -210,13 +199,13 @@ export function computeCost(transcript: string, out: string, now = Date.now() / 
   const prev = readJson<unknown>(out);
   const files: Record<string, FileState> = {};
   if (validState(prev)) for (const [k, f] of Object.entries(prev.files)) if (validFile(f)) files[k] = f;
-  const main = real(transcript);
+  const main = realOr(transcript);
   const stem = main.endsWith(".jsonl") ? main.slice(0, -6) : main;
   const subDir = join(stem, "subagents");
   const subs = existsSync(subDir)
     ? readdirSync(subDir)
         .filter((f) => f.endsWith(".jsonl"))
-        .map((f) => real(join(subDir, f)))
+        .map((f) => realOr(join(subDir, f)))
         .sort()
     : [];
   for (const p of [main, ...subs]) {

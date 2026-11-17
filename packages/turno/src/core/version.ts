@@ -22,7 +22,7 @@ export function packageInfo(): PackageInfo {
   return cached;
 }
 
-export type InstallMethod = "npm" | "pnpm" | "yarn" | "bun" | "volta" | "brew" | "source" | "unknown";
+type InstallMethod = "npm" | "pnpm" | "yarn" | "bun" | "volta" | "brew" | "source" | "unknown";
 
 export interface Install {
   method: InstallMethod;

@@ -1,7 +1,7 @@
 /** Minimal JSON-RPC shapes for relaying; validation stays with the endpoints. */
 export type Id = string | number;
 
-export interface RpcError {
+interface RpcError {
   code: number;
   message: string;
   data?: unknown;

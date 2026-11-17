@@ -53,7 +53,7 @@ export function oauthService(server: string, variant: string): string {
 }
 
 /** What `turno mcp login` passes to an authorization server about turno. */
-export function clientMetadata(redirectUri: string, scope?: string): OAuthClientMetadata & { application_type: string } {
+function clientMetadata(redirectUri: string, scope?: string): OAuthClientMetadata & { application_type: string } {
   return {
     client_name: "turno",
     client_uri: "https://github.com/wimo-dev/turno",
@@ -78,7 +78,7 @@ export interface StoredTokens {
   expires_at?: number;
 }
 
-export type Registration = "pre-registered" | "metadata-document" | "dynamic";
+type Registration = "pre-registered" | "metadata-document" | "dynamic";
 
 /** The JSON kept in one secret store item (one line, so the Keychain store can take it). */
 export interface OAuthRecord {
@@ -125,7 +125,7 @@ export class OAuthFlowError extends Error {
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
-export function isLoopbackUrl(url: string | URL): boolean {
+function isLoopbackUrl(url: string | URL): boolean {
   try {
     const u = new URL(url);
     return u.protocol === "http:" && LOOPBACK.has(u.hostname);
@@ -146,7 +146,7 @@ function requireSecure(url: string, what: string): void {
 }
 
 /** Error text with every known secret value replaced, cut to one short line. */
-export function scrub(message: string, secrets: (string | undefined)[]): string {
+function scrub(message: string, secrets: (string | undefined)[]): string {
   let out = message;
   for (const s of secrets) if (s && s.length >= 8) out = out.split(s).join("[redacted]");
   out = out.replace(/\s+/g, " ").trim();
@@ -187,7 +187,7 @@ function sameIssuer(advertised: string, used: string): boolean {
  * first, then OpenID Connect Discovery). The document's `issuer` must be the one the URL was
  * built from, and it must advertise PKCE with S256; otherwise turno refuses to go on.
  */
-export async function authorizationServerMetadata(issuer: string, fetchFn: FetchLike = fetch): Promise<AuthorizationServerMetadata> {
+async function authorizationServerMetadata(issuer: string, fetchFn: FetchLike = fetch): Promise<AuthorizationServerMetadata> {
   requireSecure(issuer, "the authorization server");
   for (const { url, type } of buildDiscoveryUrls(issuer)) {
     let res: Response;
@@ -247,7 +247,7 @@ async function probe(serverUrl: string, fetchFn: FetchLike): Promise<{ status: n
  * unauthenticated request and use the resource_metadata URL and scope of its 401; without one
  * (refresh), go straight to the well-known URLs.
  */
-export async function discover(server: RemoteServer, fetchFn: FetchLike = fetch, challenge = false): Promise<Discovery & { unprotected?: boolean }> {
+async function discover(server: RemoteServer, fetchFn: FetchLike = fetch, challenge = false): Promise<Discovery & { unprotected?: boolean }> {
   requireSecure(server.url, `${server.name}'s url`);
   let resourceMetadataUrl: URL | undefined;
   let challengeScope: string | undefined;
@@ -284,7 +284,7 @@ function unionScopes(...lists: (string | undefined)[]): string | undefined {
 }
 
 /** Scope selection of the spec: configured, else the 401 challenge, else scopes_supported. */
-export function selectScope(d: Discovery, settings: OAuthSettings | undefined, extra?: string, previous?: string): string | undefined {
+function selectScope(d: Discovery, settings: OAuthSettings | undefined, extra?: string, previous?: string): string | undefined {
   const base = settings?.scope ?? d.challengeScope ?? d.resourceMetadata.scopes_supported?.join(" ");
   let scope = unionScopes(previous, base, extra);
   // Refresh tokens are not a resource scope; ask for offline_access only when the server lists it.

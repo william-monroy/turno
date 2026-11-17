@@ -4,9 +4,9 @@ import { type AgentId, AGENT_IDS, DEFAULT_AGENT, adapter, isAgentId } from "../a
 import { distance } from "../cli/io.js";
 import { expandHome, paths, tildify } from "./paths.js";
 
-export type BrowserMode = "chrome" | "default";
+type BrowserMode = "chrome" | "default";
 
-export interface ProfileConfig {
+interface ProfileConfig {
   /** The coding agent this profile runs (ADR 0013); Claude Code when unset. */
   agent: AgentId;
   /** How `turno open` shows claude.ai links: an isolated Chrome profile or the default browser. */
@@ -16,7 +16,7 @@ export interface ProfileConfig {
 }
 
 /** Default and fallback profiles of an agent other than Claude Code (`[agents.<id>]`). */
-export interface AgentRoles {
+interface AgentRoles {
   default?: string;
   fallback?: string;
 }
@@ -65,7 +65,7 @@ export interface Config {
 }
 
 /** Every key config.toml may hold, by table ("" is the top level; `*` stands for any name). */
-export const KNOWN_KEYS: Record<string, readonly string[]> = {
+const KNOWN_KEYS: Record<string, readonly string[]> = {
   "": ["system", "default", "fallback", "icons", "nerd_terminals", "update_check", "profiles", "agents", "projects", "open", "mcpd"],
   "profiles.*": ["agent", "browser", "color"],
   "agents.*": ["default", "fallback"],
@@ -76,8 +76,8 @@ export const KNOWN_KEYS: Record<string, readonly string[]> = {
 
 const SIZE_UNITS: Record<string, number> = { "": 1, b: 1, k: 1024, kb: 1000, kib: 1024, m: 1024 ** 2, mb: 1000 ** 2, mib: 1024 ** 2, g: 1024 ** 3, gb: 1000 ** 3, gib: 1024 ** 3 };
 /** Bounds of `mcpd.max_request_body`: below 1 MiB ordinary tool calls fail, above 1 GiB a client can exhaust memory. */
-export const MIN_REQUEST_BODY = 1024 ** 2;
-export const MAX_REQUEST_BODY = 1024 ** 3;
+const MIN_REQUEST_BODY = 1024 ** 2;
+const MAX_REQUEST_BODY = 1024 ** 3;
 
 /**
  * A size in bytes: a whole number of bytes, or a string such as "64MiB", "512 KiB" or "1GB".
@@ -99,7 +99,7 @@ export function requestBodyProblem(v: unknown): string | undefined {
 }
 
 /** Default of `mcpd.idle_under_pressure`, in seconds. */
-export const DEFAULT_IDLE_UNDER_PRESSURE = 300;
+const DEFAULT_IDLE_UNDER_PRESSURE = 300;
 
 /**
  * `mcpd.idle_under_pressure` in seconds: a duration ("5m", "90s", "1h" or seconds) between 30

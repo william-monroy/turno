@@ -4,7 +4,7 @@ import { type AgentId, DEFAULT_AGENT, adapter } from "../agents/index.js";
 import type { Config } from "./config.js";
 import { isValidProfileName, suggestKey } from "./config.js";
 import { loadManifest } from "./manifest.js";
-import { paths, profileDir, tildify } from "./paths.js";
+import { paths, tildify } from "./paths.js";
 
 /** The agent a profile runs: from config.toml, else Claude Code. */
 export function agentOf(name: string, config: Config): AgentId {
@@ -39,10 +39,6 @@ export function listProfiles(config: Config, env: NodeJS.ProcessEnv = process.en
     if (existsSync(join(p.bin, `claude-${name}`))) found.add(name);
   }
   return [...found].filter((n) => !agent || agentOf(n, config) === agent).sort();
-}
-
-export function profileExists(name: string, config: Config, env: NodeJS.ProcessEnv = process.env): boolean {
-  return listProfiles(config, env).includes(name);
 }
 
 /**
@@ -83,7 +79,7 @@ export function configProblems(config: Config, env: NodeJS.ProcessEnv = process.
  * remote servers that skip mcpd, which a set cannot hide. Nothing when mcp.toml is missing or
  * broken (its own check reports that).
  */
-export function folderSetProblems(config: Config, env: NodeJS.ProcessEnv = process.env): string[] {
+function folderSetProblems(config: Config, env: NodeJS.ProcessEnv = process.env): string[] {
   const rules = config.projects.filter((r) => r.mcp || r.mcpDeny);
   if (!rules.length || !existsSync(paths(env).mcpFile)) return [];
   let servers;
@@ -126,5 +122,3 @@ export function profileFromConfigDir(
   }
   return config.system;
 }
-
-export { profileDir };

@@ -41,7 +41,7 @@ export interface BuildOptions {
 const EXTERNAL_BROWSER = ["--cdp-endpoint", "--endpoint", "--extension"];
 
 /** Opt-in to serve an identity over HTTP; consumed here, never passed on. */
-export const ALLOW_HTTP_IDENTITY = "--allow-http-identity";
+const ALLOW_HTTP_IDENTITY = "--allow-http-identity";
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 
 /** Value of `--flag v` or `--flag=v` (the last one wins, as in commander). */
@@ -108,7 +108,7 @@ export function extractIdentity(args: string[]): { identity?: string; rest: stri
   return identity === undefined ? { rest } : { identity, rest };
 }
 
-export function defaultTempDir(): string {
+function defaultTempDir(): string {
   return mkdtempSync(join(tmpdir(), "turno-browser-"));
 }
 

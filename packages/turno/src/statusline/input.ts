@@ -9,7 +9,7 @@ type Obj = Record<string, unknown>;
 
 export const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
 export const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
-export const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 const bool = (v: unknown): boolean | undefined => (typeof v === "boolean" ? v : undefined);
 
 /** Session ids become file names, so only plain ids are accepted. */
@@ -28,7 +28,7 @@ function pick<T extends object>(from: Obj, checks: { [K in keyof T]: (v: unknown
   return out as T;
 }
 
-export function window(v: unknown): Window | undefined {
+function window(v: unknown): Window | undefined {
   if (!isObj(v)) return undefined;
   const w = pick<Window>(v, { used_percentage: num, resets_at: num });
   return Object.keys(w).length ? w : undefined;
