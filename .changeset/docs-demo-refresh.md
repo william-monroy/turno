@@ -10,6 +10,9 @@ Neutral engine ids for `turno browser bench`, and a README demo of the current C
   `patchright-chrome-headless`, `playwright-stock`, `camoufox`) are still accepted by `--engine`,
   and the report (table and `--json`) uses the new ones. turno-cli keeps working with an older
   turno-browser.
+- `turno doctor` and the status screen recognize turno's own status line when its path is
+  quoted (as `turno demo` writes it), and show any other status line command without quotes,
+  with ~ for your home folder and cut to fit the row.
 - The README demo is recorded from `turno demo` in a throwaway HOME and shows the status screen,
   `turno init --dry-run`, profiles, the profile picker, `turno doctor` with its fix lines,
   `turno mcp list` and `turno limit show`.

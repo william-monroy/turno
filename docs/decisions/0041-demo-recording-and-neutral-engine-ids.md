@@ -23,8 +23,16 @@ checkout, `USER=demo`, and a copy of node under `/tmp/turno-vhs` so the MCP serv
 builds the profiles, folder rule, gateway and servers, opens a shell, and removes all of it when
 the tape types `exit`. The tape then shows the status screen, `turno init --dry-run`,
 `turno profile list`, the picker (through `turno profile assign`), `turno doctor`, `turno mcp list`
-and `turno limit show`. No agent is on that PATH, so doctor shows a real failure with its manual
-step, and nothing can start an agent or read a credential.
+and `turno limit show`.
+
+A README gif has to show turno working, so the recording shows signed-in accounts and usage
+without a real agent or login. The `claude` on that PATH is a stand-in written by setup.sh: it
+answers `claude auth status --json` for two example accounts (`you@personal.example`,
+`you@work.example`) by the profile's `CLAUDE_CONFIG_DIR`, and `--version`, and refuses anything
+else, so no profile can start an agent through it. A hidden `turno-demo-seed` step writes usage
+snapshots in the shape the status line records them (`state/usage/<profile>.json`) and copies
+the bundled font into the demo HOME's font folder; it does not run `turno ui install`, which can
+change terminal settings outside HOME.
 
 The picker is shown through `turno profile assign` and not `turno run`: choosing a profile in
 `turno run` starts the agent, which in the recording either is missing (the launcher's error) or
@@ -42,5 +50,10 @@ turno-browser (no `engineId`) still gets the names it knows. This replaces the s
 
 - Regenerating the gif needs only `pnpm build && vhs docs/demo/demo.tape`; the recording follows
   `turno demo`, so a change to the demo shows up in the next recording.
-- The gif shows `account unknown` and `not logged in`: the demo signs in nowhere, by design.
+- The accounts and usage in the gif come from the stand-in and the seed step; the intro's two
+  status lines keep `turno demo`'s own sample numbers.
+- Recording the demo showed that `turno demo` writes its status line command with a quoted path,
+  which turno did not recognize as its own: doctor and the status screen printed the raw command.
+  `isTurnoStatusLine` now accepts a quoted path, and `statusLineLabel` shows any other command
+  without quotes, with ~ for HOME, cut to the row.
 - Bench reports written before this change carry the old ids; nothing reads them back.

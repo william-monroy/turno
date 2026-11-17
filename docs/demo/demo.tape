@@ -1,10 +1,16 @@
-# The README demo. Regenerate it from the repository root with:
+# The README demo. Regenerate it from the repository root with one command (after a version
+# bump too, so the gif shows the new version):
 #
 #   pnpm build && vhs docs/demo/demo.tape
 #
-# Everything runs in throwaway HOMEs: setup.sh starts a shell with an empty environment, and
-# `turno demo` builds the profiles, gateway and MCP servers it shows, then removes them on exit.
-# Your own HOME, config and accounts are never read or changed, and nothing signs in.
+# It writes docs/assets/demo.gif and needs vhs (with ttyd and ffmpeg) and the MesloLGS Nerd Font
+# installed for your user. Everything runs in throwaway HOMEs: setup.sh starts a shell with an
+# empty environment under /tmp/turno-vhs, and `turno demo` builds the profiles, gateway and MCP
+# servers it shows, then removes them on exit; the tape removes /tmp/turno-vhs at the end. Your
+# own HOME, config and accounts are never read or changed, and nothing signs in: the `claude`
+# on that PATH is a stand-in that only answers `claude auth status` for two example accounts,
+# and turno-demo-seed (hidden) writes the usage snapshots and copies the bundled font into the
+# demo HOME. Ports, pids and reset times differ between runs; everything else is the same.
 Output docs/assets/demo.gif
 
 Set Shell "bash"
@@ -33,6 +39,15 @@ Show
 Type "turno demo" Sleep 300ms Enter
 Wait
 Sleep 4.5s
+
+# What a few days of use leaves behind: usage snapshots and the font (not recorded).
+Hide
+Type "turno-demo-seed"
+Enter
+Sleep 500ms
+Ctrl+L
+Sleep 200ms
+Show
 
 # Bare turno: the one-screen summary.
 Ctrl+L
