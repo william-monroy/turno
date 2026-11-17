@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig } from "../../core/config.js";
+import { Journal } from "../../core/journal.js";
 import { paths, writePrivateFile } from "../../core/paths.js";
 import { listProfiles } from "../../core/profiles.js";
 import { fetchLatest, isSemver, updateChecksOff } from "../../core/update.js";
@@ -69,19 +70,23 @@ export async function finishUpgrade(io: Io, opts: { sync?: "ask" | "yes" | "no" 
     io.out(`config: ${(err as Error).message} (turno config edit)`);
   }
   // Launchers bake the path of the running turno, which changes with some package managers.
+  // The journal records the ones that change, so `turno undo` can put the old ones back.
+  const journal = new Journal(env, "upgrade --finish");
   let rewritten = 0;
   for (const name of config ? listProfiles(config, env) : []) {
     const file = launcherPath(name, env);
     if (file && isGenerated(file)) {
-      writeLauncher(name, env);
+      writeLauncher(name, env, undefined, journal);
       rewritten++;
     }
   }
   const bin = paths(env).bin;
   if (["turno-auto", "turno-open"].some((f) => existsSync(join(bin, f)) && isGenerated(join(bin, f)))) {
-    rewritten += writeHelperLaunchers(env, turnoCommand()).length;
+    rewritten += writeHelperLaunchers(env, turnoCommand(), journal).length;
   }
   if (rewritten) io.out(`launchers: ${rewritten} rewritten for turno ${now}`);
+  const hint = journal.hint();
+  if (hint) io.out(hint);
   // Configs synced before per-profile gateway tokens (ADR 0023) send the master token, which
   // mcpd refuses for MCP sessions: say so here instead of leaving it to the first failed call.
   const tokens = (await import("../../mcpd/health.js")).tokenSyncCheck(env);
