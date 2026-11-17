@@ -521,7 +521,8 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
   let port = 0;
   try {
     const token = ensureToken(env, (m) => log(m));
-    const calls = config.mcpd.callLog ? createCallLog(files.calls, { onError: (m) => log(m) }) : undefined;
+    // The call log follows `[mcpd] call_log`, also when config.toml changes while mcpd runs.
+    let calls = config.mcpd.callLog ? createCallLog(files.calls, { onError: (m) => log(m) }) : undefined;
     const sampler = new RssSampler(files.rss, { env });
     const manager = new InstanceManager({
       cache: new DescriptionCache(p.mcpdCacheDir),
@@ -537,7 +538,7 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
       }),
       home: p.home,
       log,
-      ...(calls ? { onCall: (e) => calls.record(e) } : {}),
+      onCall: (e) => calls?.record(e),
       pressure: memoryPressureProbe(),
       idleUnderPressure: config.mcpd.idleUnderPressure,
     });
@@ -612,6 +613,13 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
       }
       configError = undefined;
       folderRules = next.projects;
+      if (next.mcpd.callLog !== Boolean(calls)) {
+        if (calls) {
+          calls.close();
+          calls = undefined;
+        } else calls = createCallLog(files.calls, { onError: (m) => log(m) });
+        log(`call log ${calls ? "on" : "off"} (${why})`);
+      }
       log(`config.toml reloaded (${why}): ${folderRules.filter((r) => r.mcp || r.mcpDeny).length} folder server sets`);
     };
 

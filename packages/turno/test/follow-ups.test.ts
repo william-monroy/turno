@@ -178,3 +178,25 @@ fs.writeFileSync(path.join(prefix, "node_modules", ".bin", "calc-mcp"), "");
     expect(existsSync(npm)).toBe(true);
   });
 });
+
+describe("mcpd and call_log", () => {
+  it("turns the call log on and off when config.toml changes, on SIGHUP", async () => {
+    const { startDaemon } = await import("../src/mcpd/daemon.js");
+    sb.write(".config/turno/config.toml", "[mcpd]\ncall_log = false\n");
+    const d = await startDaemon({ env: sb.env, port: 0 });
+    try {
+      const token = readFileSync(join(sb.home, ".local/state/turno/mcpd.token"), "utf8").trim();
+      const enabled = async () =>
+        ((await (await fetch(`http://127.0.0.1:${d.port}/status`, { headers: { authorization: `Bearer ${token}` } })).json()) as { callLog: { enabled: boolean } }).callLog.enabled;
+      expect(await enabled()).toBe(false);
+      sb.write(".config/turno/config.toml", "[mcpd]\ncall_log = true\n");
+      process.emit("SIGHUP", "SIGHUP");
+      await waitFor(enabled, "the call log to turn on");
+      sb.write(".config/turno/config.toml", "[mcpd]\ncall_log = false\n");
+      process.emit("SIGHUP", "SIGHUP");
+      await waitFor(async () => !(await enabled()), "the call log to turn off");
+    } finally {
+      await d.stop();
+    }
+  });
+});
