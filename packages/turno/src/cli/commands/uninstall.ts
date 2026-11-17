@@ -11,7 +11,7 @@ import type { ServiceBackend } from "../../mcpd/service.js";
 import { profileTokenFile } from "../../mcpd/tokens.js";
 import { type StatusLine, currentStatusLine, isTurnoStatusLine, readSettings } from "../../ui/settings.js";
 import { DRY_RUN, bool, parseFlags } from "../args.js";
-import { CliError, type Command, type Io, confirm } from "../io.js";
+import { type Command, type Io, confirm, needsAnswer } from "../io.js";
 import { MARKER } from "../launchers.js";
 import { realOr } from "../../core/fsutil.js";
 
@@ -361,7 +361,7 @@ export const command: Command = {
       return 0;
     }
     if (!bool(p, "yes")) {
-      if (!io.ask) throw new CliError("turno uninstall changes the files above; run it in a terminal to confirm, or pass --yes");
+      if (!io.ask) needsAnswer("uninstall");
       if (!(await confirm(io, "Remove all of this?"))) {
         io.err("Nothing changed.");
         return 1;

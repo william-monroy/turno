@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import { paths, tildify } from "../../core/paths.js";
 import { DRY_RUN, type FlagSpec, JSON_FLAG, bool, parseFlags, printJson, str } from "../args.js";
 import { type Sub, group } from "../group.js";
-import { type Command, type Io, fail, paint } from "../io.js";
+import { type Command, type Io, fail, needsAnswer, paint } from "../io.js";
 
 /** The part of turno-browser this command uses. Typed locally: the package is installed apart. */
 interface IdentityInfo {
@@ -76,7 +76,7 @@ export async function loadBrowser(options: { global?: boolean; env?: NodeJS.Proc
 
 export interface BrowserDeps {
   load(io: Io): Promise<BrowserModule | undefined>;
-  /** True when a person can answer a question (stdin and stderr are terminals). */
+  /** True when a person can answer a question (a terminal, and no --no-input or agent session). */
   interactive(io: Io): boolean;
   /** Ask a yes/no question; true only for an explicit yes. */
   confirm(question: string, io: Io): Promise<boolean>;
@@ -94,7 +94,7 @@ async function askOnTerminal(question: string): Promise<boolean> {
 
 export const defaultDeps: BrowserDeps = {
   load: (io) => loadBrowser({ global: true, env: io.env }),
-  interactive: () => Boolean(process.stdin.isTTY && process.stderr.isTTY),
+  interactive: (io) => Boolean(io.ask),
   confirm: (question) => askOnTerminal(question),
 };
 
@@ -137,7 +137,8 @@ async function bench(mod: BrowserModule, args: string[], io: Io, deps: BrowserDe
   // Opening a browser on outside pages needs a yes from a person: --json is not consent.
   if (!bool(p, "yes")) {
     if (!deps.interactive(io)) {
-      return fail("browser bench opens Chrome and visits third-party test pages; confirm in a terminal or pass --yes");
+      io.err("browser bench opens Chrome and visits third-party test pages.");
+      return needsAnswer("browser bench");
     }
     if (!(await deps.confirm(onlyUrls ? URLS_PROMPT : BENCH_PROMPT, io))) {
       io.err("Cancelled; nothing was opened.");

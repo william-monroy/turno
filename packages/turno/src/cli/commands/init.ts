@@ -11,7 +11,7 @@ import { addArrayTable, ensureTable, setValue } from "../../core/toml-edit.js";
 import type { ImportReport, ProfileSource } from "../../mcpd/importer.js";
 import { DRY_RUN, type FlagSpec, bool, flagsOf, parseFlags, str } from "../args.js";
 import { highlightTomlLine, tomlState } from "../highlight.js";
-import { CliError, type Command, type Io, colors, confirm, fail, paint, plural } from "../io.js";
+import { type Command, type Io, colors, confirm, fail, needsAnswer, paint, plural } from "../io.js";
 import { launcherPath } from "../launch.js";
 import { findOnPath, launcherName, refuseNpx } from "../launchers.js";
 import { warnPath } from "./profile.js";
@@ -462,7 +462,7 @@ async function run(args: string[], io: Io): Promise<number> {
   // Launchers keep the path of this turno; a path into npx's cache disappears.
   if (plan.profiles.length) refuseNpx();
   if (!yes) {
-    if (!io.ask) throw new CliError("turno init writes the changes above; run it in a terminal to confirm, or pass --yes");
+    if (!io.ask) needsAnswer("init");
     if (!(await confirm(io, "Write all of this?"))) {
       io.err("Nothing changed.");
       return 1;

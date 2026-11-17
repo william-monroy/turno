@@ -7,7 +7,7 @@ Tests never touch the real home. Two layers make sure of it:
    never `process.env`.
 2. **The global setup** (`global-setup.ts`, wired in `vitest.config.ts`) points `HOME` and the
    XDG variables of the whole run at another throwaway folder and clears the variables of a
-   live session (`TURNO_*`, `CLAUDE*`, `CODEX_*`, `CURSOR_*`, `ANTHROPIC_*`). That folder stands
+   live session (`TURNO_*`, `CLAUDE*`, `CODEX_*`, `COPILOT_*`, `CURSOR_*`, `ANTHROPIC_*`). That folder stands
    for the real home: code that falls back to `process.env` or `os.homedir()` writes there, and
    when the run ends anything found in it fails the run with the list of paths.
 

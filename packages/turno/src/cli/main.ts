@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { CliError, type Io, UsageError, WIDTH, closest, columns, defaultIo, fail, paint, wrap } from "./io.js";
+import { CliError, type Io, UsageError, WIDTH, closest, columns, defaultIo, fail, noInputReason, paint, withoutAsk, wrap } from "./io.js";
 import { COMMANDS, HELP_SUMMARY, QUIET, SECTIONS, expand, visibleCommands } from "./registry.js";
 
 async function help(io: Io): Promise<number> {
@@ -20,6 +20,7 @@ async function help(io: Io): Promise<number> {
   io.out(columns([["turno <profile>", "open that profile with its agent; the arguments after it go to the agent"]], 2, w, w));
   for (const s of sections) io.out(`\n${s.title}:\n${columns(s.rows, 2, w, w)}`);
   io.out("\nRun turno <command> --help, or turno help <command>, for details.");
+  io.out("Scripts and agents: --no-input or TURNO_NO_INPUT=1 never asks (exit 2 instead).");
   return 0;
 }
 
@@ -70,7 +71,28 @@ async function notice(name: string, io: Io): Promise<void> {
   }
 }
 
-export async function main(argv: string[], io: Io = defaultIo()): Promise<number> {
+/**
+ * Take the global --no-input flag out of argv: before the command, or among a command's own
+ * flags (not after --, and not for commands whose arguments belong to an agent).
+ */
+export function takeNoInput(argv: string[]): { argv: string[]; noInput: boolean } {
+  let i = 0;
+  while (argv[i] === "--no-input") i++;
+  const [head, ...tail] = argv.slice(i);
+  if (head === undefined) return { argv: [], noInput: i > 0 };
+  const name = expand(head, [])[0];
+  if (!COMMANDS[name] || PASSTHROUGH.has(name)) return { argv: [head, ...tail], noInput: i > 0 };
+  const end = tail.indexOf("--");
+  const own = end < 0 ? tail : tail.slice(0, end);
+  const kept = own.filter((a) => a !== "--no-input");
+  return { argv: [head, ...kept, ...(end < 0 ? [] : tail.slice(end))], noInput: i > 0 || kept.length < own.length };
+}
+
+export async function main(args: string[], io: Io = defaultIo()): Promise<number> {
+  const { argv, noInput } = takeNoInput(args);
+  // --no-input is TURNO_NO_INPUT=1, also for the turno processes this one starts.
+  if (noInput) io = { ...withoutAsk(io), env: { ...io.env, TURNO_NO_INPUT: "1" } };
+  else if (io.ask && noInputReason(io.env)) io = withoutAsk(io);
   const [head, ...tail] = argv;
   try {
     if (!head) {

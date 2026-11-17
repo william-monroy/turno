@@ -13,7 +13,7 @@ import { type TomlValue, addArrayTable, ensureTable, removeArrayTables, removeTa
 import { NAMED_COLORS } from "../../statusline/render.js";
 import { DRY_RUN, type FlagSpec, JSON_FLAG, bool, flagsOf, parseFlags, printJson, str } from "../args.js";
 import { group } from "../group.js";
-import { CliError, type Io, confirm, fail, plural } from "../io.js";
+import { type Io, confirm, fail, needsAnswer, plural } from "../io.js";
 import { findOnPath, launcherPath } from "../launch.js";
 import { isGenerated, launcherName, refuseNpx } from "../launchers.js";
 import { checkName, localCopies, setupProfiles } from "./setup.js";
@@ -102,13 +102,13 @@ export function warnPath(io: Io, launcher: string): boolean {
  * Before moving the person's own files aside: ask in a terminal, or need --yes. Returns false
  * when the person said no.
  */
-async function approveAside(names: string[], io: Io, yes: boolean): Promise<boolean> {
+async function approveAside(cmd: string, names: string[], io: Io, yes: boolean): Promise<boolean> {
   const own = localCopies(names, io.env).filter((x) => x.items.length);
   if (!own.length || yes) return true;
   const text = own.map((x) => `${tildify(x.dir, io.env)} has its own ${x.items.join(", ")}`).join("; ");
   const what = `${text}. turno moves ${own.length === 1 && own[0]!.items.length === 1 ? "it" : "them"} to .aside-<time>/ in that folder and links the shared ones instead.`;
-  if (!io.ask) throw new CliError(`${what} Run again with --yes to go ahead.`);
   io.err(what);
+  if (!io.ask) needsAnswer(cmd);
   if (await confirm(io, "Go ahead?")) return true;
   io.err("Nothing changed.");
   return false;
@@ -137,7 +137,7 @@ async function add(args: string[], io: Io): Promise<number> {
   const dry = bool(p, "dry-run");
   if (!dry) {
     refuseNpx();
-    if (!(await approveAside([name], io, bool(p, "yes")))) return 1;
+    if (!(await approveAside("profile add", [name], io, bool(p, "yes")))) return 1;
   }
   const journal = new Journal(io.env, `profile add ${name}`, dry);
   const table = `profiles.${name}`;
@@ -176,7 +176,7 @@ async function repair(args: string[], io: Io): Promise<number> {
   if (!names.length) return fail("no profiles to repair (turno profile add <name>)");
   for (const n of names) checkName(n);
   refuseNpx();
-  if (!(await approveAside(names, io, bool(p, "yes")))) return 1;
+  if (!(await approveAside("profile repair", names, io, bool(p, "yes")))) return 1;
   setupProfiles(names, io, { verbose: bool(p, "verbose") });
   return 0;
 }

@@ -155,6 +155,13 @@ and requests with an `Origin` header are rejected so web pages cannot reach it.
 **Linux? Windows?** Linux works too: secrets go to the Secret Service (`secret-tool`), mcpd runs
 as a `systemd --user` unit, and links open with `xdg-open`. Windows is not supported.
 
+**Can scripts and agents run turno?** Yes. turno asks only when a person is at a terminal: with
+`--no-input` (or `TURNO_NO_INPUT=1`), when stdin is not a terminal, and inside a Claude Code,
+Codex, Copilot CLI or Cursor agent session it never asks. A command that would ask exits with
+code 2 and names the flag that answers it, for example `turno: init needs an answer; pass --yes
+(or run it in a terminal)`. `TURNO_NO_INPUT=0` lets you answer in an editor terminal that sets
+an agent's variable.
+
 **How do I undo it?** Every command that writes keeps a copy of each file it changes:
 `turno undo --list` shows them and `turno undo <stamp>` puts them back (backups older than 30
 days are pruned, keeping the newest 10). To remove turno, `turno uninstall --dry-run` lists what

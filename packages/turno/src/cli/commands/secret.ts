@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { paths, tildify } from "../../core/paths.js";
 import { SecretError, type SecretStore, requireSecretStore } from "../../core/secrets.js";
 import { JSON_FLAG, bool, flagsOf, parseFlags } from "../args.js";
-import { type Command, type Io, fail } from "../io.js";
+import { type Command, type Io, fail, needsAnswer, noInputReason } from "../io.js";
 
 const USAGE = `Usage:
   turno secret set <service>     read a value from stdin and store it
@@ -100,6 +100,8 @@ export const command: Command = {
       switch (sub) {
         case "set": {
           const s = store(io);
+          // The hidden prompt waits for a person: never with --no-input or inside an agent.
+          if (process.stdin.isTTY && noInputReason(io.env)) needsAnswer("secret set", "the value on stdin");
           const value = await readStdin();
           if (!value) return fail("empty value");
           await s.set(service, value);

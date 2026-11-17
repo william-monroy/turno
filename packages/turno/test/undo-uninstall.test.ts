@@ -244,14 +244,33 @@ describe("turno uninstall (02-H5)", () => {
   it("refuses without a terminal or --yes, and a no in a terminal changes nothing", async () => {
     setUpTurno();
     const r = await run(["uninstall"]);
-    expect(r.code).toBe(1);
-    expect(r.io.errors.join("\n")).toMatch(/--yes/);
+    expect(r.code).toBe(2);
+    expect(r.io.errors).toEqual(["turno: uninstall needs an answer; pass --yes (or run it in a terminal)"]);
     const no = asking("n");
     expect((await run(["uninstall"], no)).code).toBe(1);
     expect(no.asked).toEqual(["Remove all of this? [y/N] "]);
     expect(existsSync(serviceFile())).toBe(true);
     expect(existsSync(cfgFile())).toBe(true);
     expect(callLog()).toEqual([]);
+  });
+
+  it("asks nothing inside an agent session or with --no-input: exit 2, nothing removed", async () => {
+    setUpTurno();
+    for (const [args, env] of [
+      [["uninstall"], { CLAUDECODE: "1" }],
+      [["uninstall", "--no-input"], {}],
+    ] as const) {
+      const io = asking("y");
+      io.env = { ...io.env, ...env };
+      const r = await run([...args], io);
+      expect(io.asked).toEqual([]);
+      expect(r.code).toBe(2);
+      expect(r.io.errors).toEqual(["turno: uninstall needs an answer; pass --yes (or run it in a terminal)"]);
+    }
+    expect(existsSync(serviceFile())).toBe(true);
+    expect(existsSync(cfgFile())).toBe(true);
+    expect(callLog()).toEqual([]);
+    expect(listJournals(sb.env)).toEqual([]);
   });
 
   it("removes what turno set up, keeps profile folders and your own entries, and undo puts it back", async () => {
