@@ -2,7 +2,7 @@
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { enableCompileCache } from "./compile-cache.js";
-import { CliError, type Io, UsageError, closest, defaultIo, fail, noInputReason, paint, withoutAsk } from "./io.js";
+import { CliError, type ColorMode, type Io, UsageError, closest, defaultIo, fail, isColorMode, noInputReason, paint, withoutAsk } from "./io.js";
 import { COMMANDS, HELP_SUMMARY, QUIET, SECTIONS, expand, visibleCommands } from "./registry.js";
 
 async function help(io: Io): Promise<number> {
@@ -81,8 +81,56 @@ export function takeNoInput(argv: string[]): { argv: string[]; noInput: boolean 
   return { argv: [head, ...kept, ...(end < 0 ? [] : tail.slice(end))], noInput: i > 0 || kept.length < own.length };
 }
 
+function colorValue(v: string | undefined): ColorMode {
+  if (isColorMode(v)) return v;
+  return fail(v === undefined || v.startsWith("-") ? "--color needs a value: auto, always or never" : `--color ${v}: use auto, always or never`);
+}
+
+/**
+ * Take the global `--color auto|always|never` (or `--color=<mode>`) out of argv, like --no-input:
+ * before the command, or among a command's own flags (not after --, and not for commands whose
+ * arguments belong to an agent). Among a command's flags only those three values count, so
+ * `turno profile add work --color green` keeps its own --color. The last one given wins.
+ */
+export function takeColor(argv: string[]): { argv: string[]; color?: ColorMode } {
+  const lead: string[] = [];
+  let color: ColorMode | undefined;
+  let i = 0;
+  for (; i < argv.length; i++) {
+    const a = argv[i]!;
+    if (a === "--no-input") lead.push(a);
+    else if (a === "--color") color = colorValue(argv[++i]);
+    else if (a.startsWith("--color=")) color = colorValue(a.slice("--color=".length));
+    else break;
+  }
+  const at = <T extends object>(o: T) => (color ? { ...o, color } : o);
+  const [head, ...tail] = argv.slice(i);
+  if (head === undefined) return at({ argv: lead });
+  const name = expand(head, [])[0];
+  if (!COMMANDS[name] || PASSTHROUGH.has(name)) return at({ argv: [...lead, head, ...tail] });
+  const end = tail.indexOf("--");
+  const own = end < 0 ? tail : tail.slice(0, end);
+  const kept: string[] = [];
+  for (let j = 0; j < own.length; j++) {
+    const a = own[j]!;
+    const inline = a.startsWith("--color=") ? a.slice("--color=".length) : undefined;
+    if (a === "--color" && isColorMode(own[j + 1])) color = own[++j] as ColorMode;
+    else if (isColorMode(inline)) color = inline;
+    else kept.push(a);
+  }
+  return at({ argv: [...lead, head, ...kept, ...(end < 0 ? [] : tail.slice(end))] });
+}
+
 export async function main(args: string[], io: Io = defaultIo()): Promise<number> {
-  const { argv, noInput } = takeNoInput(args);
+  let picked: ReturnType<typeof takeColor>;
+  try {
+    picked = takeColor(args);
+  } catch (err) {
+    io.err(`turno: ${(err as Error).message}`);
+    return 2;
+  }
+  if (picked.color) io = { ...io, color: picked.color };
+  const { argv, noInput } = takeNoInput(picked.argv);
   // --no-input is TURNO_NO_INPUT=1, also for the turno processes this one starts.
   if (noInput) io = { ...withoutAsk(io), env: { ...io.env, TURNO_NO_INPUT: "1" } };
   else if (io.ask && noInputReason(io.env)) io = withoutAsk(io);
@@ -148,7 +196,13 @@ function isEntry(): boolean {
 
 if (isEntry()) {
   // Before the first command module loads, so it and everything it imports come from the cache.
-  enableCompileCache(takeNoInput(process.argv.slice(2)).argv);
+  let argv = process.argv.slice(2);
+  try {
+    argv = takeNoInput(takeColor(argv).argv).argv;
+  } catch {
+    /* main reports the bad --color */
+  }
+  enableCompileCache(argv);
   main(process.argv.slice(2)).then(
     (code) => {
       process.exitCode = code;
