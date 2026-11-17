@@ -1,8 +1,9 @@
 import { execFile } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig } from "../../core/config.js";
 import { exhaustedUntil } from "../../core/exhausted.js";
+import { isObject, readJsonFile } from "../../core/fsutil.js";
 import { paths, profileDir, writePrivateFile } from "../../core/paths.js";
 import { listProfiles } from "../../core/profiles.js";
 import { type Command, type Io, paint } from "../io.js";
@@ -25,17 +26,66 @@ function authFailure(err: (Error & { code?: unknown; killed?: boolean; signal?: 
   return "claude auth status gave no JSON";
 }
 
+/** Reuse an answer of `claude auth status` this long while the profile's login files stay the same (seconds). */
+const AUTH_TTL = 300;
+
+/**
+ * The files a login or logout rewrites in a profile folder (the account in .claude.json, and
+ * .credentials.json where there is no Keychain), as a key for the cached answer.
+ */
+function authFingerprint(dir: string): string {
+  return [".claude.json", ".credentials.json"]
+    .map((f) => {
+      try {
+        const st = statSync(join(dir, f));
+        return `${st.ino}:${st.size}:${st.mtimeMs}`;
+      } catch {
+        return "-";
+      }
+    })
+    .join("|");
+}
+
+function recordPlan(profile: string, s: AuthStatus, env: NodeJS.ProcessEnv): void {
+  if (!s.loggedIn || !s.subscriptionType) return;
+  try {
+    writePrivateFile(join(paths(env).planDir, profile), `${s.subscriptionType}\n`, env);
+  } catch {
+    // the plan file is a cache for the status line
+  }
+}
+
 /**
  * Run `claude auth status --json` with the profile's config dir (20 s timeout). Records the
  * plan in the state plan dir, where the status line reads it. On failure `why` says what went
  * wrong (claude missing, a timeout, an error line), so callers never show a bare "?".
+ *
+ * An answer is kept for AUTH_TTL seconds in the state cache, keyed by the profile's login files,
+ * so `turno`, `turno status` and `turno profile list` do not start one claude per profile on
+ * every run; logging in or out changes those files and asks again. Failures are not kept.
  */
 function authStatusResult(profile: string, env: NodeJS.ProcessEnv = process.env): Promise<{ status?: AuthStatus; why?: string }> {
+  const dir = profileDir(profile, env);
+  const cacheFile = join(paths(env).state, "cache", `auth-${profile}.json`);
+  const now = Date.now() / 1000;
+  const cached = readJsonFile(cacheFile);
+  if (
+    isObject(cached) &&
+    isObject(cached.status) &&
+    cached.key === authFingerprint(dir) &&
+    typeof cached.at === "number" &&
+    now >= cached.at &&
+    now - cached.at < AUTH_TTL
+  ) {
+    const s = cached.status as AuthStatus;
+    recordPlan(profile, s, env);
+    return Promise.resolve({ status: s });
+  }
   return new Promise((resolve) => {
     execFile(
       "claude",
       ["auth", "status", "--json"],
-      { env: { ...env, CLAUDE_CONFIG_DIR: profileDir(profile, env) }, timeout: 20_000, encoding: "utf8" },
+      { env: { ...env, CLAUDE_CONFIG_DIR: dir }, timeout: 20_000, encoding: "utf8" },
       (err, stdout, stderr) => {
         let s: AuthStatus;
         try {
@@ -48,12 +98,12 @@ function authStatusResult(profile: string, env: NodeJS.ProcessEnv = process.env)
           resolve({ why: authFailure(err, stdout ?? "", stderr ?? "") });
           return;
         }
-        if (s.loggedIn && s.subscriptionType) {
-          try {
-            writePrivateFile(join(paths(env).planDir, profile), `${s.subscriptionType}\n`, env);
-          } catch {
-            // the plan file is a cache for the status line
-          }
+        recordPlan(profile, s, env);
+        try {
+          // Keyed after the call, so a claude that touches its own files still finds the entry.
+          writePrivateFile(cacheFile, JSON.stringify({ key: authFingerprint(dir), at: Math.trunc(now), status: s }), env);
+        } catch {
+          // without the cache the next run asks claude again
         }
         resolve({ status: s });
       },
