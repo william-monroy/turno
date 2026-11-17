@@ -2,6 +2,7 @@ import type { CallRecord } from "../../mcpd/calllog.js";
 import type { ProcTable } from "../../mcpd/rss.js";
 import { type FlagSpec, JSON_FLAG, TAIL, bool, count, parseFlags, printJson, str } from "../args.js";
 import { type Io, paint } from "../io.js";
+import { type IconName, padEnd, style } from "../style.js";
 
 /**
  * Observability subcommands of `turno mcp` (ADR 0026): `log` reads the call log mcpd keeps,
@@ -37,12 +38,6 @@ export function duration(seconds: number): string {
   return `${Math.floor(s / 86400)}d ${Math.floor((s % 86400) / 3600)}h`;
 }
 
-/** Rows padded to the widest cell of each column (the last column is not padded). */
-function table(rows: string[][]): string[] {
-  const widths = rows[0]!.map((_, i) => Math.max(...rows.map((r) => (r[i] ?? "").length)));
-  return rows.map((r) => r.map((c, i) => (i === r.length - 1 ? c : c.padEnd(widths[i]!))).join("  ").trimEnd());
-}
-
 /** Abort on Ctrl-C, for the commands that keep running. */
 function untilInterrupted(): { signal: AbortSignal; dispose(): void } {
   const ac = new AbortController();
@@ -53,22 +48,34 @@ function untilInterrupted(): { signal: AbortSignal; dispose(): void } {
 
 // log ----------------------------------------------------------------------------------------
 
-const OUTCOME_COLOR: Record<string, string> = { ok: "32", error: "31", timeout: "33", cancelled: "2" };
+const OUTCOME: Record<string, { icon: IconName; paint: "ok" | "err" | "warn" | "muted" }> = {
+  ok: { icon: "ok", paint: "ok" },
+  error: { icon: "err", paint: "err" },
+  timeout: { icon: "warn", paint: "warn" },
+  cancelled: { icon: "skip", paint: "muted" },
+};
 
-/** One call as a line: local time, outcome, duration, server, tool, profile, agent, sizes, error. */
+/**
+ * One call as a line: local time, outcome, duration, server, tool, profile, agent, sizes, error.
+ * Fixed column widths, so lines that `--follow` prints one at a time stay aligned.
+ */
 export function formatCall(io: Io, r: CallRecord, localTime: (iso: string) => string): string {
+  const s = style(io);
   const server = r.variant && r.variant !== "default" ? `${r.server}@${r.variant}` : r.server;
+  const o = OUTCOME[r.outcome];
+  const outcome = o ? `${s.icon(o.icon)} ${s[o.paint](r.outcome)}` : r.outcome;
+  const slow = r.durationMs >= 10_000 ? s.warn : (t: string) => t;
   const cells = [
-    localTime(r.time),
-    paint(io, r.outcome.padEnd(9), OUTCOME_COLOR[r.outcome] ?? "0"),
-    `${r.durationMs} ms`.padStart(9),
-    server.padEnd(18),
-    (r.tool ?? "-").padEnd(22),
-    (r.profile ?? "-").padEnd(10),
-    (r.agent ?? "-").padEnd(16),
-    `${size(r.requestBytes)} in, ${size(r.responseBytes)} out`,
+    s.muted(localTime(r.time)),
+    padEnd(s.color ? outcome : r.outcome, s.color ? 11 : 9),
+    slow(`${r.durationMs} ms`.padStart(9)),
+    padEnd(s.bold(server), 18),
+    padEnd(r.tool ?? "-", 22),
+    padEnd(r.profile ?? "-", 10),
+    padEnd(s.muted(r.agent ?? "-"), 16),
+    s.muted(`${size(r.requestBytes)} in, ${size(r.responseBytes)} out`),
   ];
-  return `${cells.join(" ")}${r.error ? `  ${r.error}` : ""}`;
+  return `${cells.join(" ")}${r.error ? `  ${s.err(r.error)}` : ""}`;
 }
 
 /** `turno mcp log`; `signal` stops `--follow` (Ctrl-C when not given). */
@@ -211,38 +218,45 @@ export async function topSnapshot(status: Status, procs: ProcTable | undefined, 
 }
 
 export function renderTop(io: Io, t: TopSnapshot): string[] {
+  const s = style(io);
   const m = t.mcpd;
   const head = [
-    `mcpd pid ${m.pid}`,
-    m.version ? `v${m.version}` : "",
+    s.bold(s.accent(`mcpd pid ${m.pid}`)),
+    m.version ? s.muted(`v${m.version}`) : "",
     m.uptimeSeconds !== null ? `up ${duration(m.uptimeSeconds)}` : "",
-    `${memory(m.rssBytes)} own, ${memory(m.totalRssBytes)} with servers`,
+    `${s.bold(memory(m.rssBytes))} own, ${s.bold(memory(m.totalRssBytes))} with servers`,
     `${m.sessions} session${m.sessions === 1 ? "" : "s"} from ${m.agents} agent${m.agents === 1 ? "" : "s"}`,
   ].filter(Boolean);
-  const out = [paint(io, head.join(" · "), "1")];
-  if (!t.memoryKnown) out.push(`  ${paint(io, "note", "33")}: ${MEMORY_UNKNOWN}`);
+  const out = [s.wrap("", head.join(s.muted(" · ")))];
+  if (!t.memoryKnown) out.push(s.note("warn", `note: ${MEMORY_UNKNOWN}`));
   if (!t.instances.length) {
-    out.push("  no servers running (they start on first use)");
+    out.push(s.muted("  no servers running (they start on first use)"));
     return out;
   }
-  const rows = [["SERVER", "VARIANT", "SCOPE", "PID", "RSS", "SESSIONS", "IN FLIGHT", "IDLE", "RESTARTS", "UP", "HELD BY"]];
+  const rows = [["SERVER", "VARIANT", "SCOPE", "PID", "RSS", "SESSIONS", "IN FLIGHT", "IDLE", "RESTARTS", "UP", "HELD BY"].map((h) => s.muted(h))];
   for (const i of t.instances) {
     rows.push([
-      i.server,
-      i.variant,
+      `${s.icon("on")}${s.color ? " " : ""}${s.bold(i.server)}`,
+      i.variant === "default" ? s.muted(i.variant) : i.variant,
       i.scope,
-      i.pid ? String(i.pid) : "-",
-      i.pid ? memory(i.rssBytes) : "in mcpd",
+      i.pid ? String(i.pid) : s.muted("-"),
+      i.pid ? memory(i.rssBytes) : s.muted("in mcpd"),
       String(i.sessions),
-      String(i.inflight),
+      i.inflight ? s.accent(String(i.inflight)) : s.muted("0"),
       duration(i.idleSeconds),
-      String(i.restarts),
+      i.restarts ? s.warn(String(i.restarts)) : s.muted("0"),
       duration(i.uptimeSeconds),
       i.heldBy ? `${i.heldBy.profile ?? "?"}/${i.heldBy.pid ?? "?"}` : "",
     ]);
   }
-  const lines = table(rows);
-  out.push(paint(io, lines[0]!, "2"), ...lines.slice(1));
+  const right = { align: "right" } as const;
+  // Narrow terminals drop the holder, uptime, restarts and variant first.
+  out.push(
+    ...s.table(rows, {
+      indent: 0,
+      columns: [{}, { drop: 1 }, {}, right, right, right, right, { ...right, drop: 3 }, { ...right, drop: 2 }, { ...right, drop: 4 }, { drop: 5 }],
+    }),
+  );
   return out;
 }
 
@@ -267,7 +281,7 @@ export async function top(args: string[], io: Io, signal?: AbortSignal, everyMs 
     while (!stop.signal.aborted) {
       const t = await snap();
       const lines = t ? renderTop(io, t) : ["mcpd is not running (turno mcp daemon start); trying again"];
-      io.out(`\x1b[H\x1b[2J${lines.join("\n")}\n${paint(io, `every ${everyMs / 1000}s · Ctrl-C to quit`, "2")}`);
+      io.out(`\x1b[H\x1b[2J${lines.join("\n")}\n${style(io).muted(`every ${everyMs / 1000}s · Ctrl-C to quit`)}`);
       await new Promise<void>((r) => {
         const timer = setTimeout(r, everyMs);
         stop.signal.addEventListener(

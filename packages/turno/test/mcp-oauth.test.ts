@@ -324,7 +324,7 @@ describe("mcpd as the OAuth client", () => {
     expect(record()!.client.client_id).toBeTruthy();
     const io = fakeIo(sb.env);
     await mcp.run(["list"], io);
-    expect(io.lines.join("\n")).toMatch(/remote via mcpd, oauth .*login: login required: turno mcp login rem/);
+    expect(io.lines.join("\n")).toMatch(/rem +remote +via mcpd .* oauth .*login: login required: turno mcp login rem/);
     const doc = fakeIo(sb.env);
     expect(await mcp.run(["doctor"], doc)).toBe(1);
     expect(doc.lines.join("\n")).toContain("rem: login required: turno mcp login rem");

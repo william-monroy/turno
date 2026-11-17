@@ -90,11 +90,16 @@ describe("turno mcp flags", () => {
 
   it("aligns the list table", async () => {
     const { out } = await run(["mcp", "list"]);
-    const [head, calc, docs] = out.split("\n");
-    expect(head).toMatch(/^NAME\s+RUNS\s+HOW/);
-    const col = head!.indexOf("RUNS");
+    const [title, head, calc, docs] = out.split("\n");
+    expect(title).toBe("MCP servers");
+    expect(head).toMatch(/^ {2}SERVER\s+KIND\s+SCOPE\s+IDLE\s+PROFILES\s+STATE\s+AUTH\s+DETAILS$/);
+    const col = head!.indexOf("DETAILS");
     expect(calc!.indexOf("calc-mcp")).toBe(col);
     expect(docs!.indexOf("https://docs.example.com/mcp")).toBe(col);
+    expect(calc!.indexOf("stdio")).toBe(head!.indexOf("KIND"));
+    expect(docs!.indexOf("remote")).toBe(head!.indexOf("KIND"));
+    // Without a running mcpd nothing runs, and the list says so once.
+    expect(out).toContain("mcpd is not running");
   });
 });
 

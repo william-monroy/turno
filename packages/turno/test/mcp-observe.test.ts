@@ -323,6 +323,17 @@ describe("turno mcp log, top and savings", () => {
     expect(again.instances[0].restarts).toBe(1);
   });
 
+  it("mcp list marks the servers mcpd runs now", async () => {
+    const d = await daemon('[profiles.work]\n');
+    sb.write(".config/turno/mcp.toml", `${readFileSync(join(sb.home, ".config/turno/mcp.toml"), "utf8")}[server.idle]\ncommand = "idle-mcp"\n`);
+    await (await connect(d)).callTool({ name: "echo", arguments: { text: "x" } });
+    const r = await run(["mcp", "list"]);
+    expect(r.code).toBe(0);
+    expect(r.out.split("\n").find((l) => l.startsWith("  fx "))).toMatch(/ running /);
+    expect(r.out.split("\n").find((l) => l.startsWith("  idle "))).toMatch(/ stopped /);
+    expect(r.out).not.toContain("mcpd is not running");
+  });
+
   it("top says when memory cannot be measured instead of failing", async () => {
     const d = await daemon();
     await (await connect(d)).callTool({ name: "echo", arguments: { text: "x" } });
