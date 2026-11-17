@@ -219,8 +219,8 @@ Last updated: 2026-11-16.
    - OAuth: host a turno Client ID Metadata Document at a project HTTPS URL; `mcp import`
      setting `auth = "oauth"` for remotes that need it.
    - CLI: `turno mcp call`; Codex
-     `[projects]` trust entries for folder rules; `turno uninstall --purge` for state;
-     `turno doctor` resolving `env:` references; `tokenSyncCheck` without `mcp-managed.json`.
+     `[projects]` trust entries for folder rules; the OAuth login state for doctor without the
+     MCP SDK (`loginState` lives in `mcpd/oauth.ts`, which imports it).
    - Accounts bridge: a rate limit per session; opt-in extra environment for runs (Bedrock,
      Vertex); verify that strict MCP runs reach the gateway with per-profile tokens on a real
      setup.

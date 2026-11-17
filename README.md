@@ -162,7 +162,8 @@ code 2 and names the flag that answers it, for example `turno: init needs an ans
 (or run it in a terminal)`. `TURNO_NO_INPUT=0` lets you answer in an editor terminal that sets
 an agent's variable. A command that needs a profile and gets none (`turno profile assign`,
 `turno run`, `turno session handoff`, `turno limit set`) shows a list to choose from on a
-terminal (arrows or j/k, type to filter, Enter, Esc to cancel); elsewhere it exits with 2 and
+terminal (arrows or j/k, type to filter, Enter, Esc to cancel); `turno run` lists `auto` first,
+named with the profile this folder resolves to (`auto (work)`). Elsewhere it exits with 2 and
 lists the profiles: `pass a profile: personal, work`.
 
 **How do I undo it?** Every command that writes keeps a copy of each file it changes:
@@ -170,7 +171,8 @@ lists the profiles: `pass a profile: personal, work`.
 days are pruned, keeping the newest 10). To remove turno, `turno uninstall --dry-run` lists what
 turno set up (service, launchers, MCP entries, status line, config) and `turno uninstall`
 removes it; then `npm uninstall --global turno-cli`. Profile folders, which hold your logins,
-stay until you delete them.
+stay until you delete them. `turno uninstall --purge` also removes turno's state and caches
+(backups, logs, usage, installed MCP servers), after which `turno undo` has nothing to restore.
 
 ## Reference
 
@@ -202,7 +204,7 @@ change, and print the `turno undo <stamp>` that puts them back. `turno mcp impor
 | `turno config path\|get\|set\|unset\|edit\|check` | config.toml without losing its comments |
 | `turno undo [--list] [<stamp>\|last]`, `turno undo --prune` | put back the files a command changed; prune old backups |
 | `turno upgrade [--check]`, `turno version` | update turno the way it was installed |
-| `turno uninstall [--dry-run] [--yes] [--keep-config]` | remove what turno set up (profile folders stay) |
+| `turno uninstall [--dry-run] [--yes] [--keep-config] [--purge]` | remove what turno set up (profile folders stay); `--purge` also removes its state and caches |
 | `turno completion zsh\|bash\|fish` | shell completion, including profiles and config keys |
 | `turno browser bench` | developer diagnostic: browser engine compatibility (needs `turno-browser`) |
 
