@@ -14,13 +14,13 @@ open a list instead. turno also runs inside agents and scripts, where nobody can
 ## Decision
 
 **A picker in `cli/picker.ts`, with no dependencies.** It lists the profiles as their pills with
-the agent and the account (email, "not logged in", or the launcher for agents without account
-details), marks the profile the folder resolves to (and puts the cursor on it), and marks
+the agent and the account (email or "not logged in"; an agent without account
+details shows a muted `-`), marks the profile the folder resolves to (and puts the cursor on it), and marks
 exhausted ones. Arrow keys, Ctrl-N/Ctrl-P, Page Up/Down, Home/End and j/k move; j and k move only
 while the filter is empty, because any letter typed starts the filter (name matches first, then
 agent and account). Enter chooses, Esc, Ctrl-C or Ctrl-D cancel with exit 130 and nothing
 changed. The accounts come from `claude auth status`, so the list draws at once with `...` and
-fills in when the answers arrive.
+fills in when the answers arrive. A terminal resize redraws the list at the new width.
 
 **Only where a person can answer.** The picker runs when `io.ask` is set (ADR 0033), with raw
 mode on stdin only when stdin and stderr are terminals; it draws on stderr, so stdout stays for
