@@ -29,16 +29,18 @@ pnpm check              # typecheck, lint (Biome, knip), tests, repository text 
 ```
 
 Tests never touch your real setup: they run with a temporary `HOME` (see
-`packages/turno/test/helpers`). Keep it that way in new tests. The end-to-end test drives a
-signed-in `claude`; set `TURNO_SKIP_E2E=1` to skip it.
+`packages/turno/test/helpers`). Keep it that way in new tests. The end-to-end tests drive the
+real agents (a signed-in `claude`, Codex, Cursor) when they are installed; set
+`TURNO_SKIP_E2E=1` to skip them. The Cursor one needs the network, so `pnpm check` skips it and
+`pnpm test:e2e` runs it.
 
 The three packages:
 
 | Package | Path | What |
 |---|---|---|
 | `turno` | `packages/turno` | the CLI, the MCP gateway (`mcpd`), the status line, the accounts bridge |
-| `turno-browser` | `packages/browser` | the persistent-profile browser MCP server (optional) |
-| `turno-fonts` | `packages/fonts` | the status line font (optional) |
+| `turno-browser` | `packages/browser` | the persistent-profile browser MCP server (a separate package, not installed with `turno-cli`) |
+| `turno-fonts` | `packages/fonts` | the status line font (not installed with `turno-cli`: `turno ui install` downloads the same files and checks their SHA-256) |
 
 ## Rules for changes
 
@@ -46,6 +48,8 @@ The three packages:
   server in `packages/turno/test/fixtures/`.
 - **English** in code, comments, CLI output and docs. No em dash character anywhere
   (`pnpm check` fails on one).
+- **Agents**: a new agent is one adapter file in `packages/turno/src/agents/` plus tests
+  ([ADR 0032](docs/decisions/0032-agent-adapter-boundary.md)).
 - **Commands**: new commands go in `cli/registry.ts`; renamed commands keep the old name as an
   alias. Read commands take `--json`, write commands take `--dry-run`, and every write to a
   user file goes through `core/journal.ts` so `turno undo` can revert it.

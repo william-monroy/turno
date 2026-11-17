@@ -206,11 +206,12 @@ Behavior:
 - **Session identity.** `X-Claudio-Profile` is written literally per profile.
   `X-Claudio-Pid: ${CLAUDIO_SESSION_PID:-0}` is expanded by Claude Code at connect time
   (verified on 2026-11-12 with a probe server).
-- **Lazy start.** `initialize`, `tools/list`, `resources/list`, `resources/templates/list`
-  and `prompts/list` are answered from a cache (`~/.local/share/claudio/mcpd/cache/<server>.json`)
+- **Lazy start.** `initialize`, `tools/list`, `resources/templates/list` and `prompts/list`
+  are answered from a cache (`~/.local/share/claudio/mcpd/cache/<server>.json`)
   keyed by a fingerprint of command, args, env names and package version. A missing or
   stale cache triggers one upstream start to fill it. Any other request starts the
-  upstream instance if needed and forwards it.
+  upstream instance if needed and forwards it. `resources/list` is always forwarded, never
+  cached, since resources differ per project (ADR 0016).
 - **Instance keys.** `shared`: one upstream per `(server, variant)`; the variant is the
   profile name when that profile has a `variant` block, else `default`. `session`: one
   upstream per MCP session id. `exclusive = true` (used by browser identities) grants a
