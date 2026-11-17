@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { CliError, type Io, UsageError, WIDTH, closest, columns, defaultIo, fail, wrap } from "./io.js";
+import { CliError, type Io, UsageError, WIDTH, closest, columns, defaultIo, fail, paint, wrap } from "./io.js";
 import { COMMANDS, HELP_SUMMARY, QUIET, SECTIONS, expand, visibleCommands } from "./registry.js";
 
 async function help(io: Io): Promise<number> {
@@ -73,7 +73,17 @@ async function notice(name: string, io: Io): Promise<void> {
 export async function main(argv: string[], io: Io = defaultIo()): Promise<number> {
   const [head, ...tail] = argv;
   try {
-    if (!head || head === "-h" || head === "--help") return await help(io);
+    if (!head) {
+      // Once turno is set up, bare `turno` is the status screen; before that, the help.
+      const { homeScreen } = await import("./commands/status.js");
+      const code = await homeScreen(io);
+      if (code !== undefined) {
+        io.out(paint(io, "turno help lists every command.", "2"));
+        return code;
+      }
+      return await help(io);
+    }
+    if (head === "-h" || head === "--help") return await help(io);
     if (head === "help") return tail.length ? await helpFor(tail, io) : await help(io);
     if (head === "--version" || head === "-v") {
       const { packageInfo } = await import("../core/version.js");

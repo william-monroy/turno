@@ -76,15 +76,17 @@ traffic.
 ## Quick start
 
 ```sh
-turno init                    # finds your agents, profiles, folders and MCP servers, shows the diff
+turno init                    # finds your agents, profiles, folders and MCP servers, shows the diff,
+                              # then starts the gateway and points every profile at it
 claude-work                   # sign in once per profile (/login)
-turno mcp daemon start        # the gateway, kept alive by launchd (macOS) or systemd --user (Linux)
-turno mcp sync                # point every agent profile at it
 cd ~/code/acme && turno auto  # Claude Code, with this folder's account
+turno                         # where you stand: this folder, accounts, gateway, what to do next
 ```
 
 `turno init` asks before it adopts anything and writes everything as one change, so one
-`turno undo <stamp>` reverts it. Step by step instead:
+`turno undo <stamp>` reverts it. The gateway runs as a login service (launchd on macOS,
+systemd --user on Linux); `turno init --no-start` leaves it for later (`turno mcp daemon start`,
+then `turno mcp sync`). Step by step instead:
 
 ```sh
 turno profile add work --color violet     # ~/.claude-work and the claude-work command
@@ -169,7 +171,8 @@ change, and print the `turno undo <stamp>` that puts them back. `turno mcp impor
 
 | Command | What it does |
 |---|---|
-| `turno init [--dry-run] [--yes]` | set turno up in one step: agents, profiles, folder rules, mcp.toml (one undo) |
+| `turno` | once set up, the status screen and the next step; before that, the help |
+| `turno init [--dry-run] [--yes] [--start \| --no-start]` | set turno up in one step: agents, profiles, folder rules, mcp.toml, the gateway (one undo) |
 | `turno demo [-- <command>]` | try turno in a throwaway HOME (also `npx turno-cli demo`) |
 | `turno <profile> [args]`, `turno run <profile\|auto> [args]` | the profile's agent with that account (args pass through) |
 | `turno auto [--agent codex\|copilot\|cursor]` | the profile assigned to the current folder |
@@ -178,7 +181,7 @@ change, and print the `turno undo <stamp>` that puts them back. `turno mcp impor
 | `turno mcp login\|logout <server>` | log mcpd in to an OAuth remote server, once per account |
 | `turno mcp log\|top\|savings` | the gateway's tool call log, memory per server, and what it saves |
 | `turno mcp daemon start\|stop\|restart\|status\|logs`, `turno mcp token rotate` | the gateway service, and its token |
-| `turno status` | one screen: this folder, profiles and usage, sessions, mcpd |
+| `turno status [--json]` | one screen: this folder, profiles and usage, sessions, mcpd, and the next step |
 | `turno limit show [--watch]\|set\|clear` | usage windows per account, and exhausted marks |
 | `turno session list\|handoff <p> [--fork]` | open sessions, and the command to continue this one under another profile |
 | `turno open [profile] <url>` | open an http(s) or mailto link; claude.ai links use that profile's Chrome profile |

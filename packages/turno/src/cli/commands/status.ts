@@ -1,4 +1,6 @@
+import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { loadManifest } from "../../core/manifest.js";
 import { migrationPending } from "../../core/config-edit.js";
 import { loadConfig } from "../../core/config.js";
 import { paths, tildify } from "../../core/paths.js";
@@ -16,8 +18,59 @@ import { profilesData, resolveAll, usingText } from "./profile.js";
 import { sessionsData } from "./session.js";
 import { bar, shortTime } from "./usage.js";
 
+/** The one thing to do next, if any: what `turno` and `turno status` end with. */
+export interface NextStep {
+  command: string;
+  why: string;
+}
+
+/** Servers in mcp.toml, or 0 when it is missing or unreadable (turno mcp list shows why). */
+function manifestServers(env: NodeJS.ProcessEnv): number {
+  if (!existsSync(paths(env).mcpFile)) return 0;
+  try {
+    return Object.keys(loadManifest(env).servers).length;
+  } catch {
+    return 0;
+  }
+}
+
+/** Profiles whose agent config does not point at the gateway yet, from a silent `mcp sync --dry-run`. */
+async function syncPending(env: NodeJS.ProcessEnv): Promise<number> {
+  try {
+    const { syncProfiles } = await import("./mcp.js");
+    const quiet: Io = { env, isTty: false, out: () => {}, err: () => {} };
+    return (await syncProfiles(quiet, { dryRun: true })).changed;
+  } catch {
+    return 0;
+  }
+}
+
+type StatusBase = Awaited<ReturnType<typeof statusBase>>;
+
+/** First thing that keeps this machine from working fully, in the order a person would fix it. */
+async function nextStep(env: NodeJS.ProcessEnv, d: StatusBase): Promise<NextStep | null> {
+  if (d.migrationPending) return { command: "turno migrate", why: "the bash claudio config is not moved to turno yet" };
+  if (!d.profiles.length) return { command: "turno init", why: "no profiles yet; init finds your agents, folders and MCP servers" };
+  const notSetUp = d.profiles.find((x) => !x.setUp);
+  if (notSetUp) return { command: `turno profile repair ${notSetUp.name}`, why: `profile ${notSetUp.name} has no folder or launcher yet` };
+  const servers = manifestServers(env);
+  if (servers && !d.mcpd.running) return { command: "turno mcp daemon start", why: `mcp.toml has ${plural(servers, "server")} and the gateway is not running` };
+  if (servers) {
+    const pending = await syncPending(env);
+    if (pending) return { command: "turno mcp sync", why: `${plural(pending, "agent config")} do not point at the gateway yet` };
+  }
+  if (d.update) return { command: "turno upgrade", why: `turno ${d.update} is available` };
+  if (d.look.statusLine !== "turno") return { command: "turno ui install", why: "optional: the status line with account, usage and gateway" };
+  return null;
+}
+
 /** Everything `turno status` shows, as data. */
 export async function statusData(env: NodeJS.ProcessEnv, cwd = process.cwd()) {
+  const base = await statusBase(env, cwd);
+  return { ...base, next: await nextStep(env, base) };
+}
+
+async function statusBase(env: NodeJS.ProcessEnv, cwd: string) {
   const config = loadConfig(env);
   const [profiles, limits, mcpd] = await Promise.all([profilesData(env, config), limitsData(env, false), mcpdStatus(env, config)]);
   const all = resolveAll(cwd, config, env);
@@ -100,7 +153,25 @@ export const command: Command = {
     for (const problem of d.mcpd.problems) io.out(`          ${paint(io, problem, "33")}`);
     const lineText = d.look.statusLine === "turno" ? "turno status line" : d.look.statusLine ? `status line \`${d.look.statusLine}\`` : "no status line";
     io.out(`look      ${lineText}, ${d.look.font ? "font installed" : "font missing (turno ui install)"}, ${d.look.icons} icons here`);
+    printNext(io, d.next);
     io.out(dim("\nturno doctor checks each part; turno limit, session and profile show more."));
     return 0;
   },
 };
+
+function printNext(io: Io, next: NextStep | null): void {
+  io.out("");
+  if (next) io.out(`${paint(io, "next", "1;36")}      ${paint(io, next.command, "1")}  ${paint(io, `(${next.why})`, "2")}`);
+  else io.out(`${paint(io, "next", "1;36")}      nothing to do: everything is set up`);
+}
+
+/**
+ * What bare `turno` shows: this screen once turno is set up, the help before that (so a new
+ * person sees "Start here: turno init").
+ */
+export async function homeScreen(io: Io): Promise<number | undefined> {
+  const p = paths(io.env);
+  if (!existsSync(p.configFile) && !existsSync(p.mcpFile)) return undefined;
+  const code = await command.run([], io);
+  return code;
+}

@@ -104,6 +104,9 @@ Last updated: 2026-11-16.
   - `turno doctor --security` (with `--fix` for file modes), `turno identity log --verify`,
     `${VAR}` expansion in mcpd, `mcpd.max_request_body` (ADR 0027).
   - `turno init`, one-journal onboarding, and `turno demo` in a throwaway HOME (ADR 0030).
+    `turno init` also starts the gateway and runs `mcp sync` in the same journal (asked in a
+    terminal, `--start` with `--yes`). Bare `turno` is the status screen once set up, and
+    `turno status` ends with the next step.
 - **Wave 3 (PRs #31 to #34)**:
   - MCP 2026-07-28 next to 2025-11-25 on the same endpoint, and `idle_under_pressure` (ADR
     0028).
@@ -215,7 +218,7 @@ Last updated: 2026-11-16.
      upstreams; an end-to-end test once an agent defaults to 2026-07-28.
    - OAuth: host a turno Client ID Metadata Document at a project HTTPS URL; `mcp import`
      setting `auth = "oauth"` for remotes that need it.
-   - CLI: `turno init --start` (service and sync in the same run); `turno mcp call`; Codex
+   - CLI: `turno mcp call`; Codex
      `[projects]` trust entries for folder rules; `turno uninstall --purge` for state;
      `turno doctor` resolving `env:` references; `tokenSyncCheck` without `mcp-managed.json`.
    - Accounts bridge: a rate limit per session; opt-in extra environment for runs (Bedrock,
