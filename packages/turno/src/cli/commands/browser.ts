@@ -16,6 +16,8 @@ interface IdentityInfo {
 
 export interface BrowserModule {
   ENGINES: readonly string[];
+  /** The current id for an engine name, old ids included (turno-browser 0.2 and later). */
+  engineId?: (name: string) => string | undefined;
   listIdentities(env: NodeJS.ProcessEnv): IdentityInfo[];
   addIdentity(id: string, env: NodeJS.ProcessEnv): IdentityInfo;
   removeIdentity(id: string, env: NodeJS.ProcessEnv): void;
@@ -124,11 +126,15 @@ const URLS_PROMPT = "This opens Chrome and visits the URLs you gave. Continue? [
 async function bench(mod: BrowserModule, args: string[], io: Io, deps: BrowserDeps): Promise<number> {
   const p = parseFlags(args, BENCH_FLAGS, 0);
   const list = (name: string) => ((p.values[name] as string[] | undefined) ?? []).flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean);
-  const engines = list("engine");
+  const given = list("engine");
   const urls = (p.values.url as string[] | undefined) ?? [];
   const onlyUrls = bool(p, "only-urls") || bool(p, "no-detectors");
-  for (const e of engines) {
-    if (!mod.ENGINES.includes(e)) return fail(`unknown engine "${e}" (known: ${mod.ENGINES.join(", ")})`);
+  const engines: string[] = [];
+  for (const e of given) {
+    // An older turno-browser has no engineId: its ENGINES list is the whole truth.
+    const id = mod.engineId ? mod.engineId(e) : mod.ENGINES.includes(e) ? e : undefined;
+    if (!id) return fail(`unknown engine "${e}" (known: ${mod.ENGINES.join(", ")})`);
+    engines.push(id);
   }
   for (const u of urls) {
     if (!/^https?:\/\//.test(u)) return fail(`--url must start with http:// or https://: ${u}`);

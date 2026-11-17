@@ -67,19 +67,19 @@ describe("formatBenchTable", () => {
       startedAt: "",
       finishedAt: "",
       engines: [
-        { engine: "patchright-chrome-headless", status: "ran" },
-        { engine: "camoufox", status: "skipped", reason: "camoufox-js is not installed" },
+        { engine: "chrome-headless", status: "ran" },
+        { engine: "firefox", status: "skipped", reason: "camoufox-js is not installed" },
       ],
       results: [
-        { engine: "patchright-chrome-headless", target: "rebrowser", url: "u", ok: false, summary: "17 pass, 1 fail (headless)" },
-        { engine: "patchright-chrome-headless", target: "url", url: "https://example.com/", ok: true, summary: '200 "Example" no challenge markers' },
+        { engine: "chrome-headless", target: "rebrowser", url: "u", ok: false, summary: "17 pass, 1 fail (headless)" },
+        { engine: "chrome-headless", target: "url", url: "https://example.com/", ok: true, summary: '200 "Example" no challenge markers' },
       ],
     });
     const lines = table.split("\n");
     expect(lines).toHaveLength(4);
     expect(lines[0]).toMatch(/^ENGINE\s+TARGET\s+RESULT\s+DETAILS$/);
-    expect(lines[1]).toMatch(/patchright-chrome-headless\s+rebrowser\s+FAIL\s+17 pass, 1 fail \(headless\)/);
+    expect(lines[1]).toMatch(/chrome-headless\s+rebrowser\s+FAIL\s+17 pass, 1 fail \(headless\)/);
     expect(lines[2]).toMatch(/https:\/\/example\.com\/\s+PASS/);
-    expect(lines[3]).toMatch(/camoufox\s+-\s+SKIPPED\s+camoufox-js is not installed/);
+    expect(lines[3]).toMatch(/firefox\s+-\s+SKIPPED\s+camoufox-js is not installed/);
   });
 });
