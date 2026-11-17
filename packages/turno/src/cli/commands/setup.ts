@@ -106,10 +106,13 @@ function linkItem(dir: string, item: string, aside: string, journal: Journal, hu
   return result;
 }
 
-/** Create a profile folder (0700) through the journal, so undo removes it while it is empty. */
+/**
+ * Create a profile folder (0700) through the journal, so undo removes it while it is empty, or
+ * narrow an existing one to 0700, so undo puts its old mode back.
+ */
 function profileFolder(dir: string, journal: Journal): void {
   journal.mkdir(dir, 0o700);
-  chmodSync(dir, 0o700);
+  journal.chmod(dir, 0o700);
 }
 
 /** Write a file the setup creates or changes (seeds, Codex config) through the journal. */

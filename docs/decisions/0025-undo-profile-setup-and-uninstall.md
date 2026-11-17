@@ -52,8 +52,9 @@ remove the service file through the journal.
 ## Consequences
 
 - `turno undo <stamp of profile add>` leaves the machine as it was, except for the shared
-  folders created inside the hub (`~/.claude/<item>`; launchers recreate them anyway) and the
-  0700 mode set on a profile folder that existed before.
+  folders created inside the hub (`~/.claude/<item>`; launchers recreate them anyway). The 0700
+  mode set on a profile folder that existed before is a `chmod` journal entry (added after this
+  ADR): undo sets the old mode again unless the mode changed since.
 - Pruning (ADR 0018) still keeps a journal only while one of its file backups is the only way
   back; link, move and folder entries do not hold data, so they do not keep a journal alive.
   The moved files themselves stay in `.aside-*` whatever happens to the journal.

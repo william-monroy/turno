@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { atomicWrite } from "../core/journal.js";
 import { ensurePrivateDir, paths } from "../core/paths.js";
@@ -61,4 +61,38 @@ export function writeProfileTokenFile(profile: string, master: string, env: Node
   ensurePrivateDir(dirname(file), env);
   atomicWrite(file, `${token}\n`, 0o600);
   return true;
+}
+
+/**
+ * Profiles whose token file `turno mcp sync` wrote, so a later sync removes only its own files
+ * once their profile is gone; files written for agents set up by hand (`turno mcp config`, any
+ * name) stay.
+ */
+function syncedListFile(env: NodeJS.ProcessEnv): string {
+  return join(dirname(profileTokenFile("x", env)), "synced.json");
+}
+
+export function readSyncedTokenProfiles(env: NodeJS.ProcessEnv = process.env): string[] {
+  try {
+    const v = JSON.parse(readFileSync(syncedListFile(env), "utf8")) as unknown;
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export function writeSyncedTokenProfiles(names: string[], env: NodeJS.ProcessEnv = process.env): void {
+  const file = syncedListFile(env);
+  ensurePrivateDir(dirname(file), env);
+  atomicWrite(file, `${JSON.stringify([...new Set(names)].sort())}\n`, 0o600);
+}
+
+/** Delete a profile's token file; true when there was one. */
+export function removeProfileTokenFile(profile: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  try {
+    rmSync(profileTokenFile(profile, env));
+    return true;
+  } catch {
+    return false;
+  }
 }

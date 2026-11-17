@@ -1,13 +1,13 @@
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { type AgentId, adapter, mcpFileFor } from "../../agents/index.js";
 import { gatewaySnippet, isSnippetAgent, SNIPPET_AGENTS } from "../../agents/snippets.js";
 import { type Config, isValidProfileName, loadConfig } from "../../core/config.js";
 import { Journal } from "../../core/journal.js";
-import { type StdioServer, loadManifest, parseManifest, servesProfile } from "../../core/manifest.js";
-import { paths, profileDir, tildify } from "../../core/paths.js";
+import { type StdioServer, type ToolFilter, loadManifest, parseManifest, servesProfile } from "../../core/manifest.js";
+import { PRIVATE_DIR_MODE, PRIVATE_FILE_MODE, ensurePrivateDir, paths, profileDir, tildify } from "../../core/paths.js";
 import { agentOf, listProfiles } from "../../core/profiles.js";
 import { liveSessions } from "../../core/sessions.js";
 import { DRY_RUN, FORCE, type FlagSpec, JSON_FLAG, bool, parseFlags, printJson, str } from "../args.js";
@@ -68,6 +68,12 @@ function table(rows: string[][]): string[] {
   return rows.map((r) => r.map((c, i) => (i === r.length - 1 ? c : c.padEnd(widths[i]!))).join("  ").trimEnd());
 }
 
+/** "allow get_*, list_*, deny *_delete": a tool filter (ADR 0023) as text, or "" when it filters nothing. */
+function filterText(f: ToolFilter | undefined): string {
+  if (!f) return "";
+  return [f.allow ? `allow ${f.allow.join(", ")}` : "", f.deny ? `deny ${f.deny.join(", ")}` : ""].filter(Boolean).join(", ");
+}
+
 async function list(args: string[], io: Io): Promise<number> {
   const flags = parseFlags(args, LIST_FLAGS, 0);
   const m = loadManifest(io.env);
@@ -79,6 +85,7 @@ async function list(args: string[], io: Io): Promise<number> {
       io.out,
       names.map((n) => {
         const s = m.servers[n]!;
+        const tools = s.tools ?? null;
         return s.kind === "remote"
           ? {
               name: n,
@@ -86,9 +93,22 @@ async function list(args: string[], io: Io): Promise<number> {
               url: s.url,
               proxy: Boolean(s.proxy),
               profiles: s.profiles,
+              tools,
               ...(s.oauth ? { auth: "oauth", logins: Object.fromEntries(loginsOf(n).map((l) => [l.variant, l.state])) } : {}),
             }
-          : { name: n, kind: "stdio", command: s.builtin ? `builtin ${s.builtin}` : s.command, scope: s.scope, exclusive: Boolean(s.exclusive), idleSeconds: s.idle, profiles: s.profiles, package: s.package ?? null, variants: Object.keys(s.variants) };
+          : {
+              name: n,
+              kind: "stdio",
+              command: s.builtin ? `builtin ${s.builtin}` : s.command,
+              scope: s.scope,
+              exclusive: Boolean(s.exclusive),
+              idleSeconds: s.idle,
+              profiles: s.profiles,
+              package: s.package ?? null,
+              variants: Object.keys(s.variants),
+              tools,
+              variantTools: Object.fromEntries(Object.entries(s.variants).flatMap(([v, d]) => (d.tools ? [[v, d.tools]] : []))),
+            };
       }),
     );
     return 0;
@@ -101,15 +121,22 @@ async function list(args: string[], io: Io): Promise<number> {
   for (const name of names) {
     const s = m.servers[name]!;
     const where = s.profiles.includes("*") ? "all" : s.profiles.join(", ");
+    const tools = filterText(s.tools) ? `tools: ${filterText(s.tools)}` : "";
     if (s.kind === "remote") {
       const how = s.oauth ? "remote via mcpd, oauth" : s.proxy ? "remote via mcpd" : "remote direct";
       const notes = loginsOf(name).map((l: LoginRow) => `${l.variant === "default" ? "login" : `${l.variant} login`}: ${describeLogin(l)}`);
+      if (tools) notes.unshift(tools);
       rows.push([name, s.url, how, s.proxy ? `${Math.round(s.idle / 60)}m` : "-", where, notes.join("; ")]);
       continue;
     }
     const variants = Object.keys(s.variants);
     const installed = s.package && existsSync(join(paths(io.env).serversDir, s.name, "node_modules"));
-    const notes = [variants.length ? `variants: ${variants.join(", ")}` : "", s.package ? `package ${s.package}${installed ? "" : " (not installed)"}` : ""].filter(Boolean);
+    const notes = [
+      variants.length ? `variants: ${variants.join(", ")}` : "",
+      s.package ? `package ${s.package}${installed ? "" : " (not installed)"}` : "",
+      tools,
+      ...Object.entries(s.variants).map(([v, d]) => (filterText(d.tools) ? `${v} tools: ${filterText(d.tools)}` : "")),
+    ].filter(Boolean);
     rows.push([name, s.builtin ? `builtin ${s.builtin}` : s.command, `${s.scope}${s.exclusive ? " exclusive" : ""}`, `${Math.round(s.idle / 60)}m`, where, notes.join("; ")]);
   }
   const lines = table(rows);
@@ -244,19 +271,33 @@ async function sync(args: string[], io: Io): Promise<number> {
  * with open sessions: those already hold their token, and the next launch needs the new one.
  */
 async function syncTokenFiles(io: Io, config: Config, only: string[], master: string, dryRun: boolean): Promise<void> {
-  const { profileToken, readProfileTokenFile, writeProfileTokenFile } = await import("../../mcpd/tokens.js");
+  const tokens = await import("../../mcpd/tokens.js");
+  const { profileToken, readProfileTokenFile, writeProfileTokenFile } = tokens;
   const { isGenerated, launcherName } = await import("../launchers.js");
   const changed: string[] = [];
   const oldLaunchers: string[] = [];
-  for (const name of listProfiles(config, io.env)) {
+  const profiles = listProfiles(config, io.env);
+  const synced = new Set(tokens.readSyncedTokenProfiles(io.env));
+  const before = synced.size;
+  for (const name of profiles) {
     if (only.length && !only.includes(name)) continue;
     const agent = agentOf(name, config);
     if (!adapter(agent).tokenFromEnv) continue;
+    synced.add(name);
     if (dryRun ? readProfileTokenFile(name, io.env) !== profileToken(master, name) : writeProfileTokenFile(name, master, io.env)) changed.push(name);
     const launcher = join(paths(io.env).bin, launcherName(name, agent));
     if (isGenerated(launcher) && !readFileSync(launcher, "utf8").includes("mcpd-tokens/")) oldLaunchers.push(name);
   }
   if (changed.length) io.out(`${paint(io, dryRun ? "plan" : "token", "32")} ${dryRun ? "would write" : "wrote"} the gateway token of ${changed.join(", ")} for their launchers`);
+  // A full sync removes the token files it wrote for profiles that are gone. The token itself
+  // stays valid until a rotation (ADR 0023); the file is just no longer needed.
+  const gone = only.length ? [] : [...synced].filter((n) => !profiles.includes(n)).sort();
+  for (const name of gone) {
+    synced.delete(name);
+    if (dryRun ? !readProfileTokenFile(name, io.env) : !tokens.removeProfileTokenFile(name, io.env)) continue;
+    io.out(`${paint(io, dryRun ? "plan" : "token", "32")} ${dryRun ? "would remove" : "removed"} the gateway token file of ${name} (no longer a profile)`);
+  }
+  if (!dryRun && (synced.size !== before || gone.length || changed.length)) tokens.writeSyncedTokenProfiles([...synced], io.env);
   for (const name of oldLaunchers) {
     io.err(`${paint(io, "warning", "33")}: the launcher of ${name} still reads the old shared token; rewrite it with: turno profile repair ${name}`);
   }
@@ -467,8 +508,10 @@ async function install(args: string[], io: Io): Promise<number> {
       if (pinned !== s.package) io.out(`would pin package = "${pinned}" in ${tildify(p.mcpFile, io.env)}`);
       continue;
     }
-    mkdirSync(dir, { recursive: true });
-    if (!existsSync(join(dir, "package.json"))) writeFileSync(join(dir, "package.json"), `{ "private": true }\n`);
+    // Private like the rest of turno's data: a server folder holds code mcpd runs.
+    ensurePrivateDir(dir, io.env);
+    for (const d of [p.serversDir, dir]) if ((statSync(d).mode & 0o777) !== PRIVATE_DIR_MODE) chmodSync(d, PRIVATE_DIR_MODE);
+    if (!existsSync(join(dir, "package.json"))) writeFileSync(join(dir, "package.json"), `{ "private": true }\n`, { mode: PRIVATE_FILE_MODE });
     const common = ["--no-audit", "--no-fund", "--prefix", dir, ...(allowScripts ? [] : ["--ignore-scripts"])];
     const npmArgs = fromLock ? ["ci", ...common] : ["install", "--save-exact", "--package-lock=true", ...common, pinned];
     io.out(`installing ${pinned} for ${s.name}${fromLock ? " from its lockfile" : ""}...`);

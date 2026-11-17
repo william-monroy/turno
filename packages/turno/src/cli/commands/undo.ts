@@ -114,6 +114,7 @@ export const command: Command = {
         rmdir: "removed folder",
         mkdir: "made folder",
         keep: "kept",
+        chmod: `mode ${(s.mode ?? 0).toString(8)} again`,
       }[s.action];
       const from = s.from ? ` from ${tildify(s.from, io.env)}` : "";
       io.out(`  ${what} ${tildify(s.path, io.env)}${from}${s.reason ? `: ${s.reason}` : ""}`);

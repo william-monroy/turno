@@ -37,8 +37,9 @@ launcher fills from `~/.local/state/turno/mcpd-tokens/<profile>.token` (mode 600
 The master token never goes into an agent config. It opens only mcpd's own endpoints
 (`/status`, `/refresh`), which `turno` uses; mcpd refuses it for MCP sessions. Configs synced by
 a turno older than per-profile tokens still send it: mcpd answers 403 with "run: turno mcp sync",
-and `turno doctor` and `turno upgrade --finish` say the same. Removing a profile does not revoke
-its token; `turno mcp token rotate` does (for every profile). See
+and `turno doctor` and `turno upgrade --finish` say the same (`--finish` offers to run the sync,
+and `--yes` runs it). Removing a profile does not revoke its token; `turno mcp token rotate` does
+(for every profile). The next full `turno mcp sync` removes the token file it wrote for it. See
 [ADR 0023](decisions/0023-per-profile-gateway-tokens-and-tool-filters.md).
 
 ## mcp.toml reference
@@ -138,6 +139,35 @@ the authorization server rejects the refresh token (revoked or expired), calls f
 show the variant as "login required". After a logout, mcpd stops using the old access token
 within a minute.
 
+## Server sets per folder
+
+A `[[projects]]` rule in `config.toml` can also say which servers sessions in that folder see
+(ADR 0031). The rule may have a profile, a server set, or both:
+
+```toml
+[[projects]]
+path = "~/code/acme"
+profile = "work"
+mcp = ["issues", "docs"]      # only these servers, by their name in mcp.toml
+
+[[projects]]
+path = "~/code/oss"
+mcp_deny = ["mail"]           # every server but these
+```
+
+`mcp` keeps only the listed servers; `mcp_deny` then removes servers. The rule with the longest
+path that has a set wins (a nested rule replaces its parent's set, it does not add to it), and a
+git worktree matches the rules of its main repository. Every agent config still lists every
+server: mcpd hides the rest per session, from the folder the session sends (or the folder of its
+process). A hidden server answers `initialize` with no tools and a line that says which rule
+hides it, lists nothing, refuses calls, and is never started. A session whose folder mcpd cannot
+learn sees every server. mcpd reloads `config.toml` when it changes (or on SIGHUP); a changed
+set applies to open sessions on their next list or call.
+
+`turno config check` warns about names that are not in `mcp.toml` and about remote servers that
+skip mcpd, which a set cannot hide. `turno profile which <dir>` shows the set of a folder.
+`turno profile assign` and `unassign` change only the profile part of a rule and keep its set.
+
 ## Importing what you already have
 
 `turno mcp import` drafts `mcp.toml` from the servers your agents already use: user and project
@@ -222,7 +252,7 @@ mcpd appends one JSON line per tool call it relays to `~/.local/state/turno/logs
 `outcome` is `ok`, `error`, `cancelled` or `timeout`; failed calls add `error`, with anything
 that looks like a token replaced by `[redacted]`. A record never holds the call's arguments or
 its result, only their sizes. `agent` is the name the client gives in `initialize`. Turn the log
-off with `call_log = false` under `[mcpd]` in config.toml (it applies at the next mcpd start).
+off with `call_log = false` under `[mcpd]` in config.toml (mcpd applies it when the file changes).
 
 `turno mcp top` refreshes every 2 seconds in a terminal and prints one snapshot with `--once`,
 `--json` or when piped. Memory is the resident size of each server process plus its children

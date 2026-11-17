@@ -15,8 +15,10 @@ import { PRIVATE_FILE_MODE, ensurePrivateDir, isPrivatePath, paths } from "./pat
  * - "move": the command renamed `path` to `to`; undo renames it back.
  * - "mkdir": the command created the empty folder `path`; undo removes it while it is empty.
  * - "rmdir": the command removed the empty folder `path`; undo creates it again.
+ * - "chmod": the command changed the mode of `path` from `mode` to `newMode`; undo sets `mode`
+ *   again while the mode is still `newMode`.
  */
-export type EntryKind = "file" | "symlink" | "unlink" | "move" | "mkdir" | "rmdir";
+export type EntryKind = "file" | "symlink" | "unlink" | "move" | "mkdir" | "rmdir" | "chmod";
 
 export interface JournalEntry {
   /** Missing in journals written before ADR 0025: a file. */
@@ -30,6 +32,8 @@ export interface JournalEntry {
   /** Copy of the previous contents, relative to the journal folder. */
   backup?: string;
   mode?: number;
+  /** chmod: the mode the command set. */
+  newMode?: number;
   /** sha256 of what the command left there ("absent" when it deleted the file). */
   wrote?: string;
 }
@@ -261,6 +265,16 @@ export class Journal {
     this.record({ kind: "rmdir", path: at, existed: true, mode });
   }
 
+  /** Set the permission bits of `path`, recording the old ones when they change. */
+  chmod(path: string, mode: number): void {
+    if (this.dryRun) return;
+    const at = realParent(path);
+    const old = statSync(at).mode & 0o777;
+    if (old === mode) return;
+    chmodSync(at, mode);
+    this.record({ kind: "chmod", path: at, existed: true, mode: old, newMode: mode });
+  }
+
   /** The `turno undo` hint to print after a command that changed something. */
   hint(): string | undefined {
     return this.used ? `undo with: turno undo ${this.stamp}` : undefined;
@@ -305,9 +319,11 @@ export interface UndoStep {
    * again. keep: a folder left in place because it holds files made since (not a failure).
    * skip: left alone because it changed since.
    */
-  action: "restore" | "delete" | "skip" | "unlink" | "link" | "move" | "rmdir" | "mkdir" | "keep";
+  action: "restore" | "delete" | "skip" | "unlink" | "link" | "move" | "rmdir" | "mkdir" | "keep" | "chmod";
   /** move: where the file or folder was. */
   from?: string;
+  /** chmod: the mode put back. */
+  mode?: number;
   /** Why a step was skipped or kept. */
   reason?: string;
 }
@@ -352,9 +368,23 @@ function undoTreeEntry(e: JournalEntry, journal: Journal): UndoStep | undefined 
       journal.mkdir(e.path, e.mode);
       return { path: e.path, action: "mkdir" };
     }
+    case "chmod": {
+      const step = chmodStep(e, st);
+      if (step?.action === "chmod") journal.chmod(e.path, e.mode!);
+      return step;
+    }
     default:
       return undefined;
   }
+}
+
+/** Undoing a mode change: set the old mode again, unless the file is gone or its mode changed since. */
+function chmodStep(e: JournalEntry, st: ReturnType<typeof lstatOf>): UndoStep | undefined {
+  if (!st || e.mode === undefined) return undefined;
+  const now = st.mode & 0o777;
+  if (now === e.mode) return undefined;
+  if (now !== e.newMode) return { path: e.path, action: "skip", reason: `its mode changed since (now ${now.toString(8)}); left as it is` };
+  return { path: e.path, action: "chmod", mode: e.mode };
 }
 
 /** What undoing a tree entry would do, without doing it (for --dry-run). */
@@ -375,6 +405,8 @@ function planTreeEntry(e: JournalEntry): UndoStep | undefined {
       return st.isDirectory() ? { path: e.path, action: "rmdir" } : { path: e.path, action: "keep", reason: "not a folder any more" };
     case "rmdir":
       return st ? undefined : { path: e.path, action: "mkdir" };
+    case "chmod":
+      return chmodStep(e, st);
     default:
       return undefined;
   }

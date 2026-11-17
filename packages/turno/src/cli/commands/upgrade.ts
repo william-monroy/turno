@@ -2,20 +2,24 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig } from "../../core/config.js";
+import { Journal } from "../../core/journal.js";
 import { paths, writePrivateFile } from "../../core/paths.js";
 import { listProfiles } from "../../core/profiles.js";
 import { fetchLatest, isSemver, updateChecksOff } from "../../core/update.js";
 import { compareVersions, detectInstall, packageInfo, upgradeCommand } from "../../core/version.js";
 import { DRY_RUN, JSON_FLAG, bool, parseFlags, printJson, str } from "../args.js";
-import { type Command, type Io, fail } from "../io.js";
+import { type Command, type Io, confirm, fail } from "../io.js";
 import { findOnPath, launcherPath } from "../launch.js";
 import { turnoCommand, isGenerated, writeHelperLaunchers, writeLauncher } from "../launchers.js";
 
 const USAGE = `Usage:
-  turno upgrade [--channel latest|next] [--to <version>] [--dry-run]
+  turno upgrade [--channel latest|next] [--to <version>] [--dry-run] [--yes]
                                      install the newest release with the tool that installed turno
   turno upgrade --check [--json]   only ask the registry what the newest release is
-  turno upgrade --finish           after an upgrade: rewrite launchers, check config, show what changed
+  turno upgrade --finish [--yes]   after an upgrade: rewrite launchers, check config, show what changed
+
+When agent configs need a new gateway token, --finish offers to run turno mcp sync (in a
+terminal it asks; --yes runs it without asking).
 
 turno knows how it was installed (npm, pnpm, yarn, bun, volta, or a git checkout) and runs the
 matching command. Once a day interactive commands look for a new release in the background and
@@ -50,8 +54,12 @@ export function changesSince(from: string | undefined, changelog: string, to = p
   return out.join("\n").trim();
 }
 
-/** Steps after the files changed: idempotent, safe to run any time. */
-export async function finishUpgrade(io: Io): Promise<number> {
+/**
+ * Steps after the files changed: idempotent, safe to run any time. `sync` says what to do when
+ * agent configs need `turno mcp sync`: ask (in a terminal; elsewhere only say so), run it, or
+ * only say so (doctor, which offers the sync as a fix of its own).
+ */
+export async function finishUpgrade(io: Io, opts: { sync?: "ask" | "yes" | "no" } = {}): Promise<number> {
   const env = io.env;
   const before = recordedVersion(env);
   const now = packageInfo().version;
@@ -62,23 +70,38 @@ export async function finishUpgrade(io: Io): Promise<number> {
     io.out(`config: ${(err as Error).message} (turno config edit)`);
   }
   // Launchers bake the path of the running turno, which changes with some package managers.
+  // The journal records the ones that change, so `turno undo` can put the old ones back.
+  const journal = new Journal(env, "upgrade --finish");
   let rewritten = 0;
   for (const name of config ? listProfiles(config, env) : []) {
     const file = launcherPath(name, env);
     if (file && isGenerated(file)) {
-      writeLauncher(name, env);
+      writeLauncher(name, env, undefined, journal);
       rewritten++;
     }
   }
   const bin = paths(env).bin;
   if (["turno-auto", "turno-open"].some((f) => existsSync(join(bin, f)) && isGenerated(join(bin, f)))) {
-    rewritten += writeHelperLaunchers(env, turnoCommand()).length;
+    rewritten += writeHelperLaunchers(env, turnoCommand(), journal).length;
   }
   if (rewritten) io.out(`launchers: ${rewritten} rewritten for turno ${now}`);
+  const hint = journal.hint();
+  if (hint) io.out(hint);
   // Configs synced before per-profile gateway tokens (ADR 0023) send the master token, which
   // mcpd refuses for MCP sessions: say so here instead of leaving it to the first failed call.
   const tokens = (await import("../../mcpd/health.js")).tokenSyncCheck(env);
-  if (tokens) io.out(`${tokens.text}; run: turno mcp sync`);
+  if (tokens) {
+    const mode = opts.sync ?? "ask";
+    let run = mode === "yes";
+    if (mode === "ask" && io.ask) {
+      io.out(tokens.text);
+      run = await confirm(io, "run turno mcp sync now?");
+    }
+    if (run) {
+      const { command } = await import("./mcp.js");
+      if ((await command.run(["sync"], io)) !== 0) io.err("turno: turno mcp sync did not finish every profile; run it again once their sessions are closed");
+    } else io.out(`${tokens.text}; run: turno mcp sync`);
+  }
   await refreshDaemonService(io);
   recordVersion(env);
   if (before && before !== now) {
@@ -109,10 +132,15 @@ async function refreshDaemonService(io: Io): Promise<void> {
 export const command: Command = {
   summary: "update turno to the newest release (or check for one)",
   usage: USAGE,
-  flags: ["--check", "--channel", "--to", "--dry-run", "--json", "--finish"],
+  flags: ["--check", "--channel", "--to", "--dry-run", "--json", "--finish", "--yes"],
   async run(args, io) {
-    const p = parseFlags(args, { check: { type: "boolean" }, finish: { type: "boolean" }, channel: { type: "string" }, to: { type: "string" }, ...DRY_RUN, ...JSON_FLAG }, 0);
-    if (bool(p, "finish")) return finishUpgrade(io);
+    const p = parseFlags(
+      args,
+      { check: { type: "boolean" }, finish: { type: "boolean" }, yes: { type: "boolean", short: "y" }, channel: { type: "string" }, to: { type: "string" }, ...DRY_RUN, ...JSON_FLAG },
+      0,
+    );
+    const yes = bool(p, "yes");
+    if (bool(p, "finish")) return finishUpgrade(io, { sync: yes ? "yes" : "ask" });
     const to = str(p, "to");
     if (to !== undefined && !isSemver(to)) fail(`--to needs a version like 1.2.3 (got "${to}")`);
     if (!/^[a-z][a-z0-9-]{0,63}$/.test(str(p, "channel") ?? "latest")) fail("--channel needs a dist-tag such as latest or next");
@@ -168,7 +196,8 @@ export const command: Command = {
       io.out("upgraded; run `turno upgrade --finish` to rewrite the launchers");
       return 0;
     }
-    const r = spawnSync(install.method === "source" ? process.execPath : self, install.method === "source" ? [self, "upgrade", "--finish"] : ["upgrade", "--finish"], { stdio: "inherit", env: io.env });
+    const finish = ["upgrade", "--finish", ...(yes ? ["--yes"] : [])];
+    const r = spawnSync(install.method === "source" ? process.execPath : self, install.method === "source" ? [self, ...finish] : finish, { stdio: "inherit", env: io.env });
     return r.status ?? 1;
   },
 };

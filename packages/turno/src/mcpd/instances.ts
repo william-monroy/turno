@@ -186,9 +186,16 @@ export function descriptionFingerprint(server: ServerDef, variant: string): stri
   return fingerprint({ c: launch.command, a: launch.args, e: launch.env, v: variant, p: server.package ?? null, b: server.builtin ?? null });
 }
 
-/** Fingerprint of the whole definition (launch, scope, cwd, exclusive, idle, lease, timeouts), except who gets it. */
+/**
+ * Fingerprint of the whole definition (launch, scope, cwd, exclusive, idle, lease, timeouts),
+ * except who gets it and which tools they see: tool filters apply per request (ADR 0023), so a
+ * changed filter needs no new process.
+ */
 export function definitionFingerprint(server: ServerDef): string {
-  return fingerprint({ ...server, profiles: null });
+  const { tools: _tools, ...rest } = server;
+  const variants =
+    rest.kind === "stdio" ? Object.fromEntries(Object.entries(rest.variants).map(([k, v]) => [k, { ...v, tools: null }])) : undefined;
+  return fingerprint({ ...rest, profiles: null, ...(variants ? { variants } : {}) });
 }
 
 /** A server that is gone from the manifest (or no longer proxied) while sessions still use it. */

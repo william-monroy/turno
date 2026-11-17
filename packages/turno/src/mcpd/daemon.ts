@@ -27,6 +27,7 @@ import { DescriptionCache } from "./cache.js";
 import { createCallLog } from "./calllog.js";
 import { type BuiltinFactory, DefaultConnector } from "./connectors.js";
 import { Gateway, type GatewayOptions } from "./gateway.js";
+import { ClientNames } from "./client-names.js";
 import { InstanceManager, descriptionFingerprint, processAlive } from "./instances.js";
 import { describeOwner, peerPid, portOwner } from "./peerpid.js";
 import { memoryPressureProbe } from "./pressure.js";
@@ -496,8 +497,11 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
   const files = daemonFiles(env);
   const log = createLogger(files.log, { env, toStdout: Boolean(opts.logToStdout), ...(opts.logMaxBytes ? { maxBytes: opts.logMaxBytes } : {}) });
 
-  const { config, error: configError } = loadConfigSafe(env);
+  const { config, error: firstConfigError } = loadConfigSafe(env);
+  let configError = firstConfigError;
   if (configError) log(`config.toml is invalid, using defaults: ${configError}`);
+  // Folder server sets (ADR 0031): the last good [[projects]] rules, reloaded with config.toml.
+  let folderRules = config.projects;
   const wanted = opts.port ?? config.mcpd.port;
   const fail = async (err: Error): Promise<never> => {
     if (!(err instanceof AlreadyRunningError)) writeStartError(env, { at: new Date().toISOString(), message: err.message, port: wanted });
@@ -518,7 +522,8 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
   let port = 0;
   try {
     const token = ensureToken(env, (m) => log(m));
-    const calls = config.mcpd.callLog ? createCallLog(files.calls, { onError: (m) => log(m) }) : undefined;
+    // The call log follows `[mcpd] call_log`, also when config.toml changes while mcpd runs.
+    let calls = config.mcpd.callLog ? createCallLog(files.calls, { onError: (m) => log(m) }) : undefined;
     const sampler = new RssSampler(files.rss, { env });
     const manager = new InstanceManager({
       cache: new DescriptionCache(p.mcpdCacheDir),
@@ -534,7 +539,7 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
       }),
       home: p.home,
       log,
-      ...(calls ? { onCall: (e) => calls.record(e) } : {}),
+      onCall: (e) => calls?.record(e),
       pressure: memoryPressureProbe(),
       idleUnderPressure: config.mcpd.idleUnderPressure,
     });
@@ -544,6 +549,9 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
       token,
       peerPid: (rp) => peerPid(rp),
       log,
+      folderRules: () => folderRules,
+      home: p.home,
+      clientNames: new ClientNames(join(p.state, "mcpd-clients.json"), processAlive),
       ...(config.mcpd.maxRequestBody ? { maxRequestBodyBytes: config.mcpd.maxRequestBody } : {}),
     };
     const gateway = new DaemonGateway(gwOpts, () => ({
@@ -551,7 +559,7 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
       port,
       startedAt,
       manifest: { source: state.source, servers: Object.keys(state.manifest.servers).length, error: state.error ?? null },
-      config: { error: configError ?? null },
+      config: { error: configError ?? null, folderSets: folderRules.filter((r) => r.mcp || r.mcpDeny).length },
       callLog: { enabled: Boolean(calls) },
       serverRss: sampler.samples(),
     }));
@@ -595,11 +603,39 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
       log(`manifest reloaded (${why}): ${Object.keys(state.manifest.servers).length} servers`);
     };
 
+    /** config.toml: a broken file keeps the last good settings and is reported in /status. */
+    const reloadConfig = (why: string) => {
+      let next: Config;
+      try {
+        next = loadConfig(env);
+      } catch (err) {
+        configError = (err as Error).message;
+        log(`config.toml reload skipped (${why}): ${configError}`);
+        return;
+      }
+      configError = undefined;
+      folderRules = next.projects;
+      if (next.mcpd.callLog !== Boolean(calls)) {
+        if (calls) {
+          calls.close();
+          calls = undefined;
+        } else calls = createCallLog(files.calls, { onError: (m) => log(m) });
+        log(`call log ${calls ? "on" : "off"} (${why})`);
+      }
+      log(`config.toml reloaded (${why}): ${folderRules.filter((r) => r.mcp || r.mcpDeny).length} folder server sets`);
+    };
+
     let debounce: NodeJS.Timeout | undefined;
+    let configDebounce: NodeJS.Timeout | undefined;
     let watcher: ReturnType<typeof watch> | undefined;
     if (existsSync(p.config)) {
       try {
         watcher = watch(p.config, (_event, file) => {
+          if (file === "config.toml") {
+            clearTimeout(configDebounce);
+            configDebounce = setTimeout(() => reloadConfig("config.toml changed"), 300);
+            return;
+          }
           if (file !== "mcp.toml") return;
           clearTimeout(debounce);
           debounce = setTimeout(() => void reload("mcp.toml changed").catch((e) => log(`reload failed: ${(e as Error).message}`)), 300);
@@ -609,8 +645,9 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
         log(`config watch failed: ${(e as Error).message}`);
       }
     }
-    // SIGHUP reloads the manifest and the token (after `turno mcp token rotate`).
+    // SIGHUP reloads the manifest, config.toml and the token (after `turno mcp token rotate`).
     const onHup = () => {
+      reloadConfig("SIGHUP");
       const t = readToken(env, (m) => log(m));
       if (t && t !== gwOpts.token) {
         gwOpts.token = t;
@@ -641,6 +678,7 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
         stopped = true;
         clearInterval(timer);
         clearTimeout(debounce);
+        clearTimeout(configDebounce);
         watcher?.close();
         process.off("SIGHUP", onHup);
         await manager.stopAll();
