@@ -130,13 +130,16 @@ describe("turno undo after profile add and repair (02-H4)", () => {
     expect(isLink(home(".claude-lab/skills"))).toBe(true);
     expect(existsSync(home(".local/bin/claude-lab"))).toBe(true);
     expect(existsSync(home(".local/bin/turno-auto"))).toBe(true);
+    const v = await run(["undo", "last", "--dry-run", "-v"]);
+    expect(v.io.lines).toContain("  ok removed link ~/.claude-lab/skills");
     const u = await run(["undo", "last"]);
     expect(u.code).toBe(0);
     expect(existsSync(home(".claude-lab"))).toBe(false);
     expect(existsSync(home(".local/bin/claude-lab"))).toBe(false);
     expect(existsSync(home(".local/bin/turno-auto"))).toBe(false);
     expect(readFileSync(cfgFile(), "utf8")).not.toContain("[profiles.lab]");
-    expect(u.io.lines.join("\n")).toContain("removed link ~/.claude-lab/skills");
+    expect(u.io.lines.join("\n")).toMatch(/^ {2}ok +~\/\.claude-lab +23 links removed, folder removed$/m);
+    expect(u.io.lines).toContain("  ok  ~/.local/bin     3 files removed");
   });
 
   it("moves your own files back from .aside-* and keeps the profile folder", async () => {

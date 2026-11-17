@@ -192,6 +192,16 @@ describe("colored output in a terminal", () => {
     return { piped: await once(sb.env, false), noColor: await once({ ...sb.env, NO_COLOR: "1" }, true), tty: await once(sb.env, true) };
   }
 
+  /**
+   * The words a screen says, whatever the terminal: no colors, no section rules, no status
+   * icons (Unicode on a terminal, ASCII in a pipe) and no padding around profile pills.
+   */
+  const words = (text: string) =>
+    strip(text)
+      .split("\n")
+      .map((l) => l.replace(/ ─+$/, "").replace(/^\s*(✓|✗|•|–|!|ok|x|-|●|○|➜|→)\s+/, "").replace(/\s+/g, " ").trim())
+      .join("\n");
+
   for (const args of [["init", "--dry-run"], ["mcp", "import"], ["config", "path", "--json"]]) {
     it(`turno ${args.join(" ")}: colors only a terminal, and the text is the same`, async () => {
       const { piped, noColor, tty } = await threeWays(args);
@@ -200,8 +210,8 @@ describe("colored output in a terminal", () => {
       expect(noColor).toEqual(piped);
       expect(tty.code).toBe(0);
       expect(tty.out).toContain("\x1b[");
-      expect(strip(tty.out)).toBe(piped.out);
-      expect(strip(tty.err)).toBe(piped.err);
+      expect(words(tty.out)).toBe(words(piped.out));
+      expect(words(tty.err)).toBe(words(piped.err));
       expect(tty.out).not.toContain(GHP);
     });
   }
@@ -215,10 +225,10 @@ describe("colored output in a terminal", () => {
   it("turno init: the config.toml diff highlights context lines inside a multi-line array", async () => {
     sb.write(".config/turno/config.toml", '# my config\nnerd_terminals = [\n  "warp",  # mine\n]\n');
     const { piped, noColor, tty } = await threeWays(["init", "--dry-run", "--no-mcp", "--profile", "work"]);
-    expect(piped.out).toContain('   "warp",  # mine\n ]\n+\n+[profiles.work]');
+    expect(piped.out).toContain('       "warp",  # mine\n     ]\n    +\n    +[profiles.work]');
     expect(noColor).toEqual(piped);
-    expect(strip(tty.out)).toBe(piped.out);
-    expect(tty.out).toContain(`   ${STR('"warp"')},  ${DIM("# mine")}\n ]\n${c("32", "+")}\n${c("32", "+")}${BOLD("[profiles.work]")}`);
+    expect(words(tty.out)).toBe(words(piped.out));
+    expect(tty.out).toContain(`       ${STR('"warp"')},  ${DIM("# mine")}\n     ]\n    ${c("32", "+")}\n    ${c("32", "+")}${BOLD("[profiles.work]")}`);
   });
 
   it("turno mcp config: the JSON snippet is highlighted, the header lines are dim", async () => {

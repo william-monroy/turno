@@ -113,9 +113,9 @@ describe("turno mcp sync", () => {
     try {
       const first = await run(["mcp", "sync"]);
       expect(first.code).toBe(1);
-      expect(first.out).toContain("skip plain claude, profile personal (~/.claude.json): has open sessions; close them or use --force");
+      expect(first.out).toMatch(/^ {2}! +plain claude, profile personal +~\/\.claude\.json +skipped: has open sessions; close them or use --force$/m);
       expect(readFileSync(join(sb.home, ".claude.json"), "utf8")).toBe("{}\n");
-      expect(first.out).toMatch(/^sync work \(~\/\.claude-work\/\.claude\.json\): added calc, docs$/m);
+      expect(first.out).toMatch(/^ {2}ok +work +~\/\.claude-work\/\.claude\.json +added calc, docs$/m);
       expect(existsSync(decoyRecord)).toBe(true);
       expect(existsSync(sandboxRecord)).toBe(false);
       expect(readdirSync(decoy).sort()).toEqual([".local"]);
@@ -132,7 +132,8 @@ describe("turno mcp sync", () => {
   it("a dry run creates no token and words its plan as would", async () => {
     const dry = await run(["mcp", "sync", "work", "--dry-run"]);
     expect(dry.code).toBe(0);
-    expect(dry.out).toContain("plan work (~/.claude-work/.claude.json): would add calc, docs");
+    expect(dry.out).toMatch(/^ {2}- +work +~\/\.claude-work\/\.claude\.json +would add calc, docs$/m);
+    expect(dry.out).toMatch(/Planned 1 config in \d+(ms|\.\ds)\./);
     expect(dry.out).not.toContain("undo with");
     expect(existsSync(join(sb.home, ".local/state/turno/mcpd.token"))).toBe(false);
     expect(existsSync(join(sb.home, ".claude-work/.claude.json"))).toBe(false);
@@ -143,7 +144,7 @@ describe("turno mcp sync", () => {
     expect(first.out).toContain("undo with: turno undo");
     expect(first.err).toContain("warning: mcpd is not running, so these profiles have no local MCP servers until you run: turno mcp daemon start");
     const again = await run(["mcp", "sync", "work"]);
-    expect(again.out).toContain("same work (~/.claude-work/.claude.json)");
+    expect(again.out).toMatch(/^ {2}- +work +~\/\.claude-work\/\.claude\.json +no changes$/m);
     expect(again.out).not.toContain("undo with");
     expect(again.out).not.toContain("New sessions pick this up");
   });

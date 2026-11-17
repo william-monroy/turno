@@ -8,6 +8,7 @@ import { tildify } from "../../core/paths.js";
 import { agentOf } from "../../core/profiles.js";
 import { profileBusy } from "../../core/sessions.js";
 import { type Command, type Io, fail, plural } from "../io.js";
+import { style } from "../style.js";
 import { launcherName, refuseNpx, resolveTurnoCommand, writeHelperLaunchers, writeLauncher } from "../launchers.js";
 
 /** Names a profile cannot take: every command, alias and legacy word. */
@@ -106,11 +107,13 @@ export function localCopies(names: string[], env: NodeJS.ProcessEnv, config: Con
 function reportLinks(name: string, label: string, dir: string, hub: string, results: [string, Link][], aside: string, io: Io, verbose: boolean): void {
   const env = io.env;
   const dirs = results.length;
-  io.out(`▸ ${name}${label} → ${tildify(dir, env)}: shares ${plural(dirs, "item")} with ${tildify(hub, env)}${verbose || !dirs ? "" : " (-v lists them)"}`);
-  if (verbose) for (const [item, r] of results) io.out(`  ${r === "same" ? "=" : "↔"} ${item}`);
+  const st = style(io);
+  const more = verbose || !dirs ? "" : st.muted(" (-v lists them)");
+  io.out(`${st.accent("▸")} ${st.bold(name)}${label} → ${tildify(dir, env)}: shares ${plural(dirs, "item")} with ${tildify(hub, env)}${more}`);
+  if (verbose) for (const [item, r] of results) io.out(`  ${r === "same" ? st.muted("=") : st.accent("↔")} ${item}`);
   const moved = results.filter(([, r]) => r === "aside").map(([item]) => item);
   if (moved.length) {
-    io.out(`  ! moved your own ${moved.join(", ")} to ${tildify(aside, env)}/ (merge by hand if useful; turno undo puts them back)`);
+    io.out(`  ${st.warn("!")} moved your own ${moved.join(", ")} to ${tildify(aside, env)}/ ${st.muted("(merge by hand if useful; turno undo puts them back)")}`);
   }
 }
 
@@ -159,10 +162,11 @@ function setupProfile(name: string, agent: AgentId, io: Io, verbose: boolean, jo
   }
   for (const item of s.files) results.push([item, linkItem(s.dir, item, aside, journal, s.hub)]);
   reportLinks(name, agent === DEFAULT_AGENT ? "" : ` (${a.label})`, s.dir, s.hub, results, aside, io, verbose);
-  for (const why of held) io.out(`  ! ${why}`);
+  const st = style(io);
+  for (const why of held) io.out(`  ${st.warn("!")} ${why}`);
   a.setup?.after?.(step);
   writeLauncher(name, io.env, agent, journal);
-  io.out(`  + command ${launcherName(name, agent)}`);
+  io.out(`  ${st.ok("+")} command ${st.bold(launcherName(name, agent))}`);
 }
 
 export function setupProfiles(names: string[], io: Io, opts: SetupOptions = {}): void {

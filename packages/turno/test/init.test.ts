@@ -81,7 +81,7 @@ describe("turno init", () => {
     expect(r.code).toBe(0);
     const all = `${r.out}\n${r.err}`;
     expect(all).toMatch(/Claude Code/);
-    expect(all).toMatch(/not installed:.*Codex CLI/);
+    expect(all).toMatch(/not installed +.*Codex CLI/);
     expect(all).toContain("~/.claude-work");
     expect(all).toContain("~/.codex-cx");
     expect(all).not.toContain(".cursor-server");
