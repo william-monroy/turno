@@ -25,6 +25,8 @@ export interface Io {
   isTty: boolean;
   /** Ask a question and return the answer; only set when a person can answer (stdin is a TTY). */
   ask?: (question: string) => Promise<string>;
+  /** The global --color flag of this run, when given (see `colors`). */
+  color?: ColorMode;
 }
 
 async function askStdin(question: string): Promise<string> {
@@ -118,11 +120,32 @@ export interface Command extends Completion {
   run(args: string[], io: Io): Promise<number>;
 }
 
+/** When to color output: `--color auto|always|never`, or TURNO_COLOR. */
+export type ColorMode = "auto" | "always" | "never";
+
+const COLOR_MODES: readonly ColorMode[] = ["auto", "always", "never"];
+
+export function isColorMode(v: string | undefined): v is ColorMode {
+  return v !== undefined && (COLOR_MODES as readonly string[]).includes(v);
+}
+
 /**
- * Whether output gets ANSI colors: on a terminal, unless NO_COLOR is set (https://no-color.org).
- * FORCE_COLOR=1 colors a pipe too, and FORCE_COLOR=0 turns colors off on a terminal.
+ * Whether output gets ANSI colors. The first rule that applies wins (ADR 0037):
+ *
+ * 1. `--color always|never` on the command line;
+ * 2. TURNO_COLOR=always|never (any other value counts as auto; --color auto sets it aside);
+ * 3. NO_COLOR set and not empty: off (https://no-color.org, which lets a flag or a tool's own
+ *    setting override it);
+ * 4. FORCE_COLOR: 0 or false turns colors off, anything else turns them on, also in a pipe;
+ * 5. auto: on when output is a terminal.
+ *
+ * `--json` output is never colored outside a terminal, whatever this says (printJson).
  */
-export function colors(io: Pick<Io, "env" | "isTty">): boolean {
+export function colors(io: Pick<Io, "env" | "isTty" | "color">): boolean {
+  // An explicit --color auto also sets TURNO_COLOR aside.
+  const own = io.color ?? io.env.TURNO_COLOR;
+  if (own === "always") return true;
+  if (own === "never") return false;
   if (io.env.NO_COLOR) return false;
   const force = io.env.FORCE_COLOR;
   if (force !== undefined && force !== "") return force !== "0" && force !== "false";

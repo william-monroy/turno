@@ -2,6 +2,7 @@ import type { CallRecord } from "../../mcpd/calllog.js";
 import type { ProcTable } from "../../mcpd/rss.js";
 import { type FlagSpec, JSON_FLAG, TAIL, bool, count, parseFlags, printJson, str } from "../args.js";
 import { type Io, paint } from "../io.js";
+import { type IconName, duration as elapsed, padEnd, style } from "../style.js";
 
 /**
  * Observability subcommands of `turno mcp` (ADR 0026): `log` reads the call log mcpd keeps,
@@ -37,12 +38,6 @@ export function duration(seconds: number): string {
   return `${Math.floor(s / 86400)}d ${Math.floor((s % 86400) / 3600)}h`;
 }
 
-/** Rows padded to the widest cell of each column (the last column is not padded). */
-function table(rows: string[][]): string[] {
-  const widths = rows[0]!.map((_, i) => Math.max(...rows.map((r) => (r[i] ?? "").length)));
-  return rows.map((r) => r.map((c, i) => (i === r.length - 1 ? c : c.padEnd(widths[i]!))).join("  ").trimEnd());
-}
-
 /** Abort on Ctrl-C, for the commands that keep running. */
 function untilInterrupted(): { signal: AbortSignal; dispose(): void } {
   const ac = new AbortController();
@@ -53,22 +48,106 @@ function untilInterrupted(): { signal: AbortSignal; dispose(): void } {
 
 // log ----------------------------------------------------------------------------------------
 
-const OUTCOME_COLOR: Record<string, string> = { ok: "32", error: "31", timeout: "33", cancelled: "2" };
+const OUTCOME: Record<string, { icon: IconName; paint: "ok" | "err" | "warn" | "muted" }> = {
+  ok: { icon: "ok", paint: "ok" },
+  error: { icon: "err", paint: "err" },
+  timeout: { icon: "warn", paint: "warn" },
+  cancelled: { icon: "skip", paint: "muted" },
+};
 
-/** One call as a line: local time, outcome, duration, server, tool, profile, agent, sizes, error. */
-export function formatCall(io: Io, r: CallRecord, localTime: (iso: string) => string): string {
-  const server = r.variant && r.variant !== "default" ? `${r.server}@${r.variant}` : r.server;
+/** Column widths of `turno mcp log` on a terminal, chosen once so `--follow` lines stay aligned. */
+export interface LogLayout {
+  /** Time only (HH:MM:SS) when every call is from today; MM-DD HH:MM:SS otherwise. */
+  today: boolean;
+  server: number;
+  tool: number;
+  profile: number;
+  agent: number;
+  sizes: number;
+  showAgent: boolean;
+  showSizes: boolean;
+}
+
+const sizesText = (r: CallRecord) => `${size(r.requestBytes)} → ${size(r.responseBytes)}`;
+const serverText = (r: CallRecord) => (r.variant && r.variant !== "default" ? `${r.server}@${r.variant}` : r.server);
+const OUTCOME_W = 11;
+const DURATION_W = 5;
+const GAP = 2;
+
+/**
+ * Widths for these calls on this terminal: each name column as wide as its widest value within
+ * a cap, narrowed until the line fits, then sizes and the agent added while they fit (on a
+ * narrow terminal the agent goes first, then the sizes).
+ */
+export function logLayout(io: Pick<Io, "env" | "isTty" | "color">, records: readonly CallRecord[], now = new Date()): LogLayout {
+  const { width } = style(io);
+  const day = (iso: string) => {
+    const d = new Date(iso);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  };
+  const widest = (f: (r: CallRecord) => string, min: number, max: number, none: number) =>
+    records.length ? Math.min(max, Math.max(min, ...records.map((r) => f(r).length))) : none;
+  const l: LogLayout = {
+    today: records.every((r) => day(r.time)),
+    server: widest(serverText, 6, 18, 12),
+    tool: widest((r) => r.tool ?? "-", 4, 24, 16),
+    profile: widest((r) => r.profile ?? "-", 4, 12, 8),
+    agent: widest((r) => r.agent ?? "-", 5, 16, 12),
+    sizes: widest(sizesText, 5, 21, 17),
+    showAgent: false,
+    showSizes: false,
+  };
+  const core = () => (l.today ? 8 : 14) + OUTCOME_W + DURATION_W + l.server + l.tool + l.profile + GAP * 5;
+  while (core() > width && (l.tool > 10 || l.server > 8)) {
+    if (l.tool >= l.server && l.tool > 10) l.tool--;
+    else l.server--;
+  }
+  l.showSizes = core() + GAP + l.sizes <= width;
+  l.showAgent = l.showSizes && core() + GAP * 2 + l.sizes + l.agent <= width;
+  return l;
+}
+
+/** Cut text to `w` columns with an ellipsis. */
+const clip = (text: string, w: number) => (text.length > w ? `${text.slice(0, Math.max(0, w - 1))}…` : text);
+
+/**
+ * One call as a line: local time, outcome, duration, server, tool, profile, agent, sizes, error.
+ * Plain text keeps the fixed widths scripts read; a terminal uses `layout` (logLayout) so every
+ * line fits, and puts an error on its own line under the call.
+ */
+export function formatCall(io: Io, r: CallRecord, localTime: (iso: string) => string, layout?: LogLayout): string {
+  const s = style(io);
+  const server = serverText(r);
+  if (!s.color) {
+    const cells = [
+      localTime(r.time),
+      r.outcome.padEnd(9),
+      `${r.durationMs} ms`.padStart(9),
+      server.padEnd(18),
+      (r.tool ?? "-").padEnd(22),
+      (r.profile ?? "-").padEnd(10),
+      (r.agent ?? "-").padEnd(16),
+      `${size(r.requestBytes)} in, ${size(r.responseBytes)} out`,
+    ];
+    return `${cells.join(" ")}${r.error ? `  ${r.error}` : ""}`;
+  }
+  const l = layout ?? logLayout(io, [r]);
+  const o = OUTCOME[r.outcome];
+  const time = localTime(r.time);
+  const slow = r.durationMs >= 10_000 ? s.warn : (t: string) => t;
   const cells = [
-    localTime(r.time),
-    paint(io, r.outcome.padEnd(9), OUTCOME_COLOR[r.outcome] ?? "0"),
-    `${r.durationMs} ms`.padStart(9),
-    server.padEnd(18),
-    (r.tool ?? "-").padEnd(22),
-    (r.profile ?? "-").padEnd(10),
-    (r.agent ?? "-").padEnd(16),
-    `${size(r.requestBytes)} in, ${size(r.responseBytes)} out`,
+    s.muted(l.today ? time.slice(11) : time.slice(5)),
+    padEnd(o ? `${s.icon(o.icon)} ${s[o.paint](r.outcome)}` : r.outcome, OUTCOME_W),
+    slow(elapsed(r.durationMs).padStart(DURATION_W)),
+    padEnd(s.bold(clip(server, l.server)), l.server),
+    padEnd(clip(r.tool ?? "-", l.tool), l.tool),
+    padEnd(clip(r.profile ?? "-", l.profile), l.profile),
+    ...(l.showAgent ? [padEnd(s.muted(clip(r.agent ?? "-", l.agent)), l.agent)] : []),
+    ...(l.showSizes ? [s.muted(sizesText(r))] : []),
   ];
-  return `${cells.join(" ")}${r.error ? `  ${r.error}` : ""}`;
+  const line = cells.join(" ".repeat(GAP)).trimEnd();
+  if (!r.error) return line;
+  return `${line}\n${s.wrap(" ".repeat((l.today ? 8 : 14) + GAP), s.err(r.error))}`;
 }
 
 /** `turno mcp log`; `signal` stops `--follow` (Ctrl-C when not given). */
@@ -84,8 +163,9 @@ export async function log(args: string[], io: Io, signal?: AbortSignal): Promise
   if (!loadConfigSafe(io.env).config.mcpd.callLog) {
     io.err(`${paint(io, "note", "33")}: the call log is off (call_log = false under [mcpd] in config.toml); mcpd records no new calls`);
   }
-  const print = (r: CallRecord) => io.out(json ? JSON.stringify(r) : formatCall(io, r, localTime));
   const records = readCalls(file, n, filter);
+  const layout = logLayout(io, records);
+  const print = (r: CallRecord) => io.out(json ? JSON.stringify(r) : formatCall(io, r, localTime, layout));
   if (!records.length && !json && !bool(p, "follow")) {
     io.out("no tool calls logged yet (mcpd adds one line per tool call it relays)");
     return 0;
@@ -211,38 +291,46 @@ export async function topSnapshot(status: Status, procs: ProcTable | undefined, 
 }
 
 export function renderTop(io: Io, t: TopSnapshot): string[] {
+  const s = style(io);
   const m = t.mcpd;
   const head = [
-    `mcpd pid ${m.pid}`,
-    m.version ? `v${m.version}` : "",
+    s.bold(s.accent(`mcpd pid ${m.pid}`)),
+    m.version ? s.muted(`v${m.version}`) : "",
     m.uptimeSeconds !== null ? `up ${duration(m.uptimeSeconds)}` : "",
-    `${memory(m.rssBytes)} own, ${memory(m.totalRssBytes)} with servers`,
+    `${s.bold(memory(m.rssBytes))} own, ${s.bold(memory(m.totalRssBytes))} with servers`,
     `${m.sessions} session${m.sessions === 1 ? "" : "s"} from ${m.agents} agent${m.agents === 1 ? "" : "s"}`,
   ].filter(Boolean);
-  const out = [paint(io, head.join(" · "), "1")];
-  if (!t.memoryKnown) out.push(`  ${paint(io, "note", "33")}: ${MEMORY_UNKNOWN}`);
+  const out = [s.wrap("", head.join(s.muted(" · ")))];
+  if (!t.memoryKnown) out.push(s.note("warn", `note: ${MEMORY_UNKNOWN}`));
   if (!t.instances.length) {
-    out.push("  no servers running (they start on first use)");
+    out.push(s.muted("  no servers running (they start on first use)"));
     return out;
   }
-  const rows = [["SERVER", "VARIANT", "SCOPE", "PID", "RSS", "SESSIONS", "IN FLIGHT", "IDLE", "RESTARTS", "UP", "HELD BY"]];
+  // Column titles: muted lowercase on a terminal, as in turno status; uppercase in plain text.
+  const rows = [["SERVER", "VARIANT", "SCOPE", "PID", "RSS", "SESSIONS", "IN FLIGHT", "IDLE", "RESTARTS", "UP", "HELD BY"].map((h) => s.muted(s.color ? h.toLowerCase() : h))];
   for (const i of t.instances) {
     rows.push([
-      i.server,
-      i.variant,
+      `${s.icon("on")}${s.color ? " " : ""}${s.bold(i.server)}`,
+      i.variant === "default" ? s.muted(i.variant) : i.variant,
       i.scope,
-      i.pid ? String(i.pid) : "-",
-      i.pid ? memory(i.rssBytes) : "in mcpd",
+      i.pid ? String(i.pid) : s.muted("-"),
+      i.pid ? memory(i.rssBytes) : s.muted("in mcpd"),
       String(i.sessions),
-      String(i.inflight),
+      i.inflight ? s.accent(String(i.inflight)) : s.muted("0"),
       duration(i.idleSeconds),
-      String(i.restarts),
+      i.restarts ? s.warn(String(i.restarts)) : s.muted("0"),
       duration(i.uptimeSeconds),
       i.heldBy ? `${i.heldBy.profile ?? "?"}/${i.heldBy.pid ?? "?"}` : "",
     ]);
   }
-  const lines = table(rows);
-  out.push(paint(io, lines[0]!, "2"), ...lines.slice(1));
+  const right = { align: "right" } as const;
+  // Narrow terminals drop the holder, uptime, restarts and variant first.
+  out.push(
+    ...s.table(rows, {
+      indent: 0,
+      columns: [{}, { drop: 1 }, {}, right, right, right, right, { ...right, drop: 3 }, { ...right, drop: 2 }, { ...right, drop: 4 }, { drop: 5 }],
+    }),
+  );
   return out;
 }
 
@@ -267,7 +355,7 @@ export async function top(args: string[], io: Io, signal?: AbortSignal, everyMs 
     while (!stop.signal.aborted) {
       const t = await snap();
       const lines = t ? renderTop(io, t) : ["mcpd is not running (turno mcp daemon start); trying again"];
-      io.out(`\x1b[H\x1b[2J${lines.join("\n")}\n${paint(io, `every ${everyMs / 1000}s · Ctrl-C to quit`, "2")}`);
+      io.out(`\x1b[H\x1b[2J${lines.join("\n")}\n${style(io).muted(`every ${everyMs / 1000}s · Ctrl-C to quit`)}`);
       await new Promise<void>((r) => {
         const timer = setTimeout(r, everyMs);
         stop.signal.addEventListener(

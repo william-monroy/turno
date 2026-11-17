@@ -183,7 +183,7 @@ change, and print the `turno undo <stamp>` that puts them back. `turno mcp impor
 |---|---|
 | `turno` | once set up, the status screen and the next step; before that, the help |
 | `turno init [--dry-run] [--yes] [--start \| --no-start]` | set turno up in one step: agents, profiles, folder rules, mcp.toml, the gateway (one undo) |
-| `turno demo [-- <command>]` | try turno in a throwaway HOME (also `npx turno-cli demo`) |
+| `turno demo [--keep] [-- <command>]` | try turno in a throwaway HOME (also `npx turno-cli demo`); without a terminal it shows what it set up and ends, `--keep` waits for Ctrl-C |
 | `turno <profile> [args]`, `turno run <profile\|auto> [args]` | the profile's agent with that account (args pass through) |
 | `turno auto [--agent codex\|copilot\|cursor]` | the profile assigned to the current folder |
 | `turno profile list\|add\|repair\|remove\|which\|assign\|unassign` | the profiles, and which folders use each |

@@ -44,10 +44,10 @@ describe("turno mcp list", () => {
       '[server.fx]\ncommand = "node"\ntools = { allow = ["get_*", "list_*"], deny = ["*_delete"] }\n[server.fx.variant.work]\ntools = { deny = ["*"] }\n[server.plain]\ncommand = "node"\n',
     );
     const r = await run(["mcp", "list"]);
-    const fx = r.out.split("\n").find((l) => l.startsWith("fx "))!;
+    const fx = r.out.split("\n").find((l) => l.startsWith("  fx "))!;
     expect(fx).toContain("tools: allow get_*, list_*, deny *_delete");
     expect(fx).toContain("work tools: deny *");
-    expect(r.out.split("\n").find((l) => l.startsWith("plain "))).not.toContain("tools");
+    expect(r.out.split("\n").find((l) => l.startsWith("  plain "))).not.toContain("tools");
     const j = JSON.parse((await run(["mcp", "list", "--json"])).out) as { name: string; tools: unknown; variantTools?: unknown }[];
     expect(j.find((s) => s.name === "fx")).toMatchObject({ tools: { allow: ["get_*", "list_*"], deny: ["*_delete"] }, variantTools: { work: { deny: ["*"] } } });
     expect(j.find((s) => s.name === "plain")).toMatchObject({ tools: null, variantTools: {} });

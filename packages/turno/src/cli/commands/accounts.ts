@@ -62,7 +62,7 @@ function verifyLog(io: Io, json: boolean): number {
   return 0;
 }
 
-export function list(io: Io): number {
+function list(io: Io): number {
   const reg = loadRegistry(io.env);
   const accounts = Object.values(reg.accounts).sort((a, b) => a.id.localeCompare(b.id));
   if (!accounts.length) {
@@ -88,7 +88,7 @@ export function list(io: Io): number {
 }
 
 /** How the bridge treats an account: its confirm policy and what a read may call. */
-function policyLine(a: Account): string {
+export function policyLine(a: Account): string {
   const policy = `confirm ${effectivePolicy(a)}${a.confirm ? "" : " (default)"}`;
   if (a.readTools) return `${policy}; reads: ${a.readTools.join(", ")}`;
   return `${policy}; no read_tools: ${effectivePolicy(a) === "never" ? "reads get every tool" : "every call is confirmed"}`;

@@ -33,7 +33,7 @@ function rows(left: readonly string[], right: readonly string[], leftWidth: numb
   return out;
 }
 
-export function renderHelp(io: Pick<Io, "env" | "isTty">, sections: readonly HelpSection[]): string[] {
+export function renderHelp(io: Pick<Io, "env" | "isTty" | "color">, sections: readonly HelpSection[]): string[] {
   const s = style(io);
   // Help reads best at a modest width even on a wide terminal.
   const width = Math.min(s.width, 100);
@@ -85,5 +85,6 @@ export function renderHelp(io: Pick<Io, "env" | "isTty">, sections: readonly Hel
   );
   out.push("", `Run ${s.bold("turno <command> --help")}, or ${s.bold("turno help <command>")}, for details.`);
   out.push(s.muted("Scripts and agents: --no-input or TURNO_NO_INPUT=1 never asks (exit 2 instead)."));
+  out.push(s.muted("Colors: --color auto|always|never or TURNO_COLOR, then NO_COLOR and FORCE_COLOR."));
   return out;
 }

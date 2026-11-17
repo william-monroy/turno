@@ -63,12 +63,6 @@ async function mcpdAnswers(env: NodeJS.ProcessEnv): Promise<boolean> {
 
 const LIST_FLAGS: FlagSpec = { ...JSON_FLAG };
 
-/** Rows padded to the widest cell of each column (the last column is not padded). */
-function table(rows: string[][]): string[] {
-  const widths = rows[0]!.map((_, i) => Math.max(...rows.map((r) => (r[i] ?? "").length)));
-  return rows.map((r) => r.map((c, i) => (i === r.length - 1 ? c : c.padEnd(widths[i]!))).join("  ").trimEnd());
-}
-
 /** "allow get_*, list_*, deny *_delete": a tool filter (ADR 0023) as text, or "" when it filters nothing. */
 function filterText(f: ToolFilter | undefined): string {
   if (!f) return "";
@@ -117,32 +111,70 @@ async function list(args: string[], io: Io): Promise<number> {
     io.out(`no servers in ${tildify(paths(io.env).mcpFile, io.env)} yet; draft it from your agent configs with: turno mcp import`);
     return 0;
   }
-  const rows = [["NAME", "RUNS", "HOW", "IDLE", "PROFILES", "NOTES"]];
+  const st = style(io);
+  let profileColors: Config["profiles"] = {};
+  try {
+    profileColors = loadConfig(io.env).profiles;
+  } catch {
+    /* pills without their configured colors */
+  }
+  const live = await runningServers(io.env);
+  const state = (s: (typeof m.servers)[string]): string => {
+    if (s.kind === "remote" && !s.proxy) return st.muted("direct");
+    if (!live) return st.muted("-");
+    return live.has(s.name) ? st.lead("on", st.ok("running")) : st.lead("off", st.muted("stopped"));
+  };
+  const auth = (s: (typeof m.servers)[string]): string => {
+    if (s.kind === "remote" && s.oauth) {
+      const rows = loginsOf(s.name);
+      const good = rows.every((l) => l.state === "logged in" || l.state === "expired");
+      return good ? st.lead("ok", "oauth") : st.lead("warn", st.warn("oauth"));
+    }
+    const refs = Object.values(s.kind === "remote" ? s.headers : { ...s.env, ...Object.assign({}, ...Object.values(s.variants).map((v) => v.env)) });
+    return refs.some((v) => typeof v === "string" && /^(keychain|env):/.test(v)) ? "secret" : st.muted("-");
+  };
+  // Column titles: muted lowercase on a terminal, as in turno status; uppercase in plain text.
+  const rows: string[][] = [["SERVER", "KIND", "SCOPE", "IDLE", "PROFILES", "STATE", "AUTH", "DETAILS"].map((h) => st.muted(st.color ? h.toLowerCase() : h))];
+  const sep = st.muted("; ");
   for (const name of names) {
     const s = m.servers[name]!;
-    const where = s.profiles.includes("*") ? "all" : s.profiles.join(", ");
+    const where = s.profiles.includes("*") ? "all" : s.profiles.map((p) => st.profile(p, profileColor(profileColors, p))).join(st.color ? " " : ", ");
     const tools = filterText(s.tools) ? `tools: ${filterText(s.tools)}` : "";
     if (s.kind === "remote") {
-      const how = s.oauth ? "remote via mcpd, oauth" : s.proxy ? "remote via mcpd" : "remote direct";
-      const notes = loginsOf(name).map((l: LoginRow) => `${l.variant === "default" ? "login" : `${l.variant} login`}: ${describeLogin(l)}`);
-      if (tools) notes.unshift(tools);
-      rows.push([name, s.url, how, s.proxy ? `${Math.round(s.idle / 60)}m` : "-", where, notes.join("; ")]);
+      const logins = loginsOf(name).map((l: LoginRow) => {
+        const text = `${l.variant === "default" ? "login" : `${l.variant} login`}: ${describeLogin(l)}`;
+        return l.state === "logged in" || l.state === "expired" ? text : st.warn(text);
+      });
+      const details = [st.accent(s.url), tools, ...logins].filter(Boolean).join(sep);
+      rows.push([st.bold(name), "remote", s.proxy ? "via mcpd" : "direct", s.proxy ? `${Math.round(s.idle / 60)}m` : st.muted("-"), where, state(s), auth(s), details]);
       continue;
     }
     const variants = Object.keys(s.variants);
     const installed = s.package && existsSync(join(paths(io.env).serversDir, s.name, "node_modules"));
-    const notes = [
-      variants.length ? `variants: ${variants.join(", ")}` : "",
-      s.package ? `package ${s.package}${installed ? "" : " (not installed)"}` : "",
-      tools,
-      ...Object.entries(s.variants).map(([v, d]) => (filterText(d.tools) ? `${v} tools: ${filterText(d.tools)}` : "")),
-    ].filter(Boolean);
-    rows.push([name, s.builtin ? `builtin ${s.builtin}` : s.command, `${s.scope}${s.exclusive ? " exclusive" : ""}`, `${Math.round(s.idle / 60)}m`, where, notes.join("; ")]);
+    const details = [
+        st.accent(s.builtin ? `builtin ${s.builtin}` : tildify(s.command, io.env)),
+        variants.length ? `variants: ${variants.join(", ")}` : "",
+        s.package ? (installed ? `package ${s.package}` : st.warn(`package ${s.package} (not installed)`)) : "",
+        tools,
+        ...Object.entries(s.variants).map(([v, d]) => (filterText(d.tools) ? `${v} tools: ${filterText(d.tools)}` : "")),
+      ]
+        .filter(Boolean)
+        .join(sep);
+    rows.push([st.bold(name), s.builtin ? "builtin" : "stdio", `${s.scope}${s.exclusive ? ", exclusive" : ""}`, `${Math.round(s.idle / 60)}m`, where, state(s), auth(s), details]);
   }
-  const lines = table(rows);
-  io.out(paint(io, lines[0]!, "1"));
-  for (const l of lines.slice(1)) io.out(l);
+  io.out(st.header("MCP servers"));
+  // A narrow terminal drops idle times, then auth and scope; the details wrap under their column.
+  for (const l of st.table(rows, { columns: [{}, {}, { drop: 1 }, { drop: 3 }, {}, {}, { drop: 2 }, {}] })) io.out(l);
+  if (!live) io.out(st.wrap("  ", st.muted("mcpd is not running, so nothing is: servers start on first use once it runs (turno mcp daemon start)")));
   return 0;
+}
+
+/** Names of the servers mcpd runs now, or undefined when mcpd does not answer. */
+async function runningServers(env: NodeJS.ProcessEnv): Promise<Set<string> | undefined> {
+  const r = await mcpdRequest(env, "GET", "/status", 1000);
+  if (r === "down" || r.status !== 200 || typeof r.body !== "object" || r.body === null) return undefined;
+  const instances = (r.body as { instances?: { server?: unknown }[] }).instances;
+  return new Set((Array.isArray(instances) ? instances : []).flatMap((i) => (typeof i?.server === "string" ? [i.server] : [])));
 }
 
 // sync ---------------------------------------------------------------------------------------

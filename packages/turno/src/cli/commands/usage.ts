@@ -6,7 +6,8 @@ import { exhaustedUntil } from "../../core/exhausted.js";
 import { isObject, readJsonFile } from "../../core/fsutil.js";
 import { paths, profileDir, writePrivateFile } from "../../core/paths.js";
 import { listProfiles } from "../../core/profiles.js";
-import { type Command, type Io, paint } from "../io.js";
+import type { Command, Io } from "../io.js";
+import { profileColor, style } from "../style.js";
 
 /** What `claude auth status --json` reports for a profile. */
 export interface AuthStatus {
@@ -154,11 +155,6 @@ export function shortTime(epochSeconds: number): string {
   return `${DAYS[d.getDay()]} ${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
-function bar(pct: number, width = 30): string {
-  const filled = Math.round((Math.min(Math.max(pct, 0), 100) * width) / 100);
-  return "█".repeat(filled) + "░".repeat(width - filled);
-}
-
 function resetText(ts: number, now = Date.now() / 1000): string {
   const d = Math.floor(ts - now);
   if (d <= 0) return "already reset";
@@ -190,25 +186,35 @@ export async function account(profile: string, env: NodeJS.ProcessEnv): Promise<
   return { email: s.email || "?", plan: s.subscriptionType || s.authMethod || "?" };
 }
 
-export function renderUsage(profiles: string[], accounts: Record<string, Account>, io: Io): string {
-  const now = Date.now() / 1000;
+/** Cells of the usage bars. */
+const BAR_CELLS = 20;
+
+/**
+ * The usage screen of `turno limit show`: each profile as its pill with the account, then a bar
+ * per window with its reset time, the exhausted mark and how old the data is. The same layout
+ * comes out as plain text in a pipe. `colors` holds the profiles of config.toml, for the pills.
+ */
+export function renderUsage(
+  profiles: string[],
+  accounts: Record<string, Account>,
+  io: Io,
+  opts: { colors?: Record<string, { color?: string | number }>; now?: number } = {},
+): string {
+  const now = opts.now ?? Date.now() / 1000;
+  const s = style(io);
   const out: string[] = [];
   for (const p of profiles) {
     const { email, plan, why } = accounts[p] ?? { email: "?", plan: "" };
-    const who = why ? "account unknown" : `${email}${plan ? ` · ${plan}` : ""}`;
-    out.push(`${paint(io, `${p}  ${who}`, "1")}${why ? paint(io, ` (${why})`, "2") : ""}`);
-    const exhausted = exhaustedUntil(p, io.env);
-    if (exhausted !== undefined && exhausted > now) {
-      out.push(paint(io, `  marked exhausted: its projects use the fallback (if set) until ${shortTime(exhausted)}`, "2"));
-    }
+    const pill = s.profile(p, opts.colors ? profileColor(opts.colors, p) : undefined);
+    const who = why
+      ? `${s.warn("account unknown")}${s.muted(` (${why})`)}`
+      : email === "not logged in"
+        ? s.warn(email)
+        : `${email}${plan ? s.muted(` · ${plan}`) : ""}`;
+    out.push(s.wrap(`${pill}  `, who));
     const data = usageSnapshot(p, io.env);
     const limits = data.rate_limits ?? {};
     const hasLimits = Object.keys(limits).length > 0;
-    if (!hasLimits) {
-      const why =
-        plan === "team" ? "the Team plan does not report these limits" : "shows up once a session of this account gets a response";
-      out.push(paint(io, `  no usage data yet: ${why}`, "2"));
-    }
     for (const [key, label] of [
       ["five_hour", "5 hours"],
       ["seven_day", "week"],
@@ -218,10 +224,19 @@ export function renderUsage(profiles: string[], accounts: Record<string, Account
       let pct = Number(w.used_percentage) || 0;
       const reset = typeof w.resets_at === "number" ? w.resets_at : undefined;
       if (reset && reset < now) pct = 0;
-      const code = pct < 50 ? "32" : pct < 80 ? "33" : "31";
-      out.push(`  ${label.padEnd(8)}${paint(io, bar(pct), code)} ${pct.toFixed(0).padStart(3)}%  ${reset ? resetText(reset, now) : ""}`);
+      const when = reset ? resetText(reset, now) : "";
+      out.push(s.wrap(`  ${s.muted(label.padEnd(7))}  ${s.bar(pct, BAR_CELLS)}  `, pct >= 100 ? s.err(`used up, ${when}`) : s.muted(when)).trimEnd());
     }
-    if (hasLimits && typeof data.updated_at === "number") out.push(paint(io, `  data from ${agoText(data.updated_at, now)}`, "2"));
+    const exhausted = exhaustedUntil(p, io.env);
+    if (exhausted !== undefined && exhausted > now) {
+      out.push(s.note("err", `${s.err(`exhausted until ${shortTime(exhausted)}`)}${s.muted(": its projects open with the fallback, if one is set")}`));
+    }
+    if (!hasLimits) {
+      const why =
+        plan === "team" ? "the Team plan does not report these limits" : "shows up once a session of this account gets a response";
+      out.push(s.muted(`  no usage data yet: ${why}`));
+    }
+    if (hasLimits && typeof data.updated_at === "number") out.push(s.muted(`  data from ${agoText(data.updated_at, now)}`));
     out.push("");
   }
   return `${out.join("\n").trimEnd()}\n`;
@@ -237,16 +252,17 @@ export const command: Command = {
   ].join("\n"),
   async run(args, io) {
     const watch = args.includes("--watch");
-    const profiles = listProfiles(loadConfig(io.env), io.env, "claude");
+    const config = loadConfig(io.env);
+    const profiles = listProfiles(config, io.env, "claude");
     const list = await Promise.all(profiles.map((p) => account(p, io.env)));
     const accounts = Object.fromEntries(profiles.map((p, i) => [p, list[i]!]));
     if (!watch) {
-      io.out(renderUsage(profiles, accounts, io).trimEnd());
+      io.out(renderUsage(profiles, accounts, io, { colors: config.profiles }).trimEnd());
       return 0;
     }
     return new Promise<number>((resolve) => {
       const draw = () => {
-        io.out(`\x1b[2J\x1b[H${renderUsage(profiles, accounts, io)}\n(refreshes every 30 s · Ctrl+C to quit)`);
+        io.out(`\x1b[2J\x1b[H${renderUsage(profiles, accounts, io, { colors: config.profiles })}\n${style(io).muted("refreshes every 30 s · Ctrl+C to quit")}`);
       };
       draw();
       const timer = setInterval(draw, 30_000);

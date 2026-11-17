@@ -114,10 +114,23 @@ describe("turno demo", () => {
     expect(readdirSync(sb.home)).toEqual([]);
   });
 
-  it("without a terminal it waits until stopped (Ctrl-C), then removes everything", async () => {
+  it("without a terminal it prints what it set up and ends, removing everything", async () => {
+    const io = fakeIo(sb.env);
+    expect(await runDemo([], io, { tmp, server, entry: DIST_MAIN })).toBe(0);
+    const text = io.lines.join("\n");
+    expect(text).toMatch(/^turno demo {2}a throwaway HOME at /m);
+    expect(text).toMatch(/^ {2}profiles {2}work for ~\/code\/acme, personal for every other folder/m);
+    expect(text).toMatch(/^ {2}gateway {3}mcpd on 127\.0\.0\.1:\d+/m);
+    expect(text).toContain("so the demo ends now");
+    expect(text).not.toContain("\x1b[");
+    expect(io.errors.join("\n")).toMatch(/stopped mcpd and removed/);
+    expect(readdirSync(tmp).filter((n) => n.startsWith("turno-demo-"))).toEqual([]);
+  });
+
+  it("with --keep and no terminal it waits until stopped (Ctrl-C), then removes everything", async () => {
     const io = fakeIo(sb.env);
     const stop = new AbortController();
-    const done = runDemo([], io, { tmp, server, entry: DIST_MAIN, signal: stop.signal });
+    const done = runDemo(["--keep"], io, { tmp, server, entry: DIST_MAIN, signal: stop.signal });
     await waitFor(() => io.lines.some((l) => l.includes("Ctrl-C")), "the demo to be ready", { timeout: 20_000 });
     const home = readdirSync(tmp).find((n) => n.startsWith("turno-demo-"));
     expect(home).toBeDefined();
@@ -163,8 +176,15 @@ describe.skipIf(!BUILT)("turno demo (built CLI)", () => {
   }
   const exited = (c: ChildProcess) => new Promise<number | null>((r) => (c.exitCode !== null ? r(c.exitCode) : c.once("exit", (code) => r(code))));
 
-  it("Ctrl-C stops mcpd and removes the throwaway HOME", async () => {
+  it("ends by itself without a terminal, so scripts and agents can run it", async () => {
     const { child, out } = launch(DIST_MAIN, []);
+    expect(await exited(child)).toBe(0);
+    expect(out()).toContain("so the demo ends now");
+    expect(readdirSync(tmp).filter((n) => n.startsWith("turno-demo-"))).toEqual([]);
+  });
+
+  it("with --keep, Ctrl-C stops mcpd and removes the throwaway HOME", async () => {
+    const { child, out } = launch(DIST_MAIN, ["--keep"]);
     await waitFor(() => out().includes("Ctrl-C"), "the demo to be ready", { timeout: 20_000 });
     const home = /HOME at (\S+)/.exec(out())?.[1];
     expect(home && existsSync(home)).toBeTruthy();
