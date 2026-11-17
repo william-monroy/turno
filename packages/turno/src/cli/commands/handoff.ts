@@ -8,7 +8,7 @@ import { type Command, type Io, fail } from "../io.js";
 import { realOr } from "../../core/fsutil.js";
 
 const USAGE = `Usage:
-  turno session handoff <profile|auto> [--fork] [--copy]
+  turno session handoff [profile|auto] [--fork] [--copy]
 
 Prints the command that continues THIS Claude Code session under another profile:
   default   resume it there (exit this session first)
@@ -17,7 +17,10 @@ Prints the command that continues THIS Claude Code session under another profile
 
 Run it from inside a Claude Code session (it reads CLAUDE_CODE_SESSION_ID). The command starts
 with a cd to the folder the session began in, because claude --resume looks sessions up by
-the project folder it is launched from.`;
+the project folder it is launched from.
+
+Without a profile, a terminal shows the profiles to choose from; elsewhere it exits with 2
+and lists them.`;
 
 function shellQuote(s: string): string {
   return /^[A-Za-z0-9_./:@%+=-]+$/.test(s) ? s : `'${s.replace(/'/g, "'\\''")}'`;
@@ -98,13 +101,23 @@ export const command: Command = {
   flags: flagsOf(SPEC),
   async run(args, io: Io) {
     const p = parseFlags(args, SPEC, 1);
-    const target = p.positionals[0];
+    let target = p.positionals[0];
     if (!target) {
       const config = loadConfig(io.env);
-      io.out(`profiles: ${[...listProfiles(config, io.env, "claude"), "auto"].join(" ")}`);
-      io.out(`current: ${profileFromConfigDir(io.env.CLAUDE_CONFIG_DIR, config, io.env) ?? "(none)"}`);
-      io.err(USAGE);
-      return 2;
+      const current = profileFromConfigDir(io.env.CLAUDE_CONFIG_DIR, config, io.env);
+      if (!io.ask) {
+        // Scripts read these two lines; the error names the values and the exit is 2.
+        io.out(`profiles: ${[...listProfiles(config, io.env, "claude"), "auto"].join(" ")}`);
+        io.out(`current: ${current ?? "(none)"}`);
+      }
+      const { pickProfile } = await import("../picker.js");
+      target = await pickProfile(io, {
+        command: "session handoff",
+        title: bool(p, "fork") ? "Fork this session under" : "Continue this session under",
+        agent: "claude",
+        extra: ["auto"],
+        ...(current ? { marks: { [current]: "this session" } } : {}),
+      });
     }
     const h = buildHandoff(target, bool(p, "fork"), io.env);
     for (const w of h.warnings) io.err(`warning: ${w}`);

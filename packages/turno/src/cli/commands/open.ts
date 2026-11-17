@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { loadConfig } from "../../core/config.js";
 import { ensurePrivateDir, findOnPath } from "../../core/paths.js";
 import { profileFromConfigDir } from "../../core/profiles.js";
-import { type Command, fail } from "../io.js";
+import { type Command, type Io, fail } from "../io.js";
 import { checkName } from "./setup.js";
 
 const USAGE = [
@@ -12,7 +12,8 @@ const USAGE = [
   "claude.ai and claude.com links open in the profile's isolated Google Chrome profile,",
   'or in the default browser when profiles.<name>.browser = "default". Other links',
   "always open in the default browser. Only http(s) and mailto links are accepted.",
-  "Claude Code calls this through $BROWSER.",
+  "Claude Code calls this through $BROWSER. Typed in a terminal outside a profile's session,",
+  "a claude.ai link without a profile shows the profiles to choose from.",
 ].join("\n");
 
 /** claude.ai and claude.com links (and their subdomains) open with the profile's account. */
@@ -86,6 +87,20 @@ export function openArgs(profile: string | undefined, url: string, env: NodeJS.P
   return openInvocation(profile, url, env, "darwin").args;
 }
 
+/**
+ * The profile for a claude.ai link typed in a terminal without one: outside a profile's session
+ * a person chooses (the system profile first). Claude Code calling through $BROWSER, a script or
+ * an agent never sees the picker and keeps the default.
+ */
+async function chooseProfile(url: string, io: Io): Promise<string | undefined> {
+  if (!io.ask || !isOpenableUrl(url) || !isClaudeUrl(url)) return undefined;
+  const config = loadConfig(io.env);
+  // A profile's session (its launcher sets CLAUDE_CONFIG_DIR) opens links with its own account.
+  if (io.env.CLAUDE_CONFIG_DIR && profileFromConfigDir(io.env.CLAUDE_CONFIG_DIR, config, io.env)) return undefined;
+  const { pickProfile } = await import("../picker.js");
+  return pickProfile(io, { command: "open", title: "Open the link with", agent: "claude", ...(config.system ? { initial: config.system } : {}) });
+}
+
 export const command: Command = {
   summary: "open a claude.ai link with an account (default: the session's)",
   usage: USAGE,
@@ -95,8 +110,9 @@ export const command: Command = {
       return 0;
     }
     if (args.length > 2) fail("usage: turno open [profile] <url>");
-    const [profile, url] = args.length === 2 ? [args[0], args[1]] : [undefined, args[0]];
+    let [profile, url] = args.length === 2 ? [args[0], args[1]] : [undefined, args[0]];
     if (!url) fail("usage: turno open [profile] <url>");
+    profile ??= await chooseProfile(url, io);
     const inv = openInvocation(profile, url, io.env);
     return new Promise<number>((resolve) => {
       const child = spawn(inv.command, inv.args, inv.detach ? { stdio: "ignore", env: io.env, detached: true } : { stdio: "inherit", env: io.env });
