@@ -50,8 +50,9 @@ turno-browser (no `engineId`) still gets the names it knows. This replaces the s
 
 - Regenerating the gif needs only `pnpm build && vhs docs/demo/demo.tape`; the recording follows
   `turno demo`, so a change to the demo shows up in the next recording.
-- The accounts and usage in the gif come from the stand-in and the seed step; the intro's two
-  status lines keep `turno demo`'s own sample numbers.
+- The accounts and usage in the gif come from the stand-in and the seed step. The personal
+  profile is seeded with the numbers of `turno demo`'s sample status line (38% and 12%), so the
+  intro and the status screen agree.
 - Recording the demo showed that `turno demo` writes its status line command with a quoted path,
   which turno did not recognize as its own: doctor and the status screen printed the raw command.
   `isTurnoStatusLine` now accepts a quoted path, and `statusLineLabel` shows any other command

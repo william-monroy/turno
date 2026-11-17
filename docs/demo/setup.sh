@@ -64,7 +64,7 @@ snap() { # profile 5h% 5h-reset-seconds week% week-reset-seconds
   printf '{"rate_limits":{"five_hour":{"used_percentage":%s,"resets_at":%s},"seven_day":{"used_percentage":%s,"resets_at":%s}},"updated_at":%s}\\n' \\
     "\$2" "\$((now + \$3))" "\$4" "\$((now + \$5))" "\$((now - 120))" >"\$usage/\$1.json"
 }
-snap personal 42 10800 18 345600
+snap personal 38 7200 12 345600
 snap work 87 3600 64 172800
 case "\$(uname)" in
 Darwin) fonts="\$HOME/Library/Fonts" ;;
