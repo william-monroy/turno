@@ -96,14 +96,19 @@ server.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
       return text("done");
     }
     case "hang": {
+      event(`hang ${extra.requestId}`);
       const ms = Number(req.params.arguments?.ms ?? 1000);
       await new Promise((resolve) => {
-        const t = setTimeout(resolve, ms);
-        extra.signal.addEventListener("abort", () => {
+        const cancelled = () => {
           clearTimeout(t);
           event(`cancelled ${extra.requestId}`);
           resolve();
-        });
+        };
+        const t = setTimeout(resolve, ms);
+        // The SDK aborts the signal before this handler runs when the cancellation arrived in
+        // the same read as the request (a loaded machine): "abort" then never fires.
+        if (extra.signal.aborted) cancelled();
+        else extra.signal.addEventListener("abort", cancelled, { once: true });
       });
       return text("woke");
     }
@@ -131,4 +136,14 @@ server.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
       throw new Error("unknown tool");
   }
 });
+// A slow start, read from a file so a test can change it without changing the definition.
+if (process.env.FIXTURE_START_DELAY_FILE) {
+  let ms = 0;
+  try {
+    ms = Number(readFileSync(process.env.FIXTURE_START_DELAY_FILE, "utf8")) || 0;
+  } catch {
+    /* no delay */
+  }
+  if (ms > 0) await new Promise((r) => setTimeout(r, ms));
+}
 await server.connect(new StdioServerTransport());

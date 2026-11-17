@@ -12,6 +12,7 @@ import { DefaultConnector } from "../src/mcpd/connectors.js";
 import { Gateway } from "../src/mcpd/gateway.js";
 import { InstanceManager } from "../src/mcpd/instances.js";
 import { type OAuthRecord, OAuthSession, type SessionOptions, checkIssuerParam, oauthService, parseRecord } from "../src/mcpd/oauth.js";
+import { ensureToken } from "../src/mcpd/state.js";
 import { profileToken } from "../src/mcpd/tokens.js";
 import { fakeIo } from "./helpers/cli.js";
 import { type FakeSecretStore, fakeSecretStore } from "./helpers/fake-secret-store.js";
@@ -68,8 +69,12 @@ function sessionOpts(extra: Partial<SessionOptions> = {}): SessionOptions {
   return { store: () => secretStore(sb.env), resolve: keychainResolver(sb.env), log: (l) => oauthLog.push(l), ...extra };
 }
 
-/** mcpd with the current mcp.toml; a new call stands for a restarted daemon (no memory). */
-async function boot(): Promise<number> {
+/**
+ * mcpd with the current mcp.toml; a new call stands for a restarted daemon (no memory). With
+ * `reachable`, it uses the state folder's master token and writes its port there, so CLI
+ * commands that talk to a running mcpd find this one.
+ */
+async function boot(reachable = false): Promise<number> {
   await stopGateway();
   const manifest = parseManifest(toml());
   manager = new InstanceManager({
@@ -83,8 +88,15 @@ async function boot(): Promise<number> {
     }),
     home: sb.home,
   });
-  gw = new Gateway({ manager, manifest: () => manifest, token: TOKEN, clientRequestTimeoutMs: 5000, processCwd: async () => undefined });
-  return gw.listen(0);
+  const token = reachable ? ensureToken(sb.env) : TOKEN;
+  gw = new Gateway({ manager, manifest: () => manifest, token, clientRequestTimeoutMs: 5000, processCwd: async () => undefined });
+  const port = await gw.listen(0);
+  if (reachable) {
+    mkdirSync(dirname(paths(sb.env).mcpdPort), { recursive: true });
+    writeFileSync(paths(sb.env).mcpdPort, `${port}\n`);
+  }
+  masterToken = token;
+  return port;
 }
 
 async function stopGateway(): Promise<void> {
@@ -96,11 +108,13 @@ async function stopGateway(): Promise<void> {
   manager = undefined;
 }
 
+let masterToken = TOKEN;
+
 async function agent(port: number, profile = "default"): Promise<Client> {
   const client = new Client({ name: "agent", version: "1" }, { capabilities: {} });
   await client.connect(
     new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp/rem`), {
-      requestInit: { headers: { Authorization: `Bearer ${profileToken(TOKEN, profile)}`, "X-Turno-Profile": profile } },
+      requestInit: { headers: { Authorization: `Bearer ${profileToken(masterToken, profile)}`, "X-Turno-Profile": profile } },
     }),
   );
   clients.push(client);
@@ -365,6 +379,30 @@ describe("mcpd as the OAuth client", () => {
     for (const t of [stale, saved.refresh_token!, saved.access_token]) expect(log).not.toContain(t);
   });
 
+  it("saves tokens still waiting in memory when mcpd stops, and logs when it cannot", async () => {
+    await setup();
+    await cliLogin();
+    const port = await boot();
+    const a = await agent(port);
+    expect(await whoami(a)).toBe("alice");
+    keys.failWrites(true);
+    as.expireAccessTokens();
+    expect(await whoami(a)).toBe("alice");
+    const spent = record()!.tokens!.refresh_token!;
+    expect(as.refreshValid(spent)).toBe(false);
+    // The store accepts writes again, but no call came to retry: the shutdown flush saves them.
+    keys.failWrites(false);
+    expect(await manager!.flushLogins()).toEqual([]);
+    const saved = record()!.tokens!.refresh_token!;
+    expect(as.refreshValid(saved)).toBe(true);
+    // Still refused at shutdown: the tokens are lost, and the server log says so.
+    keys.failWrites(true);
+    as.expireAccessTokens();
+    expect(await whoami(a)).toBe("alice");
+    expect(await manager!.flushLogins()).toEqual(["rem"]);
+    expect(readFileSync(join(sb.home, "logs", "rem.log"), "utf8")).toContain("mcpd stopped before the secret store accepted the rotated OAuth tokens");
+  });
+
   it("lets a new login win over tokens still waiting to be saved", async () => {
     await setup();
     await cliLogin();
@@ -400,6 +438,30 @@ describe("turno mcp logout and status", () => {
     const after = fakeIo(sb.env);
     await mcp.run(["list"], after);
     expect(after.lines.join("\n")).toContain("login: not logged in: turno mcp login rem");
+  });
+
+  it("tells a running mcpd, which stops using the old token at once", async () => {
+    await setup();
+    await cliLogin();
+    const port = await boot(true);
+    const a = await agent(port);
+    expect(await whoami(a)).toBe("alice");
+    const io = fakeIo(sb.env);
+    // Not revoked, so the old token still works at the server: only mcpd's memory could use it.
+    expect(await mcp.run(["logout", "rem", "--no-revoke"], io)).toBe(0);
+    expect(io.lines.join("\n")).toContain("mcpd stopped using the old token.");
+    await expect(whoami(a)).rejects.toThrow(/rem needs a login \(not logged in\): run turno mcp login rem/);
+    // A new login works on the same session.
+    await cliLogin();
+    expect(await whoami(a)).toBe("alice");
+  });
+
+  it("says so when no mcpd is running", async () => {
+    await setup();
+    await cliLogin();
+    const io = fakeIo(sb.env);
+    expect(await mcp.run(["logout", "rem"], io)).toBe(0);
+    expect(io.lines.join("\n")).toContain("mcpd is not running; it reads the secret store when it starts.");
   });
 
   it("refuses servers without auth = \"oauth\" and profiles the server does not serve", async () => {

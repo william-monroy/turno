@@ -126,6 +126,7 @@ export async function logout(args: string[], io: Io, deps: OAuthDeps = {}): Prom
   const store = storeOf(io.env);
   const dry = bool(flags, "dry-run");
   const { oauthService, parseRecord, revoke } = await import("../../mcpd/oauth.js");
+  const removed: string[] = [];
   for (const variant of variants) {
     const service = oauthService(server.name, variant);
     const rec = parseRecord(await store.get(service));
@@ -144,10 +145,21 @@ export async function logout(args: string[], io: Io, deps: OAuthDeps = {}): Prom
       revoked = why ? `; could not revoke it at ${rec.issuer} (${why})` : `; revoked it at ${rec.issuer}`;
     }
     await store.remove(service);
+    removed.push(variant);
     io.out(`Logged out of ${label}: removed ${service} from the ${store.label}${revoked}.`);
   }
-  if (!dry) io.out("mcpd stops using the old token within a minute.");
+  if (!dry && removed.length) io.out(await tellMcpd(io.env, server.name, removed));
   return 0;
+}
+
+/** Tell a running mcpd to drop its copy of the login now; what to print about it. */
+async function tellMcpd(env: NodeJS.ProcessEnv, server: string, variants: string[]): Promise<string> {
+  const { mcpdRequest } = await import("./mcp.js");
+  const query = variants.map((v) => `variant=${encodeURIComponent(v)}`).join("&");
+  const r = await mcpdRequest(env, "POST", `/logout/${encodeURIComponent(server)}?${query}`);
+  if (r === "down") return "mcpd is not running; it reads the secret store when it starts.";
+  // An mcpd from before 0.2 has no /logout: it notices within a minute.
+  return r.status === 200 ? "mcpd stopped using the old token." : "mcpd stops using the old token within a minute (now: turno mcp daemon restart).";
 }
 
 export interface LoginRow {

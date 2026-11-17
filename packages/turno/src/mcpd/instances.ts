@@ -56,6 +56,10 @@ export interface Connector {
   ): Promise<{ transport: Transport; pid?: () => number | null | undefined; warnings?: string[] }>;
   /** Last lines of the server's own log, shown when it keeps failing to start. */
   logTail?(server: ServerDef, variant: string, lines?: number): string | undefined;
+  /** OAuth logins (ADR 0029): drop the copy in memory of these variants (all when none are named). */
+  forgetLogin?(server: string, variants?: string[]): void;
+  /** OAuth logins: save rotated tokens still only in memory; the labels whose tokens are lost. */
+  flushLogins?(): Promise<string[]>;
 }
 
 export type Scope = "shared" | "project" | "session";
@@ -222,6 +226,8 @@ export class InstanceManager {
   readonly bornAt: number;
   /** The memory pressure seen by the last reap. */
   pressureLevel: PressureLevel = "normal";
+  /** When the last reap read the pressure (manager clock); undefined before that and while the feature is off. */
+  pressureCheckedAt?: number;
 
   constructor(private readonly opts: ManagerOptions) {
     this.isAlive = opts.isAlive ?? pidAlive;
@@ -346,9 +352,17 @@ export class InstanceManager {
 
   /**
    * Relay one client request: start or join the instance, apply the server's call_timeout,
-   * and retry once on a fresh instance when a remote server forgot our session.
+   * and retry once on a fresh instance when a remote server forgot our session. `cancelled`
+   * says whether the client cancelled the request while the instance was still starting: the
+   * upstream has no call to cancel yet, so the request is dropped here instead of sent.
    */
-  async forward(client: ClientHandle, method: string, params: Record<string, unknown> | undefined, originId: Id): Promise<Outcome> {
+  async forward(
+    client: ClientHandle,
+    method: string,
+    params: Record<string, unknown> | undefined,
+    originId: Id,
+    cancelled?: () => boolean,
+  ): Promise<Outcome> {
     const startedAt = Date.now();
     const t0 = performance.now();
     let variant: string | undefined;
@@ -364,6 +378,8 @@ export class InstanceManager {
       const inst = await this.acquire(client);
       if ("error" in inst || "result" in inst) return done(inst as Outcome);
       variant = inst.variant;
+      // Nothing awaits between this check and the call below, so a later cancellation finds it upstream.
+      if (cancelled?.()) return done(rpcError(ErrorCode.RequestCancelled, "cancelled by the client"));
       const timeout = inst.server.callTimeout ? inst.server.callTimeout * 1000 : undefined;
       const out = await inst.upstream.call(method, params, client, originId, timeout);
       if ("error" in out && inst.upstream.sessionLost && attempt === 0) {
@@ -617,8 +633,26 @@ export class InstanceManager {
     return def !== undefined && definitionFingerprint(def) === inst.defFp;
   }
 
+  /** `[mcpd] idle_under_pressure` changed in config.toml: applies from the next reap. */
+  setIdleUnderPressure(seconds: number): void {
+    this.opts.idleUnderPressure = seconds;
+  }
+
+  /**
+   * The memory pressure for /status and `turno mcp top` (ADR 0028): the level the last reap
+   * read (null while the feature is off or before the first read), the configured limit, and
+   * the idle cap that applies now (null when servers keep their own limits).
+   */
+  memoryPressure(): { level: PressureLevel | null; checkedAt: number | null; idleUnderPressure: number; idleCap: number | null } {
+    const under = this.opts.idleUnderPressure ?? 0;
+    const watched = this.opts.pressure !== undefined && under > 0 && this.pressureCheckedAt !== undefined;
+    const level = watched ? this.pressureLevel : null;
+    const cap = level ? effectiveIdle(Number.POSITIVE_INFINITY, level, under) : Number.POSITIVE_INFINITY;
+    return { level, checkedAt: watched ? (this.pressureCheckedAt ?? null) : null, idleUnderPressure: under, idleCap: Number.isFinite(cap) ? cap : null };
+  }
+
   /** Read memory pressure; a failing probe counts as normal. Logs when the level changes. */
-  private async pressure(): Promise<PressureLevel> {
+  async readPressure(): Promise<PressureLevel> {
     let level: PressureLevel = "normal";
     if (this.opts.pressure && (this.opts.idleUnderPressure ?? 0) > 0) {
       try {
@@ -626,6 +660,9 @@ export class InstanceManager {
       } catch {
         level = "normal";
       }
+      this.pressureCheckedAt = this.now();
+    } else {
+      this.pressureCheckedAt = undefined;
     }
     if (level !== this.pressureLevel) {
       const under = this.opts.idleUnderPressure ?? 0;
@@ -645,7 +682,7 @@ export class InstanceManager {
    */
   async reap(): Promise<string[]> {
     const stopped: string[] = [];
-    const level = await this.pressure();
+    const level = await this.readPressure();
     for (const c of [...this.clients]) {
       if (c.ctx.pid && !this.isAlive(c.ctx.pid)) this.detach(c);
     }
@@ -683,6 +720,16 @@ export class InstanceManager {
 
   clientCount(): number {
     return this.clients.size;
+  }
+
+  /** `turno mcp logout` (through `POST /logout/<server>`): the next request reads the secret store. */
+  forgetLogin(server: string, variants?: string[]): void {
+    this.opts.connector.forgetLogin?.(server, variants);
+  }
+
+  /** At shutdown: save OAuth tokens still only in memory; the labels whose tokens are lost. */
+  async flushLogins(): Promise<string[]> {
+    return (await this.opts.connector.flushLogins?.()) ?? [];
   }
 
   async stopAll(): Promise<void> {

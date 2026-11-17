@@ -420,6 +420,7 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
         log(`reload skipped (${why}): ${next.error}`);
         return;
       }
+      const tell = gateway.beforeViewChange();
       // Stop instances whose definition changed or disappeared; the next call starts the new one.
       for (const inst of manager.list()) {
         const def = next.manifest.servers[inst.server.name];
@@ -430,6 +431,7 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
       }
       state = next;
       log(`manifest reloaded (${why}): ${Object.keys(state.manifest.servers).length} servers`);
+      tell();
     };
 
     /** config.toml: a broken file keeps the last good settings and is reported in /status. */
@@ -443,7 +445,10 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
         return;
       }
       configError = undefined;
+      const tell = gateway.beforeViewChange();
       folderRules = next.projects;
+      tell();
+      manager.setIdleUnderPressure(next.mcpd.idleUnderPressure);
       if (next.mcpd.callLog !== Boolean(calls)) {
         if (calls) {
           calls.close();
@@ -497,6 +502,8 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
       void sampler.sample(manager.list().map((i) => ({ descKey: i.descKey, pid: i.upstream.pid })));
     }, 15_000);
     timer.unref();
+    // /status shows the pressure from the start instead of after the first reap.
+    void manager.readPressure().catch(() => {});
 
     let stopped = false;
     return {
@@ -512,6 +519,12 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
         clearTimeout(configDebounce);
         watcher?.close();
         process.off("SIGHUP", onHup);
+        // Rotated OAuth tokens the secret store refused so far: one last try before they are gone.
+        const lost = await Promise.race([
+          manager.flushLogins().catch(() => [] as string[]),
+          new Promise<string[]>((r) => setTimeout(() => r([]), 3000).unref()),
+        ]);
+        if (lost.length) log(`OAuth tokens not saved, a new login is needed for: ${lost.join(", ")} (turno mcp login <server>)`);
         await manager.stopAll();
         await gateway.close();
         releaseLock(env, port);

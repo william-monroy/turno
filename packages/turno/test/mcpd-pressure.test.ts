@@ -132,6 +132,35 @@ describe("reaping under memory pressure", () => {
     expect(await manager.reap()).toEqual(["fx: idle (memory pressure)"]);
   });
 
+  it("reports the level and the idle cap in /status, and nothing while the feature is off", async () => {
+    await boot("");
+    const pressure = () => (gw.status() as { memoryPressure: unknown }).memoryPressure;
+    // Not read yet: no level to report.
+    expect(pressure()).toEqual({ level: null, checkedAt: null, idleUnderPressure: 300, idleCap: null });
+    await manager.reap();
+    expect(pressure()).toMatchObject({ level: "normal", idleUnderPressure: 300, idleCap: null });
+    expect((pressure() as { checkedAt: number }).checkedAt).toBeGreaterThan(0);
+    level = "warn";
+    await manager.reap();
+    expect(pressure()).toMatchObject({ level: "warn", idleCap: 300 });
+    level = "critical";
+    await manager.reap();
+    expect(pressure()).toMatchObject({ level: "critical", idleCap: 75 });
+    // config.toml turned it off: no probing, no level.
+    manager.setIdleUnderPressure(0);
+    await manager.reap();
+    expect(pressure()).toEqual({ level: null, checkedAt: null, idleUnderPressure: 0, idleCap: null });
+  });
+
+  it("applies a new idle_under_pressure from config.toml without a restart", async () => {
+    await call(await boot("", 0));
+    skew = 6 * 60_000;
+    level = "warn";
+    expect(await manager.reap()).toEqual([]);
+    manager.setIdleUnderPressure(120);
+    expect(await manager.reap()).toEqual(["fx: idle (memory pressure)"]);
+  });
+
   it("does nothing when idle_under_pressure is off", async () => {
     await call(await boot("", 0));
     skew = 6 * 60_000;

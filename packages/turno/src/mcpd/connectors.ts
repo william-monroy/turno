@@ -147,6 +147,14 @@ export class DefaultConnector implements Connector {
     return log;
   }
 
+  forgetLogin(server: string, variants?: string[]): void {
+    this.oauthSessions?.forget(server, variants);
+  }
+
+  async flushLogins(): Promise<string[]> {
+    return this.oauthSessions ? this.oauthSessions.flush() : [];
+  }
+
   logTail(server: ServerDef, variant: string, lines = 10): string | undefined {
     return tailFile(logFileOf(this.opts.logsDir, `${server.name}${variant === "default" ? "" : `@${variant}`}`), lines);
   }

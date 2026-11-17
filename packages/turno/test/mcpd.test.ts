@@ -42,6 +42,7 @@ let remotes: { close(): Promise<void> }[] = [];
 let spawnLog: string;
 let eventsLog: string;
 let toolsFile: string;
+let startDelayFile: string;
 /**
  * Milliseconds the manager's clock runs ahead of the real one. Idle limits and leases are
  * tested by moving it forward (`advance`) instead of sleeping past them.
@@ -52,7 +53,7 @@ const advance = (ms: number) => {
 };
 
 function fixtureToml(name: string, extra = "", account = "keychain:default-account"): string {
-  const env = `{ FIXTURE_LOG = ${JSON.stringify(spawnLog)}, FIXTURE_EVENTS = ${JSON.stringify(eventsLog)}, FIXTURE_TOOLS_FILE = ${JSON.stringify(toolsFile)}, FIXTURE_ACCOUNT = ${JSON.stringify(account)} }`;
+  const env = `{ FIXTURE_LOG = ${JSON.stringify(spawnLog)}, FIXTURE_EVENTS = ${JSON.stringify(eventsLog)}, FIXTURE_TOOLS_FILE = ${JSON.stringify(toolsFile)}, FIXTURE_START_DELAY_FILE = ${JSON.stringify(startDelayFile)}, FIXTURE_ACCOUNT = ${JSON.stringify(account)} }`;
   return `[server.${name}]\ncommand = ${JSON.stringify(process.execPath)}\nargs = [${JSON.stringify(FIXTURE)}]\nenv = ${env}\n${extra}\n`;
 }
 
@@ -152,6 +153,7 @@ beforeEach(() => {
   spawnLog = join(sb.home, "spawns.log");
   eventsLog = join(sb.home, "events.log");
   toolsFile = join(sb.home, "tools.txt");
+  startDelayFile = join(sb.home, "start-delay.txt");
   clients = [];
   children = [];
   remotes = [];
@@ -283,6 +285,24 @@ describe("call lifecycle (ADR 0016)", () => {
     await waitFor(() => events().some((e) => e.startsWith("cancelled")), "the server to see the cancellation");
     advance(300);
     expect(await manager.reap()).toEqual(["fx: idle"]);
+  });
+
+  it("drops a call cancelled while its server is still starting", async () => {
+    await boot(fixtureToml("fx"));
+    await connect("fx"); // learns the tools
+    await manager.stopAll();
+    writeFileSync(startDelayFile, "1500");
+    const b = await connect("fx"); // warm cache: nothing starts yet
+    const ac = new AbortController();
+    const call = b.callTool({ name: "hang", arguments: { ms: 10_000 } }, undefined, { signal: ac.signal });
+    await waitFor(() => spawns() === 2, "the server process");
+    ac.abort();
+    await expect(call).rejects.toThrow();
+    // Stdio keeps order: had the hang been sent upstream, the server would log it before this echo.
+    expect(await callText(b, "echo", { text: "up" })).toBe("up");
+    expect(events().filter((e) => e.startsWith("hang"))).toEqual([]);
+    // The fresh start relists in the background; no session has a call in flight.
+    expect(manager.list().map((i) => i.upstream.inflightByClient())).toEqual([{}]);
   });
 
   it("cancels and settles the calls of a session that goes away", async () => {
@@ -496,6 +516,27 @@ describe("descriptions (ADR 0016)", () => {
     await callText(a, "echo", { text: "start it" });
     await waitFor(() => changed === 1, "tools/list_changed");
     expect((await a.listTools()).tools.map((t) => t.name)).toContain("extra_tool");
+  });
+
+  it("tells open sessions when an mcp.toml change filters their tools, and only those", async () => {
+    await boot(fixtureToml("fx") + fixtureToml("other"));
+    const a = await connect("fx");
+    const b = await connect("other");
+    let changedA = 0;
+    let changedB = 0;
+    a.setNotificationHandler(ToolListChangedNotificationSchema, async () => void changedA++);
+    b.setNotificationHandler(ToolListChangedNotificationSchema, async () => void changedB++);
+    // The SDK client opens its notification stream after initialize; a call makes sure it is up.
+    await callText(a, "echo", { text: "x" });
+    await callText(b, "echo", { text: "x" });
+    const tell = gw.beforeViewChange();
+    manifest = parseManifest(fixtureToml("fx", 'tools = { deny = ["counter"] }') + fixtureToml("other"));
+    expect(tell()).toBe(1);
+    await waitFor(() => changedA === 1, "tools/list_changed for fx");
+    expect((await a.listTools()).tools.map((t) => t.name)).not.toContain("counter");
+    expect(changedB).toBe(0);
+    // Nothing changed for anyone: nobody is told.
+    expect(gw.beforeViewChange()()).toBe(0);
   });
 
   it("forwards resources/list to the instance of each project", async () => {

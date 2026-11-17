@@ -204,12 +204,21 @@ interface StatusAgent {
   servers: string[];
 }
 
+/** `/status` `memoryPressure` (ADR 0028); absent from an mcpd older than 0.2. */
+interface StatusPressure {
+  level: "normal" | "warn" | "critical" | null;
+  checkedAt: number | null;
+  idleUnderPressure: number;
+  idleCap: number | null;
+}
+
 interface Status {
   pid: number;
   version?: string;
   startedAt?: string;
   sessions: number;
   agents?: StatusAgent[];
+  memoryPressure?: StatusPressure;
   instances: StatusInstance[];
   serverRss?: Record<string, { bytes: number; at: string }>;
 }
@@ -255,6 +264,12 @@ export interface TopSnapshot {
     heldBy: { profile: string | null; pid: number | null } | null;
   }[];
   memoryKnown: boolean;
+  /**
+   * Memory pressure as mcpd sees it: `level` null when `mcpd.idle_under_pressure` is off (not
+   * watched); `idleCapSeconds` the idle limit every server gets now, null when they keep their
+   * own. Null as a whole when the running mcpd does not report it.
+   */
+  memoryPressure?: { level: "normal" | "warn" | "critical" | null; idleUnderPressureSeconds: number; idleCapSeconds: number | null } | null;
 }
 
 export async function topSnapshot(status: Status, procs: ProcTable | undefined, now = Date.now()): Promise<TopSnapshot> {
@@ -287,7 +302,18 @@ export async function topSnapshot(status: Status, procs: ProcTable | undefined, 
       }))
       .sort((a, b) => (b.rssBytes ?? 0) - (a.rssBytes ?? 0) || a.server.localeCompare(b.server)),
     memoryKnown: procs !== undefined,
+    memoryPressure: status.memoryPressure
+      ? { level: status.memoryPressure.level, idleUnderPressureSeconds: status.memoryPressure.idleUnderPressure, idleCapSeconds: status.memoryPressure.idleCap }
+      : null,
   };
+}
+
+/** The memory pressure line under the top header; nothing while mcpd does not watch it. */
+function pressureLine(s: ReturnType<typeof style>, p: TopSnapshot["memoryPressure"]): string | undefined {
+  if (!p?.level) return undefined;
+  if (p.level === "normal" || p.idleCapSeconds === null) return s.note("ok", s.muted(`memory pressure ${p.level}: servers keep their own idle limits`));
+  const text = `memory pressure ${p.level}: idle servers stop after ${duration(p.idleCapSeconds)} (mcpd.idle_under_pressure)`;
+  return p.level === "critical" ? s.note("err", s.err(text)) : s.note("warn", s.warn(text));
 }
 
 export function renderTop(io: Io, t: TopSnapshot): string[] {
@@ -302,6 +328,8 @@ export function renderTop(io: Io, t: TopSnapshot): string[] {
   ].filter(Boolean);
   const out = [s.wrap("", head.join(s.muted(" · ")))];
   if (!t.memoryKnown) out.push(s.note("warn", `note: ${MEMORY_UNKNOWN}`));
+  const pressure = pressureLine(s, t.memoryPressure);
+  if (pressure) out.push(pressure);
   if (!t.instances.length) {
     out.push(s.muted("  no servers running (they start on first use)"));
     return out;

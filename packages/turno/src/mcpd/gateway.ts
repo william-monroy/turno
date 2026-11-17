@@ -153,6 +153,8 @@ class ClientSession implements ClientHandle {
   lastSeen = Date.now();
   private nextId = 1;
   private waiting = new Map<Id, { resolve: (o: Outcome) => void; timer: NodeJS.Timeout }>();
+  /** Requests of this client being handled, and whether the client cancelled each one. */
+  private handling = new Map<Id, { cancelled: boolean }>();
 
   constructor(
     readonly ctx: ClientContext,
@@ -223,6 +225,8 @@ class ClientSession implements ClientHandle {
     const id = m.id as Id;
     const method = m.method as string;
     const manager = this.gw.manager;
+    const state = { cancelled: false };
+    this.handling.set(id, state);
     try {
       // Outside the folder's server set (ADR 0031): answer from mcpd, never start the server.
       const hidden = this.gw.hiddenBySet(this);
@@ -286,15 +290,22 @@ class ClientSession implements ClientHandle {
         this.reply(id, method === "resources/subscribe" ? await manager.subscribe(this, uri, id) : await manager.unsubscribe(this, uri, id));
         return;
       }
-      this.reply(id, await manager.forward(this, method, m.params, id));
+      this.reply(id, await manager.forward(this, method, m.params, id, () => state.cancelled));
     } catch (err) {
       this.reply(id, rpcError(ErrorCode.Unavailable, `${this.ctx.serverName}: ${(err as Error).message}`));
+    } finally {
+      if (this.handling.get(id) === state) this.handling.delete(id);
     }
   }
 
   private handleNotification(m: Message): void {
     const method = m.method as string;
     if (method === "notifications/initialized") return;
+    if (method === "notifications/cancelled") {
+      // Remembered for a request still waiting for its instance to start (forward drops it).
+      const state = this.handling.get(m.params?.requestId as Id);
+      if (state) state.cancelled = true;
+    }
     if (this.gw.hiddenBySet(this)) return;
     let inst: ReturnType<InstanceManager["existing"]>;
     try {
@@ -397,6 +408,34 @@ export class Gateway {
     return profile ? { admin: false, profile } : { status: 401, error: BAD_TOKEN };
   }
 
+  /**
+   * Call before a config.toml or mcp.toml change: notes what each open session sees (its
+   * folder's server set, ADR 0031, and its tool filter, ADR 0023). The returned function, called
+   * after the change, sends list_changed to the sessions whose view changed, so their agents
+   * list again without reconnecting, and returns how many it told. Stateless 2026-07-28 clients
+   * are not told: they see the change when their list results expire (`ttlMs`).
+   */
+  beforeViewChange(): () => number {
+    const view = (s: ClientSession) => ({ hidden: this.hiddenBySet(s) !== undefined, filter: JSON.stringify(this.toolFilter(s.ctx) ?? null) });
+    const before = new Map([...this.sessions.values()].map((s) => [s, view(s)] as const));
+    return () => {
+      let told = 0;
+      for (const [s, was] of before) {
+        if (this.sessions.get(s.id) !== s) continue;
+        const now = view(s);
+        if (now.hidden === was.hidden && now.filter === was.filter) continue;
+        s.notify("notifications/tools/list_changed", undefined);
+        if (now.hidden !== was.hidden) {
+          s.notify("notifications/prompts/list_changed", undefined);
+          s.notify("notifications/resources/list_changed", undefined);
+        }
+        told++;
+      }
+      if (told) this.opts.log?.(`told ${told} session${told === 1 ? "" : "s"} that their server lists changed`);
+      return told;
+    };
+  }
+
   /** The tool filter for a session, or undefined when its server filters nothing. */
   toolFilter(ctx: ClientContext): ToolFilter | undefined {
     const server = this.opts.manifest().servers[ctx.serverName];
@@ -454,12 +493,14 @@ export class Gateway {
     }
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const refresh = /^\/refresh(?:\/([^/]+))?\/?$/.exec(url.pathname);
-    if ((url.pathname === "/status" && req.method === "GET") || (refresh && req.method === "POST")) {
+    const logout = /^\/logout\/([^/]+)\/?$/.exec(url.pathname);
+    if ((url.pathname === "/status" && req.method === "GET") || ((refresh || logout) && req.method === "POST")) {
       if (!caller.admin) {
         json(res, 403, { error: "a profile token cannot use the admin endpoints" });
         return;
       }
       if (refresh) await this.handleRefresh(refresh[1] ? decodeURIComponent(refresh[1]) : undefined, res);
+      else if (logout?.[1]) this.handleLogout(decodeURIComponent(logout[1]), url.searchParams.getAll("variant"), res);
       else json(res, 200, this.status());
       return;
     }
@@ -542,6 +583,17 @@ export class Gateway {
     for (const n of names) out[n] = await this.manager.refresh(n);
     this.opts.log?.(`refreshed ${names.join(", ") || "nothing"}`);
     json(res, 200, name !== undefined ? { server: name, ...(out[name] as object) } : { servers: out });
+  }
+
+  /**
+   * `POST /logout/<server>[?variant=v...]`, sent by `turno mcp logout` after it removed the
+   * login: mcpd drops its copy of those variants (every variant when none are named), so the
+   * next request reads the secret store at once instead of up to a minute later.
+   */
+  private handleLogout(name: string, variants: string[], res: ServerResponse): void {
+    this.manager.forgetLogin(name, variants.length ? variants : undefined);
+    this.opts.log?.(`${name}: OAuth login removed (${variants.length ? variants.join(", ") : "every variant"}); reading the secret store again`);
+    json(res, 200, { server: name, variants: variants.length ? variants : null });
   }
 
   /** Identity and folder of a new session: profile (from its token), PID (header, else TCP peer), folder (header, else the PID's). */
@@ -636,6 +688,7 @@ export class Gateway {
       pid: process.pid,
       sessions: this.sessions.size,
       agents: this.agents(),
+      memoryPressure: this.manager.memoryPressure(),
       instances: this.manager.list().map((i) => ({
         key: i.key,
         server: i.server.name,

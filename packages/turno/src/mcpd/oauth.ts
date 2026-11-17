@@ -606,6 +606,33 @@ export class OAuthSession {
     return this.unpersisted;
   }
 
+  /**
+   * `turno mcp logout` (or login) changed the item: stop trusting the copy in memory, so the
+   * next request reads the store at once instead of up to a minute later.
+   */
+  forget(): void {
+    this.checkedAt = Number.NEGATIVE_INFINITY;
+  }
+
+  /**
+   * mcpd is stopping: one last try to save rotated tokens that exist only in memory (a login
+   * or logout made meanwhile still wins). Returns true when they could not be saved and are
+   * lost with this process.
+   */
+  flush(): Promise<boolean> {
+    return this.serial(async () => {
+      if (!this.unpersisted || !this.rec) return false;
+      try {
+        await this.load(true);
+      } catch {
+        /* the store cannot be read: the tokens stay unsaved */
+      }
+      if (!this.unpersisted) return false;
+      this.opts.log?.(`${this.label}: mcpd stopped before the secret store accepted the rotated OAuth tokens; the next refresh needs a new login`);
+      return true;
+    });
+  }
+
   private get label(): string {
     return `${this.name}${this.variant === "default" ? "" : `@${this.variant}`}`;
   }
@@ -776,6 +803,26 @@ export class OAuthSessions {
       this.sessions.set(key, s);
     }
     return s;
+  }
+
+  /** Forget what memory holds for these variants of a server (every variant when none are named). */
+  forget(name: string, variants?: string[]): number {
+    let n = 0;
+    for (const s of this.sessions.values()) {
+      if (s.name !== name || (variants && !variants.includes(s.variant))) continue;
+      s.forget();
+      n++;
+    }
+    return n;
+  }
+
+  /** Save what is still only in memory; the labels whose tokens could not be saved. */
+  async flush(): Promise<string[]> {
+    const lost: string[] = [];
+    for (const s of this.sessions.values()) {
+      if (await s.flush().catch(() => true)) lost.push(s.variant === "default" ? s.name : `${s.name}@${s.variant}`);
+    }
+    return lost;
   }
 }
 
