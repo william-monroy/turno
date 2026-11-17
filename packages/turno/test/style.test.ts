@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { summarize } from "../src/cli/commands/undo.js";
 import { writeLauncher } from "../src/cli/launchers.js";
 import { main } from "../src/cli/main.js";
-import { ICONS, duration, level, padEnd, profileColor, spinner, stripAnsi, style, termWidth, visibleWidth } from "../src/cli/style.js";
+import { groupNotes } from "../src/cli/commands/init.js";
+import { ICONS, duration, level, padEnd, profileColor, spinner, stripAnsi, style, termWidth, visibleWidth, wrapAnsi } from "../src/cli/style.js";
 import { tildify } from "../src/core/paths.js";
 import { fakeCommand, fakeIo } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -94,6 +95,46 @@ describe("style: widths, tables and bars", () => {
 
   it("prints durations like a person reads them", () => {
     expect([duration(42), duration(1234), duration(65_000)]).toEqual(["42ms", "1.2s", "1m05s"]);
+  });
+});
+
+describe("style: nothing runs past the terminal width", () => {
+  it("wraps at spaces, keeps alignment spaces when it fits, and ignores ANSI codes", () => {
+    expect(wrapAnsi("aaa bbb ccc", 7)).toEqual(["aaa bbb", "ccc"]);
+    expect(wrapAnsi("  a  b", 10)).toEqual(["  a  b"]);
+    expect(wrapAnsi("\x1b[2maaa bbb\x1b[0m ccc", 7).map(stripAnsi)).toEqual(["aaa bbb", "ccc"]);
+    expect(wrapAnsi("x".repeat(12), 5)).toEqual(["x".repeat(12)]);
+  });
+
+  it("hangs wrapped lines under where the text starts, on a terminal only", () => {
+    const text = "one two three four five six seven eight nine ten eleven twelve";
+    const lines = stripAnsi(style(tty({ COLUMNS: "40" })).note("warn", text)).split("\n");
+    expect(lines[0]).toBe("  ! one two three four five six seven");
+    for (const l of lines) expect(l.length, l).toBeLessThanOrEqual(40);
+    for (const l of lines.slice(1)) expect(l).toMatch(/^ {4}\S/);
+    expect(style(pipe({ COLUMNS: "40" })).note("warn", text)).toBe(`  !  ${text}`);
+  });
+
+  it("wraps the last cell of a table under its own column", () => {
+    const rows = [["~/.claude-work", "23 links removed, settings.json moved back, aside folder removed"]];
+    const lines = style(tty({ COLUMNS: "50" })).table(rows).map(stripAnsi);
+    expect(lines.length).toBeGreaterThan(1);
+    for (const l of lines) expect(l.length, l).toBeLessThanOrEqual(50);
+    for (const l of lines.slice(1)) expect(l).toMatch(/^ {18}\S/);
+    expect(style(pipe({ COLUMNS: "50" })).table(rows)).toEqual([`  ${rows[0]![0]}  ${rows[0]![1]}`]);
+  });
+});
+
+describe("init notes", () => {
+  it("groups a note repeated across servers and keeps specific ones", () => {
+    const unknown = 'scope project: unknown server, one process per project folder; set scope = "shared" if it ignores its folder';
+    expect(
+      groupNotes([`github: ${unknown}`, "memory: runs @x/memory; turno mcp install pins it", `memory: ${unknown}`, "linear: remote, written directly into profiles", `postgres: ${unknown}`, "db: remote, written directly into profiles"]),
+    ).toEqual([
+      'scope project for github, memory, postgres (unknown servers: one process per project folder; set scope = "shared" for those that ignore their folder)',
+      "memory: runs @x/memory; turno mcp install pins it",
+      "linear, db: remote, written directly into profiles",
+    ]);
   });
 });
 

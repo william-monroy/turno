@@ -194,13 +194,15 @@ describe("colored output in a terminal", () => {
 
   /**
    * The words a screen says, whatever the terminal: no colors, no section rules, no status
-   * icons (Unicode on a terminal, ASCII in a pipe) and no padding around profile pills.
+   * icons (Unicode on a terminal, ASCII in a pipe), no padding around profile pills, and no
+   * line breaks (a terminal wraps long lines, a pipe keeps them whole).
    */
   const words = (text: string) =>
     strip(text)
       .split("\n")
       .map((l) => l.replace(/ ─+$/, "").replace(/^\s*(✓|✗|•|–|!|ok|x|-|●|○|➜|→)\s+/, "").replace(/\s+/g, " ").trim())
-      .join("\n");
+      .join(" ")
+      .replace(/\s+/g, " ");
 
   for (const args of [["init", "--dry-run"], ["mcp", "import"], ["config", "path", "--json"]]) {
     it(`turno ${args.join(" ")}: colors only a terminal, and the text is the same`, async () => {

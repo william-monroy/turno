@@ -211,6 +211,9 @@ describe("turno init", () => {
       const r = await run(["init", "--yes", "--no-mcp", "--profile", "lab"]);
       expect(r.code).toBe(0);
       expect(r.out).toContain("Try it: claude-work");
+      // The plan said where the file goes; the Write phase only says that it moved.
+      expect(r.out).toMatch(/moves your own settings\.json to ~\/\.claude-work\/\.aside-<time>\//);
+      expect(r.out).toContain("    ! moved settings.json aside (turno undo puts it back)");
       expect(r.out).toMatch(/^ok Done in \d+(ms|\.\ds)\. Undo all of it with: turno undo \d{8}-\d{6}/m);
       expect(r.out).toMatch(/^Write\n {2}ok wrote ~\/\.config\/turno\/config\.toml$/m);
     } finally {

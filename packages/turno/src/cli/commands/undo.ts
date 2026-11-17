@@ -170,7 +170,7 @@ export const command: Command = {
         const what = s.action === "chmod" ? `mode ${(s.mode ?? 0).toString(8)} again` : VERBS[s.action].one;
         const from = s.from ? st.muted(` from ${tildify(s.from, io.env)}`) : "";
         const text = `${s.action === "skip" ? st.warn(what) : what} ${tildify(s.path, io.env)}${from}${s.reason ? st.muted(`: ${s.reason}`) : ""}`;
-        io.out(`  ${st.check(s.action === "skip" ? "warn" : s.action === "keep" ? "info" : "ok", text)}`);
+        io.out(st.note(s.action === "skip" ? "warn" : s.action === "keep" ? "info" : "ok", text));
       }
     } else {
       const rows = summarize(result.steps, io.env).map(({ folder, text, skipped }) => [
@@ -182,13 +182,14 @@ export const command: Command = {
       // What was left alone, and why: never folded into a count.
       for (const s of result.steps.filter((x) => x.action === "skip" || x.action === "keep")) {
         const skip = s.action === "skip";
-        io.out(`  ${st.check(skip ? "warn" : "info", `${skip ? st.warn("skipped") : "kept"} ${tildify(s.path, io.env)}${s.reason ? st.muted(`: ${s.reason}`) : ""}`)}`);
+        io.out(st.note(skip ? "warn" : "info", `${skip ? st.warn("skipped") : "kept"} ${tildify(s.path, io.env)}${s.reason ? st.muted(`: ${s.reason}`) : ""}`));
       }
     }
     const n = result.steps.length;
     io.out("");
-    io.out(
-      `${dry ? "Would put back" : "Put back"} ${n} ${n === 1 ? "change" : "changes"}${bool(p, "verbose") ? "" : st.muted(" (-v lists each one)")}${dry ? "" : st.muted(` in ${duration(Date.now() - started)}`)}.`,
+    io.out(st.wrap(
+      "",
+      `${dry ? "Would put back" : "Put back"} ${n} ${n === 1 ? "change" : "changes"}${bool(p, "verbose") ? "" : st.muted(" (-v lists each one)")}${dry ? "" : st.muted(` in ${duration(Date.now() - started)}`)}.`),
     );
     if (result.journal.used) io.out(`${st.muted("Redo with:")} turno undo ${result.journal.stamp}`);
     return result.steps.some((s) => s.action === "skip") ? 1 : 0;

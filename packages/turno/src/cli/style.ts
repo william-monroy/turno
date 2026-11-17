@@ -120,6 +120,39 @@ export function level(pct: number): "ok" | "warn" | "err" {
   return pct < 60 ? "ok" : pct < 85 ? "warn" : "err";
 }
 
+/**
+ * Break text that may hold ANSI codes into lines of at most `width` visible columns, at spaces.
+ * A word longer than the width stays whole. Colors carry over: a terminal keeps the active SGR
+ * across a line break.
+ */
+export function wrapAnsi(text: string, width: number): string[] {
+  if (visibleWidth(text) <= width) return [text];
+  const [first = "", ...rest] = text.split(" ");
+  const lines: string[] = [];
+  let line = first;
+  let w = visibleWidth(first);
+  for (const word of rest) {
+    const ww = visibleWidth(word);
+    // Break before a word that does not fit; spaces inside a line (alignment) stay as they are.
+    if (w > 0 && ww > 0 && w + 1 + ww > width) {
+      lines.push(line);
+      line = word;
+      w = ww;
+    } else {
+      line += ` ${word}`;
+      w += 1 + ww;
+    }
+  }
+  lines.push(line);
+  return lines;
+}
+
+interface TableOptions {
+  columns?: Column[];
+  indent?: number;
+  gap?: number;
+}
+
 interface Column {
   align?: "left" | "right";
   /** Columns with a drop rank go first when the table is wider than the terminal (highest first). */
@@ -148,8 +181,20 @@ export interface Style {
   header(title: string): string;
   /** `  key   value` with the key padded to `keyWidth`. */
   kv(key: string, value: string, keyWidth: number, indent?: number): string;
-  /** Aligned rows sized to the terminal; on a terminal, columns with `drop` go first when it is narrow. */
-  table(rows: readonly (readonly string[])[], opts?: { columns?: Column[]; indent?: number; gap?: number }): string[];
+  /**
+   * Aligned rows sized to the terminal. On a terminal, columns with `drop` go first when it is
+   * narrow, and a last cell that still does not fit wraps under its own column.
+   */
+  table(rows: readonly (readonly string[])[], opts?: TableOptions): string[];
+  /** The same table, as the lines of each row (one row can wrap over several lines). */
+  tableRows(rows: readonly (readonly string[])[], opts?: TableOptions): string[][];
+  /**
+   * `prefix` then `text`, wrapped to the terminal with later lines indented to where the text
+   * starts. Plain text (a pipe, NO_COLOR) stays on one line, so scripts and searches find it.
+   */
+  wrap(prefix: string, text: string): string;
+  /** An indented checklist note (`  ! text`), wrapped like `wrap`. */
+  note(state: "ok" | "warn" | "err" | "skip" | "info", text: string, indent?: number): string;
   /** A usage bar colored by level, then the percentage. */
   bar(pct: number, cells?: number): string;
   /** `ok cliente  ...` checklist row: icon, then the text. */
@@ -184,7 +229,14 @@ export function style(io: Pick<Io, "env" | "isTty">, opts: { nerd?: boolean } = 
   const icon = (name: IconName) => (ICON_COLOR[name] ?? ((s: string) => s))(ICONS[icons][name]);
   const iconWidth = Math.max(...(["ok", "warn", "err", "skip", "info"] as const).map((n) => visibleWidth(ICONS[icons][n])));
 
-  const table: Style["table"] = (rows, o = {}) => {
+  const wrapLine = (prefix: string, text: string): string => {
+    if (!color) return `${prefix}${text}`;
+    const hang = visibleWidth(prefix);
+    const body = wrapAnsi(text, Math.max(20, width - hang));
+    return [`${prefix}${body[0]}`, ...body.slice(1).map((l) => `${" ".repeat(hang)}${l}`)].join("\n");
+  };
+
+  const tableRows: Style["tableRows"] = (rows, o = {}) => {
     const indent = o.indent ?? 2;
     const gap = o.gap ?? 2;
     const cols = o.columns ?? [];
@@ -206,9 +258,13 @@ export function style(io: Pick<Io, "env" | "isTty">, opts: { nerd?: boolean } = 
         if (cols[i]?.align === "right") return padStart(cell, w);
         return k === keep.length - 1 ? cell : padEnd(cell, w);
       });
-      return (" ".repeat(indent) + cells.join(" ".repeat(gap))).trimEnd();
+      const head = " ".repeat(indent) + cells.slice(0, -1).map((c) => `${c}${" ".repeat(gap)}`).join("");
+      return wrapLine(head, cells.at(-1) ?? "")
+        .split("\n")
+        .map((l) => l.trimEnd());
     });
   };
+  const table: Style["table"] = (rows, o) => tableRows(rows, o).flat();
 
   return {
     color,
@@ -228,8 +284,11 @@ export function style(io: Pick<Io, "env" | "isTty">, opts: { nerd?: boolean } = 
       const rule = Math.max(0, Math.min(width, 80) - visibleWidth(title) - 1);
       return `${bold(title)} ${faint("─".repeat(rule))}`;
     },
-    kv: (key, value, keyWidth, indent = 2) => `${" ".repeat(indent)}${muted(padEnd(key, keyWidth))}  ${value}`.trimEnd(),
+    kv: (key, value, keyWidth, indent = 2) => wrapLine(`${" ".repeat(indent)}${muted(padEnd(key, keyWidth))}  `, value).trimEnd(),
     table,
+    tableRows,
+    wrap: wrapLine,
+    note: (state, text, indent = 2) => wrapLine(`${" ".repeat(indent)}${padEnd(icon(state), iconWidth)} `, text),
     bar: (pct, cells = 10) => {
       const p = Math.min(Math.max(pct, 0), 100);
       const filled = Math.round((p * cells) / 100);

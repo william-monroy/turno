@@ -135,7 +135,7 @@ export function renderStatus(d: StatusData, io: Io, opts: { now?: number; colors
   const pill = (name: string) => s.profile(name, opts.colors ? profileColor(opts.colors, name) : undefined);
   const out: string[] = [];
   const using = d.here.chosen ? pill(d.here.chosen) : "plain claude";
-  out.push(`${s.bold(s.accent("turno"))} ${s.muted(d.version)}  ${d.here.dir} ${s.icon("arrow")} ${using}`);
+  out.push(s.wrap(`${s.bold(s.accent("turno"))} ${s.muted(d.version)}  `, `${d.here.dir} ${s.icon("arrow")} ${using}`));
   if (d.update) out.push(s.warn(`${s.icon("info")} turno ${d.update} is available: turno upgrade`));
   if (d.migrationPending) out.push(s.warn(`${s.icon("warn")} the bash claudio config is not migrated yet: turno migrate`));
 
@@ -180,7 +180,7 @@ export function renderStatus(d: StatusData, io: Io, opts: { now?: number; colors
   const lineText = d.look.statusLine === "turno" ? "turno status line" : d.look.statusLine ? `status line \`${d.look.statusLine}\`` : "no status line";
   const look = [lineText, d.look.font ? "font installed" : `font missing ${s.muted("(turno ui install)")}`, `${d.look.icons} icons here`].join(s.muted(" · "));
   out.push(s.kv("gateway", gateway, 8));
-  for (const problem of d.mcpd.problems) out.push(`  ${" ".repeat(8)}  ${s.warn(`${s.icon("warn")} ${problem}`)}`);
+  for (const problem of d.mcpd.problems) out.push(s.wrap(`  ${" ".repeat(8)}  ${s.warn(s.icon("warn"))} `, s.warn(problem)));
   out.push(s.kv("sessions", `${plural(d.sessions.total, "live session")}${by ? s.muted(` (${by})`) : ""}`, 8));
   out.push(s.kv("look", look, 8));
 
@@ -193,7 +193,7 @@ function nextLines(s: Style, next: NextStep | null): string[] {
   const label = s.lead("next", s.bold(s.accent("Next")));
   if (!next) return [`${label}  ${s.ok("nothing to do: everything is set up")}`];
   const pad = " ".repeat(visibleWidth(label) + 2);
-  return [`${label}  ${s.bold(next.command)}`, `${pad}${s.muted(next.why)}`];
+  return [s.wrap(`${label}  `, s.bold(next.command)), s.wrap(pad, s.muted(next.why))];
 }
 
 export const command: Command = {

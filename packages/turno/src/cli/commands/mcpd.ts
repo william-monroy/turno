@@ -253,8 +253,8 @@ export async function installDaemonService(io: Io, opts: { dryRun?: boolean; com
       io.out(`would write ${tildify(r.file, io.env)}${r.changed ? "" : " (unchanged)"} and load the ${backend.noun}:`);
       io.out("");
       io.out(r.text.trimEnd());
-    } else io.out(`  ${style(io).check("ok", `${backend.noun} ${r.changed ? "written" : "unchanged"}: ${tildify(r.file, io.env)}`)}`);
-    if (choice.warning) io.err(`  ${style(io).check("warn", `warning: ${choice.warning}`)}`);
+    } else io.out(style(io).note("ok", `${backend.noun} ${r.changed ? "written" : "unchanged"}: ${tildify(r.file, io.env)}`));
+    if (choice.warning) io.err(style(io).note("warn", `warning: ${choice.warning}`));
     const hint = opts.journal ? undefined : journal.hint();
     if (hint) io.out(hint);
     return 0;
@@ -270,10 +270,10 @@ export async function startDaemonService(io: Io, opts: { journal?: Journal } = {
   const up = await waitFor(async () => Boolean(await fetchStatus(io.env)), 5000);
   const ms = spin.stop();
   if (up) {
-    io.out(`  ${st.check("ok", `mcpd is running ${st.muted(`(${duration(ms)})`)}`)}`);
+    io.out(st.note("ok", `mcpd is running ${st.muted(`(${duration(ms)})`)}`));
     return 0;
   }
-  io.err(`  ${st.check("err", "mcpd did not answer yet; see turno mcp daemon status and turno mcp daemon logs")}`);
+  io.err(st.note("err", "mcpd did not answer yet; see turno mcp daemon status and turno mcp daemon logs"));
   return 1;
 }
 
