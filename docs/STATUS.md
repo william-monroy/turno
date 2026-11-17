@@ -217,8 +217,7 @@ Last updated: 2026-11-16.
      setting `auth = "oauth"` for remotes that need it.
    - CLI: `turno init --start` (service and sync in the same run); `turno mcp call`; Codex
      `[projects]` trust entries for folder rules; `turno uninstall --purge` for state;
-     `turno secret` rejecting unknown flags like the other groups; `turno doctor` resolving
-     `env:` references; `tokenSyncCheck` without `mcp-managed.json`.
+     `turno doctor` resolving `env:` references; `tokenSyncCheck` without `mcp-managed.json`.
    - Accounts bridge: a rate limit per session; opt-in extra environment for runs (Bedrock,
      Vertex); verify that strict MCP runs reach the gateway with per-profile tokens on a real
      setup.

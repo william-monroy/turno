@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { paths, tildify } from "../../core/paths.js";
 import { SecretError, type SecretStore, requireSecretStore } from "../../core/secrets.js";
+import { JSON_FLAG, bool, flagsOf, parseFlags } from "../args.js";
 import { type Command, type Io, fail } from "../io.js";
 
 const USAGE = `Usage:
@@ -61,7 +62,7 @@ export function keychainRefs(text: string): string[] {
 }
 
 async function list(args: string[], io: Io): Promise<number> {
-  const json = args.includes("--json");
+  const json = bool(parseFlags(args, JSON_FLAG, 0), "json");
   let text = "";
   try {
     text = readFileSync(paths(io.env).mcpFile, "utf8");
@@ -83,14 +84,17 @@ async function list(args: string[], io: Io): Promise<number> {
 export const command: Command = {
   summary: "store MCP secrets in the Keychain (macOS) or the Secret Service (Linux)",
   usage: USAGE,
-  subcommands: { set: { args: ["any"] }, has: { args: ["any"] }, rm: { args: ["any"] }, list: { flags: ["--json"] } },
+  subcommands: { set: { args: ["any"] }, has: { args: ["any"] }, rm: { args: ["any"] }, list: { flags: flagsOf(JSON_FLAG) } },
   async run(args, io) {
-    const [sub, service] = args;
-    if (sub === "--help" || sub === "-h" || sub === "help") {
+    const [sub] = args;
+    const rest = args.slice(1);
+    if (sub === "--help" || sub === "-h" || sub === "help" || rest.includes("--help") || rest.includes("-h")) {
       io.out(USAGE);
       return 0;
     }
-    if (sub === "list" || sub === undefined) return list(args.slice(1), io);
+    if (sub === "list" || sub === undefined) return list(rest, io);
+    // One service name and no flags: an unknown flag must not become a service name.
+    const service = parseFlags(rest, {}, 1).positionals[0];
     if (!service) return fail(USAGE);
     try {
       switch (sub) {
