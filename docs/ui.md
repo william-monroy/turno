@@ -96,6 +96,19 @@ full disk or a read-only state folder leaves that part empty and the rest of the
 
 ### Colors and `NO_COLOR`
 
+turno's own screens choose colors by one order, and the first rule that applies wins
+(ADR 0037):
+
+1. `--color always|never` on the command line (before the command or among its flags);
+2. `TURNO_COLOR=always|never` (`--color auto` sets it aside);
+3. `NO_COLOR` set and not empty: no colors;
+4. `FORCE_COLOR`: `0` or `false` turns colors off, anything else turns them on, also in a pipe;
+5. otherwise colors only when the output is a terminal.
+
+`--json` output is colored only on a terminal, whatever the flag says. Without colors the same
+screens come out as plain text with ASCII icons. On a terminal no line runs past its width: tables
+drop secondary columns first and wrap the last one under itself.
+
 The status line always draws its colors, also when `NO_COLOR` is set. Claude Code runs the
 command with a pipe for output, not a terminal, and draws whatever the command prints inside its
 own interface, so the usual signals for "no color here" do not apply to it. Colors in the line
