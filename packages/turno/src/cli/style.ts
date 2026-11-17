@@ -4,8 +4,9 @@
  * this so the CLI reads as one tool. Without colors (a pipe, NO_COLOR) the same layout comes out
  * as plain text with ASCII icons, stable for scripts and tests.
  *
- * Keep this file free of heavy imports: `turno --help` and `turno status` load it.
+ * Keep this file free of heavy imports: `turno --help`, `turno status` and the status line load it.
  */
+import { NAMED_COLORS, PILL_DEFAULTS } from "../statusline/render.js";
 import { type Io, colors } from "./io.js";
 
 /** Which glyphs icons use: Nerd Font symbols, plain Unicode, or ASCII when colors are off. */
@@ -36,30 +37,10 @@ export const ICONS: Record<IconMode, Record<IconName, string>> = {
 /** SGR codes of the semantic colors: the terminal's own palette, so dark and light themes both work. */
 const CODES = { ok: "32", warn: "33", err: "31", accent: "36", muted: "2", faint: "90", bold: "1" } as const;
 
-/** Background colors of profile pills (256-color), as the status line draws them. */
-const PILL_DEFAULTS = [25, 28, 91, 30, 136, 124];
-const NAMED_COLORS: Record<string, number> = {
-  blue: 25,
-  green: 28,
-  violet: 91,
-  purple: 91,
-  cyan: 30,
-  yellow: 136,
-  red: 124,
-  orange: 166,
-  gray: 240,
-  azul: 25,
-  verde: 28,
-  violeta: 91,
-  morado: 91,
-  cian: 30,
-  amarillo: 136,
-  rojo: 124,
-};
-
 /**
  * The 256-color code of a profile: its `color` in config.toml, or one of the defaults by its
- * place in the config. The same rule as the status line pill (`pillColor` in statusline.ts).
+ * place in the config. The one rule for every profile pill: the status line (`pillColor` in
+ * statusline.ts) calls this too, and the color tables are the status line's (render.ts).
  */
 export function profileColor(profiles: Record<string, { color?: string | number }>, name: string): number {
   const c = profiles[name]?.color;
@@ -100,7 +81,7 @@ function padStart(text: string, width: number): string {
  * Columns of the terminal: COLUMNS, then the real terminal, then 80 (a pipe, a test). Never
  * below 40, so layouts keep a sane minimum.
  */
-export function termWidth(io: Pick<Io, "env" | "isTty">): number {
+export function termWidth(io: Pick<Io, "env" | "isTty" | "color">): number {
   const env = Number(io.env.COLUMNS);
   if (Number.isInteger(env) && env > 0) return Math.max(40, env);
   const real = io.isTty ? process.stdout.columns : undefined;
@@ -201,7 +182,7 @@ export interface Style {
   check(state: "ok" | "warn" | "err" | "skip" | "info", text: string): string;
 }
 
-export function style(io: Pick<Io, "env" | "isTty">, opts: { nerd?: boolean } = {}): Style {
+export function style(io: Pick<Io, "env" | "isTty" | "color">, opts: { nerd?: boolean } = {}): Style {
   const color = colors(io);
   const icons: IconMode = !color ? "ascii" : opts.nerd ? "nerd" : "unicode";
   const width = termWidth(io);
@@ -315,7 +296,7 @@ const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "
  * a terminal with colors: anywhere else it draws nothing, and the caller prints the result line.
  */
 export function spinner(
-  io: Pick<Io, "env" | "isTty">,
+  io: Pick<Io, "env" | "isTty" | "color">,
   text: string,
   opts: { write?: (s: string) => void; tty?: boolean; now?: () => number } = {},
 ): Spinner {

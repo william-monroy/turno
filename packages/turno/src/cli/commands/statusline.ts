@@ -10,8 +10,9 @@ import { profileFromConfigDir } from "../../core/profiles.js";
 import { resolveProfile } from "../../core/resolve.js";
 import { nerdHere } from "../../ui/terminal-id.js";
 import { isObj, limits as checkLimits, num, sanitize, sessionId, turns } from "../../statusline/input.js";
-import { NAMED_COLORS, PILL_DEFAULTS, type RenderInput, type Window, render, turnsLeft } from "../../statusline/render.js";
+import { PILL_DEFAULTS, type RenderInput, type Window, render, turnsLeft } from "../../statusline/render.js";
 import type { Command, Io } from "../io.js";
+import { profileColor } from "../style.js";
 import { readJsonFile } from "../../core/fsutil.js";
 
 const USAGE = `Usage:
@@ -100,15 +101,7 @@ function lockedJob(lock: string, ttl: number, now: number, args: string[]): Job 
 }
 
 export function pillColor(config: Config, account: string): number {
-  const c = config.profiles[account]?.color;
-  if (typeof c === "number") return c;
-  if (typeof c === "string") {
-    if (/^\d+$/.test(c)) return Number(c);
-    if (NAMED_COLORS[c.toLowerCase()] !== undefined) return NAMED_COLORS[c.toLowerCase()]!;
-  }
-  const names = Object.keys(config.profiles);
-  const idx = names.includes(account) ? names.indexOf(account) : [...account].reduce((a, ch) => a + ch.charCodeAt(0), 0);
-  return PILL_DEFAULTS[idx % PILL_DEFAULTS.length]!;
+  return profileColor(config.profiles, account);
 }
 
 type Limits = { five_hour?: Window; seven_day?: Window };
