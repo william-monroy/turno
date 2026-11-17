@@ -6,7 +6,7 @@ import { type AgentId, adapter, mcpFileFor } from "../../agents/index.js";
 import { gatewaySnippet, isSnippetAgent, SNIPPET_AGENTS } from "../../agents/snippets.js";
 import { type Config, isValidProfileName, loadConfig } from "../../core/config.js";
 import { Journal } from "../../core/journal.js";
-import { type StdioServer, loadManifest, parseManifest, servesProfile } from "../../core/manifest.js";
+import { type StdioServer, type ToolFilter, loadManifest, parseManifest, servesProfile } from "../../core/manifest.js";
 import { paths, profileDir, tildify } from "../../core/paths.js";
 import { agentOf, listProfiles } from "../../core/profiles.js";
 import { liveSessions } from "../../core/sessions.js";
@@ -68,6 +68,12 @@ function table(rows: string[][]): string[] {
   return rows.map((r) => r.map((c, i) => (i === r.length - 1 ? c : c.padEnd(widths[i]!))).join("  ").trimEnd());
 }
 
+/** "allow get_*, list_*, deny *_delete": a tool filter (ADR 0023) as text, or "" when it filters nothing. */
+function filterText(f: ToolFilter | undefined): string {
+  if (!f) return "";
+  return [f.allow ? `allow ${f.allow.join(", ")}` : "", f.deny ? `deny ${f.deny.join(", ")}` : ""].filter(Boolean).join(", ");
+}
+
 async function list(args: string[], io: Io): Promise<number> {
   const flags = parseFlags(args, LIST_FLAGS, 0);
   const m = loadManifest(io.env);
@@ -79,6 +85,7 @@ async function list(args: string[], io: Io): Promise<number> {
       io.out,
       names.map((n) => {
         const s = m.servers[n]!;
+        const tools = s.tools ?? null;
         return s.kind === "remote"
           ? {
               name: n,
@@ -86,9 +93,22 @@ async function list(args: string[], io: Io): Promise<number> {
               url: s.url,
               proxy: Boolean(s.proxy),
               profiles: s.profiles,
+              tools,
               ...(s.oauth ? { auth: "oauth", logins: Object.fromEntries(loginsOf(n).map((l) => [l.variant, l.state])) } : {}),
             }
-          : { name: n, kind: "stdio", command: s.builtin ? `builtin ${s.builtin}` : s.command, scope: s.scope, exclusive: Boolean(s.exclusive), idleSeconds: s.idle, profiles: s.profiles, package: s.package ?? null, variants: Object.keys(s.variants) };
+          : {
+              name: n,
+              kind: "stdio",
+              command: s.builtin ? `builtin ${s.builtin}` : s.command,
+              scope: s.scope,
+              exclusive: Boolean(s.exclusive),
+              idleSeconds: s.idle,
+              profiles: s.profiles,
+              package: s.package ?? null,
+              variants: Object.keys(s.variants),
+              tools,
+              variantTools: Object.fromEntries(Object.entries(s.variants).flatMap(([v, d]) => (d.tools ? [[v, d.tools]] : []))),
+            };
       }),
     );
     return 0;
@@ -101,15 +121,22 @@ async function list(args: string[], io: Io): Promise<number> {
   for (const name of names) {
     const s = m.servers[name]!;
     const where = s.profiles.includes("*") ? "all" : s.profiles.join(", ");
+    const tools = filterText(s.tools) ? `tools: ${filterText(s.tools)}` : "";
     if (s.kind === "remote") {
       const how = s.oauth ? "remote via mcpd, oauth" : s.proxy ? "remote via mcpd" : "remote direct";
       const notes = loginsOf(name).map((l: LoginRow) => `${l.variant === "default" ? "login" : `${l.variant} login`}: ${describeLogin(l)}`);
+      if (tools) notes.unshift(tools);
       rows.push([name, s.url, how, s.proxy ? `${Math.round(s.idle / 60)}m` : "-", where, notes.join("; ")]);
       continue;
     }
     const variants = Object.keys(s.variants);
     const installed = s.package && existsSync(join(paths(io.env).serversDir, s.name, "node_modules"));
-    const notes = [variants.length ? `variants: ${variants.join(", ")}` : "", s.package ? `package ${s.package}${installed ? "" : " (not installed)"}` : ""].filter(Boolean);
+    const notes = [
+      variants.length ? `variants: ${variants.join(", ")}` : "",
+      s.package ? `package ${s.package}${installed ? "" : " (not installed)"}` : "",
+      tools,
+      ...Object.entries(s.variants).map(([v, d]) => (filterText(d.tools) ? `${v} tools: ${filterText(d.tools)}` : "")),
+    ].filter(Boolean);
     rows.push([name, s.builtin ? `builtin ${s.builtin}` : s.command, `${s.scope}${s.exclusive ? " exclusive" : ""}`, `${Math.round(s.idle / 60)}m`, where, notes.join("; ")]);
   }
   const lines = table(rows);
