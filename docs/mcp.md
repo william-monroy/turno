@@ -191,8 +191,9 @@ files.
 | `project` | git repository of the session | servers that read their working folder |
 | `session` | Claude session | servers that drive a browser or keep per-conversation state |
 
-A remote server without secret headers is written straight into each profile and never touches
-mcpd. With secret headers it is proxied, so the secret stays in the Keychain.
+A remote server without secret headers or `auth = "oauth"` is written straight into each
+profile and never touches mcpd. With either it is proxied, so the secret or the OAuth token
+stays in the secret store, and `tools` filters and folder server sets apply to it.
 
 ## What the gateway does
 

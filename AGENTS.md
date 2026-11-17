@@ -15,17 +15,22 @@ The design lives in `docs/design/`, and every non-obvious choice is recorded in
 - Local only: do not add a git remote or publish packages unless the owner asks.
 - Never touch the live setup of the machine (`~/.local/bin/claudio*`, `~/.claude*`, `~/.codex*`, `~/.config/claudio`, `~/.config/turno`,
   LaunchAgents) from tests. Tests run with a sandbox `HOME` (see `test/helpers`).
-- Secrets come from the macOS Keychain at use time. Never log them, never write them to disk
-  except the mcpd bearer token (mode 600).
+- Secrets come from the secret store (macOS Keychain, Linux Secret Service) at use time. Never
+  log them, never write them to disk except the gateway tokens: the master token
+  (`mcpd.token`) and the per-profile token files (`mcpd-tokens/<profile>.token`), mode 600.
 
 ## Workflow
 
-- `pnpm install`, `pnpm build`, `pnpm test`, `pnpm check` (typecheck + tests + em dash scan).
+- `pnpm install`, `pnpm build`, `pnpm test`, `pnpm check` (typecheck, lint with Biome and knip,
+  tests, em dash scan, licenses). `pnpm test:e2e` also runs the end-to-end test that needs the
+  network.
 - Write the test first for behavior changes. Integration tests for mcpd use the fixture
   server in `packages/turno/test/fixtures/`.
 - Record decisions as ADRs (`docs/decisions/NNNN-title.md`: context, decision, consequences).
 - Update `docs/STATUS.md` at the end of each work session.
 - A user-visible change adds a changeset (`pnpm changeset`); see `docs/RELEASING.md`.
+- A new agent is one adapter file in `packages/turno/src/agents/` plus tests (ADR 0032);
+  commands read adapter fields instead of branching on the agent id.
 - New commands go in `cli/registry.ts`; keep old names as aliases there. Writes to user files go
   through `core/journal.ts` so `turno undo` can revert them. Read commands take `--json`,
   write commands take `--dry-run` (shared flags in `cli/args.ts`).

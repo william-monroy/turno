@@ -5,7 +5,8 @@ profile per identity: you sign into a site once by hand, and the agent works in 
 signed-in browser afterwards. It is the Playwright MCP program, run on Patchright (a Playwright
 fork that drives Chrome without the automation flags Playwright adds).
 
-It is an optional part of [turno](https://www.npmjs.com/package/turno-cli); turno works without it.
+It is a separate package from [turno](https://www.npmjs.com/package/turno-cli), not installed
+with it; turno works without it.
 
 ```sh
 npm install --global turno-browser
@@ -13,7 +14,9 @@ turno identity add browser:school     # prints the mcp.toml entry for this ident
 turno identity login browser:school   # sign in by hand once; cookies persist
 ```
 
-Or run it directly as an MCP server: `turno-browser-mcp --identity school`.
+Or run it directly as an MCP server: `turno-browser-mcp --identity school`. It serves over
+stdio; `--port` or `--host` with `--identity` would serve a signed-in browser over HTTP, so it
+needs `--allow-http-identity` and then listens on 127.0.0.1 only.
 
 Defaults: headed, the installed Chrome channel, a persistent user data dir per identity, no
 injected init scripts. The reasons, and what these settings do and do not change, are in

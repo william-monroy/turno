@@ -18,31 +18,36 @@ con seis servidores comunes ocupan **3,163 MiB en 56 procesos**. turno arranca c
 sola vez, solo cuando se llama una de sus herramientas, detrás de un gateway local que comparten
 todas las sesiones de todos los agentes: **847 MiB con los seis servidores corriendo y 103 MiB
 mientras están inactivos** ([benchmark](BENCHMARKS.md)). Además, cada carpeta usa su propia
-cuenta: los repositorios del trabajo abren con tu cuenta del trabajo y lo demás con la personal.
+cuenta y su propio conjunto de servidores MCP: los repositorios del trabajo abren con tu cuenta
+del trabajo y lo demás con la personal.
 
 ![turno: perfiles de dos agentes, un gateway y la status line](docs/assets/demo.gif)
 
 ## Instalación
 
 ```sh
-npx turno-cli@latest doctor     # pruébalo sin instalar: revisa tus agentes y tu configuración
+npx turno-cli demo              # pruébalo primero, en un HOME desechable; no toca tu configuración
 npm install --global turno-cli  # macOS o Linux, Node 22.11 o más nuevo
 brew tap wimo-dev/turno && brew trust wimo-dev/turno && brew install turno  # o con Homebrew
 ```
 
-El paquete de npm se llama `turno-cli`; el comando que instala es `turno`.
-
-Después pasa tus servidores MCP detrás del gateway:
-
-```sh
-turno mcp import --move-secrets --write   # mcp.toml a partir de los servidores que ya tienes
-turno mcp daemon start                    # el gateway, mantenido por launchd
-turno mcp sync                            # apunta cada perfil de cada agente al gateway
-```
-
-Nada sale de tu máquina: no hay cuenta, ni telemetría, ni proxy del tráfico con el modelo.
+El paquete de npm se llama `turno-cli`; el comando que instala es `turno`. No ejecuta scripts de
+instalación e incluye un `npm-shrinkwrap.json`, así que instalas exactamente las versiones de
+dependencias que se probaron (CI revisa ambas cosas). Nada sale de tu máquina: no hay cuenta,
+ni telemetría, ni proxy del tráfico con el modelo.
 
 ## Inicio rápido
+
+```sh
+turno init                    # encuentra tus agentes, perfiles, carpetas y servidores MCP y muestra el diff
+claude-trabajo                # inicia sesión una vez por perfil (/login)
+turno mcp daemon start        # el gateway, mantenido por launchd (macOS) o systemd --user (Linux)
+turno mcp sync                # apunta cada perfil de cada agente al gateway
+cd ~/code/acme && turno auto  # Claude Code, con la cuenta de esta carpeta
+```
+
+`turno init` pregunta antes de adoptar cualquier cosa y escribe todo como un solo cambio, así
+que un solo `turno undo <stamp>` lo revierte. Paso a paso:
 
 ```sh
 turno profile add trabajo --color violet  # ~/.claude-trabajo y el comando claude-trabajo
@@ -50,12 +55,28 @@ turno profile add personal
 claude-trabajo                            # inicia sesión una vez por perfil (/login)
 turno profile assign ~/code/acme trabajo  # esta carpeta y todo lo que tiene adentro
 turno config set default personal         # carpetas sin regla
+turno mcp import --move-secrets --write   # mcp.toml a partir de los servidores que ya tienes
+turno mcp daemon start && turno mcp sync  # el gateway, y cada perfil apuntando a él
 cd ~/code/acme && turno auto              # Claude Code con la cuenta del trabajo
 ```
 
 Los perfiles de Codex, Copilot y Cursor son iguales, con `--agent codex|copilot|cursor`. Los
-detalles de cada agente están en [docs/agents.md](docs/agents.md) y la referencia completa de
-comandos y configuración, en el [README en inglés](README.md#reference).
+lanzadores van en `~/.local/bin`; si no está en tu `PATH`, `turno profile add` te da la línea
+que hay que agregar y mientras tanto funciona `turno trabajo`. `turno auto` nunca cambia de
+cuenta en silencio: si falta el perfil o `config.toml` tiene un error, se detiene y te dice el
+comando que lo arregla.
+
+Una regla de carpeta también puede elegir qué servidores MCP ven las sesiones de esa carpeta:
+
+```toml
+[[projects]]
+path = "~/code/oss"
+mcp_deny = ["mail"]     # aquí las sesiones ven todos los servidores MCP menos mail
+```
+
+Los detalles de cada agente están en [docs/agents.md](docs/agents.md), los del gateway en
+[docs/mcp.md](docs/mcp.md), y la referencia completa de comandos y configuración, en el
+[README en inglés](README.md#reference).
 
 ## Preguntas frecuentes
 
@@ -65,13 +86,20 @@ proveedor en su propia carpeta. El uso pensado es separar cuentas de trabajo y p
 uses para sortear límites de uso ni salvaguardas; lee [Vendor terms](README.md#vendor-terms).
 
 **¿Dónde quedan mis credenciales?** Donde cada agente las guarda, dentro de la carpeta del perfil
-(o en el Llavero, si el agente lo usa). turno nunca lee, copia ni reenvía tokens de sesión.
+(o en el Llavero, si el agente lo usa). turno nunca lee, copia ni reenvía tokens de sesión. Los
+secretos MCP que mueves con `--move-secrets` y los tokens OAuth de servidores MCP remotos van al
+Llavero de macOS o al Secret Service de Linux. Qué guarda turno y dónde: [SECURITY.md](SECURITY.md).
 
 **¿turno ve mis prompts?** No. Lanza el agente y se hace a un lado. Solo las llamadas a
-herramientas MCP pasan por `mcpd`, en `127.0.0.1` y con un token.
+herramientas MCP pasan por `mcpd`, en `127.0.0.1` y con un token por perfil.
 
 **¿Cómo lo deshago?** Cada comando que escribe guarda una copia de lo que cambia:
-`turno undo --list` las muestra y `turno undo <stamp>` las restaura.
+`turno undo --list` las muestra y `turno undo <stamp>` las restaura (las copias de más de 30
+días se borran, conservando las 10 más recientes). Para quitar turno, `turno uninstall
+--dry-run` muestra lo que turno configuró (servicio, lanzadores, entradas MCP, status line,
+configuración) y `turno uninstall` lo quita; después, `npm uninstall --global turno-cli`. Las
+carpetas de los perfiles, que guardan tus credenciales y tu historial, se quedan hasta que tú
+las borres.
 
 ## Contribuir
 
