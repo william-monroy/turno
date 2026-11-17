@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { sep } from "node:path";
+import { existsSync, lstatSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { dirname, join, resolve, sep } from "node:path";
 import { type AgentId, DEFAULT_AGENT } from "../agents/index.js";
 import type { Config, ProjectRule } from "./config.js";
 import { exhaustedUntil } from "./exhausted.js";
@@ -20,22 +21,94 @@ export interface Resolution {
 }
 
 /** The directory itself plus, for a git worktree, the main repository it belongs to. */
-export function candidateRoots(cwd: string): string[] {
+export function candidateRoots(cwd: string, spawnGit: (cwd: string) => string | undefined = gitCommonDirBySpawn): string[] {
   const cands = [realOr(cwd)];
+  const found = gitCommonDirOnDisk(cwd);
+  const common = found === UNSURE ? spawnGit(cwd) : found;
+  if (common?.endsWith("/.git")) {
+    const main = realOr(common.slice(0, -5));
+    if (!cands.includes(main)) cands.push(main);
+  }
+  return cands;
+}
+
+/** What `git rev-parse --git-common-dir` prints in `cwd`, or undefined outside a repository. */
+function gitCommonDirBySpawn(cwd: string): string | undefined {
   try {
-    const common = execFileSync("git", ["-C", cwd, "rev-parse", "--path-format=absolute", "--git-common-dir"], {
+    return execFileSync("git", ["-C", cwd, "rev-parse", "--path-format=absolute", "--git-common-dir"], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
       timeout: 3000,
     }).trim();
-    if (common.endsWith("/.git")) {
-      const main = realOr(common.slice(0, -5));
-      if (!cands.includes(main)) cands.push(main);
-    }
   } catch {
-    // not a git repository
+    return undefined; // not a git repository
   }
-  return cands;
+}
+
+const UNSURE = Symbol("unsure");
+
+/** Variables that change how git finds a repository: with any of them set, git itself decides. */
+const GIT_DISCOVERY_VARS = ["GIT_DIR", "GIT_COMMON_DIR", "GIT_WORK_TREE", "GIT_CEILING_DIRECTORIES", "GIT_DISCOVERY_ACROSS_FILESYSTEM"];
+
+function stat(p: string) {
+  try {
+    return statSync(p);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The git common dir of `cwd` (real path), found the way git finds it but with the file system
+ * only: walk up to the first `.git`, follow a `gitdir:` file (worktrees, submodules), then the
+ * `commondir` file of a linked worktree. The status line and `turno auto` resolve a folder on
+ * every run, and a `git` process costs more than the rest of the resolve. Undefined outside a
+ * repository; UNSURE for anything unusual (git variables, another owner, a broken `.git`, a
+ * missing HEAD), which `git rev-parse` then answers as before.
+ */
+function gitCommonDirOnDisk(cwd: string, env: NodeJS.ProcessEnv = process.env): string | undefined | typeof UNSURE {
+  if (GIT_DISCOVERY_VARS.some((k) => env[k] !== undefined)) return UNSURE;
+  let dir = realOr(cwd);
+  const start = stat(dir);
+  if (!start?.isDirectory()) return UNSURE;
+  for (;;) {
+    const here = stat(dir);
+    // git stops at a file system boundary.
+    if (!here || here.dev !== start.dev) return undefined;
+    const dotgit = join(dir, ".git");
+    let st: ReturnType<typeof lstatSync> | undefined;
+    try {
+      st = lstatSync(dotgit);
+    } catch {
+      st = undefined;
+    }
+    if (st) return commonDirOf(dir, dotgit, st.isFile());
+    const parent = dirname(dir);
+    if (parent === dir) return undefined;
+    dir = parent;
+  }
+}
+
+function commonDirOf(dir: string, dotgit: string, isFile: boolean): string | typeof UNSURE {
+  // git refuses a repository another user owns, unless safe.directory says otherwise.
+  const uid = process.getuid?.();
+  if (uid !== undefined && stat(dir)?.uid !== uid) return UNSURE;
+  let gitdir = dotgit;
+  try {
+    if (isFile) {
+      const m = /^gitdir:\s*(.+?)\s*$/m.exec(readFileSync(dotgit, "utf8"));
+      if (!m) return UNSURE;
+      gitdir = resolve(dir, m[1]!);
+    }
+    if (!stat(join(gitdir, "HEAD"))?.isFile()) return UNSURE;
+    let common = gitdir;
+    const pointer = join(gitdir, "commondir");
+    if (existsSync(pointer)) common = resolve(gitdir, readFileSync(pointer, "utf8").trim());
+    if (!stat(join(common, "objects"))?.isDirectory()) return UNSURE;
+    return realpathSync(common);
+  } catch {
+    return UNSURE;
+  }
 }
 
 export function formatUntil(epochSeconds: number): string {
