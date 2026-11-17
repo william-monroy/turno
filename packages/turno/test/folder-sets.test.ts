@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { PromptListChangedNotificationSchema, ResourceListChangedNotificationSchema, ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type ProjectRule, parseConfig } from "../src/core/config.js";
 import { type Manifest, parseManifest } from "../src/core/manifest.js";
@@ -210,6 +211,24 @@ describe("mcpd enforces folder sets", () => {
     expect((await c.listResources().catch(() => ({ resources: [] }))).resources).toEqual([]);
     await expect(c.readResource({ uri: "test://one" })).rejects.toThrow(/not in the MCP set/);
     expect(spawned()).toBe(0);
+  });
+
+  it("tells an open session when a config change hides its server", async () => {
+    const app = folder("code/app");
+    let rules: ProjectRule[] = [];
+    const port = await boot(fixture("issues"), () => rules);
+    const c = await connect(port, "issues", app);
+    const seen: string[] = [];
+    for (const schema of [ToolListChangedNotificationSchema, PromptListChangedNotificationSchema, ResourceListChangedNotificationSchema]) {
+      c.setNotificationHandler(schema, async (n) => void seen.push(n.method));
+    }
+    expect((await c.listTools()).tools.length).toBeGreaterThan(0);
+    const tell = gw!.beforeViewChange();
+    rules = [{ path: app, mcpDeny: ["issues"] }];
+    expect(tell()).toBe(1);
+    await waitFor(() => seen.length === 3, "the three list_changed notifications");
+    expect(seen.sort()).toEqual(["notifications/prompts/list_changed", "notifications/resources/list_changed", "notifications/tools/list_changed"]);
+    expect((await c.listTools()).tools).toEqual([]);
   });
 });
 

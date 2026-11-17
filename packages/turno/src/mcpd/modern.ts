@@ -586,8 +586,10 @@ export class StatelessFront {
     client.calls.set(internal, call);
     if (call.stream) openSse(res);
     let settled = false;
+    let closed = false;
     res.on("close", () => {
       if (settled) return;
+      closed = true;
       // Closing the response is the cancellation signal in this revision.
       try {
         manager.existing(client)?.upstream.notify("notifications/cancelled", { requestId: internal, reason: "the client closed the request" }, client);
@@ -597,7 +599,7 @@ export class StatelessFront {
     });
     let outcome: Outcome;
     try {
-      outcome = await manager.forward(client, method, upParams, internal);
+      outcome = await manager.forward(client, method, upParams, internal, () => closed);
     } finally {
       settled = true;
       client.calls.delete(internal);

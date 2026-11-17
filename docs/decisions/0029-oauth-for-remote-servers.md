@@ -95,6 +95,8 @@ is shared by every instance and profile:
   old credentials elsewhere (the spec's authorization server binding).
 - mcpd trusts its copy of an item for 60 seconds, and reads it again at once when it has no
   usable tokens, so a fresh login is picked up on the next call and a logout within a minute.
+  (Since 0.2 `turno mcp logout` also sends `POST /logout/<server>` to a running mcpd, which
+  drops its copy at once.)
 - A missing login does not count toward the start circuit breaker (ADR 0016): the call after
   `turno mcp login` goes through at once.
 - 403 with `insufficient_scope` becomes an error that names `turno mcp login --scope`.
@@ -120,8 +122,9 @@ check (the redirect belongs to the application), and gives no way to keep a rota
 - One login per account serves Claude Code, Codex, Copilot CLI and Cursor in every profile
   that uses it; two accounts of the same service are two variants.
 - Tokens that are still only in memory are lost if mcpd stops before the secret store accepts
-  them; the log line says so, and the next refresh then needs a login. A flush at shutdown is a
-  follow-up.
+  them; the log line says so, and the next refresh then needs a login. Since 0.2 mcpd tries the
+  write once more when it stops (for at most 3 seconds) and logs the servers whose tokens are
+  still lost.
 - Client ID Metadata Documents work only with a URL the user hosts. Shipping a turno document
   (an HTTPS URL owned by the project, with the loopback redirect URIs) would make CIMD the
   default for servers that support it, and is the recommended follow-up; the spec now prefers

@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { computeSavings, top } from "../src/cli/commands/mcp-observe.js";
+import { type TopSnapshot, computeSavings, renderTop, top } from "../src/cli/commands/mcp-observe.js";
 import { main } from "../src/cli/main.js";
 import { parseConfig } from "../src/core/config.js";
 import { parseManifest } from "../src/core/manifest.js";
@@ -313,6 +313,10 @@ describe("turno mcp log, top and savings", () => {
     expect(t.instances[0]).toMatchObject({ server: "fx", variant: "default", sessions: 1, inflight: 0, restarts: 0 });
     if (t.memoryKnown) expect(t.instances[0].rssBytes).toBeGreaterThan(1024 * 1024);
 
+    // The memory pressure mcpd reads (ADR 0028): the real probe, so any level; the default limit.
+    expect(t.memoryPressure).toMatchObject({ idleUnderPressureSeconds: 300 });
+    expect([null, "normal", "warn", "critical"]).toContain(t.memoryPressure.level);
+
     const text = await run(["mcp", "top", "--once"]);
     expect(text.out).toContain("SERVER");
     expect(text.out).toMatch(/fx\s+default\s+shared/);
@@ -332,6 +336,29 @@ describe("turno mcp log, top and savings", () => {
     expect(r.out.split("\n").find((l) => l.startsWith("  fx "))).toMatch(/ running /);
     expect(r.out.split("\n").find((l) => l.startsWith("  idle "))).toMatch(/ stopped /);
     expect(r.out).not.toContain("mcpd is not running");
+  });
+
+  it("top shows the memory pressure, and the idle cap when memory is tight", () => {
+    const base: TopSnapshot = {
+      running: true,
+      mcpd: { pid: 100, version: "1.2.3", uptimeSeconds: 60, sessions: 1, agents: 1, rssBytes: null, totalRssBytes: null },
+      instances: [],
+      memoryKnown: true,
+    };
+    const lines = (p: TopSnapshot["memoryPressure"]) => renderTop(fakeIo(sb.env), { ...base, memoryPressure: p });
+    // Not reported (an older mcpd) or not watched (idle_under_pressure off): no line.
+    expect(lines(null).join("\n")).not.toContain("pressure");
+    expect(lines({ level: null, idleUnderPressureSeconds: 0, idleCapSeconds: null }).join("\n")).not.toContain("pressure");
+    // The header stays as it was; the level goes on its own line.
+    expect(lines({ level: "normal", idleUnderPressureSeconds: 300, idleCapSeconds: null })[0]).toBe(renderTop(fakeIo(sb.env), base)[0]);
+    expect(lines({ level: "normal", idleUnderPressureSeconds: 300, idleCapSeconds: null })[1]).toMatch(/memory pressure normal: servers keep their own idle limits$/);
+    expect(lines({ level: "warn", idleUnderPressureSeconds: 300, idleCapSeconds: 300 })[1]).toMatch(/memory pressure warn: idle servers stop after 5m 0s \(mcpd.idle_under_pressure\)$/);
+    expect(lines({ level: "critical", idleUnderPressureSeconds: 300, idleCapSeconds: 75 })[1]).toMatch(/memory pressure critical: idle servers stop after 1m 15s/);
+    // On a terminal the level is painted: yellow for warn, red for critical.
+    const tty = { ...fakeIo({ ...sb.env, FORCE_COLOR: "1" }), isTty: true };
+    const paint = (level: "warn" | "critical", cap: number) => renderTop(tty, { ...base, memoryPressure: { level, idleUnderPressureSeconds: 300, idleCapSeconds: cap } })[1];
+    expect(paint("warn", 300)).toContain("\x1b[33mmemory pressure warn");
+    expect(paint("critical", 75)).toContain("\x1b[31mmemory pressure critical");
   });
 
   it("top says when memory cannot be measured instead of failing", async () => {
