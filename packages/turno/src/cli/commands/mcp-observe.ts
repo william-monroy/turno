@@ -108,7 +108,7 @@ export function logLayout(io: Pick<Io, "env" | "isTty" | "color">, records: read
 }
 
 /** Cut text to `w` columns with an ellipsis. */
-const fit = (text: string, w: number) => (text.length > w ? `${text.slice(0, Math.max(0, w - 1))}…` : text);
+const clip = (text: string, w: number) => (text.length > w ? `${text.slice(0, Math.max(0, w - 1))}…` : text);
 
 /**
  * One call as a line: local time, outcome, duration, server, tool, profile, agent, sizes, error.
@@ -139,10 +139,10 @@ export function formatCall(io: Io, r: CallRecord, localTime: (iso: string) => st
     s.muted(l.today ? time.slice(11) : time.slice(5)),
     padEnd(o ? `${s.icon(o.icon)} ${s[o.paint](r.outcome)}` : r.outcome, OUTCOME_W),
     slow(elapsed(r.durationMs).padStart(DURATION_W)),
-    padEnd(s.bold(fit(server, l.server)), l.server),
-    padEnd(fit(r.tool ?? "-", l.tool), l.tool),
-    padEnd(fit(r.profile ?? "-", l.profile), l.profile),
-    ...(l.showAgent ? [padEnd(s.muted(fit(r.agent ?? "-", l.agent)), l.agent)] : []),
+    padEnd(s.bold(clip(server, l.server)), l.server),
+    padEnd(clip(r.tool ?? "-", l.tool), l.tool),
+    padEnd(clip(r.profile ?? "-", l.profile), l.profile),
+    ...(l.showAgent ? [padEnd(s.muted(clip(r.agent ?? "-", l.agent)), l.agent)] : []),
     ...(l.showSizes ? [s.muted(sizesText(r))] : []),
   ];
   const line = cells.join(" ".repeat(GAP)).trimEnd();
