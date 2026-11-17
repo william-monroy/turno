@@ -92,7 +92,7 @@ export function padEnd(text: string, width: number): string {
   return text + " ".repeat(Math.max(0, width - visibleWidth(text)));
 }
 
-export function padStart(text: string, width: number): string {
+function padStart(text: string, width: number): string {
   return " ".repeat(Math.max(0, width - visibleWidth(text))) + text;
 }
 
@@ -120,7 +120,7 @@ export function level(pct: number): "ok" | "warn" | "err" {
   return pct < 60 ? "ok" : pct < 85 ? "warn" : "err";
 }
 
-export interface Column {
+interface Column {
   align?: "left" | "right";
   /** Columns with a drop rank go first when the table is wider than the terminal (highest first). */
   drop?: number;

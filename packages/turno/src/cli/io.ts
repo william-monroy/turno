@@ -143,7 +143,7 @@ export function plural(n: number, word: string, many = `${word}s`): string {
 }
 
 /** Help text width. */
-export const WIDTH = 80;
+const WIDTH = 80;
 
 /** Break `text` into lines of at most `width` columns at spaces (a longer word stays whole). */
 export function wrap(text: string, width: number): string[] {

@@ -154,7 +154,7 @@ export function shortTime(epochSeconds: number): string {
   return `${DAYS[d.getDay()]} ${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
-export function bar(pct: number, width = 30): string {
+function bar(pct: number, width = 30): string {
   const filled = Math.round((Math.min(Math.max(pct, 0), 100) * width) / 100);
   return "█".repeat(filled) + "░".repeat(width - filled);
 }
