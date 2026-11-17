@@ -1,7 +1,7 @@
 import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type AgentId, adapter, agentHub, agentProfileDir } from "../../agents/index.js";
-import { isValidProfileName, loadConfig } from "../../core/config.js";
+import { type Config, isValidProfileName, loadConfig } from "../../core/config.js";
 import { setValue } from "../../core/toml-edit.js";
 import { paths, profileDir, tildify } from "../../core/paths.js";
 import { agentOf } from "../../core/profiles.js";
@@ -54,7 +54,7 @@ export const RESERVED = new Set([
   "cuenta", "resolver", "sesiones", "uso", "agotada", "disponible", "limite", "abrir", "sync-mcp",
   "profile", "navegador",
   "run", "limit", "session", "identity", "config", "undo", "upgrade", "completion", "__complete", "__update-check",
-  "uninstall",
+  "uninstall", "init", "demo",
 ]);
 
 export function checkName(name: string): void {
@@ -133,10 +133,10 @@ function sharedItems(name: string, agent: AgentId, env: NodeJS.ProcessEnv): { di
 
 /**
  * The person's own files that setting up `names` would move to .aside-<stamp>/, so a command
- * can ask before it moves anything.
+ * can ask before it moves anything. `config` is the one the setup will run with (turno init
+ * passes the config it is about to write, so a profile it declares has its own agent).
  */
-export function localCopies(names: string[], env: NodeJS.ProcessEnv): { name: string; dir: string; items: string[] }[] {
-  const config = loadConfig(env);
+export function localCopies(names: string[], env: NodeJS.ProcessEnv, config: Config = loadConfig(env)): { name: string; dir: string; items: string[] }[] {
   return names.map((name) => {
     const s = sharedItems(name, agentOf(name, config), env);
     return { name, dir: s.dir, items: [...s.dirs, ...s.files].filter((item) => ownCopy(join(s.dir, item))) };
