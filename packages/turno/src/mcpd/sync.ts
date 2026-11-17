@@ -8,6 +8,8 @@ import { PRIVATE_DIR_MODE, PRIVATE_FILE_MODE } from "../core/paths.js";
 import type { Manifest } from "../core/manifest.js";
 import { servesProfile } from "../core/manifest.js";
 import { profileToken } from "./tokens.js";
+import { isObject, parseJsonObject } from "../core/fsutil.js";
+import { CliError } from "../cli/io.js";
 
 /**
  * A gateway entry in the format of each agent (ADR 0013, ADR 0032). Claude Code gets the
@@ -124,8 +126,10 @@ export function syncJsonServers(
   previouslyManaged: string[],
   opts: SyncOptions = {},
 ): SyncResult {
-  const cfg = existsSync(configFile) ? (JSON.parse(readFileSync(configFile, "utf8")) as Record<string, unknown>) : {};
-  const servers = { ...((cfg[key] as Record<string, unknown>) ?? {}) };
+  const cfg = existsSync(configFile) ? parseJsonObject(readFileSync(configFile, "utf8"), configFile) : {};
+  const current = cfg[key] ?? {};
+  if (!isObject(current)) throw new CliError(`${configFile}: ${key} is not a JSON object; fix it by hand`);
+  const servers = { ...current };
   const res = plan(servers, wanted, previouslyManaged, opts);
   if (res.changed && !opts.dryRun) atomicWrite(configFile, `${JSON.stringify({ ...cfg, [key]: servers }, null, 2)}\n`, 0o600);
   return res;

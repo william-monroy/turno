@@ -4,6 +4,7 @@ import { parse, stringify } from "smol-toml";
 import type { McpStore } from "../agents/adapter.js";
 import { SCAN_ORDER, adapter } from "../agents/index.js";
 import { tildify } from "../core/paths.js";
+import { isObject, readJsonFile } from "../core/fsutil.js";
 
 /** Scope defaults for servers we know; unknown servers default to "project" (safe for folder-bound tools). */
 const KNOWN: { match: RegExp; scope: "shared" | "project" | "session"; note: string }[] = [
@@ -469,12 +470,8 @@ export function pluginServers(hub: string): PluginServer[] {
       .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
     const latest = versions[0];
     if (!latest) continue;
-    let mcp: Record<string, unknown> = {};
-    try {
-      mcp = JSON.parse(readFileSync(join(latest, ".mcp.json"), "utf8")) as Record<string, unknown>;
-    } catch {
-      continue;
-    }
+    const mcp = readJsonFile(join(latest, ".mcp.json"));
+    if (!isObject(mcp)) continue;
     const servers = (mcp.mcpServers ?? mcp) as Record<string, Record<string, unknown>>;
     for (const [name, def] of Object.entries(servers)) {
       if (typeof def !== "object" || def === null) continue;

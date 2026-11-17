@@ -87,7 +87,7 @@ export function mcpSetAllows(set: ProjectRule | undefined, server: string): bool
 export function resolveProfile(
   cwd: string,
   config: Config,
-  env: NodeJS.ProcessEnv = process.env,
+  env: NodeJS.ProcessEnv,
   roots: string[] = candidateRoots(cwd),
   agent: AgentId = DEFAULT_AGENT,
 ): Resolution {

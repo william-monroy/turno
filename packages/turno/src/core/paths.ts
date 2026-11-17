@@ -38,7 +38,7 @@ export interface Paths {
   legacyConfig: string;
 }
 
-export function paths(env: NodeJS.ProcessEnv = process.env): Paths {
+export function paths(env: NodeJS.ProcessEnv): Paths {
   const home = env.HOME || homedir();
   const config = env.TURNO_CONFIG_DIR || join(env.XDG_CONFIG_HOME || join(home, ".config"), "turno");
   const state = env.TURNO_STATE_DIR || join(env.XDG_STATE_HOME || join(home, ".local", "state"), "turno");
@@ -73,18 +73,18 @@ export function paths(env: NodeJS.ProcessEnv = process.env): Paths {
 }
 
 /** Config dir of a profile: ~/.claude-<name>. */
-export function profileDir(name: string, env: NodeJS.ProcessEnv = process.env): string {
+export function profileDir(name: string, env: NodeJS.ProcessEnv): string {
   return join(paths(env).home, `.claude-${name}`);
 }
 
 /** Replace the home prefix with ~ for display. */
-export function tildify(p: string, env: NodeJS.ProcessEnv = process.env): string {
+export function tildify(p: string, env: NodeJS.ProcessEnv): string {
   const home = paths(env).home;
   return p === home ? "~" : p.startsWith(`${home}/`) ? `~${p.slice(home.length)}` : p;
 }
 
 /** Expand a leading ~ to the home directory. */
-export function expandHome(p: string, env: NodeJS.ProcessEnv = process.env): string {
+export function expandHome(p: string, env: NodeJS.ProcessEnv): string {
   const home = paths(env).home;
   if (p === "~") return home;
   if (p.startsWith("~/")) return join(home, p.slice(2));
@@ -97,7 +97,7 @@ export const PRIVATE_DIR_MODE = 0o700;
 export const PRIVATE_FILE_MODE = 0o600;
 
 /** turno's own roots (config, state, data): what `ensurePrivateDir` locks down. */
-export function privateRoots(env: NodeJS.ProcessEnv = process.env): string[] {
+export function privateRoots(env: NodeJS.ProcessEnv): string[] {
   const p = paths(env);
   return [p.config, p.state, p.data];
 }
@@ -113,7 +113,7 @@ function rootOf(file: string, env: NodeJS.ProcessEnv): string | undefined {
 }
 
 /** True when `file` is one of turno's roots or lies inside one. */
-export function isPrivatePath(file: string, env: NodeJS.ProcessEnv = process.env): boolean {
+export function isPrivatePath(file: string, env: NodeJS.ProcessEnv): boolean {
   return rootOf(file, env) !== undefined;
 }
 
@@ -140,7 +140,7 @@ function lockRoot(root: string): void {
  * 0700 the first time a process uses it. Other folders are created with the default mode.
  * Returns `dir`.
  */
-export function ensurePrivateDir(dir: string, env: NodeJS.ProcessEnv = process.env): string {
+export function ensurePrivateDir(dir: string, env: NodeJS.ProcessEnv): string {
   const root = rootOf(dir, env);
   if (!root) {
     mkdirSync(dir, { recursive: true });
@@ -157,7 +157,7 @@ export function ensurePrivateDir(dir: string, env: NodeJS.ProcessEnv = process.e
  * `ensurePrivateDir`, the file created 0600, and narrowed to 0600 when an older turno left it
  * wider. Not atomic; use the journal's `atomicWrite` for files a reader must never see half written.
  */
-export function writePrivateFile(file: string, data: string, env: NodeJS.ProcessEnv = process.env): void {
+export function writePrivateFile(file: string, data: string, env: NodeJS.ProcessEnv): void {
   ensurePrivateDir(dirname(file), env);
   const fd = openSync(file, "w", PRIVATE_FILE_MODE);
   try {
@@ -174,7 +174,7 @@ export function resetPrivateDirCache(): void {
 }
 
 /** The first executable called `name` on the PATH of `env`, or undefined. */
-export function findOnPath(name: string, env: NodeJS.ProcessEnv = process.env): string | undefined {
+export function findOnPath(name: string, env: NodeJS.ProcessEnv): string | undefined {
   if (name.includes("/")) {
     try {
       accessSync(name, constants.X_OK);

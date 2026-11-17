@@ -46,7 +46,7 @@ export function parseProcStart(text: string): { utc: number; local: number } | u
  * The profile in a launcher's run record, when the record belongs to this process: its mtime
  * must be within 120 s of the process start, so a recycled PID never inherits an old record.
  */
-function recordProfile(pid: number, procStart: string | undefined, env: NodeJS.ProcessEnv = process.env): string | undefined {
+function recordProfile(pid: number, procStart: string | undefined, env: NodeJS.ProcessEnv): string | undefined {
   const start = parseProcStart(procStart ?? "");
   if (!start) return undefined;
   const p = paths(env);
@@ -66,7 +66,7 @@ function recordProfile(pid: number, procStart: string | undefined, env: NodeJS.P
 }
 
 /** Remove run records of processes that have ended. */
-function pruneRunRecords(env: NodeJS.ProcessEnv = process.env): void {
+function pruneRunRecords(env: NodeJS.ProcessEnv): void {
   const dir = paths(env).runDir;
   let entries: string[];
   try {
@@ -115,7 +115,7 @@ function readSessionFiles(dir: string): RawSession[] {
 }
 
 /** Live sessions in the hub, each attributed to a profile. Also prunes dead run records. */
-export function liveSessions(env: NodeJS.ProcessEnv = process.env, config?: Config): LiveSession[] {
+export function liveSessions(env: NodeJS.ProcessEnv, config?: Config): LiveSession[] {
   const cfg = config ?? loadConfig(env);
   const sessions: LiveSession[] = [];
   for (const s of readSessionFiles(join(paths(env).hub, "sessions"))) {
@@ -151,7 +151,7 @@ export function displayName(s: LiveSession): string {
 }
 
 /** Profiles with at least one live session. */
-export function busyProfiles(env: NodeJS.ProcessEnv = process.env, config?: Config): Set<string> {
+export function busyProfiles(env: NodeJS.ProcessEnv, config?: Config): Set<string> {
   const out = new Set<string>();
   for (const s of liveSessions(env, config)) if (s.profile) out.add(s.profile);
   return out;
@@ -161,7 +161,7 @@ export function busyProfiles(env: NodeJS.ProcessEnv = process.env, config?: Conf
  * Whether a profile has a live session. Besides the hub, a profile whose `sessions` folder
  * is still its own copy (not yet linked to the hub) is busy when a session in it is alive.
  */
-export function profileBusy(name: string, env: NodeJS.ProcessEnv = process.env, config?: Config): boolean {
+export function profileBusy(name: string, env: NodeJS.ProcessEnv, config?: Config): boolean {
   if (busyProfiles(env, config).has(name)) return true;
   const own = join(profileDir(name, env), "sessions");
   try {

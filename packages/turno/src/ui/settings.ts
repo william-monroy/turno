@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import type { Journal } from "../core/journal.js";
-import { realOr } from "../core/fsutil.js";
+import { parseJsonObject, realOr } from "../core/fsutil.js";
 
 export interface StatusLine {
   type: "command";
@@ -15,7 +15,7 @@ const REFRESH_SECONDS = 30;
 
 export function readSettings(file: string): Record<string, unknown> {
   if (!existsSync(file)) return {};
-  return JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+  return parseJsonObject(readFileSync(file, "utf8"), file);
 }
 
 export function currentStatusLine(file: string): StatusLine | undefined {

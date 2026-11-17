@@ -10,6 +10,7 @@ import { agentOf, listProfiles } from "../core/profiles.js";
 import { secretStore } from "../core/secrets.js";
 import { profileTokenFile, tokenProfile } from "../mcpd/tokens.js";
 import type { Check } from "./commands/doctor.js";
+import { isObject } from "../core/fsutil.js";
 
 /**
  * `turno doctor --security` (ADR 0027): who can read turno's files, who holds the mcpd port,
@@ -196,10 +197,6 @@ async function portCheck(env: NodeJS.ProcessEnv): Promise<Check> {
 // ---- literal secrets
 
 type Entry = Record<string, unknown>;
-
-function isObject(v: unknown): v is Entry {
-  return Boolean(v) && typeof v === "object" && !Array.isArray(v);
-}
 
 /** Entries turno wrote: their token is the gateway's, checked by the token age instead. */
 function isGatewayEntry(e: Entry): boolean {

@@ -301,7 +301,7 @@ export function parseConfig(text: string, path = "config.toml", env: NodeJS.Proc
 }
 
 /** Load ~/.config/turno/config.toml; a missing file means all defaults. */
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+export function loadConfig(env: NodeJS.ProcessEnv): Config {
   const file = paths(env).configFile;
   let text = "";
   try {

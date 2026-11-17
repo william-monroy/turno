@@ -289,7 +289,7 @@ export interface JournalInfo {
 }
 
 /** Backup folders, newest first. */
-export function listJournals(env: NodeJS.ProcessEnv = process.env): JournalInfo[] {
+export function listJournals(env: NodeJS.ProcessEnv): JournalInfo[] {
   const root = paths(env).backupsDir;
   let names: string[] = [];
   try {
@@ -496,7 +496,7 @@ export interface PruneResult {
  * live undo point of a file (see liveEntry): pruning it would lose the only copy of what that
  * file held before a change the user has not undone.
  */
-export function pruneJournals(env: NodeJS.ProcessEnv = process.env, opts: PruneOptions = {}): PruneResult {
+export function pruneJournals(env: NodeJS.ProcessEnv, opts: PruneOptions = {}): PruneResult {
   const olderThan = opts.olderThanMs ?? PRUNE_DEFAULT_AGE_MS;
   const keep = opts.keep ?? PRUNE_DEFAULT_KEEP;
   const now = opts.now ?? Date.now();

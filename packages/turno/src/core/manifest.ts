@@ -316,7 +316,7 @@ export function parseManifest(text: string, file = "mcp.toml"): Manifest {
   return { servers };
 }
 
-export function loadManifest(env: NodeJS.ProcessEnv = process.env): Manifest {
+export function loadManifest(env: NodeJS.ProcessEnv): Manifest {
   const file = paths(env).mcpFile;
   let text = "";
   try {

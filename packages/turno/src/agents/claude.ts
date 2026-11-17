@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { paths, tildify } from "../core/paths.js";
 import { plural } from "../cli/io.js";
 import { type AgentAdapter, JSON_MCP_SERVERS, type SetupStep, gatewayUrl } from "./adapter.js";
+import { isObject, readJsonFile } from "../core/fsutil.js";
 
 /**
  * Hub folders shared by every Claude Code profile. Launchers recreate them, so a cleanup that
@@ -99,12 +100,8 @@ function seedGlobalConfig(s: SetupStep): void {
     return;
   }
   const src = paths(s.env).hubConfig;
-  let hub: Record<string, unknown>;
-  try {
-    hub = JSON.parse(readFileSync(src, "utf8")) as Record<string, unknown>;
-  } catch {
-    return;
-  }
+  const hub = readJsonFile(src);
+  if (!isObject(hub)) return;
   const seed: Record<string, unknown> = {};
   for (const k of SEED_KEYS) if (k in hub) seed[k] = hub[k];
   s.writeOwn(dst, `${JSON.stringify(seed, null, 2)}\n`);

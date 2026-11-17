@@ -17,7 +17,7 @@ export function agentOf(name: string, config: Config): AgentId {
  * folders matching the pattern (for example a place to keep shared skills) are not accounts.
  * With `agent`, only that agent's profiles.
  */
-export function listProfiles(config: Config, env: NodeJS.ProcessEnv = process.env, agent?: AgentId): string[] {
+export function listProfiles(config: Config, env: NodeJS.ProcessEnv, agent?: AgentId): string[] {
   const p = paths(env);
   const found = new Set<string>(Object.keys(config.profiles));
   let entries: string[] = [];
@@ -46,7 +46,7 @@ export function listProfiles(config: Config, env: NodeJS.ProcessEnv = process.en
  * profiles that do not exist in system, default, fallback, [agents.*] and [[projects]].
  * Warnings, not errors, so an older or hand-edited file keeps working.
  */
-export function configProblems(config: Config, env: NodeJS.ProcessEnv = process.env): string[] {
+export function configProblems(config: Config, env: NodeJS.ProcessEnv): string[] {
   const out = [...(config.warnings ?? [])];
   const known = new Set(listProfiles(config, env));
   const missing = (where: string, name: string | undefined) => {
@@ -79,7 +79,7 @@ export function configProblems(config: Config, env: NodeJS.ProcessEnv = process.
  * remote servers that skip mcpd, which a set cannot hide. Nothing when mcp.toml is missing or
  * broken (its own check reports that).
  */
-function folderSetProblems(config: Config, env: NodeJS.ProcessEnv = process.env): string[] {
+function folderSetProblems(config: Config, env: NodeJS.ProcessEnv): string[] {
   const rules = config.projects.filter((r) => r.mcp || r.mcpDeny);
   if (!rules.length || !existsSync(paths(env).mcpFile)) return [];
   let servers;
@@ -111,7 +111,7 @@ function folderSetProblems(config: Config, env: NodeJS.ProcessEnv = process.env)
 export function profileFromConfigDir(
   configDir: string | undefined,
   config: Config,
-  env: NodeJS.ProcessEnv = process.env,
+  env: NodeJS.ProcessEnv,
 ): string | undefined {
   const p = paths(env);
   const dir = (configDir ?? "").replace(/\/+$/, "");

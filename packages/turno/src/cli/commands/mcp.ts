@@ -627,14 +627,11 @@ export async function bypassingServers(env: NodeJS.ProcessEnv): Promise<Bypass> 
   const plugins = pluginServers(p.hub)
     .filter((s) => s.transport === "stdio")
     .map((s) => ({ plugin: s.plugin, name: s.name, command: String(s.command), toolPrefix: s.toolPrefix }));
-  let hub: Record<string, unknown> = {};
-  try {
-    hub = JSON.parse(readFileSync(p.hubConfig, "utf8")) as Record<string, unknown>;
-  } catch {
-    /* no hub config */
-  }
-  const direct = Object.entries((hub.mcpServers as Record<string, Record<string, unknown>>) ?? {})
-    .filter(([, e]) => typeof e.command === "string")
+  // No hub config, or one of another shape: no direct servers.
+  const hub = readJsonFile(p.hubConfig);
+  const servers = isObject(hub) && isObject(hub.mcpServers) ? hub.mcpServers : {};
+  const direct = Object.entries(servers)
+    .filter(([, e]) => isObject(e) && typeof e.command === "string")
     .map(([name]) => ({ name, inManifest: Boolean(manifest.servers[name]) }));
   return { plugins, direct };
 }
@@ -763,3 +760,4 @@ import reads ~/.claude.json, .mcp.json, ~/.codex, ~/.cursor and ~/.copilot.
 It only previews, with secrets hidden, until --write.
 Docs: docs/mcp.md in the turno repository.`,
 });
+import { isObject, readJsonFile } from "../../core/fsutil.js";

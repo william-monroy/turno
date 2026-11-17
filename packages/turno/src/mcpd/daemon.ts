@@ -318,7 +318,7 @@ export function createLogger(file: string, opts: { maxBytes?: number; keep?: num
   // Opened synchronously so the file exists before the first rotation renames it.
   const open = (): WriteStream | undefined => {
     try {
-      ensurePrivateDir(dirname(file), opts.env);
+      ensurePrivateDir(dirname(file), opts.env ?? process.env);
       const fd = openSync(file, "a", PRIVATE_FILE_MODE);
       const st = fstatSync(fd);
       if (st.mode & 0o077) fchmodSync(fd, PRIVATE_FILE_MODE);

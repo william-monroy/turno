@@ -165,7 +165,7 @@ function libsecretStore(bin: string, env: NodeJS.ProcessEnv): SecretStore {
  * The secret store of this machine: `security` on macOS, `secret-tool` elsewhere, found on the
  * PATH of `env`. Undefined when there is none (the caller prints NO_SECRET_STORE).
  */
-export function secretStore(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): SecretStore | undefined {
+export function secretStore(env: NodeJS.ProcessEnv, platform: NodeJS.Platform = process.platform): SecretStore | undefined {
   if (platform === "darwin") {
     const bin = findOnPath("security", env);
     return bin ? keychainStore(bin, env) : undefined;
@@ -175,7 +175,7 @@ export function secretStore(env: NodeJS.ProcessEnv = process.env, platform: Node
 }
 
 /** The store, or a SecretError with the one-line hint. */
-export function requireSecretStore(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): SecretStore {
+export function requireSecretStore(env: NodeJS.ProcessEnv, platform: NodeJS.Platform = process.platform): SecretStore {
   const store = secretStore(env, platform);
   if (!store) throw new SecretError("", NO_SECRET_STORE);
   return store;
@@ -192,7 +192,7 @@ const EDITOR_PLACEHOLDERS = new Set(["userHome", "workspaceFolder", "workspaceFo
  * error (SecretError), never an empty string. Anything else (`${workspaceFolder}`, a lone `$`)
  * stays as written.
  */
-export function expandVars(value: string, env: NodeJS.ProcessEnv = process.env): string {
+export function expandVars(value: string, env: NodeJS.ProcessEnv): string {
   if (!value.includes("${")) return value;
   return value.replace(VAR_REF, (whole, prefix: string | undefined, name: string, fallback: string | undefined) => {
     if (!prefix && EDITOR_PLACEHOLDERS.has(name)) return whole;
@@ -207,7 +207,7 @@ export function expandVars(value: string, env: NodeJS.ProcessEnv = process.env):
  * Resolves whole-value references (`keychain:<name>`, `env:NAME`) and expands `${VAR}` inside any
  * other value. mcpd uses it for stdio env values and remote headers.
  */
-export function keychainResolver(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): SecretResolver {
+export function keychainResolver(env: NodeJS.ProcessEnv, platform: NodeJS.Platform = process.platform): SecretResolver {
   return async (value) => {
     if (value.startsWith("env:")) {
       // env:NAME, or env:NAME:-default (what `turno mcp import` writes for ${NAME:-default}).
@@ -229,7 +229,7 @@ export function keychainResolver(env: NodeJS.ProcessEnv = process.env, platform:
 }
 
 /** Store a secret in this machine's store (Keychain or Secret Service), keeping it out of argv. */
-export async function storeKeychainSecret(service: string, secret: string, env: NodeJS.ProcessEnv = process.env): Promise<void> {
+export async function storeKeychainSecret(service: string, secret: string, env: NodeJS.ProcessEnv): Promise<void> {
   await requireSecretStore(env).set(service, secret);
 }
 
