@@ -119,7 +119,7 @@ function configLines(env: NodeJS.ProcessEnv): string[] | undefined {
  * `agents.codex.default`, `projects[0].profile` (the first [[projects]] table). Tables and
  * array tables are followed; inline tables and dotted keys inside a table are not.
  */
-export function keyLine(lines: readonly string[], key: string): number | undefined {
+function keyLine(lines: readonly string[], key: string): number | undefined {
   let table = "";
   const arrays = new Map<string, number>();
   const bare = (k: string) => k.trim().replace(/^"(.*)"$/, "$1");
