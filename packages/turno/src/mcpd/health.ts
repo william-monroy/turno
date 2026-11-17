@@ -66,7 +66,7 @@ function tokenCheck(env: NodeJS.ProcessEnv): McpdCheck | undefined {
       return {
         level: "warn",
         text: `mcpd: ${tildify(file, env)} is readable by others (mode ${(st.mode & 0o777).toString(8)})`,
-        fix: { label: `chmod 600 ${tildify(file, env)}`, run: async () => (await import("./daemon.js")).readToken(env, () => {}) },
+        fix: { label: `chmod 600 ${tildify(file, env)}`, run: async () => (await import("./state.js")).readToken(env, () => {}) },
       };
     }
     return undefined;
@@ -76,7 +76,7 @@ function tokenCheck(env: NodeJS.ProcessEnv): McpdCheck | undefined {
 }
 
 async function portChecks(env: NodeJS.ProcessEnv): Promise<McpdCheck[]> {
-  const { answersAsMcpd, daemonFiles, loadConfigSafe, mcpdPort, readLock, readStartError, readToken } = await import("./daemon.js");
+  const { answersAsMcpd, daemonFiles, loadConfigSafe, mcpdPort, readLock, readStartError, readToken } = await import("./state.js");
   const { describeOwner, portOwner } = await import("./peerpid.js");
   const out: McpdCheck[] = [];
   const port = mcpdPort(env);
@@ -128,7 +128,7 @@ async function portChecks(env: NodeJS.ProcessEnv): Promise<McpdCheck[]> {
 
 async function syncedPortCheck(env: NodeJS.ProcessEnv): Promise<McpdCheck | undefined> {
   const { readManaged } = await import("./sync.js");
-  const { mcpdPort } = await import("./daemon.js");
+  const { mcpdPort } = await import("./state.js");
   const port = mcpdPort(env);
   const off: string[] = [];
   const seen = new Set<number>();

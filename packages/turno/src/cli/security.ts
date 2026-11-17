@@ -178,7 +178,7 @@ function permissionChecks(env: NodeJS.ProcessEnv): Check[] {
 // ---- mcpd port owner
 
 async function portCheck(env: NodeJS.ProcessEnv): Promise<Check> {
-  const { answersAsMcpd, mcpdPort, readToken } = await import("../mcpd/daemon.js");
+  const { answersAsMcpd, mcpdPort, readToken } = await import("../mcpd/state.js");
   const { describeOwner, portOwner } = await import("../mcpd/peerpid.js");
   const port = mcpdPort(env);
   const owner = await portOwner(port, { env });

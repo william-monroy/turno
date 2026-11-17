@@ -168,7 +168,7 @@ export async function planUninstall(env: NodeJS.ProcessEnv, opts: { keepConfig?:
   const { installedBackend } = await import("../../mcpd/service.js");
   const backend = await installedBackend(env);
   if (backend) plan.service = { backend, file: backend.file(env) };
-  const { liveLock } = await import("../../mcpd/daemon.js");
+  const { liveLock } = await import("../../mcpd/state.js");
   const lock = liveLock(env);
   if (lock && lock.pid !== process.pid) plan.daemonPid = lock.pid;
 
@@ -292,7 +292,7 @@ async function apply(plan: UninstallPlan, journal: Journal, io: Io): Promise<voi
     }
   }
   if (plan.daemonPid) {
-    const { liveLock } = await import("../../mcpd/daemon.js");
+    const { liveLock } = await import("../../mcpd/state.js");
     try {
       process.kill(plan.daemonPid, "SIGTERM");
     } catch {
