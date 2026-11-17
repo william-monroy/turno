@@ -1,4 +1,4 @@
-# 0033. Startup speed: static help, light gateway state, cached account answers
+# 0034. Startup speed: static help, light gateway state, cached account answers
 
 Date: 2026-11-17. Status: accepted.
 
