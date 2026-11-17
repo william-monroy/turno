@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { type AgentId, adapter, mcpFileFor } from "../../agents/index.js";
@@ -7,7 +7,7 @@ import { gatewaySnippet, isSnippetAgent, SNIPPET_AGENTS } from "../../agents/sni
 import { type Config, isValidProfileName, loadConfig } from "../../core/config.js";
 import { Journal } from "../../core/journal.js";
 import { type StdioServer, type ToolFilter, loadManifest, parseManifest, servesProfile } from "../../core/manifest.js";
-import { paths, profileDir, tildify } from "../../core/paths.js";
+import { PRIVATE_DIR_MODE, PRIVATE_FILE_MODE, ensurePrivateDir, paths, profileDir, tildify } from "../../core/paths.js";
 import { agentOf, listProfiles } from "../../core/profiles.js";
 import { liveSessions } from "../../core/sessions.js";
 import { DRY_RUN, FORCE, type FlagSpec, JSON_FLAG, bool, parseFlags, printJson, str } from "../args.js";
@@ -508,8 +508,10 @@ async function install(args: string[], io: Io): Promise<number> {
       if (pinned !== s.package) io.out(`would pin package = "${pinned}" in ${tildify(p.mcpFile, io.env)}`);
       continue;
     }
-    mkdirSync(dir, { recursive: true });
-    if (!existsSync(join(dir, "package.json"))) writeFileSync(join(dir, "package.json"), `{ "private": true }\n`);
+    // Private like the rest of turno's data: a server folder holds code mcpd runs.
+    ensurePrivateDir(dir, io.env);
+    for (const d of [p.serversDir, dir]) if ((statSync(d).mode & 0o777) !== PRIVATE_DIR_MODE) chmodSync(d, PRIVATE_DIR_MODE);
+    if (!existsSync(join(dir, "package.json"))) writeFileSync(join(dir, "package.json"), `{ "private": true }\n`, { mode: PRIVATE_FILE_MODE });
     const common = ["--no-audit", "--no-fund", "--prefix", dir, ...(allowScripts ? [] : ["--ignore-scripts"])];
     const npmArgs = fromLock ? ["ci", ...common] : ["install", "--save-exact", "--package-lock=true", ...common, pinned];
     io.out(`installing ${pinned} for ${s.name}${fromLock ? " from its lockfile" : ""}...`);

@@ -149,3 +149,32 @@ describe("turno doctor and accounts", () => {
     expect(w!.text).not.toContain("linear:work");
   });
 });
+
+describe("turno mcp install and file modes", () => {
+  it("creates the server folder private, and narrows one an older turno left open", async () => {
+    sb.write(".config/turno/mcp.toml", '[server.calc]\ncommand = "calc-mcp"\npackage = "calc-pkg@1.2.3"\n');
+    const npm = join(sb.home, "fakebin", "npm");
+    sb.write(
+      "fakebin/npm",
+      `#!/usr/bin/env node
+const fs = require("node:fs"), path = require("node:path");
+const args = process.argv.slice(2);
+if (args[0] === "view") { console.log(JSON.stringify(["1.2.3"])); process.exit(0); }
+const prefix = args[args.indexOf("--prefix") + 1];
+fs.mkdirSync(path.join(prefix, "node_modules", ".bin"), { recursive: true });
+fs.writeFileSync(path.join(prefix, "node_modules", ".bin", "calc-mcp"), "");
+`,
+      0o755,
+    );
+    sb.env.PATH = `${join(sb.home, "fakebin")}:${sb.env.PATH ?? ""}`;
+    const servers = join(sb.home, ".local/share/turno/servers");
+    mkdirSync(join(servers, "calc"), { recursive: true, mode: 0o755 });
+    chmodSync(join(servers, "calc"), 0o755);
+    expect((await run(["mcp", "install"])).code).toBe(0);
+    const mode = (p: string) => statSync(p).mode & 0o777;
+    expect(mode(servers)).toBe(0o700);
+    expect(mode(join(servers, "calc"))).toBe(0o700);
+    expect(mode(join(servers, "calc", "package.json"))).toBe(0o600);
+    expect(existsSync(npm)).toBe(true);
+  });
+});
