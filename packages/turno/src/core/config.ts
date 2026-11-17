@@ -46,7 +46,8 @@ export interface Config {
   agents: Partial<Record<AgentId, AgentRoles>>;
   projects: ProjectRule[];
   open: { chromeDir: string };
-  mcpd: { port: number };
+  /** `[mcpd]`: the gateway port, and whether mcpd keeps the call log (ADR 0026). */
+  mcpd: { port: number; callLog: boolean };
   /** Keys turno does not know (likely typos), with a suggestion when one is close. */
   warnings?: string[];
 }
@@ -58,7 +59,7 @@ export const KNOWN_KEYS: Record<string, readonly string[]> = {
   "agents.*": ["default", "fallback"],
   "projects[]": ["path", "profile"],
   open: ["chrome_dir"],
-  mcpd: ["port"],
+  mcpd: ["port", "call_log"],
 };
 
 /** The known key closest to `key`, when it is a likely typo (or `colour` for `color`). */
@@ -133,7 +134,7 @@ export function parseConfig(text: string, path = "config.toml", env: NodeJS.Proc
     agents: {},
     projects: [],
     open: { chromeDir: p.chromeProfilesDir },
-    mcpd: { port: 47821 },
+    mcpd: { port: 47821, callLog: true },
     warnings,
   };
   cfg.system = str(raw.system, file, "system");
@@ -215,6 +216,10 @@ export function parseConfig(text: string, path = "config.toml", env: NodeJS.Proc
       throw new ConfigError(file, "mcpd.port must be an integer between 1024 and 65535");
     }
     cfg.mcpd.port = mcpd.port;
+  }
+  if (mcpd.call_log !== undefined) {
+    if (typeof mcpd.call_log !== "boolean") throw new ConfigError(file, "mcpd.call_log must be true or false");
+    cfg.mcpd.callLog = mcpd.call_log;
   }
   return cfg;
 }

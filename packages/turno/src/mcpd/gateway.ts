@@ -5,6 +5,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
 import { type Manifest, type ToolFilter, filtersTools, servesProfile, toolAllowed, toolFilterFor } from "../core/manifest.js";
 import type { ServerDescription } from "./cache.js";
+import { cleanAgentName } from "./calllog.js";
 import { type ClientContext, type ClientHandle, type InstanceManager, isDirectory, processCwd, projectRoot, scopeOf } from "./instances.js";
 import { ErrorCode, type Id, type Message, type Outcome, isNotification, isRequest, isResponse, rpcError, toResponse } from "./jsonrpc.js";
 import { tokenProfile } from "./tokens.js";
@@ -178,8 +179,10 @@ class ClientSession implements ClientHandle {
     const manager = this.gw.manager;
     try {
       if (method === "initialize") {
-        const caps = (m.params as { capabilities?: Record<string, unknown> } | undefined)?.capabilities;
-        this.ctx.clientCapabilities = caps ?? {};
+        const init = m.params as { capabilities?: Record<string, unknown>; clientInfo?: { name?: unknown } } | undefined;
+        this.ctx.clientCapabilities = init?.capabilities ?? {};
+        const agent = cleanAgentName(init?.clientInfo?.name);
+        if (agent) this.ctx.clientName = agent;
         const d = await manager.describe(this);
         this.reply(id, {
           result: {
@@ -497,10 +500,24 @@ export class Gateway {
     return s;
   }
 
+  /** Agent processes behind the open sessions: one entry per client PID (or per session without one). */
+  agents(): { pid: number | null; profile: string | null; agent: string | null; servers: string[] }[] {
+    const by = new Map<string, { pid: number | null; profile: string | null; agent: string | null; servers: string[] }>();
+    for (const s of this.sessions.values()) {
+      const key = s.ctx.pid ? `pid:${s.ctx.pid}` : `sid:${s.id}`;
+      const a = by.get(key) ?? { pid: s.ctx.pid ?? null, profile: s.ctx.profile ?? null, agent: s.ctx.clientName ?? null, servers: [] };
+      if (!a.servers.includes(s.ctx.serverName)) a.servers.push(s.ctx.serverName);
+      a.agent ??= s.ctx.clientName ?? null;
+      by.set(key, a);
+    }
+    return [...by.values()];
+  }
+
   status(): unknown {
     return {
       pid: process.pid,
       sessions: this.sessions.size,
+      agents: this.agents(),
       instances: this.manager.list().map((i) => ({
         key: i.key,
         server: i.server.name,
@@ -513,6 +530,7 @@ export class Gateway {
         inflight: i.upstream.inflight,
         inflightByClient: i.upstream.inflightByClient(),
         startedAt: i.upstream.startedAt,
+        restarts: this.manager.restarts(i.key),
       })),
     };
   }
