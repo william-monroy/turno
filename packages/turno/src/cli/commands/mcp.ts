@@ -297,7 +297,7 @@ function npm(io: Io, args: string[], timeout: number): Promise<{ stdout: string 
   return run("npm", args, { timeout, env: io.env });
 }
 
-async function binOf(io: Io, pkg: string): Promise<string | undefined> {
+export async function binOf(io: Io, pkg: string): Promise<string | undefined> {
   try {
     const { stdout } = await npm(io, ["view", pkg, "bin", "--json"], 20_000);
     const bin = JSON.parse(stdout || "null") as string | Record<string, string> | null;

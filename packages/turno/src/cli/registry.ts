@@ -7,6 +7,7 @@ type Loader = () => Promise<{ command: Command }>;
  * the MCP SDK. Order and section decide `turno help`.
  */
 export const SECTIONS: { title: string; commands: string[] }[] = [
+  { title: "Get started", commands: ["init", "demo"] },
   { title: "Start an agent", commands: ["run", "auto"] },
   { title: "Accounts", commands: ["profile", "limit", "session", "open"] },
   { title: "MCP servers and outside services", commands: ["mcp", "identity", "secret"] },
@@ -21,6 +22,8 @@ export const HELP_SUMMARY: Record<string, string> = {
 };
 
 export const COMMANDS: Record<string, Loader> = {
+  init: () => import("./commands/init.js"),
+  demo: () => import("./commands/demo.js"),
   run: () => import("./commands/run.js"),
   auto: () => import("./commands/auto.js"),
   profile: () => import("./commands/profile.js"),

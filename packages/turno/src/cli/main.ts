@@ -7,7 +7,7 @@ import { COMMANDS, HELP_SUMMARY, QUIET, SECTIONS, expand, visibleCommands } from
 async function help(io: Io): Promise<number> {
   for (const l of wrap("turno: one MCP gateway and per-folder accounts for Claude Code, Codex, Copilot CLI and Cursor CLI.", WIDTH)) io.out(l);
   io.out("");
-  io.out("Start here: turno doctor, then turno mcp import and turno profile add <name>.");
+  io.out("Start here: turno init, or turno demo to try turno in a throwaway HOME.");
   io.out("");
   const sections = await Promise.all(
     SECTIONS.map(async (s) => ({

@@ -220,7 +220,8 @@ describe("one help path (02-H8, 02-H9)", () => {
     const r = await run(["--help"]);
     const out = r.io.lines.join("\n");
     expect(r.io.lines[0]).toBe("turno: one MCP gateway and per-folder accounts for Claude Code, Codex, Copilot");
-    expect(out).toContain("Start here: turno doctor, then turno mcp import and turno profile add <name>.");
+    expect(out).toContain("Start here: turno init, or turno demo to try turno in a throwaway HOME.");
+    expect(out).toContain("Get started:\n  turno init");
     expect(out).toContain("Developer tools:\n  turno browser     developer tool: compare browser engines (needs");
     expect(out).not.toMatch(/migrate|Older names|claudio|Orca/);
     for (const l of r.io.lines) expect(l.length, l).toBeLessThanOrEqual(80);
