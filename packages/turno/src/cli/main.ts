@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { enableCompileCache } from "./compile-cache.js";
 import { CliError, type Io, UsageError, WIDTH, closest, columns, defaultIo, fail, noInputReason, paint, withoutAsk, wrap } from "./io.js";
 import { COMMANDS, HELP_SUMMARY, QUIET, SECTIONS, expand, visibleCommands } from "./registry.js";
 
@@ -154,6 +155,8 @@ function isEntry(): boolean {
 }
 
 if (isEntry()) {
+  // Before the first command module loads, so it and everything it imports come from the cache.
+  enableCompileCache(takeNoInput(process.argv.slice(2)).argv);
   main(process.argv.slice(2)).then(
     (code) => {
       process.exitCode = code;

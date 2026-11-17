@@ -241,9 +241,10 @@ function folder(arg: string | undefined, io: Io): string {
 }
 
 /** How a folder resolves for each agent that has profiles (Claude Code always). */
-export function resolveAll(dir: string, config: Config, env: NodeJS.ProcessEnv) {
+/** Each agent's resolution of `dir`; `roots` is computed once (one git call) for all of them. */
+export function resolveAll(dir: string, config: Config, env: NodeJS.ProcessEnv, roots: string[] = candidateRoots(dir)) {
   const agents = AGENT_IDS.filter((a) => a === DEFAULT_AGENT || listProfiles(config, env, a).length > 0);
-  return agents.map((agent) => ({ agent, r: resolveProfile(dir, config, env, undefined, agent) }));
+  return agents.map((agent) => ({ agent, r: resolveProfile(dir, config, env, roots, agent) }));
 }
 
 /** "work (project ~/code)", or the plain agent and its home. */
@@ -256,9 +257,10 @@ export async function whichCommand(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, JSON_FLAG, 1);
   const dir = folder(p.positionals[0], io);
   const config = loadConfig(io.env);
-  const all = resolveAll(dir, config, io.env);
+  const roots = candidateRoots(dir);
+  const all = resolveAll(dir, config, io.env, roots);
   const r = all[0]!.r;
-  const set = folderMcpSet(candidateRoots(dir), config.projects, r.chosen || undefined);
+  const set = folderMcpSet(roots, config.projects, r.chosen || undefined);
   if (bool(p, "json")) {
     const one = (x: typeof r) => ({ assigned: x.assigned || null, chosen: x.chosen || null, reason: x.reason, note: x.note || null });
     const mcp = set ? { rule: tildify(set.path, io.env), allow: set.mcp ?? null, deny: set.mcpDeny ?? null } : null;

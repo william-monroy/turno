@@ -3,7 +3,8 @@ import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { isValidProfileName } from "../../core/config.js";
 import { type RemoteServer, loadManifest, servesProfile, variantKey } from "../../core/manifest.js";
 import { NO_SECRET_STORE, type SecretStore, keychainResolver, secretStore } from "../../core/secrets.js";
-import { type LoginState, loginState, oauthService, parseRecord } from "../../mcpd/oauth.js";
+// The OAuth client pulls in the MCP SDK: loaded when a login is used, not by every `turno mcp` command.
+import type { LoginState } from "../../mcpd/oauth.js";
 import { DRY_RUN, type FlagSpec, JSON_FLAG, bool, parseFlags, printJson, str } from "../args.js";
 import { type Io, fail } from "../io.js";
 
@@ -124,7 +125,7 @@ export async function logout(args: string[], io: Io, deps: OAuthDeps = {}): Prom
   const variants = all ? ["default", ...Object.keys(server.variants)] : [variantFor(server, str(flags, "profile"))];
   const store = storeOf(io.env);
   const dry = bool(flags, "dry-run");
-  const { revoke } = await import("../../mcpd/oauth.js");
+  const { oauthService, parseRecord, revoke } = await import("../../mcpd/oauth.js");
   for (const variant of variants) {
     const service = oauthService(server.name, variant);
     const rec = parseRecord(await store.get(service));
@@ -168,6 +169,7 @@ export function loginVariants(server: RemoteServer): string[] {
 export async function oauthLogins(env: NodeJS.ProcessEnv): Promise<LoginRow[]> {
   const servers = Object.values(loadManifest(env).servers).filter((s): s is RemoteServer => s.kind === "remote" && s.oauth !== undefined);
   if (!servers.length) return [];
+  const { loginState } = await import("../../mcpd/oauth.js");
   const store = secretStore(env);
   const rows: LoginRow[] = [];
   for (const s of servers) {

@@ -16,8 +16,31 @@ export const SECTIONS: { title: string; commands: string[] }[] = [
   { title: "Developer tools", commands: ["browser"] },
 ];
 
-/** Help summaries set here instead of by the command module. */
+/**
+ * One line per visible command for `turno help`, so the help renders from this table without
+ * loading any command module. Each must equal the command's own `summary` (a test checks it).
+ */
 export const HELP_SUMMARY: Record<string, string> = {
+  init: "set turno up in one step: find agents, profiles, folders and MCP servers, show the diff, write it (one undo)",
+  demo: "try turno in a throwaway HOME: two profiles, a gateway and the status line (removed on exit)",
+  run: "open a profile with its agent (turno <profile> is the short form), or auto",
+  auto: "open the agent with the account assigned to this folder (turno-auto)",
+  profile: "accounts (profiles) for each agent: list, add, repair, remove, and which folders use each",
+  limit: "usage limits of each account, and the exhausted marks that move projects to the fallback",
+  session: "live Claude Code sessions, and moving one to another account",
+  open: "open a claude.ai link with an account (default: the session's)",
+  mcp: "MCP servers behind the lazy gateway, and the gateway daemon itself",
+  identity: "who acts on outside services: service accounts (linear:work) and browser identities (browser:school)",
+  secret: "store MCP secrets in the Keychain (macOS) or the Secret Service (Linux)",
+  ui: "the status line, its font and icons in every terminal",
+  status: "one screen with everything: this folder, profiles and usage, sessions, mcpd and the look",
+  doctor: "check everything (system, config, profiles, MCP, look, mcpd) and fix what is safe to fix",
+  config: "read and change config.toml without losing its comments; check every config file",
+  undo: "list recent changes turno made to your files, and put any of them back",
+  upgrade: "update turno to the newest release (or check for one)",
+  uninstall: "remove the service, launchers, status line and MCP entries turno set up (profile folders stay)",
+  version: "the turno version, how it was installed, and whether a newer one is known",
+  completion: "shell completion for commands, profiles, identities and config keys",
   browser: "developer tool: compare browser engines (needs turno-browser)",
 };
 
