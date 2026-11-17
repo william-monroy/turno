@@ -1,5 +1,6 @@
-import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, lstatSync, readFileSync, readdirSync, rmSync, rmdirSync } from "node:fs";
+import module from "node:module";
+import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { JSON_MCP_SERVERS, TOML_MCP_SERVERS } from "../../agents/adapter.js";
 import { agentProfileDir } from "../../agents/index.js";
@@ -22,7 +23,7 @@ import { realOr } from "../../core/fsutil.js";
  * deletes a profile folder (they hold logins), turno's backups, or anything turno did not write.
  */
 
-const USAGE = `Usage: turno uninstall [--dry-run] [--yes] [--keep-config]
+const USAGE = `Usage: turno uninstall [--dry-run] [--yes] [--keep-config] [--purge]
 
 Removes what turno set up on this machine, then tells you the command that
 removes the package itself:
@@ -39,9 +40,16 @@ they stay, and the list says where they are. So do turno's backups under
 before you remove the package. Lines that load turno in your shell startup
 files are listed for you to remove by hand.
 
+--purge also removes turno's state and caches: ~/.local/state/turno (backups,
+logs, usage, exhausted marks), ~/.cache/turno, and the MCP servers and caches
+under ~/.local/share/turno. Then turno undo cannot put anything back. Browser
+profiles with logins (~/.local/share/turno/chrome and browser) and profile
+folders still stay.
+
   --dry-run      print the list and change nothing
   --yes          do not ask (needed when there is no terminal to ask in)
-  --keep-config  keep ~/.config/turno`;
+  --keep-config  keep ~/.config/turno
+  --purge        remove turno's state and caches too (no undo)`;
 
 interface ConfigFiles {
   root: string;
@@ -64,6 +72,8 @@ export interface UninstallPlan {
   /** Per-profile gateway token files (ADR 0023). */
   profileTokens: string[];
   turnoConfig?: ConfigFiles;
+  /** With --purge: turno's state, caches and installed servers, removed whole and without a journal. */
+  purge: { path: string; what: string }[];
   /** Shell startup lines to remove by hand. */
   manual: string[];
   /** What stays, one line each. */
@@ -160,9 +170,20 @@ function walk(root: string): ConfigFiles | undefined {
 
 const RC_FILES = [".zshrc", ".bashrc", ".bash_profile", ".profile", ".config/fish/config.fish"];
 
-export async function planUninstall(env: NodeJS.ProcessEnv, opts: { keepConfig?: boolean } = {}): Promise<UninstallPlan> {
+/**
+ * A folder --purge may remove whole: an absolute path that is neither the home folder, nor
+ * the root, nor a folder that holds the home folder (a TURNO_STATE_DIR set to one of those).
+ */
+function purgeable(path: string, home: string): boolean {
+  if (!isAbsolute(path)) return false;
+  const dir = realOr(resolve(path));
+  const h = realOr(resolve(home));
+  return dir !== sep && dir !== h && !h.startsWith(dir + sep);
+}
+
+export async function planUninstall(env: NodeJS.ProcessEnv, opts: { keepConfig?: boolean; purge?: boolean } = {}): Promise<UninstallPlan> {
   const p = paths(env);
-  const plan: UninstallPlan = { configs: [], launchers: [], completions: [], profileTokens: [], manual: [], kept: [] };
+  const plan: UninstallPlan = { configs: [], launchers: [], completions: [], profileTokens: [], purge: [], manual: [], kept: [] };
 
   // Only a service whose file is in this HOME: never ask the service manager about one it is not.
   const { installedBackend } = await import("../../mcpd/service.js");
@@ -228,10 +249,21 @@ export async function planUninstall(env: NodeJS.ProcessEnv, opts: { keepConfig?:
     if (existsSync(dir)) plan.kept.push(`${tildify(dir, env)} (profile ${name}: its login and history) stays; delete it by hand when you no longer need it`);
   }
   if (existsSync(p.chromeProfilesDir)) plan.kept.push(`${tildify(p.chromeProfilesDir, env)} (browser profiles with their logins) stays`);
-  if (existsSync(p.data)) plan.kept.push(`${tildify(p.data, env)} (installed MCP servers, caches) stays`);
-  plan.kept.push(`${tildify(p.state, env)} (backups for turno undo, logs) stays`);
   const cache = dirname(compileCacheDir(env));
-  if (existsSync(cache)) plan.kept.push(`${tildify(cache, env)} (compiled code, safe to delete) stays`);
+  if (opts.purge) {
+    const targets = [
+      { path: p.state, what: "state: backups for turno undo, logs, usage" },
+      { path: cache, what: "caches" },
+      { path: p.serversDir, what: "MCP servers turno installed" },
+      { path: dirname(p.mcpdCacheDir), what: "mcpd's caches" },
+    ];
+    for (const t of targets) if (lstat(t.path) && purgeable(t.path, p.home)) plan.purge.push(t);
+    if (existsSync(p.browserDir)) plan.kept.push(`${tildify(p.browserDir, env)} (turno-browser profiles with their logins) stays`);
+  } else {
+    if (existsSync(p.data)) plan.kept.push(`${tildify(p.data, env)} (installed MCP servers, caches) stays`);
+    plan.kept.push(`${tildify(p.state, env)} (backups for turno undo, logs) stays`);
+    if (existsSync(cache)) plan.kept.push(`${tildify(cache, env)} (compiled code, safe to delete) stays`);
+  }
   plan.kept.push("secrets you stored with turno secret stay in the Keychain or Secret Service (turno secret --help)");
   return plan;
 }
@@ -246,7 +278,8 @@ function isEmpty(plan: UninstallPlan): boolean {
     !plan.completions.length &&
     !plan.token &&
     !plan.profileTokens.length &&
-    !plan.turnoConfig
+    !plan.turnoConfig &&
+    !plan.purge.length
   );
 }
 
@@ -268,6 +301,7 @@ function describe(plan: UninstallPlan, env: NodeJS.ProcessEnv): string[] {
     const names = plan.turnoConfig.files.map((f) => f.slice(plan.turnoConfig!.root.length + 1));
     out.push(`${t(plan.turnoConfig.root)}${names.length ? ` (${names.join(", ")})` : ""}`);
   }
+  for (const x of plan.purge) out.push(`${t(x.path)} (${x.what}; --purge, no undo)`);
   return out;
 }
 
@@ -332,14 +366,41 @@ async function apply(plan: UninstallPlan, journal: Journal, io: Io): Promise<voi
   }
 }
 
+/**
+ * --purge, after everything else: turno's state (with the journal just written), caches and
+ * installed servers go whole. Node's pending compile cache entries are written first, so
+ * nothing is left to write into ~/.cache/turno when this process exits.
+ */
+function purge(plan: UninstallPlan, io: Io): void {
+  try {
+    (module as { flushCompileCache?: () => void }).flushCompileCache?.();
+  } catch {
+    /* the cache is best effort */
+  }
+  for (const x of plan.purge) {
+    try {
+      rmSync(x.path, { recursive: true, force: true });
+    } catch (err) {
+      io.err(`turno: warning: could not remove ${tildify(x.path, io.env)}: ${(err as Error).message}`);
+    }
+  }
+  // The data folder goes too once nothing of the person's is left in it.
+  const data = paths(io.env).data;
+  try {
+    if (plan.purge.some((x) => dirname(x.path) === data) && readdirSync(data).length === 0) rmdirSync(data);
+  } catch {
+    /* gone already, or not empty */
+  }
+}
+
 export const command: Command = {
   summary: "remove the service, launchers, status line and MCP entries turno set up (profile folders stay)",
   usage: USAGE,
-  flags: ["--dry-run", "--yes", "--keep-config"],
+  flags: ["--dry-run", "--yes", "--keep-config", "--purge"],
   async run(args, io) {
-    const p = parseFlags(args, { ...DRY_RUN, yes: { type: "boolean", short: "y" }, "keep-config": { type: "boolean" } }, 0);
+    const p = parseFlags(args, { ...DRY_RUN, yes: { type: "boolean", short: "y" }, "keep-config": { type: "boolean" }, purge: { type: "boolean" } }, 0);
     const dry = bool(p, "dry-run");
-    const plan = await planUninstall(io.env, { keepConfig: bool(p, "keep-config") });
+    const plan = await planUninstall(io.env, { keepConfig: bool(p, "keep-config"), purge: bool(p, "purge") });
     const remove = describe(plan, io.env);
     const last = `Last step, to remove the package: ${packageRemoval()}`;
     const printStays = () => {
@@ -372,8 +433,10 @@ export const command: Command = {
     }
     const journal = new Journal(io.env, `uninstall${bool(p, "keep-config") ? " --keep-config" : ""}`);
     await apply(plan, journal, io);
+    if (plan.purge.length) purge(plan, io);
     io.out("Done.");
-    if (journal.used) {
+    if (plan.purge.length) io.out("--purge removed turno's backups too, so turno undo cannot put this back.");
+    else if (journal.used) {
       io.out(`Changed your mind? turno undo ${journal.stamp} puts it all back while turno is still installed (then turno mcp daemon start).`);
     }
     io.out(last);

@@ -292,7 +292,8 @@ describe("commands without a profile", () => {
   it("run lists auto first, named with the profile this folder resolves to", async () => {
     // No rule and no default: auto resolves to nothing, so it is not offered.
     const none = fakeTerminal(["\x1b"]);
-    expect(await main(["run"], { ...fakeIo(sb.env), ask: async () => "", terminal: none })).toBe(130);
+    const plain = { ...fakeIo(sb.env), ask: async () => "", terminal: none };
+    expect(await main(["run"], plain)).toBe(130);
     expect(stripAnsi(none.out)).not.toContain("auto");
 
     sb.write(".config/turno/config.toml", 'system = "personal"\ndefault = "work"\n');

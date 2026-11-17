@@ -1,5 +1,7 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, symlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SCRIPTS } from "../src/cli/commands/completion.js";
 import { type Io } from "../src/cli/io.js";
@@ -334,5 +336,88 @@ describe("turno uninstall (02-H5)", () => {
     expect(r.code).toBe(0);
     expect(r.io.lines.join("\n")).toContain("Nothing of turno's to remove");
     expect(callLog()).toEqual([]);
+  });
+});
+
+describe("turno uninstall --purge", () => {
+  const purgeSetup = () => {
+    setUpTurno();
+    sb.write(".local/state/turno/usage/work.json", "{}");
+    sb.write(".local/state/turno/logs/mcpd.log", "log\n");
+    sb.write(".cache/turno/node-compile-cache/x", "c");
+    sb.write(".local/share/turno/servers/node_modules/x/package.json", "{}");
+    sb.write(".local/share/turno/mcpd/cache/descriptions.json", "{}");
+    sb.write(".local/share/turno/chrome/work/Cookies", "c");
+    sb.write(".local/share/turno/browser/work/state", "s");
+  };
+
+  it("--dry-run lists the state and caches it would remove, and changes nothing", async () => {
+    purgeSetup();
+    const r = await run(["uninstall", "--purge", "--dry-run"]);
+    expect(r.code).toBe(0);
+    const out = r.io.lines.join("\n");
+    expect(out).toContain("  - ~/.local/state/turno (state: backups for turno undo, logs, usage; --purge, no undo)");
+    expect(out).toContain("  - ~/.cache/turno (caches; --purge, no undo)");
+    expect(out).toContain("  - ~/.local/share/turno/servers (MCP servers turno installed; --purge, no undo)");
+    expect(out).toContain("  - ~/.local/share/turno/mcpd (mcpd's caches; --purge, no undo)");
+    expect(out).toContain("~/.local/share/turno/chrome (browser profiles with their logins) stays");
+    expect(out).toContain("~/.local/share/turno/browser (turno-browser profiles with their logins) stays");
+    expect(out).not.toContain("~/.local/state/turno (backups for turno undo, logs) stays");
+    expect(existsSync(home(".local/state/turno/usage/work.json"))).toBe(true);
+    expect(existsSync(home(".cache/turno"))).toBe(true);
+    expect(listJournals(sb.env)).toEqual([]);
+  });
+
+  it("asks the same way: no terminal and no --yes is exit 2, a no changes nothing", async () => {
+    purgeSetup();
+    expect((await run(["uninstall", "--purge"])).code).toBe(2);
+    const no = asking("n");
+    expect((await run(["uninstall", "--purge"], no)).code).toBe(1);
+    expect(no.asked).toEqual(["Remove all of this? [y/N] "]);
+    expect(existsSync(home(".local/state/turno/usage/work.json"))).toBe(true);
+    expect(existsSync(home(".local/share/turno/servers"))).toBe(true);
+  });
+
+  it("removes state, caches and installed servers after the rest, and keeps logins and profiles", async () => {
+    purgeSetup();
+    const r = await run(["uninstall", "--purge"], asking("y"));
+    expect(r.code).toBe(0);
+    expect(existsSync(home(".local/bin/claude-work"))).toBe(false);
+    expect(existsSync(home(".config/turno"))).toBe(false);
+    expect(existsSync(home(".local/state/turno"))).toBe(false);
+    expect(existsSync(home(".cache/turno"))).toBe(false);
+    expect(existsSync(home(".local/share/turno/servers"))).toBe(false);
+    expect(existsSync(home(".local/share/turno/mcpd"))).toBe(false);
+    expect(readdirSync(home(".local/share/turno")).sort()).toEqual(["browser", "chrome"]);
+    expect(existsSync(home(".claude-work/.claude.json"))).toBe(true);
+    const out = r.io.lines.join("\n");
+    expect(out).toContain("--purge removed turno's backups too, so turno undo cannot put this back.");
+    expect(out).not.toMatch(/turno undo \d{8}/);
+    expect(listJournals(sb.env)).toEqual([]);
+  });
+
+  it("removes the data folder when nothing else is left in it", async () => {
+    sb.write(".local/share/turno/servers/x", "x");
+    sb.write(".local/state/turno/usage/work.json", "{}");
+    expect((await run(["uninstall", "--purge", "--yes"])).code).toBe(0);
+    expect(existsSync(home(".local/share/turno"))).toBe(false);
+    expect(existsSync(home(".local/state/turno"))).toBe(false);
+  });
+
+  it("never removes a state folder set to the home folder or above it", async () => {
+    sb.write(".local/share/turno/servers/x", "x");
+    mkdirSync(home("own-state"));
+    const listed = async (dir: string) => (await run(["uninstall", "--purge", "--dry-run"], fakeIo({ ...sb.env, TURNO_STATE_DIR: dir }))).io.lines.join("\n").includes(" (state: backups");
+    expect(await listed(home("own-state"))).toBe(true);
+    for (const dir of [sb.home, `${sb.home}/`, `${sb.home}/x/../..`, "/"]) expect(await listed(dir), dir).toBe(false);
+  });
+
+  const DIST_MAIN = join(dirname(fileURLToPath(import.meta.url)), "../dist/cli/main.js");
+  it.skipIf(!existsSync(DIST_MAIN))("leaves no compile cache behind when the built CLI exits", () => {
+    purgeSetup();
+    const r = spawnSync(process.execPath, [DIST_MAIN, "uninstall", "--purge", "--yes"], { env: sb.env, encoding: "utf8" });
+    expect(r.status, r.stderr).toBe(0);
+    expect(existsSync(home(".cache/turno"))).toBe(false);
+    expect(existsSync(home(".local/state/turno"))).toBe(false);
   });
 });
