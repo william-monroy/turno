@@ -383,6 +383,11 @@ export interface PickProfileOptions {
   extra?: string[];
   /** Where the cursor starts; the folder's profile by default. */
   initial?: string;
+  /**
+   * Offer `auto` first, named with the profile it resolves to here ("auto (work)"), when the
+   * folder resolves to one of Claude Code's profiles (`turno run`). The cursor starts on it.
+   */
+  auto?: boolean;
 }
 
 /** An Io that may carry the terminal to use (tests pass a fake one). */
@@ -418,7 +423,10 @@ export async function pickProfile(io: PickIo, opts: PickProfileOptions): Promise
     if (chosen) here.set(chosen, true);
   }
   const folderPick = names.find((n) => here.has(n) && agentOf(n, config) === DEFAULT_AGENT) ?? names.find((n) => here.has(n));
-  const initial = opts.initial && names.includes(opts.initial) ? opts.initial : folderPick;
+  // What `turno auto` would open here (Claude Code, as `turno run auto` does).
+  const auto = opts.auto ? resolveProfile(dir, config, io.env, roots, DEFAULT_AGENT) : undefined;
+  const autoTo = auto?.chosen && names.includes(auto.chosen) ? auto.chosen : undefined;
+  const initial = opts.initial && names.includes(opts.initial) ? opts.initial : autoTo ? "auto" : folderPick;
 
   const term = io.terminal ?? (process.stdin.isTTY && process.stderr.isTTY ? realTerminal() : undefined);
   const styleAt = (columns: number) => style({ env: { ...io.env, COLUMNS: String(columns) }, isTty: true });
@@ -438,17 +446,27 @@ export async function pickProfile(io: PickIo, opts: PickProfileOptions): Promise
     const acc = account ? (account.warn ? s.warn(account.text) : account.text) : s.muted("...");
     return { value: n, cells: [pill(n), agent.label, acc, mark(n)], search: `${agent.label} ${account?.text ?? ""}` };
   };
-  const withAccounts = Promise.all(names.map(async (n) => item(n, await accountText(n, agentOf(n, config), io.env))));
+  const autoName = (st: Style) => `${st.bold("auto")} ${st.muted("(")}${autoTo}${st.muted(")")}`;
+  const first: PickItem[] = autoTo
+    ? [
+        {
+          value: "auto",
+          cells: [autoName(s), adapter(DEFAULT_AGENT).label, s.muted(auto!.reason), auto!.note ? s.warn(`${auto!.assigned} ${auto!.note}`) : ""],
+          search: `auto ${autoTo}`,
+        },
+      ]
+    : [];
+  const withAccounts = Promise.all(names.map(async (n) => item(n, await accountText(n, agentOf(n, config), io.env)))).then((items) => [...first, ...items]);
 
   let value: string | undefined;
   if (term) {
-    value = await runPicker(term, s, names.map((n) => item(n)), {
+    value = await runPicker(term, s, [...first, ...names.map((n) => item(n))], {
       title: opts.title,
       maxRows: 10,
       ...(initial ? { initial } : {}),
       update: withAccounts,
       styleAt,
-      chosen: (v) => `${s.icon("ok")} ${opts.title} ${pill(v)}`,
+      chosen: (v) => `${s.icon("ok")} ${opts.title} ${v === "auto" && autoTo ? autoName(s) : pill(v)}`,
     });
   } else {
     value = await askByNumber(io, s, await withAccounts, opts.title, initial);

@@ -10,14 +10,15 @@ export const command: Command = {
     "Everything after the profile goes to its agent, for example:",
     "  turno run work --resume",
     "",
-    "Without a profile, a terminal shows the profiles to choose from.",
+    "Without a profile, a terminal shows the profiles to choose from. When this",
+    "folder resolves to a profile, auto comes first, named with it: auto (work).",
   ].join("\n"),
   args: ["profile-or-auto"],
   async run(args, io) {
     let [name, ...rest] = args;
     if (!name) {
       const { pickProfile } = await import("../picker.js");
-      name = await pickProfile(io, { command: "run", title: "Profile to open", extra: ["auto"] });
+      name = await pickProfile(io, { command: "run", title: "Profile to open", extra: ["auto"], auto: true });
       rest = [];
     }
     return name === "auto" ? auto.run(rest, io) : launchProfile(name, rest, io);
