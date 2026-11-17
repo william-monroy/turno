@@ -1,4 +1,4 @@
-import { closeSync, mkdirSync, openSync, readSync, renameSync, statSync, writeSync } from "node:fs";
+import { closeSync, fchmodSync, fstatSync, mkdirSync, openSync, readSync, renameSync, statSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -7,7 +7,8 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import type { ServerDef } from "../core/manifest.js";
 import { effectiveLaunch } from "../core/manifest.js";
-import { type SecretResolver, resolveRecord } from "../core/secrets.js";
+import { PRIVATE_DIR_MODE, PRIVATE_FILE_MODE } from "../core/paths.js";
+import { type SecretResolver, expandVars, resolveRecord } from "../core/secrets.js";
 import type { ClientContext, Connector } from "./instances.js";
 import { isDirectory, resolveCommand } from "./instances.js";
 
@@ -21,6 +22,11 @@ export interface ConnectorOptions {
   builtins?: Record<string, BuiltinFactory>;
   /** Base environment for stdio servers (PATH and friends). */
   baseEnv?: Record<string, string>;
+  /**
+   * Environment that `${VAR}` in a stdio server's args expands from (mcpd's own). Without it,
+   * args are passed as written.
+   */
+  vars?: NodeJS.ProcessEnv;
   /** Bytes a server log may reach before it is rotated to `<name>.log.1`. */
   maxLogBytes?: number;
 }
@@ -43,7 +49,7 @@ export class RotatingLog {
     readonly file: string,
     private readonly maxBytes = MAX_LOG,
   ) {
-    mkdirSync(join(file, ".."), { recursive: true });
+    mkdirSync(join(file, ".."), { recursive: true, mode: PRIVATE_DIR_MODE });
     try {
       this.size = statSync(file).size;
     } catch {
@@ -57,7 +63,11 @@ export class RotatingLog {
     const buf = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
     try {
       if (this.size > 0 && this.size + buf.length > this.maxBytes) this.rotate();
-      this.fd ??= openSync(this.file, "a");
+      if (this.fd === undefined) {
+        // Server logs can quote tokens and file contents: 0600 like every file turno keeps.
+        this.fd = openSync(this.file, "a", PRIVATE_FILE_MODE);
+        if (fstatSync(this.fd).mode & 0o077) fchmodSync(this.fd, PRIVATE_FILE_MODE);
+      }
       writeSync(this.fd, buf);
       this.size += buf.length;
     } catch {
@@ -139,7 +149,9 @@ export class DefaultConnector implements Connector {
       );
     }
     const env = { ...(this.opts.baseEnv ?? {}), ...(await resolveRecord(launch.env, this.opts.resolve)) };
-    const resolved = resolveCommand(server, launch.command, launch.args, this.opts.serversDir);
+    const vars = this.opts.vars;
+    const args = vars ? launch.args.map((a) => expandVars(a, vars)) : launch.args;
+    const resolved = resolveCommand(server, launch.command, args, this.opts.serversDir);
     const transport = new StdioClientTransport({
       command: resolved.command,
       args: resolved.args,

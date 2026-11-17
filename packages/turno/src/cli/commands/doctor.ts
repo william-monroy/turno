@@ -194,6 +194,9 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
   const { pathAdvice } = await import("./profile.js");
   const advice = names.length ? pathAdvice(env) : undefined;
   if (advice) add("system", "warn", `${tildify(p.bin, env)} is not on your PATH, so launchers like ${launcherName(names[0]!, agentOf(names[0]!, early!))} will not be found (turno ${names[0]} works meanwhile). ${advice}`);
+  const { secretStoreLabel } = await import("../security.js");
+  const store = secretStoreLabel(env);
+  add("system", store === "none" ? "info" : "ok", store === "none" ? "secret store: none (keychain: references cannot resolve; env: ones work)" : `secret store: ${store}`);
   const chrome = env.TURNO_CHROME_APP || "/Applications/Google Chrome.app";
   add("system", existsSync(chrome) ? "ok" : "warn", existsSync(chrome) ? "Google Chrome installed" : "Google Chrome not found: claude.ai links open in the default browser");
 
@@ -281,8 +284,15 @@ function report(io: Io, c: Check): void {
   io.out(`${tag}  ${c.text}${c.fix && c.level !== "ok" ? paint(io, `  [fix: ${c.fix.label}]`, "2") : ""}`);
 }
 
-export async function doctor(io: Io, opts: { fix?: boolean; json?: boolean } = {}): Promise<number> {
-  let checks = await collectChecks(io.env);
+// ---- security section (ADR 0027): `turno doctor --security` runs only these checks.
+async function securitySection(env: NodeJS.ProcessEnv): Promise<Check[]> {
+  return (await import("../security.js")).securityChecks(env);
+}
+// ---- end of the security section
+
+export async function doctor(io: Io, opts: { fix?: boolean; json?: boolean; security?: boolean } = {}): Promise<number> {
+  const collect = opts.security ? securitySection : collectChecks;
+  let checks = await collect(io.env);
   if (opts.fix) {
     const fixes = new Map<string, Fix>();
     for (const c of checks) if (c.fix && (c.level === "warn" || c.level === "fail")) fixes.set(c.fix.label, c.fix);
@@ -292,7 +302,7 @@ export async function doctor(io: Io, opts: { fix?: boolean; json?: boolean } = {
     }
     if (fixes.size) {
       if (!opts.json) io.out("");
-      checks = await collectChecks(io.env);
+      checks = await collect(io.env);
     } else if (!opts.json) io.out("Nothing to fix automatically.\n");
   }
   const failed = checks.some((c) => c.level === "fail");
@@ -302,21 +312,26 @@ export async function doctor(io: Io, opts: { fix?: boolean; json?: boolean } = {
   }
   for (const c of checks) report(io, c);
   const fixable = checks.filter((c) => c.fix && (c.level === "warn" || c.level === "fail")).length;
-  if (fixable && !opts.fix) io.out(`\n${fixable} can be fixed with: turno doctor --fix`);
+  if (fixable && !opts.fix) io.out(`\n${fixable} can be fixed with: turno doctor ${opts.security ? "--security " : ""}--fix`);
   return failed ? 1 : 0;
 }
 
 export const command: Command = {
   summary: "check everything (system, config, profiles, MCP, look, mcpd) and fix what is safe to fix",
   usage: [
-    "Usage: turno doctor [--fix] [--json]",
+    "Usage: turno doctor [--security] [--fix] [--json]",
     "",
     "Exits 1 when a hard check fails. --fix runs the repair each failed check names",
     "(relink a profile, rewrite launchers, finish an upgrade), then checks again.",
+    "",
+    "--security runs the security checks instead: who can read turno's folders, who",
+    "holds the mcpd port, literal secrets in mcp.toml, agent configs and backups, MCP",
+    "servers without an exact version, the age of the mcpd token and the audit log's",
+    "hash chain. With --fix it narrows file modes under turno's folders.",
   ].join("\n"),
-  flags: ["--fix", "--json"],
+  flags: ["--security", "--fix", "--json"],
   async run(args, io) {
-    const p = parseFlags(args, { fix: { type: "boolean" }, ...JSON_FLAG }, 0);
-    return doctor(io, { fix: bool(p, "fix"), json: bool(p, "json") });
+    const p = parseFlags(args, { security: { type: "boolean" }, fix: { type: "boolean" }, ...JSON_FLAG }, 0);
+    return doctor(io, { fix: bool(p, "fix"), json: bool(p, "json"), security: bool(p, "security") });
   },
 };

@@ -5,7 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Config, loadConfig } from "../../core/config.js";
 import { exhaustedUntil } from "../../core/exhausted.js";
-import { type Paths, paths } from "../../core/paths.js";
+import { PRIVATE_DIR_MODE, PRIVATE_FILE_MODE, type Paths, paths } from "../../core/paths.js";
 import { profileFromConfigDir } from "../../core/profiles.js";
 import { resolveProfile } from "../../core/resolve.js";
 import { nerdHere } from "../../ui/terminal-id.js";
@@ -49,8 +49,8 @@ function readJson(file: string): unknown {
 function save(file: string, data: unknown): boolean {
   const tmp = `${file}.${process.pid}.tmp`;
   try {
-    mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(tmp, JSON.stringify(data));
+    mkdirSync(dirname(file), { recursive: true, mode: PRIVATE_DIR_MODE });
+    writeFileSync(tmp, JSON.stringify(data), { mode: PRIVATE_FILE_MODE });
     renameSync(tmp, file);
     return true;
   } catch {
@@ -97,8 +97,8 @@ function lockedJob(lock: string, ttl: number, now: number, args: string[]): Job 
   }
   return () => {
     try {
-      mkdirSync(dirname(lock), { recursive: true });
-      closeSync(openSync(lock, "w"));
+      mkdirSync(dirname(lock), { recursive: true, mode: PRIVATE_DIR_MODE });
+      closeSync(openSync(lock, "w", PRIVATE_FILE_MODE));
     } catch {
       return; // without a lock every render would start a worker
     }
@@ -166,8 +166,8 @@ function planOf(file: string, now: number, jobs: Job[]): string {
   if (plan) return PLAN_NAMES[plan] ?? plan;
   if (age > PLAN_RETRY) {
     try {
-      mkdirSync(dirname(file), { recursive: true });
-      writeFileSync(file, ""); // stamps the attempt, so only one render asks
+      mkdirSync(dirname(file), { recursive: true, mode: PRIVATE_DIR_MODE });
+      writeFileSync(file, "", { mode: PRIVATE_FILE_MODE }); // stamps the attempt, so only one render asks
     } catch {
       return ""; // cannot stamp: do not start a worker on every render
     }
@@ -195,8 +195,8 @@ function resolveCached(cwd: string, config: Config, env: NodeJS.ProcessEnv, p: P
   }
   const r = resolveProfile(cwd, config, env);
   try {
-    mkdirSync(cache, { recursive: true });
-    writeFileSync(file, `${r.chosen}\x1f${r.assigned}`);
+    mkdirSync(cache, { recursive: true, mode: PRIVATE_DIR_MODE });
+    writeFileSync(file, `${r.chosen}\x1f${r.assigned}`, { mode: PRIVATE_FILE_MODE });
   } catch {
     /* read-only: resolve again next time */
   }
@@ -395,7 +395,7 @@ async function planWorker(file: string, env: NodeJS.ProcessEnv): Promise<void> {
     /* not logged in or no answer */
   }
   // An unknown plan leaves the empty file as is: its age schedules the next attempt.
-  if (typeof plan === "string" && plan.trim()) writeFileSync(file, plan.trim());
+  if (typeof plan === "string" && plan.trim()) writeFileSync(file, plan.trim(), { mode: PRIVATE_FILE_MODE });
 }
 
 /** Whether the gateway answers HTTP at all; it refuses this unauthenticated request, which is enough. */

@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync, closeSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { PRIVATE_DIR_MODE, PRIVATE_FILE_MODE } from "../core/paths.js";
 
 type Price = [number, number, number, number, number];
 
@@ -131,9 +132,9 @@ function readJson<T>(file: string): T | undefined {
 }
 
 function writeJson(file: string, data: unknown): void {
-  mkdirSync(dirname(file), { recursive: true });
+  mkdirSync(dirname(file), { recursive: true, mode: PRIVATE_DIR_MODE });
   const tmp = `${file}.${process.pid}.tmp`;
-  writeFileSync(tmp, JSON.stringify(data));
+  writeFileSync(tmp, JSON.stringify(data), { mode: PRIVATE_FILE_MODE });
   renameSync(tmp, file);
 }
 
@@ -263,7 +264,7 @@ export function pruneCache(dir: string, now = Date.now() / 1000, maxAgeDays = 7)
     }
   }
   try {
-    writeFileSync(stamp, "");
+    writeFileSync(stamp, "", { mode: PRIVATE_FILE_MODE });
   } catch {
     /* read-only: try again next time */
   }

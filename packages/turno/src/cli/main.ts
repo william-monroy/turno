@@ -23,6 +23,9 @@ async function help(io: Io): Promise<number> {
   return 0;
 }
 
+/** Error classes whose message is the whole story: printed without a stack trace. */
+const ONE_LINE_ERRORS = new Set(["ConfigError", "SecretError"]);
+
 /** Commands whose arguments belong to the agent they start: only a first --help is theirs. */
 const PASSTHROUGH = new Set(["run", "auto", "hook", "statusline", "__complete"]);
 
@@ -104,7 +107,8 @@ export async function main(argv: string[], io: Io = defaultIo()): Promise<number
       return err.code;
     }
     const e = err as Error;
-    io.err(`turno: ${e.name === "ConfigError" ? e.message : (e.stack ?? e.message)}`);
+    // Errors that explain themselves in one line; anything else is a bug and keeps its stack.
+    io.err(`turno: ${ONE_LINE_ERRORS.has(e.name) ? e.message : (e.stack ?? e.message)}`);
     return 1;
   }
 }

@@ -82,6 +82,12 @@ default when `NAME` is unset or empty. Under the LaunchAgent mcpd sees few varia
 with `launchctl setenv`), so prefer `keychain:` for secrets. Store a secret with
 `turno secret set <service>` (input is hidden, never printed).
 
+Inside other values, mcpd expands `${NAME}`, `${NAME:-default}` and `${env:NAME}` from its own
+environment, as Claude Code does in its config: in a stdio server's `args` and `env` values and
+in a proxied server's headers (`"--region=${REGION}"`, `"Bearer ${API_TOKEN}"`). A variable
+that is unset and has no default stops that server from starting with an error that names it.
+Cursor's placeholders such as `${workspaceFolder}` are left as written.
+
 ## Importing what you already have
 
 `turno mcp import` drafts `mcp.toml` from the servers your agents already use: user and project
@@ -200,9 +206,17 @@ mcpd listens only on `mcpd.port` (config.toml, default 47821). If something else
 port, mcpd does not move: it fails and names the owner, and `turno doctor` says the same. Pick
 another port with `turno config set mcpd.port <port>`, then `turno mcp sync`.
 
+mcpd refuses request bodies over 32 MiB. Raise or lower that with
+`turno config set mcpd.max_request_body 64MiB` (between 1MiB and 1GiB) and restart mcpd.
+
 If `mcp.toml` stops validating, mcpd keeps serving the last copy that did
 (`~/.local/state/turno/mcp.last-good.toml`) and reports the error in `turno mcp daemon status`
 and `turno doctor`.
 
 `turno mcp token rotate` replaces the master token, which invalidates every profile token,
 restarts mcpd and asks you to run `turno mcp sync`. See [ADR 0017](decisions/0017-daemon-service-port-and-last-good-manifest.md).
+
+`turno doctor --security` checks the rest of the posture: who can read turno's folders (and
+narrows them with `--fix`), who holds the mcpd port, literal secrets left in `mcp.toml`, agent
+configs and backups, servers that run whatever version is newest, the age of the token and the
+audit log's hash chain. See [ADR 0027](decisions/0027-security-doctor-and-variable-expansion.md).

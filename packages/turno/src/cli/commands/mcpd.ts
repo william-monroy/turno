@@ -5,7 +5,7 @@ import { Journal } from "../../core/journal.js";
 import { paths, tildify } from "../../core/paths.js";
 import { DRY_RUN, JSON_FLAG, TAIL, bool, count, parseFlags, printJson, str } from "../args.js";
 import { type Sub, group } from "../group.js";
-import { type Command, type Io, fail, paint } from "../io.js";
+import { type Command, type Io, fail, paint, plural } from "../io.js";
 
 /** GET /status from the running daemon. */
 export async function fetchStatus(env: NodeJS.ProcessEnv): Promise<Record<string, unknown> | undefined> {
@@ -44,8 +44,8 @@ function mb(bytes: number): string {
   return `${Math.round(bytes / 1048576)} MB`;
 }
 
-/** Why mcpd is down, as far as the files and the port can tell. */
-async function downReasons(env: NodeJS.ProcessEnv): Promise<string[]> {
+/** Why mcpd is down, as far as the files and the port can tell (also shown by `turno status`). */
+export async function downReasons(env: NodeJS.ProcessEnv): Promise<string[]> {
   const { daemonFiles, loadConfigSafe, readLock, readStartError } = await import("../../mcpd/daemon.js");
   const { describeOwner, portOwner } = await import("../../mcpd/peerpid.js");
   const out: string[] = [];
@@ -77,7 +77,7 @@ async function status(args: string[], io: Io): Promise<number> {
   }
   const instances = (s.instances as Record<string, unknown>[]) ?? [];
   const rss = await rssOf([Number(s.pid), ...instances.map((i) => Number(i.pid)).filter(Boolean)]);
-  io.out(`${paint(io, "mcpd", "1")} pid ${s.pid}${s.port ? ` · port ${s.port}` : ""} · ${mb(rss.get(Number(s.pid)) ?? 0)} · ${s.sessions} client sessions`);
+  io.out(`${paint(io, "mcpd", "1")} pid ${s.pid}${s.port ? ` · port ${s.port}` : ""} · ${mb(rss.get(Number(s.pid)) ?? 0)} · ${plural(Number(s.sessions) || 0, "client session")}`);
   const manifest = s.manifest as { source: string; error: string | null } | undefined;
   if (manifest?.error) io.out(`  ${paint(io, "warn", "33")} mcp.toml is invalid, serving the ${manifest.source}: ${manifest.error}`);
   const config = s.config as { error: string | null } | undefined;
@@ -92,11 +92,22 @@ async function status(args: string[], io: Io): Promise<number> {
     total += mem;
     const holder = i.holder as { profile: string | null; pid: number | null } | null;
     io.out(
-      `  ${String(i.server).padEnd(24)} ${String(i.variant).padEnd(10)} pid ${String(i.pid ?? "-").padEnd(7)} ${mb(mem).padStart(7)}  ${i.clients} clients  idle ${i.idleSeconds}s${holder ? `  held by ${holder.profile ?? "?"}/${holder.pid ?? "?"}` : ""}`,
+      `  ${String(i.server).padEnd(24)} ${String(i.variant).padEnd(10)} pid ${String(i.pid ?? "-").padEnd(7)} ${mb(mem).padStart(7)}  ${plural(Number(i.clients) || 0, "client")}  idle ${i.idleSeconds}s${holder ? `  held by ${holder.profile ?? "?"}/${holder.pid ?? "?"}` : ""}`,
     );
+    const busy = inflightText(i.inflightByClient);
+    if (busy) io.out(`    ${busy}`);
   }
   io.out(`  total ${mb(total)}`);
   return 0;
+}
+
+/** "2 calls in flight: 1f2e3d4c 1, 9a8b7c6d 1" from /status `inflightByClient` (client session ids). */
+export function inflightText(byClient: unknown): string | undefined {
+  if (!byClient || typeof byClient !== "object") return undefined;
+  const rows = Object.entries(byClient as Record<string, unknown>).filter(([, n]) => Number(n) > 0);
+  if (!rows.length) return undefined;
+  const total = rows.reduce((t, [, n]) => t + Number(n), 0);
+  return `${plural(total, "call")} in flight: ${rows.map(([id, n]) => `${id.slice(0, 8)} ${n}`).join(", ")}`;
 }
 
 /** The CLI entry the service runs when no stable `turno` is on PATH. */

@@ -27,6 +27,8 @@ export async function statusData(env: NodeJS.ProcessEnv, cwd = process.cwd()) {
   const fontDir = userFontDir(env);
   const fonts = fontDir ? checkFonts(FALLBACK, fontDir) : [];
   const terminal = currentTerminal(env);
+  // Why mcpd is down: the last start error (mcpd.error.json) and who holds its port.
+  const mcpdProblems = mcpd.running ? [] : await (await import("./mcpd.js")).downReasons(env).catch(() => []);
   return {
     version: packageInfo().version,
     update: availableUpdate(env) ?? null,
@@ -50,7 +52,7 @@ export async function statusData(env: NodeJS.ProcessEnv, cwd = process.cwd()) {
         return { ...acc, [key]: (acc[key] ?? 0) + 1 };
       }, {}),
     },
-    mcpd: { running: mcpd.running, port: mcpd.port },
+    mcpd: { running: mcpd.running, port: mcpd.port, problems: mcpdProblems },
     look: {
       statusLine: isTurnoStatusLine(line) ? "turno" : (line?.command ?? null),
       font: fonts.length > 0 && fonts.every((f) => f.state === "installed"),
@@ -94,6 +96,7 @@ export const command: Command = {
     const by = Object.entries(d.sessions.byProfile).map(([k, v]) => `${k} ${v}`).join(", ");
     io.out(`sessions  ${plural(d.sessions.total, "live session")}${by ? ` (${by})` : ""}`);
     io.out(`mcpd      ${d.mcpd.running ? `running on port ${d.mcpd.port}` : "not running (turno mcp daemon start)"}`);
+    for (const problem of d.mcpd.problems) io.out(`          ${paint(io, problem, "33")}`);
     const lineText = d.look.statusLine === "turno" ? "turno status line" : d.look.statusLine ? `status line \`${d.look.statusLine}\`` : "no status line";
     io.out(`look      ${lineText}, ${d.look.font ? "font installed" : "font missing (turno ui install)"}, ${d.look.icons} icons here`);
     io.out(dim("\nturno doctor checks each part; turno limit, session and profile show more."));

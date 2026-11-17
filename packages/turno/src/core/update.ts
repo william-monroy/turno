@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { paths } from "./paths.js";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { paths, writePrivateFile } from "./paths.js";
 import { compareVersions, packageInfo } from "./version.js";
 
 /** Cache of the last registry check, in the state folder. */
@@ -36,8 +36,7 @@ export function readUpdateState(env: NodeJS.ProcessEnv): UpdateState | undefined
 }
 
 function writeUpdateState(env: NodeJS.ProcessEnv, s: UpdateState): void {
-  mkdirSync(dirname(file(env)), { recursive: true });
-  writeFileSync(file(env), `${JSON.stringify(s)}\n`);
+  writePrivateFile(file(env), `${JSON.stringify(s)}\n`, env);
 }
 
 const truthy = (v: string | undefined): boolean => v !== undefined && v !== "" && v !== "0" && v.toLowerCase() !== "false";

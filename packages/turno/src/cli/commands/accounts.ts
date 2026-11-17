@@ -1,11 +1,11 @@
 import { resolve } from "node:path";
-import { readAudit } from "../../accounts/audit.js";
+import { readAudit, verifyAudit } from "../../accounts/audit.js";
 import { launcherExists } from "../../accounts/delegate.js";
 import { effectivePolicy } from "../../accounts/policy.js";
 import { type Account, type Registry, isValidService, loadRegistry, makeAccount, parseAccountId, saveRegistry } from "../../accounts/registry.js";
 import { Journal } from "../../core/journal.js";
 import { expandHome, paths, tildify } from "../../core/paths.js";
-import { DRY_RUN, type FlagSpec, bool, count, parseFlags, str } from "../args.js";
+import { DRY_RUN, type FlagSpec, JSON_FLAG, bool, count, parseFlags, printJson, str } from "../args.js";
 import { type Command, type Io, fail, paint } from "../io.js";
 
 const USAGE = `Usage:
@@ -15,7 +15,9 @@ const USAGE = `Usage:
                        [--service <s>] [--description <d>]
   turno accounts remove <service:label>
   turno accounts prefer <path> <service>=<account>   (empty account removes the preference)
-  turno accounts log [-n N]                 recent calls to the accounts bridge
+  turno accounts log [-n N] [--verify] [--json]
+                                            recent calls to the accounts bridge; --verify
+                                            checks the log's hash chain (exit 1 if broken)
 
 The registry lives in ~/.config/turno/accounts.toml. add, remove and prefer rewrite
 the file (it is managed: comments in it are not preserved) and accept --dry-run.
@@ -33,7 +35,32 @@ export const ADD_SPEC: FlagSpec = {
   description: { type: "string" },
   ...DRY_RUN,
 };
-export const LOG_SPEC: FlagSpec = { tail: { type: "string", short: "n" } };
+export const LOG_SPEC: FlagSpec = { tail: { type: "string", short: "n" }, verify: { type: "boolean" }, ...JSON_FLAG };
+
+/**
+ * `log --verify`: check the hash chain of audit.jsonl (ADR 0018). It shows accidents and naive
+ * edits (a changed, inserted, removed or reordered line), not a determined attacker who can
+ * rewrite the whole file, and it cannot see lines cut from the end.
+ */
+function verifyLog(io: Io, json: boolean): number {
+  const v = verifyAudit(io.env);
+  const file = tildify(paths(io.env).auditLog, io.env);
+  if (json) {
+    printJson(io.out, { file, ...v, line: v.line ?? null, reason: v.reason ?? null });
+    return v.ok ? 0 : 1;
+  }
+  if (!v.ok) {
+    io.out(`${paint(io, "broken", "31")}  ${file}: line ${v.line}: ${v.reason}`);
+    io.out("The audit log was changed after it was written, or two writers raced. Keep a copy before you edit it.");
+    return 1;
+  }
+  if (v.lines === 0) io.out(`No delegations recorded yet (${file}).`);
+  else {
+    const legacy = v.legacy ? `; ${v.legacy} older line${v.legacy === 1 ? "" : "s"} predate the chain` : "";
+    io.out(`${paint(io, "ok", "32")}  ${file}: ${v.lines} line${v.lines === 1 ? "" : "s"}, hash chain intact${legacy}`);
+  }
+  return 0;
+}
 
 export function list(io: Io): number {
   const reg = loadRegistry(io.env);
@@ -169,8 +196,13 @@ export function prefer(rawArgs: string[], io: Io): number {
 
 export function log(args: string[], io: Io): number {
   const p = parseFlags(args, LOG_SPEC, 0);
+  if (bool(p, "verify")) return verifyLog(io, bool(p, "json"));
   const n = count(p, "tail", 20);
   const entries = readAudit(n, io.env);
+  if (bool(p, "json")) {
+    printJson(io.out, entries);
+    return 0;
+  }
   if (!entries.length) {
     io.out("No delegations recorded yet.");
     return 0;

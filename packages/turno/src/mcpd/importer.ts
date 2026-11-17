@@ -236,7 +236,7 @@ export async function importServers(servers: Record<string, Record<string, unkno
         if (ANY_VAR.test(v)) {
           env[k] = v;
           notes.push(
-            `${name}: env ${k} mixes text and a variable (${v.match(ANY_VAR)![0]}); mcpd passes it as written. Store the full value with turno secret set turno/${name}/${serviceKey(k)} and set ${k} = "keychain:turno/${name}/${serviceKey(k)}"`,
+            `${name}: env ${k} mixes text and a variable (${v.match(ANY_VAR)![0]}); mcpd expands it from its own environment when it starts the server. If it is a secret, store the full value with turno secret set turno/${name}/${serviceKey(k)} and set ${k} = "keychain:turno/${name}/${serviceKey(k)}"`,
           );
           continue;
         }
@@ -248,7 +248,7 @@ export async function importServers(servers: Record<string, Record<string, unkno
         );
       }
       if (args.some((a) => ANY_VAR.test(a))) {
-        notes.push(`${name}: its args use \${...} variables; mcpd passes args as written, so move those values to env`);
+        notes.push(`${name}: its args use \${...} variables; mcpd expands them from its own environment, which under the LaunchAgent only has variables set with launchctl setenv`);
       }
       fixed(name, "args", argSecrets(args));
       const { scope, note } = guessScope(`${command} ${args.join(" ")}`);
@@ -295,10 +295,10 @@ export async function importServers(servers: Record<string, Record<string, unkno
         notes.push(`${name}: header ${k} uses a variable; kept as written so Claude Code expands it when it connects`);
         continue;
       }
-      // mcpd proxies this server and does not expand ${...}: whole variables become env: references.
+      // mcpd proxies this server: whole variables become env: references, mixed ones it expands itself.
       const ref = envRef(headers[k]!);
       if (ref) headers[k] = ref;
-      else notes.push(`${name}: header ${k} mixes text and a variable; mcpd sends it as written. Store the full value in the Keychain instead`);
+      else notes.push(`${name}: header ${k} mixes text and a variable; mcpd expands it from its own environment. If it is a secret, store the full value in the Keychain instead`);
     }
     fixed(name, "url", urlSecrets(url));
     if (ANY_VAR.test(url)) notes.push(`${name}: its URL uses a variable; kept as written so Claude Code expands it`);

@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { parse } from "smol-toml";
 import { loadRegistry } from "../../accounts/registry.js";
 import { editConfig, migrationPending, readConfigText } from "../../core/config-edit.js";
-import { loadConfig } from "../../core/config.js";
+import { loadConfig, requestBodyProblem } from "../../core/config.js";
 import { type AgentId, adapter, isAgentId } from "../../agents/index.js";
 import { agentOf, configProblems, listProfiles } from "../../core/profiles.js";
 import { Journal } from "../../core/journal.js";
@@ -28,6 +28,7 @@ const KEYS: Record<string, string> = {
   "open.chrome_dir": "folder of the isolated Chrome profiles",
   "mcpd.port": "port of the MCP gateway",
   "mcpd.call_log": "true or false: keep the log of tool calls (turno mcp log)",
+  "mcpd.max_request_body": 'largest request mcpd accepts, like "64MiB" (default 32MiB)',
   "profiles.<name>.color": "status line pill color",
   "profiles.<name>.browser": "chrome or default",
 };
@@ -129,6 +130,11 @@ export function checkValue(key: string, raw: string, env: NodeJS.ProcessEnv): To
     case "mcpd.port":
       if (typeof value !== "number" || value < 1024 || value > 65535) fail("mcpd.port must be an integer between 1024 and 65535");
       return value;
+    case "mcpd.max_request_body": {
+      const problem = requestBodyProblem(value);
+      if (problem) fail(problem);
+      return value;
+    }
     case "nerd_terminals":
       if (!Array.isArray(value)) fail('nerd_terminals must be a list, like ["warp", "vscode"]');
       return value;

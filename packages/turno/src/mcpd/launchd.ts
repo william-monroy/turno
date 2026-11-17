@@ -1,6 +1,5 @@
-import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { paths } from "../core/paths.js";
+import { ensurePrivateDir, paths } from "../core/paths.js";
 import { type ServiceBackend, type ServiceSpec, ServiceError, runTool, serviceArgs, serviceEnv } from "./service.js";
 
 export const LABEL = "dev.turno.mcpd";
@@ -93,7 +92,7 @@ export const launchd: ServiceBackend = {
     }
   },
   async load(env) {
-    mkdirSync(paths(env).logsDir, { recursive: true });
+    ensurePrivateDir(paths(env).logsDir, env);
     if (await launchd.isLoaded(env)) await runTool("launchctl", ["bootout", `${domain()}/${LABEL}`], env).catch(() => {});
     await runTool("launchctl", ["bootstrap", domain(), plistPath(env)], env);
   },

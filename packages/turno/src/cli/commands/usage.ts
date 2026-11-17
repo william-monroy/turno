@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig } from "../../core/config.js";
 import { exhaustedUntil } from "../../core/exhausted.js";
-import { paths, profileDir } from "../../core/paths.js";
+import { paths, profileDir, writePrivateFile } from "../../core/paths.js";
 import { listProfiles } from "../../core/profiles.js";
 import { type Command, type Io, paint } from "../io.js";
 
@@ -16,41 +16,54 @@ export interface AuthStatus {
   authMethod?: string;
 }
 
+/** Why `claude auth status` gave no answer, in a few words for the account column. */
+function authFailure(err: (Error & { code?: unknown; killed?: boolean; signal?: unknown }) | null, stdout: string, stderr: string): string {
+  if (err?.code === "ENOENT") return "claude is not on PATH";
+  if (err?.killed || err?.signal === "SIGTERM") return "claude auth status timed out";
+  const line = (stderr || stdout).trim().split("\n")[0]?.trim();
+  if (err && typeof err.code === "number") return `claude auth status exited with ${err.code}${line ? `: ${line.slice(0, 120)}` : ""}`;
+  return "claude auth status gave no JSON";
+}
+
 /**
  * Run `claude auth status --json` with the profile's config dir (20 s timeout). Records the
- * plan in the state plan dir, where the status line reads it. Undefined when it fails.
+ * plan in the state plan dir, where the status line reads it. On failure `why` says what went
+ * wrong (claude missing, a timeout, an error line), so callers never show a bare "?".
  */
-export function authStatus(profile: string, env: NodeJS.ProcessEnv = process.env): Promise<AuthStatus | undefined> {
+export function authStatusResult(profile: string, env: NodeJS.ProcessEnv = process.env): Promise<{ status?: AuthStatus; why?: string }> {
   return new Promise((resolve) => {
     execFile(
       "claude",
       ["auth", "status", "--json"],
       { env: { ...env, CLAUDE_CONFIG_DIR: profileDir(profile, env) }, timeout: 20_000, encoding: "utf8" },
-      (_err, stdout) => {
+      (err, stdout, stderr) => {
         let s: AuthStatus;
         try {
           s = JSON.parse(stdout) as AuthStatus;
         } catch {
-          resolve(undefined);
+          resolve({ why: authFailure(err, stdout ?? "", stderr ?? "") });
           return;
         }
         if (!s || typeof s !== "object") {
-          resolve(undefined);
+          resolve({ why: authFailure(err, stdout ?? "", stderr ?? "") });
           return;
         }
         if (s.loggedIn && s.subscriptionType) {
           try {
-            const dir = paths(env).planDir;
-            mkdirSync(dir, { recursive: true });
-            writeFileSync(join(dir, profile), `${s.subscriptionType}\n`);
+            writePrivateFile(join(paths(env).planDir, profile), `${s.subscriptionType}\n`, env);
           } catch {
             // the plan file is a cache for the status line
           }
         }
-        resolve(s);
+        resolve({ status: s });
       },
     );
   });
+}
+
+/** `claude auth status --json` of a profile, or undefined when it fails (authStatusResult says why). */
+export async function authStatus(profile: string, env: NodeJS.ProcessEnv = process.env): Promise<AuthStatus | undefined> {
+  return (await authStatusResult(profile, env)).status;
 }
 
 interface Window {
@@ -116,11 +129,13 @@ export function agoText(ts: number, now = Date.now() / 1000): string {
 export interface Account {
   email: string;
   plan: string;
+  /** Why the account is unknown (claude missing, a timeout, an error), when it is. */
+  why?: string;
 }
 
 export async function account(profile: string, env: NodeJS.ProcessEnv): Promise<Account> {
-  const s = await authStatus(profile, env);
-  if (!s) return { email: "?", plan: "?" };
+  const { status: s, why } = await authStatusResult(profile, env);
+  if (!s) return { email: "?", plan: "", why: why ?? "claude auth status failed" };
   if (!s.loggedIn) return { email: "not logged in", plan: "" };
   return { email: s.email || "?", plan: s.subscriptionType || s.authMethod || "?" };
 }
@@ -129,8 +144,9 @@ export function renderUsage(profiles: string[], accounts: Record<string, Account
   const now = Date.now() / 1000;
   const out: string[] = [];
   for (const p of profiles) {
-    const { email, plan } = accounts[p] ?? { email: "?", plan: "?" };
-    out.push(paint(io, `${p}  ${email}${plan ? ` · ${plan}` : ""}`, "1"));
+    const { email, plan, why } = accounts[p] ?? { email: "?", plan: "" };
+    const who = why ? "account unknown" : `${email}${plan ? ` · ${plan}` : ""}`;
+    out.push(`${paint(io, `${p}  ${who}`, "1")}${why ? paint(io, ` (${why})`, "2") : ""}`);
     const exhausted = exhaustedUntil(p, io.env);
     if (exhausted !== undefined && exhausted > now) {
       out.push(paint(io, `  marked exhausted: its projects use the fallback (if set) until ${shortTime(exhausted)}`, "2"));
