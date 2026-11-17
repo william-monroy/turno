@@ -210,7 +210,7 @@ describe("limit and old names", () => {
     expect(out).not.toMatch(/turno exhausted/);
     const g = fakeIo(sb.env);
     await main(["profile", "--help"], g);
-    expect(g.lines.join("\n")).toContain("turno profile assign <dir> <profile>");
+    expect(g.lines.join("\n")).toContain("turno profile assign [dir] [profile]");
   });
 });
 

@@ -14,10 +14,11 @@ import { NAMED_COLORS } from "../../statusline/render.js";
 import { DRY_RUN, type FlagSpec, JSON_FLAG, bool, flagsOf, parseFlags, printJson, str } from "../args.js";
 import { group } from "../group.js";
 import { type Io, confirm, fail, needsAnswer, plural } from "../io.js";
+import { profileColor, style } from "../style.js";
 import { findOnPath, launcherPath } from "../launch.js";
 import { isGenerated, launcherName, refuseNpx } from "../launchers.js";
 import { checkName, localCopies, setupProfiles } from "./setup.js";
-import { authStatus } from "./usage.js";
+import { authStatus, shortTime } from "./usage.js";
 
 /** A named color, or a 256-color code. */
 export function parseColor(v: string, label = "--color"): string | number {
@@ -65,19 +66,34 @@ async function list(args: string[], io: Io): Promise<number> {
     io.out("No profiles yet. Create one with: turno profile add <name>");
     return 0;
   }
-  const w = Math.max(...rows.map((r) => r.name.length));
-  for (const r of rows) {
-    const who = r.setUp
-      ? !adapter(r.agent).accountDetails
-        ? `${adapter(r.agent).label} (${launcherName(r.name, r.agent)})`
-        : r.email
-          ? `${r.email}${r.plan ? ` · ${r.plan}` : ""}`
-          : "not logged in"
-      : `not set up (turno profile repair ${r.name})`;
-    const extra = [r.roles.join(", "), r.projects ? plural(r.projects, "project") : "", r.exhaustedUntil ? "exhausted" : ""].filter(Boolean).join(" · ");
-    io.out(`${r.name.padEnd(w)}  ${who}${extra ? `  (${extra})` : ""}`);
-  }
+  for (const line of renderProfiles(rows, config, io)) io.out(line);
   return 0;
+}
+
+/**
+ * `turno profile list` as lines: each profile as its pill, its agent, its account, how many
+ * folders use it, and its roles. Plain text (a pipe, NO_COLOR) keeps one row per profile
+ * starting with its name.
+ */
+export function renderProfiles(rows: Awaited<ReturnType<typeof profilesData>>, config: Config, io: Io, now = Date.now() / 1000): string[] {
+  const s = style(io);
+  const table = rows.map((r) => {
+    const a = adapter(r.agent);
+    const who = !r.setUp
+      ? s.warn(`not set up (turno profile repair ${r.name})`)
+      : !a.accountDetails
+        ? s.muted(s.color ? "-" : launcherName(r.name, r.agent))
+        : r.email
+          ? `${r.email}${r.plan ? s.muted(` · ${r.plan}`) : ""}`
+          : s.warn("not logged in");
+    const exhausted = r.exhaustedUntil && r.exhaustedUntil > now ? s.warn(`exhausted until ${shortTime(r.exhaustedUntil)}`) : "";
+    const flags = [r.roles.join(", "), exhausted].filter(Boolean).join(s.muted(" · "));
+    return [s.profile(r.name, profileColor(config.profiles, r.name)), s.muted(a.label), who, s.muted(r.projects ? plural(r.projects, "folder") : "no folders"), flags];
+  });
+  if (!s.color) return s.table(table, { indent: 0 });
+  // turno reads no account for agents without account details: a "-" there, not the launcher.
+  const head = ["", "agent", "account", "folders", "role"].map((h) => s.muted(h));
+  return [s.header("Profiles"), ...s.table([head, ...table], { columns: [{}, { drop: 2 }, {}, { drop: 1 }, {}] }), "", s.muted("turno <name> opens one; turno profile assign <dir> gives a folder its profile.")];
 }
 
 /** The PATH line for a shell, or undefined when `dir` is on PATH. */
@@ -183,14 +199,19 @@ async function repair(args: string[], io: Io): Promise<number> {
 
 async function remove(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, DRY_RUN, 1);
-  const name = p.positionals[0];
-  if (!name) return fail("usage: turno profile remove <name>");
+  const dry = bool(p, "dry-run");
+  const picked = !p.positionals[0];
+  const name = p.positionals[0] ?? (await (await import("../picker.js")).pickProfile(io, { command: "profile remove", title: "Profile to remove" }));
   const config = loadConfig(io.env);
   if (!listProfiles(config, io.env).includes(name)) fail(`no profile '${name}'`);
   for (const role of ["system", "default", "fallback"] as const) {
     if (config[role] === name) fail(`${name} is the ${role} profile; point ${role} elsewhere first (turno config set ${role} <profile>)`);
   }
-  const dry = bool(p, "dry-run");
+  // A profile chosen in the picker is confirmed: one key should not remove an account.
+  if (picked && !dry && !(await confirm(io, `Remove ${name} from config.toml and its launcher? Its folder stays.`))) {
+    io.err("Nothing changed.");
+    return 1;
+  }
   const journal = new Journal(io.env, `profile remove ${name}`, dry);
   let rules = 0;
   editConfig(io.env, journal, (t) => {
@@ -277,9 +298,14 @@ export async function whichCommand(args: string[], io: Io): Promise<number> {
 
 async function assign(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, DRY_RUN, 2);
-  const [dirArg, name] = p.positionals;
-  if (!dirArg || !name) return fail("usage: turno profile assign <dir> <profile>");
+  const [dirArg, given] = p.positionals;
+  if (dirArg && !given && !existsSync(expandHome(dirArg, io.env)) && listProfiles(loadConfig(io.env), io.env).includes(dirArg)) {
+    fail(`no such folder: ${dirArg} (to give this folder the profile ${dirArg}: turno profile assign . ${dirArg})`);
+  }
   const dir = folder(dirArg, io);
+  const name =
+    given ??
+    (await (await import("../picker.js")).pickProfile(io, { command: "profile assign", title: `Profile for ${tildify(dir, io.env)}`, dir }));
   const config = loadConfig(io.env);
   if (!listProfiles(config, io.env).includes(name)) fail(`no profile '${name}' (turno profile list)`);
   const dry = bool(p, "dry-run");
@@ -344,14 +370,16 @@ export const command = group(
       run: repair,
     },
     remove: {
-      summary: "drop a profile from config.toml and its launcher (its folder stays)",
-      synopsis: "<name> [--dry-run]",
+      summary: "drop a profile from config.toml and its launcher (its folder stays); without a name, choose one and confirm",
+      synopsis: "[name] [--dry-run]",
       args: ["profile"],
       flags: ["--dry-run"],
       run: remove,
     },
     which: { summary: "which profile auto uses in a folder for each agent, and why", synopsis: "[dir] [--json]", args: ["dir"], flags: ["--json"], run: whichCommand },
-    assign: { summary: "make a folder (and everything under it) use a profile", synopsis: "<dir> <profile> [--dry-run]", args: ["dir", "profile"], flags: ["--dry-run"], run: assign },
+    assign: {
+      summary: "make a folder (and everything under it) use a profile; without a profile, choose one from a list",
+      synopsis: "[dir] [profile] [--dry-run]", args: ["dir", "profile"], flags: ["--dry-run"], run: assign },
     unassign: { summary: "remove a folder's own rule", synopsis: "[dir] [--dry-run]", args: ["dir"], flags: ["--dry-run"], run: unassign },
   },
   { fallback: "list" },

@@ -290,7 +290,7 @@ describe("agent commands", () => {
 
     const list = fakeIo(sb.env);
     expect(await main(["profile", "list"], list)).toBe(0);
-    expect(list.lines.some((l) => l.startsWith("cx") && l.includes("Codex CLI (codex-cx)"))).toBe(true);
+    expect(list.lines.some((l) => /^cx\s+Codex CLI\s+codex-cx/.test(l))).toBe(true);
 
     const snip = fakeIo(sb.env);
     expect(await main(["mcp", "config", "--agent", "opencode", "--profile", "cx"], snip)).toBe(0);

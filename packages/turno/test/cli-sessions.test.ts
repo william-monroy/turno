@@ -90,7 +90,7 @@ describe("sessions", () => {
     const io = fakeIo(sb.env);
     expect(await sessionsCommand.run([], io)).toBe(0);
     expect(io.lines).toHaveLength(1);
-    expect(io.lines[0]).toMatch(/^feature\s+work\s+busy\s+~\/code$/);
+    expect(io.lines[0]).toMatch(/^feature\s+work\s+busy\s+\d+s\s+~\/code$/);
   });
 
   it("says when nothing is alive", async () => {

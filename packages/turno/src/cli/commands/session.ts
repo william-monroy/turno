@@ -34,7 +34,7 @@ export const command = group(
     list: { summary: "live sessions and the account of each", synopsis: "[--json]", flags: ["--json"], run: list },
     handoff: {
       summary: "print the command that continues or forks this session under another profile",
-      synopsis: "<profile|auto> [--fork] [--copy]",
+      synopsis: "[profile|auto] [--fork] [--copy]",
       args: ["profile-or-auto"],
       flags: ["--fork", "--copy"],
       run: (args, io) => handoff.run(args, io),

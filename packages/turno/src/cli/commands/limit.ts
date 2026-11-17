@@ -61,8 +61,10 @@ async function show(args: string[], io: Io): Promise<number> {
   return usage.run(bool(p, "watch") ? ["--watch"] : [], io);
 }
 
-function profileArg(name: string | undefined, io: Io, verb: string): string {
-  if (!name) return fail(`usage: turno limit ${verb} <profile>`);
+async function profileArg(given: string | undefined, io: Io, verb: "set" | "clear"): Promise<string> {
+  const name =
+    given ??
+    (await (await import("../picker.js")).pickProfile(io, { command: `limit ${verb}`, title: verb === "set" ? "Profile to mark exhausted" : "Profile to clear" }));
   if (!launcherPath(name, io.env)) fail(`no profile '${name}' (turno profile list shows them)`);
   return name;
 }
@@ -73,7 +75,7 @@ async function set(args: string[], io: Io): Promise<number> {
   // The bash form `exhausted <profile> until "YYYY-MM-DD HH:MM"` still works.
   const legacy = args[1] === "until" || args[1] === "hasta";
   const p = parseFlags(legacy ? [args[0]!, "--until", ...args.slice(2)] : args, SET_SPEC, 1);
-  const name = profileArg(p.positionals[0], io, "set");
+  const name = await profileArg(p.positionals[0], io, "set");
   const untilText = str(p, "until");
   const forText = str(p, "for");
   if (untilText && forText) fail("use --until or --for, not both");
@@ -94,7 +96,7 @@ async function set(args: string[], io: Io): Promise<number> {
 
 async function clear(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, DRY_RUN, 1);
-  const name = profileArg(p.positionals[0], io, "clear");
+  const name = await profileArg(p.positionals[0], io, "clear");
   if (!bool(p, "dry-run")) clearExhausted(name, io.env);
   io.out(`${name} available again${bool(p, "dry-run") ? " (dry run)" : ""}`);
   return 0;
