@@ -39,7 +39,9 @@ without a terminal unless `--yes` is given, and `--json` is not consent. `--only
 `--host` together with `--identity` unless `--allow-http-identity` is given; even then it binds
 to 127.0.0.1, rejects any non-loopback `--host` and `--allowed-hosts '*'`, and keeps Playwright
 MCP's Host header check. Internal engine names (`patchright-*`, `camoufox`) and ADR 0005 keep
-their words: they record what was built and measured.
+their words: they record what was built and measured. (ADR 0041 later renamed the engine ids to
+`chrome-headed`, `chrome-headless`, `chrome-baseline` and `firefox`, keeping the old ones as
+aliases; ADR 0005 is unchanged.)
 
 **Plugin wording.** The plugin, hook and marketplace descriptions state separately that a
 status hook records each profile's reset time for `turno status`, and that two skills print the

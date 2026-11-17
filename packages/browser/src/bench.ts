@@ -11,8 +11,27 @@ import { resolveFrom } from "./patchright.js";
  * user's own URLs, so engine choices rest on measurements (ADR 0003, 0005).
  */
 
-export const ENGINES = ["patchright-chrome-headed", "patchright-chrome-headless", "playwright-stock", "camoufox"] as const;
+/**
+ * Engine ids name the browser and its mode: Chrome headed and headless through the package's
+ * own Playwright build, Chrome through stock Playwright as the baseline to compare with, and
+ * Firefox (optional, never installed automatically).
+ */
+export const ENGINES = ["chrome-headed", "chrome-headless", "chrome-baseline", "firefox"] as const;
 export type EngineName = (typeof ENGINES)[number];
+
+/** The ids engines had in turno-browser 0.1, still accepted so scripts keep working. */
+export const ENGINE_ALIASES: Readonly<Record<string, EngineName>> = Object.freeze({
+  "patchright-chrome-headed": "chrome-headed",
+  "patchright-chrome-headless": "chrome-headless",
+  "playwright-stock": "chrome-baseline",
+  camoufox: "firefox",
+});
+
+/** The engine a name stands for (a current id or an old one), or undefined when unknown. */
+export function engineId(name: string): EngineName | undefined {
+  if ((ENGINES as readonly string[]).includes(name)) return name as EngineName;
+  return Object.hasOwn(ENGINE_ALIASES, name) ? ENGINE_ALIASES[name] : undefined;
+}
 
 export const DETECTORS = {
   rebrowser: "https://bot-detector.rebrowser.net/",
@@ -20,7 +39,7 @@ export const DETECTORS = {
 } as const;
 
 export interface BenchOptions {
-  /** Engines to run. Default: both patchright engines, plus the optional ones when installed. */
+  /** Engines to run. Default: both Chrome engines, plus the optional ones when installed. */
   engines?: EngineName[];
   /** Extra URLs to check for challenges. */
   urls?: string[];
@@ -106,20 +125,20 @@ function chromiumOf(mod: Record<string, unknown>): LaunchableChromium {
 
 /** Why an optional engine cannot run, or undefined when it can. */
 export function unavailableReason(engine: EngineName): string | undefined {
-  if (engine === "playwright-stock" && !resolveFrom("playwright-core")) return "playwright-core is not installed";
-  if (engine === "camoufox" && !resolveFrom("camoufox-js")) return "camoufox-js is not installed; it is never installed automatically";
+  if (engine === "chrome-baseline" && !resolveFrom("playwright-core")) return "playwright-core is not installed";
+  if (engine === "firefox" && !resolveFrom("camoufox-js")) return "camoufox-js is not installed; it is never installed automatically";
   return undefined;
 }
 
 async function launch(engine: EngineName): Promise<Session> {
   switch (engine) {
-    case "patchright-chrome-headed":
+    case "chrome-headed":
       return persistentChrome(chromiumOf(await importResolved("patchright-core")), false);
-    case "patchright-chrome-headless":
+    case "chrome-headless":
       return persistentChrome(chromiumOf(await importResolved("patchright-core")), true);
-    case "playwright-stock":
+    case "chrome-baseline":
       return persistentChrome(chromiumOf(await importResolved("playwright-core")), true);
-    case "camoufox": {
+    case "firefox": {
       const mod = await importResolved("camoufox-js");
       const Camoufox = (mod.Camoufox ?? (mod.default as Record<string, unknown> | undefined)?.Camoufox) as
         | ((o: Record<string, unknown>) => Promise<{ newPage(): Promise<PageLike>; close(): Promise<void> }>)
@@ -131,9 +150,9 @@ async function launch(engine: EngineName): Promise<Session> {
   }
 }
 
-/** Default engine list: both patchright engines, plus optional ones that are installed. */
+/** Default engine list: both Chrome engines, plus optional ones that are installed. */
 export function defaultEngines(): EngineName[] {
-  return ENGINES.filter((e) => e.startsWith("patchright-") || !unavailableReason(e));
+  return ENGINES.filter((e) => e === "chrome-headed" || e === "chrome-headless" || !unavailableReason(e));
 }
 
 async function runTarget(

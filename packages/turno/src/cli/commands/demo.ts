@@ -226,6 +226,7 @@ function intro(io: Io, d: Demo): void {
     if (c.length > w) io.out(`  ${s.bold(c)}\n${s.wrap(`  ${" ".repeat(w)}  `, s.muted(why))}`);
     else io.out(s.wrap(`  ${s.bold(c.padEnd(w))}  `, s.muted(why)));
   }
+  io.out("");
   io.out(s.muted("Nothing here reads or changes your own HOME, and nothing signs in."));
 }
 

@@ -225,9 +225,9 @@ Last updated: 2026-11-16.
      Vertex); verify that strict MCP runs reach the gateway with per-profile tokens on a real
      setup.
    - Release and repository: `egress-policy: block` for the version and build jobs; the
-     Homebrew formula as an `npm ci` recipe against the shrinkwrap (ADR 0019); neutral bench
-     engine ids; `docs/demo/setup.sh` and the VHS tape on `turno demo --`; a real
-     `turno mcp savings --json` number for the launch post.
+     Homebrew formula as an `npm ci` recipe against the shrinkwrap (ADR 0019); a real
+     `turno mcp savings --json` number for the launch post. (Done: neutral bench engine ids and
+     the VHS tape recorded from `turno demo` in an empty environment, ADR 0041.)
    - Code health (ADR 0032): the Biome formatter; `exactOptionalPropertyTypes` once the MCP SDK
      allows it; `parseConfig` without its env default; `journal` `real()`; guards for the
      `JSON.parse` casts on state files.

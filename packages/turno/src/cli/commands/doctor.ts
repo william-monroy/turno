@@ -10,7 +10,7 @@ import { agentOf, configProblems, listProfiles } from "../../core/profiles.js";
 import { availableUpdate } from "../../core/update.js";
 import { packageInfo } from "../../core/version.js";
 import { FALLBACK, checkFonts, userFontDir } from "../../ui/fonts.js";
-import { currentStatusLine, isTurnoStatusLine } from "../../ui/settings.js";
+import { currentStatusLine, isTurnoStatusLine, statusLineLabel } from "../../ui/settings.js";
 import { JSON_FLAG, bool, parseFlags, printJson } from "../args.js";
 import { type Command, type Io, fail } from "../io.js";
 import { findOnPath } from "../launch.js";
@@ -281,7 +281,7 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
   const settings = join(p.hub, "settings.json");
   const line = currentStatusLine(settings);
   if (isTurnoStatusLine(line)) add("look", "ok", "status line: turno statusline");
-  else add("look", "info", `status line: ${line ? `\`${line.command}\`` : "none"} in ${tildify(settings, env)}`, { hint: "turno ui install" });
+  else add("look", "info", `status line: ${statusLineLabel(line, env)} in ${tildify(settings, env)}`, { hint: "turno ui install" });
   const fontDir = userFontDir(env);
   if (fontDir) {
     const fonts = checkFonts(FALLBACK, fontDir);

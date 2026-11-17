@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import type { Journal } from "../core/journal.js";
 import { parseJsonObject, realOr } from "../core/fsutil.js";
+import { tildify } from "../core/paths.js";
 
 export interface StatusLine {
   type: "command";
@@ -27,9 +28,26 @@ export function currentStatusLine(file: string): StatusLine | undefined {
   }
 }
 
-/** Whether a status line command runs turno's. */
+/** Whether a status line command runs turno's, with a bare or quoted path (`"/x/turno" statusline`). */
 export function isTurnoStatusLine(s: StatusLine | undefined): boolean {
-  return Boolean(s && /(^|[\s/])turno statusline(\s|$)/.test(s.command));
+  return Boolean(s && /(^|[\s/"'])turno["']?\s+statusline(\s|$)/.test(s.command));
+}
+
+/**
+ * A status line command as one row of doctor or the status screen shows it: "turno statusline"
+ * for turno's own, "none" without one, and any other command without quotes, with paths under
+ * HOME as ~ and cut to `max` characters.
+ */
+export function statusLineLabel(s: StatusLine | undefined, env: NodeJS.ProcessEnv, max = 60): string {
+  if (!s) return "none";
+  if (isTurnoStatusLine(s)) return "turno statusline";
+  const text = s.command
+    .replace(/["']/g, "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => tildify(w, env))
+    .join(" ");
+  return text.length > max ? `${text.slice(0, max - 3)}...` : text;
 }
 
 /** The entry to write: our command, keeping any other keys the user set (padding, ...). */

@@ -138,6 +138,15 @@ describe("turno browser", () => {
     await expect(cmd.run(["bench", "--url", "file:///etc/passwd", "--yes"], fakeIo(sb.env))).rejects.toThrow(/must start with http/);
   });
 
+  it("passes an engine's current id when the package knows an older name for it", async () => {
+    const calls: Calls = { bench: [], added: [], login: [] };
+    const mod: BrowserModule = { ...fakeModule(calls), engineId: (name) => ({ "engine-a": "engine-a", "old-a": "engine-a" })[name] };
+    const cmd = browserCommand({ load: async () => mod, interactive: () => false, confirm: async () => false });
+    expect(await cmd.run(["bench", "--engine", "old-a", "--yes"], fakeIo(sb.env))).toBe(0);
+    expect(calls.bench[0]).toMatchObject({ engines: ["engine-a"] });
+    await expect(cmd.run(["bench", "--engine", "engine-b", "--yes"], fakeIo(sb.env))).rejects.toThrow(/unknown engine "engine-b" \(known: engine-a, engine-b\)/);
+  });
+
   it("adds an identity, and --dry-run writes nothing", async () => {
     const { cmd, calls } = setup();
     const io = fakeIo(sb.env);
