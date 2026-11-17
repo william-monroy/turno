@@ -7,8 +7,9 @@ import { Journal } from "../../core/journal.js";
 import { paths } from "../../core/paths.js";
 import { literal, setValue } from "../../core/toml-edit.js";
 import type { RunningDaemon } from "../../mcpd/daemon.js";
-import { parseFlags } from "../args.js";
-import { type Command, type Io, colors, paint } from "../io.js";
+import { bool, parseFlags } from "../args.js";
+import type { Command, Io } from "../io.js";
+import { profileColor, stripAnsi, style } from "../style.js";
 import { findOnPath } from "../launchers.js";
 import { setupProfiles } from "./setup.js";
 import { pidAlive } from "../../core/fsutil.js";
@@ -196,19 +197,20 @@ export async function startDemo(io: Io, opts: DemoOptions = {}): Promise<Demo> {
   }
 }
 
-// biome-ignore lint/suspicious/noControlCharactersInRegex: it strips ANSI color codes, which start with ESC.
-const strip = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
-
 function intro(io: Io, d: Demo): void {
-  const color = colors(io);
-  io.out(`${paint(io, "turno demo", "1")}: a throwaway HOME at ${d.home}`);
-  io.out("  Claude Code profiles work (for ~/code/acme) and personal (every other folder)");
-  io.out(`  mcpd on 127.0.0.1:${d.port} with two MCP servers (docs, issues), synced into both profiles`);
-  io.out("  the status line Claude Code draws for each profile:");
+  const s = style(io);
+  io.out(s.wrap(`${s.bold(s.accent("turno demo"))}  `, s.muted(`a throwaway HOME at ${d.home}`)));
   io.out("");
-  for (const l of d.statusLines) io.out(color ? l : strip(l));
+  io.out(s.header("Set up"));
+  const colors = Object.fromEntries(PROFILES.map((p) => [p.name, { color: p.color }]));
+  const [work, personal] = PROFILES.map((p) => s.profile(p.name, profileColor(colors, p.name)));
+  io.out(s.kv("profiles", `${work} for ~/code/acme, ${personal} for every other folder ${s.muted("(Claude Code)")}`, 8));
+  io.out(s.kv("gateway", `${s.lead("on", "mcpd")} on 127.0.0.1:${d.port} ${s.muted("with docs and issues, synced into both profiles")}`, 8));
+  io.out(s.kv("status", s.muted("the line Claude Code draws for each profile:"), 8));
   io.out("");
-  io.out("Try:");
+  for (const l of d.statusLines) io.out(s.color ? l : stripAnsi(l));
+  io.out("");
+  io.out(s.header("Try"));
   const rows: [string, string][] = [
     ["turno status", "the one-screen summary"],
     ["turno profile which ~/code/acme", "which account a folder opens with, and why"],
@@ -218,25 +220,28 @@ function intro(io: Io, d: Demo): void {
     ["turno undo --list", "every change turno made, each one undoable"],
   ];
   if (findOnPath("claude", d.env)) rows.push(["cd ~/code/acme && turno auto mcp list", "Claude Code connects to both servers through mcpd (no sign-in)"]);
-  const w = Math.max(...rows.map(([c]) => c.length));
-  for (const [c, why] of rows) io.out(`  ${c.padEnd(w)}  ${why}`);
-  io.out("Nothing here reads or changes your own HOME, and nothing signs in.");
+  for (const l of s.table(rows.map(([c, why]) => [s.bold(c), s.muted(why)]), { columns: [{}, { drop: 1 }] })) io.out(l);
+  io.out(s.muted("Nothing here reads or changes your own HOME, and nothing signs in."));
 }
 
-const USAGE = `Usage: turno demo [-- <command> [args...]]
+const USAGE = `Usage: turno demo [--keep] [-- <command> [args...]]
 
 Try turno without touching your setup. The demo builds a throwaway HOME under the temp folder
 with two Claude Code profiles (work, personal), a folder rule, two MCP servers behind an mcpd on
 a free port, and the status line. It never signs in.
 
 In a terminal it opens a shell in that HOME; exit the shell to end the demo. With a command after
---, it runs that command in the demo instead. Otherwise it waits for Ctrl-C. Either way it stops
-mcpd and removes the folder when it ends. Works from npx: npx turno-cli demo`;
+--, it runs that command in the demo instead. With --keep it waits for Ctrl-C instead, so you can
+use the demo from another terminal. Without a terminal (a pipe, --no-input, an agent) and without
+--keep it prints what it set up and ends. Either way it stops mcpd and removes the folder when it
+ends. Works from npx: npx turno-cli demo`;
+
+const KEEP_FLAG = { keep: { type: "boolean" } } as const;
 
 /** Run the demo: a shell, a command, or a wait for Ctrl-C. Returns the exit code. */
 export async function runDemo(args: string[], io: Io, opts: DemoOptions = {}): Promise<number> {
   const end = args.indexOf("--");
-  parseFlags(end < 0 ? args : args.slice(0, end), {}, 0);
+  const keep = bool(parseFlags(end < 0 ? args : args.slice(0, end), KEEP_FLAG, 0), "keep");
   const cmd = end < 0 ? [] : args.slice(end + 1);
   const d = await startDemo(io, opts);
   let child: ChildProcess | undefined;
@@ -260,10 +265,20 @@ export async function runDemo(args: string[], io: Io, opts: DemoOptions = {}): P
     }
     intro(io, d);
     io.out("");
-    if (io.ask) {
+    if (io.ask && !keep) {
       io.out("Opening a shell in the demo HOME. Type exit to end the demo; it then stops mcpd and removes everything.");
       const shell = d.env.SHELL || "/bin/sh";
       return await runChild(shell, ["-i"], d, (c) => (child = c));
+    }
+    if (!keep) {
+      // Nobody can open the shell or press Ctrl-C here: show what the demo holds and end it.
+      io.out(
+        style(io).wrap(
+          "",
+          style(io).muted("No terminal here (a pipe, --no-input or an agent), so the demo ends now. Run a command in it with turno demo -- turno status, or pass --keep to keep it until Ctrl-C."),
+        ),
+      );
+      return 0;
     }
     io.out(`From another terminal: export HOME=${d.home} PATH=${d.home}/.local/bin:$PATH`);
     io.out("Press Ctrl-C to stop the demo and remove it.");
@@ -299,5 +314,6 @@ function signalNumber(signal: NodeJS.Signals): number | undefined {
 export const command: Command = {
   summary: "try turno in a throwaway HOME: two profiles, a gateway and the status line (removed on exit)",
   usage: USAGE,
+  flags: ["--keep"],
   run: (args, io) => runDemo(args, io),
 };
