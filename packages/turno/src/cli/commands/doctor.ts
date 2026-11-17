@@ -6,7 +6,7 @@ import { type Config, loadConfig } from "../../core/config.js";
 import { loadManifest } from "../../core/manifest.js";
 import { paths, tildify } from "../../core/paths.js";
 import { AGENT_IDS, type AgentId, DEFAULT_AGENT, adapter, agentHub, agentProfileDir } from "../../agents/index.js";
-import { agentOf, configProblems, listProfiles } from "../../core/profiles.js";
+import { agentOf, configFindings, listProfiles } from "../../core/profiles.js";
 import { availableUpdate } from "../../core/update.js";
 import { packageInfo } from "../../core/version.js";
 import { FALLBACK, checkFonts, userFontDir } from "../../ui/fonts.js";
@@ -222,7 +222,7 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
     if (existsSync(p.configFile)) add("config", "ok", `${tildify(p.configFile, env)} parses`);
     else if (migrationPending(env)) add("config", "info", `no ${tildify(p.configFile, env)} yet, but a bash claudio config is there`, { hint: "turno migrate" });
     else add("config", "info", `no ${tildify(p.configFile, env)} (defaults)`);
-    for (const w of configProblems(config, env)) add("config", "warn", w, editConfig);
+    for (const f of configFindings(config, env)) add("config", "warn", f.text, f.manual ? { manual: f.manual } : { hint: f.hint ?? "turno config edit" });
   } catch (err) {
     add("config", "fail", (err as Error).message, editConfig);
   }

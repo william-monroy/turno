@@ -173,8 +173,8 @@ describe("config set and config.toml checks (02-H20, 04-H8)", () => {
       "unknown key defualt (did you mean default?); turno ignores it",
       "unknown key profiles.work.colour (did you mean profiles.work.color?); turno ignores it",
     ]);
-    expect(configProblems(c, sb.env)).toContain("the rule for ~/x uses profile ghost, which does not exist (turno profile list)");
-    expect(configProblems(parseConfig('fallback = "nope"\n', "x", sb.env), sb.env)).toEqual(['fallback = "nope", but there is no profile nope (turno profile list)']);
+    expect(configProblems(c, sb.env)).toContain("the rule for ~/x uses profile ghost, which does not exist (turno profile add ghost)");
+    expect(configProblems(parseConfig('fallback = "nope"\n', "x", sb.env), sb.env)).toEqual(['fallback = "nope", but there is no profile nope (turno profile add nope)']);
   });
 
   it("shows TOML errors with ~ and explains an unclosed string", () => {
@@ -188,9 +188,10 @@ describe("config set and config.toml checks (02-H20, 04-H8)", () => {
     writeFileSync(cfgFile(), 'icon = "nerd"\n[[projects]]\npath = "~/x"\nprofile = "ghost"\n');
     const checks = await collectChecks(sb.env);
     const warns = checks.filter((c) => c.area === "config" && c.level === "warn").map((c) => c.text);
-    expect(warns).toEqual(["unknown key icon (did you mean icons?); turno ignores it", "the rule for ~/x uses profile ghost, which does not exist (turno profile list)"]);
+    expect(warns).toEqual(["unknown key icon (did you mean icons?); turno ignores it", "the rule for ~/x uses profile ghost, which does not exist"]);
     const r = await run(["config", "check"]);
-    expect(r.io.lines).toContain("warn  unknown key icon (did you mean icons?); turno ignores it");
+    expect(r.io.lines).toContain("warn  unknown key icon (did you mean icons?); turno ignores it; edit ~/.config/turno/config.toml line 1: rename it to icons");
+    expect(r.io.lines).toContain("warn  the rule for ~/x uses profile ghost, which does not exist (turno profile add ghost)");
   });
 });
 
