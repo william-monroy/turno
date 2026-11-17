@@ -59,10 +59,10 @@ describe("status", () => {
     expect(await status.run([], io)).toBe(0);
     const out = io.lines.join("\n");
     expect(out).toMatch(/^turno \d+\.\d+\.\d+/);
-    expect(out).toMatch(/profiles +personal/);
-    expect(out).toMatch(/work +5h .* 42%/);
+    expect(out).toMatch(/^Profiles\n.*5 hours.*week.*account\n {2}personal /m);
+    expect(out).toMatch(/^ {2}work +█{3}░{5} +42% /m);
     expect(out).toContain("alice@example.com · max");
-    expect(out).toContain("mcpd      not running");
+    expect(out).toMatch(/^ {2}gateway +not running \(turno mcp daemon start\)$/m);
     const json = fakeIo(sb.env);
     await status.run(["--json"], json);
     const data = JSON.parse(json.lines.join("\n"));

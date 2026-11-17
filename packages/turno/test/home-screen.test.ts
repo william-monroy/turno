@@ -36,16 +36,16 @@ describe("bare turno", () => {
     const r = await run([]);
     expect(r.code).toBe(0);
     expect(r.out).toContain("Start here: turno init");
-    expect(r.out).not.toMatch(/^next /m);
+    expect(r.out).not.toMatch(/^Next /m);
   });
 
   it("shows the status screen once turno is set up, with the next step and where the help is", async () => {
     profiles("work");
     const r = await run([]);
     expect(r.code).toBe(0);
-    expect(r.out).toMatch(/^here {6}/m);
-    expect(r.out).toMatch(/^profiles {2}work/m);
-    expect(r.out).toMatch(/^next {6}turno ui install {2}\(optional: the status line/m);
+    expect(r.out).toMatch(/^Here\n {2}claude /m);
+    expect(r.out).toMatch(/^Profiles\n.*\n {2}work /m);
+    expect(r.out).toMatch(/^Next {2}turno ui install\n {6}optional: the status line/m);
     expect(r.out).toContain("turno help lists every command.");
     expect(r.out).not.toContain("Start here");
   });
@@ -60,12 +60,12 @@ describe("next step", () => {
   it("names the first thing to fix, in order", async () => {
     sb.write(".config/turno/config.toml", "[profiles.work]\n");
     let r = await run(["status"]);
-    expect(r.out).toMatch(/^next {6}turno profile repair work {2}\(profile work has no folder or launcher yet\)/m);
+    expect(r.out).toMatch(/^Next {2}turno profile repair work\n {6}profile work has no folder or launcher yet$/m);
 
     profiles("work");
     sb.write(".config/turno/mcp.toml", '[server.docs]\ncommand = "docs-mcp"\nscope = "shared"\n');
     r = await run(["status"]);
-    expect(r.out).toMatch(/^next {6}turno mcp daemon start {2}\(mcp\.toml has 1 server and the gateway is not running\)/m);
+    expect(r.out).toMatch(/^Next {2}turno mcp daemon start\n {6}mcp\.toml has 1 server and the gateway is not running$/m);
   });
 
   it("is part of status --json, and null when nothing is left", async () => {
