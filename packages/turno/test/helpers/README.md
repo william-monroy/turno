@@ -18,6 +18,11 @@ Other helpers:
 - `e2e.ts`: `realBinEnv(sb, extra)` is the env for a real agent binary (claude, codex,
   cursor-agent), built from the sandbox env; `hasBinary(cmd)` probes `cmd --version` inside a
   throwaway sandbox. `networkE2e` is true with `TURNO_E2E_NETWORK=1`.
+- `fake-secret-store.ts`: `fakeSecretStore(sb)` puts file-backed `security` and `secret-tool`
+  stand-ins first on the sandbox `PATH` (items under `<sandbox>/fake-secrets/`), with
+  `failWrites(true)` to act like a Keychain that refuses writes. Never the real Keychain.
+- `oauth-fakes.ts`: an in-process OAuth authorization server and an MCP server it protects, on
+  127.0.0.1, and `approve(url)`, which plays the browser for `turno mcp login` (ADR 0029).
 - `wait.ts`: `waitFor(check)` polls instead of sleeping a guessed time; `killAndWait(child)`
   for `afterEach`, so no child outlives a failed test.
 

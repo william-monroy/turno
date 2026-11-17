@@ -51,6 +51,30 @@ export interface StdioServer {
   tools?: ToolFilter;
 }
 
+/**
+ * `auth = "oauth"` on a remote server (ADR 0029): mcpd is the OAuth client and keeps the tokens
+ * in the secret store, one login per variant. Every key is optional; discovery fills the rest.
+ */
+export interface OAuthSettings {
+  /** A client registered by hand with the authorization server (pre-registration). */
+  clientId?: string;
+  /** Its secret, usually `keychain:<name>`; resolved when it is used, never stored by turno. */
+  clientSecret?: string;
+  /** An HTTPS URL that serves turno's Client ID Metadata Document, used when the server supports it. */
+  clientMetadataUrl?: string;
+  /** Scopes to ask for instead of what the server advertises (space separated). */
+  scope?: string;
+  /** Fixed loopback port for the redirect, for clients registered with an exact redirect URI. */
+  callbackPort?: number;
+  /** Which of the server's authorization servers to use when it lists several. */
+  authorizationServer?: string;
+}
+
+/** Settings a profile variant of a remote server may override (OAuth servers only). */
+export interface RemoteVariant {
+  tools?: ToolFilter;
+}
+
 export interface RemoteServer {
   kind: "remote";
   name: string;
@@ -69,6 +93,13 @@ export interface RemoteServer {
   callTimeout?: number;
   /** Only for proxied remotes: a direct remote never passes through mcpd. */
   tools?: ToolFilter;
+  /** Set when `auth = "oauth"`: mcpd logs in for the profiles (implies proxy). */
+  oauth?: OAuthSettings;
+  /**
+   * Profiles with a login of their own (`[server.<name>.variant.<profile>]`, OAuth servers only).
+   * Every other profile shares the "default" login.
+   */
+  variants: Record<string, RemoteVariant>;
 }
 
 export type ServerDef = StdioServer | RemoteServer;
@@ -133,6 +164,50 @@ function toolFilterOf(v: unknown, file: string, key: string): ToolFilter | undef
   return out;
 }
 
+const OAUTH_KEYS: Record<string, keyof OAuthSettings> = {
+  client_id: "clientId",
+  client_secret: "clientSecret",
+  client_metadata_url: "clientMetadataUrl",
+  scope: "scope",
+  callback_port: "callbackPort",
+  authorization_server: "authorizationServer",
+};
+
+/** `auth = "oauth"` and the optional `[server.<name>.oauth]` table; undefined without OAuth. */
+function oauthOf(v: Record<string, unknown>, file: string, key: string, headers: Record<string, string>): OAuthSettings | undefined {
+  if (v.auth === undefined) {
+    if (v.oauth !== undefined) throw new ConfigError(file, `${key}.oauth needs auth = "oauth"`);
+    return undefined;
+  }
+  if (v.auth !== "oauth") throw new ConfigError(file, `${key}.auth must be "oauth"`);
+  if (Object.keys(headers).some((h) => h.toLowerCase() === "authorization")) {
+    throw new ConfigError(file, `${key}: auth = "oauth" sets the Authorization header itself; remove headers.Authorization`);
+  }
+  const raw = v.oauth ?? {};
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new ConfigError(file, `${key}.oauth must be a table`);
+  const out: OAuthSettings = {};
+  for (const [k, val] of Object.entries(raw)) {
+    const field = OAUTH_KEYS[k];
+    if (!field) throw new ConfigError(file, `${key}.oauth.${k} is not an OAuth setting (${Object.keys(OAUTH_KEYS).join(", ")})`);
+    if (field === "callbackPort") {
+      if (typeof val !== "number" || !Number.isInteger(val) || val < 1024 || val > 65535) {
+        throw new ConfigError(file, `${key}.oauth.callback_port must be a port number from 1024 to 65535`);
+      }
+      out.callbackPort = val;
+      continue;
+    }
+    const s = optStr(val, file, `${key}.oauth.${k}`) as string;
+    if (field === "clientSecret" && !isSecretRef(s)) {
+      throw new ConfigError(file, `${key}.oauth.client_secret must be a keychain: or env: reference (turno secret set <name>), not the secret itself`);
+    }
+    if ((field === "clientMetadataUrl" || field === "authorizationServer") && !/^https?:\/\/\S+$/.test(s)) {
+      throw new ConfigError(file, `${key}.oauth.${k} must be a URL`);
+    }
+    (out as Record<string, string>)[field] = s;
+  }
+  return out;
+}
+
 function profilesOf(v: unknown, file: string, key: string): string[] {
   const list = v === undefined ? ["*"] : strArray(v, file, key);
   for (const p of list) if (p !== "*" && !isValidProfileName(p)) throw new ConfigError(file, `${key}: invalid profile "${p}"`);
@@ -155,13 +230,24 @@ export function parseManifest(text: string, file = "mcp.toml"): Manifest {
     const profiles = profilesOf(v.profiles, file, `${key}.profiles`);
     if (v.url !== undefined) {
       if (typeof v.url !== "string") throw new ConfigError(file, `${key}.url must be a string`);
-      const { profiles: _p, idle: _i, call_timeout: _t, tools: _f, ...rest } = v;
+      const { profiles: _p, idle: _i, call_timeout: _t, tools: _f, auth: _a, oauth: _o, variant: _v, ...rest } = v;
       const entry: Record<string, unknown> = { type: "http", ...rest };
       const headers = strRecord(v.headers, file, `${key}.headers`);
-      const proxy = Object.values(headers).some(isSecretRef);
+      const oauth = oauthOf(v, file, key, headers);
+      const proxy = oauth !== undefined || Object.values(headers).some(isSecretRef);
       const tools = toolFilterOf(v.tools, file, `${key}.tools`);
       if (tools && !proxy) {
-        throw new ConfigError(file, `${key}.tools only works for servers that go through mcpd; a remote server does when a header uses keychain: or env:`);
+        throw new ConfigError(file, `${key}.tools only works for servers that go through mcpd; a remote server does when a header uses keychain: or env:, or with auth = "oauth"`);
+      }
+      const remoteVariants: Record<string, RemoteVariant> = {};
+      for (const [prof, vv] of Object.entries((v.variant ?? {}) as Record<string, unknown>)) {
+        if (!oauth) throw new ConfigError(file, `${key}.variant: a remote server has variants only with auth = "oauth" (one login per variant)`);
+        if (!isValidProfileName(prof)) throw new ConfigError(file, `${key}.variant: invalid profile "${prof}"`);
+        const o = (vv ?? {}) as Record<string, unknown>;
+        const variant: RemoteVariant = {};
+        const vtools = toolFilterOf(o.tools, file, `${key}.variant.${prof}.tools`);
+        if (vtools) variant.tools = vtools;
+        remoteVariants[prof] = variant;
       }
       const remote: RemoteServer = {
         kind: "remote",
@@ -172,7 +258,9 @@ export function parseManifest(text: string, file = "mcp.toml"): Manifest {
         url: v.url,
         headers,
         idle: v.idle === undefined ? 30 * 60 : parseDuration(v.idle, file, `${key}.idle`),
+        variants: remoteVariants,
       };
+      if (oauth) remote.oauth = oauth;
       if (v.call_timeout !== undefined) remote.callTimeout = parseDuration(v.call_timeout, file, `${key}.call_timeout`);
       if (tools) remote.tools = tools;
       servers[name] = remote;
@@ -245,7 +333,7 @@ export function servesProfile(server: ServerDef, profile: string): boolean {
 }
 
 /** The variant key for a profile: its name when it has an override block, else "default". */
-export function variantKey(server: StdioServer, profile: string | undefined): string {
+export function variantKey(server: { variants: Record<string, unknown> }, profile: string | undefined): string {
   return profile && server.variants[profile] ? profile : "default";
 }
 
@@ -265,7 +353,6 @@ export function effectiveLaunch(server: StdioServer, variant: string): { command
 /** The tool filter a profile's sessions get: the server's, with the variant's keys in place of its own. */
 export function toolFilterFor(server: ServerDef, profile: string | undefined): ToolFilter {
   const base = server.tools ?? {};
-  if (server.kind !== "stdio") return base;
   const v = server.variants[variantKey(server, profile)]?.tools;
   return v ? { ...base, ...v } : base;
 }

@@ -68,6 +68,7 @@ tools = { deny = ["*"] }          # replaces the server's allow / deny, key by k
 url = "https://example.com/mcp"
 headers = { Authorization = "keychain:turno/remote/auth" }   # secret headers: proxied by mcpd
 type = "http"                     # or "sse" for the legacy HTTP+SSE transport
+auth = "oauth"                    # instead of an Authorization header: mcpd logs in (see below)
 ```
 
 `tools` patterns match whole tool names: `*` is any run of characters, `?` one character. With
@@ -87,6 +88,55 @@ environment, as Claude Code does in its config: in a stdio server's `args` and `
 in a proxied server's headers (`"--region=${REGION}"`, `"Bearer ${API_TOKEN}"`). A variable
 that is unset and has no default stops that server from starting with an error that names it.
 Cursor's placeholders such as `${workspaceFolder}` are left as written.
+
+## Remote servers with OAuth
+
+A remote server that asks its users to log in (Linear, Notion, GitHub and most hosted MCP
+servers) can be declared with `auth = "oauth"`. mcpd then becomes its OAuth client: you log in
+once per account with `turno mcp login`, and every agent and profile reaches the server through
+mcpd without a login of its own. See [ADR 0029](decisions/0029-oauth-for-remote-servers.md).
+
+```toml
+[server.linear]
+url = "https://mcp.linear.app/mcp"
+auth = "oauth"
+
+[server.linear.variant.personal]  # this profile logs in with another account
+                                  # (optional key: tools)
+
+[server.linear.oauth]             # all optional
+scope = "read write"              # instead of what the server asks for
+client_id = "abc123"              # a client you registered by hand (pre-registration)
+client_secret = "keychain:turno/linear/client-secret"   # its secret, only as a reference
+callback_port = 33418             # fixed loopback port, when the client was registered with one
+client_metadata_url = "https://example.com/turno-client.json"   # a Client ID Metadata Document you host
+authorization_server = "https://auth.example.com"   # when the server lists several
+```
+
+```sh
+turno mcp login linear                    # the login every profile without a variant uses
+turno mcp login linear --profile personal # the personal variant
+turno mcp login linear --no-browser       # print the link instead of opening the browser
+turno mcp login linear --dry-run          # discovery and registration plan, nothing stored
+turno mcp logout linear [--profile p | --all] [--no-revoke]
+```
+
+`turno mcp login` finds the authorization server from the server's protected resource metadata,
+registers turno (a hand-registered `client_id` first, then a Client ID Metadata Document when
+you host one and the server supports it, then dynamic client registration), opens the browser
+on a PKCE authorization request, and waits for the answer on `http://127.0.0.1:<port>/callback`.
+It refuses authorization servers that do not advertise PKCE with S256, metadata whose `issuer`
+is not the one it was fetched for, and answers whose `iss` or `state` does not match.
+
+The tokens go to the secret store (Keychain or Secret Service) as `turno/oauth/<server>@<variant>`,
+never to a file or a log. mcpd refreshes the access token when it expires or the server answers
+401, and saves a rotated refresh token before it uses the new access token. If the secret store
+refuses that write, mcpd keeps the new tokens in memory, tries the write again on each call,
+and notes it in `logs/<server>.log`; a `turno mcp login` or `logout` made meanwhile wins. When
+the authorization server rejects the refresh token (revoked or expired), calls fail with the
+`turno mcp login` command to run, and `turno mcp list`, `turno mcp doctor` and `turno doctor`
+show the variant as "login required". After a logout, mcpd stops using the old access token
+within a minute.
 
 ## Importing what you already have
 
