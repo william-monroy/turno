@@ -31,7 +31,7 @@ export async function mcpdRequest(
   path: string,
   timeoutMs = 2000,
 ): Promise<{ status: number; body: unknown } | "down"> {
-  const { mcpdPort, readToken } = await import("../../mcpd/daemon.js");
+  const { mcpdPort, readToken } = await import("../../mcpd/state.js");
   const token = readToken(env);
   if (!token) return "down";
   try {
@@ -218,7 +218,7 @@ export async function syncProfiles(io: Io, opts: SyncOptions = {}): Promise<{ ch
   const known = new Set([...listProfiles(config, io.env), config.system ?? "default", "hub"]);
   for (const name of only) if (!known.has(name)) fail(`no profile '${name}' (turno profile list shows them)`);
   const { profileServers, readManaged, syncServers, writeManaged } = await import("../../mcpd/sync.js");
-  const { ensureToken, mcpdPort, readToken } = await import("../../mcpd/daemon.js");
+  const { ensureToken, mcpdPort, readToken } = await import("../../mcpd/state.js");
   const manifest = loadManifest(io.env);
   // A dry run never creates the token; without one, entries show a placeholder. Entries get
   // each profile's own token derived from this master token (ADR 0023), never the master.
@@ -331,7 +331,7 @@ async function config(args: string[], io: Io): Promise<number> {
     .filter(([, def]) => servesProfile(def, profile) && !(def.kind === "remote" && !def.proxy))
     .map(([name]) => name);
   if (!servers.length) return fail(`no gateway servers for profile ${profile} in mcp.toml`);
-  const { ensureToken, mcpdPort } = await import("../../mcpd/daemon.js");
+  const { ensureToken, mcpdPort } = await import("../../mcpd/state.js");
   const { profileTokenFile, writeProfileTokenFile } = await import("../../mcpd/tokens.js");
   // The snippet reads the profile's own token from a private file; it is never printed.
   if (isValidProfileName(profile)) writeProfileTokenFile(profile, ensureToken(io.env), io.env);

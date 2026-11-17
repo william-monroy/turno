@@ -9,7 +9,7 @@ import { type Command, type Io, fail, paint, plural } from "../io.js";
 
 /** GET /status from the running daemon. */
 export async function fetchStatus(env: NodeJS.ProcessEnv): Promise<Record<string, unknown> | undefined> {
-  const { mcpdPort, readToken } = await import("../../mcpd/daemon.js");
+  const { mcpdPort, readToken } = await import("../../mcpd/state.js");
   const token = readToken(env, () => {});
   if (!token) return undefined;
   try {
@@ -46,7 +46,7 @@ function mb(bytes: number): string {
 
 /** Why mcpd is down, as far as the files and the port can tell (also shown by `turno status`). */
 export async function downReasons(env: NodeJS.ProcessEnv): Promise<string[]> {
-  const { daemonFiles, loadConfigSafe, readLock, readStartError } = await import("../../mcpd/daemon.js");
+  const { daemonFiles, loadConfigSafe, readLock, readStartError } = await import("../../mcpd/state.js");
   const { describeOwner, portOwner } = await import("../../mcpd/peerpid.js");
   const out: string[] = [];
   const port = loadConfigSafe(env).config.mcpd.port;
@@ -244,7 +244,7 @@ export async function installDaemonService(io: Io, opts: { dryRun?: boolean; com
     const choice = chooseProgram({ env: io.env, execPath: process.execPath, script: entryScript() });
     const journal = opts.journal ?? new Journal(io.env, opts.command ?? "mcp daemon start", Boolean(opts.dryRun));
     if (!opts.dryRun) {
-      const { ensureToken } = await import("../../mcpd/daemon.js");
+      const { ensureToken } = await import("../../mcpd/state.js");
       ensureToken(io.env, (m) => io.err(`turno: ${m}`));
     }
     const r = await installService(backend, { program: choice.program, env: io.env }, journal);
@@ -284,7 +284,7 @@ async function stop(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, DRY_RUN, 0);
   const dryRun = bool(p, "dry-run");
   const { installedBackend, removeService } = await import("../../mcpd/service.js");
-  const { liveLock } = await import("../../mcpd/daemon.js");
+  const { liveLock } = await import("../../mcpd/state.js");
   return serviceStep(io, async () => {
     const backend = (await installedBackend(io.env)) ?? (await backendOrReport({ ...io, err: () => {} }));
     const journal = new Journal(io.env, "mcp daemon stop", dryRun);
@@ -341,7 +341,7 @@ async function token(args: string[], io: Io): Promise<number> {
     io.out(`would write a new token to ${file} and restart mcpd`);
     return 0;
   }
-  const { liveLock, rotateToken } = await import("../../mcpd/daemon.js");
+  const { liveLock, rotateToken } = await import("../../mcpd/state.js");
   const { installedBackend } = await import("../../mcpd/service.js");
   rotateToken(io.env);
   io.out(`new gateway token written to ${file}`);
