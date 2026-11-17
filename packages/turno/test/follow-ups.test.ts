@@ -200,3 +200,34 @@ describe("mcpd and call_log", () => {
     }
   });
 });
+
+describe("turno undo and folder modes", () => {
+  it("puts back the mode of a profile folder that profile add made private", async () => {
+    fakeCommand(sb, "claude", `echo '{"loggedIn":false}'`);
+    sb.write(".config/turno/config.toml", "");
+    const dir = join(sb.home, ".claude-old");
+    mkdirSync(dir, { recursive: true });
+    chmodSync(dir, 0o755);
+    expect((await run(["profile", "add", "old", "--yes"])).code).toBe(0);
+    expect(statSync(dir).mode & 0o777).toBe(0o700);
+    const u = await run(["undo", "last"]);
+    expect(u.code).toBe(0);
+    expect(u.out).toContain("mode 755 again ~/.claude-old");
+    expect(statSync(dir).mode & 0o777).toBe(0o755);
+  });
+
+  it("leaves a mode alone that changed since", async () => {
+    const { Journal, listJournals, undoJournal } = await import("../src/core/journal.js");
+    const dir = join(sb.home, "d");
+    mkdirSync(dir, { mode: 0o755 });
+    chmodSync(dir, 0o755);
+    const j = new Journal(sb.env, "test chmod");
+    j.chmod(dir, 0o700);
+    j.chmod(dir, 0o700); // already 0700: nothing more to record
+    expect(listJournals(sb.env)[0]!.manifest!.entries).toHaveLength(1);
+    chmodSync(dir, 0o750);
+    const { steps } = undoJournal(listJournals(sb.env).find((x) => x.stamp === j.stamp)!, sb.env);
+    expect(steps).toEqual([{ path: dir, action: "skip", reason: "its mode changed since (now 750); left as it is" }]);
+    expect(statSync(dir).mode & 0o777).toBe(0o750);
+  });
+});
