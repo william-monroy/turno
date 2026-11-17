@@ -55,6 +55,14 @@ function prune(p: Parsed, io: Io): number {
   return 0;
 }
 
+/** Paths under HOME inside a sentence, shown with ~. */
+function tildifyText(text: string, env: NodeJS.ProcessEnv): string {
+  return text
+    .split(" ")
+    .map((w) => (w.startsWith("/") ? tildify(w, env) : w))
+    .join(" ");
+}
+
 /** How each undo step reads: alone (with -v), and counted in a folder summary. */
 const VERBS: Record<UndoStep["action"], { one: string; done: string; noun: string }> = {
   restore: { one: "restored", done: "restored", noun: "files" },
@@ -169,7 +177,7 @@ export const command: Command = {
       for (const s of result.steps) {
         const what = s.action === "chmod" ? `mode ${(s.mode ?? 0).toString(8)} again` : VERBS[s.action].one;
         const from = s.from ? st.muted(` from ${tildify(s.from, io.env)}`) : "";
-        const text = `${s.action === "skip" ? st.warn(what) : what} ${tildify(s.path, io.env)}${from}${s.reason ? st.muted(`: ${s.reason}`) : ""}`;
+        const text = `${s.action === "skip" ? st.warn(what) : what} ${tildify(s.path, io.env)}${from}${s.reason ? st.muted(`: ${tildifyText(s.reason, io.env)}`) : ""}`;
         io.out(st.note(s.action === "skip" ? "warn" : s.action === "keep" ? "info" : "ok", text));
       }
     } else {
@@ -182,7 +190,7 @@ export const command: Command = {
       // What was left alone, and why: never folded into a count.
       for (const s of result.steps.filter((x) => x.action === "skip" || x.action === "keep")) {
         const skip = s.action === "skip";
-        io.out(st.note(skip ? "warn" : "info", `${skip ? st.warn("skipped") : "kept"} ${tildify(s.path, io.env)}${s.reason ? st.muted(`: ${s.reason}`) : ""}`));
+        io.out(st.note(skip ? "warn" : "info", `${skip ? st.warn("skipped") : "kept"} ${tildify(s.path, io.env)}${s.reason ? st.muted(`: ${tildifyText(s.reason, io.env)}`) : ""}`));
       }
     }
     const n = result.steps.length;
