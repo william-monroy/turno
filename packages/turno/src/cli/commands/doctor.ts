@@ -228,8 +228,17 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
   }
   if (existsSync(p.accountsFile)) {
     try {
-      loadRegistry(env);
+      const reg = loadRegistry(env);
       add("config", "ok", `${tildify(p.accountsFile, env)} parses`);
+      // Without read_tools a delegated read is a write (ADR 0024): confirmed, with every tool.
+      const noReads = Object.values(reg.accounts).filter((a) => !a.readTools?.length).map((a) => a.id).sort();
+      if (noReads.length) {
+        add(
+          "config",
+          "warn",
+          `accounts without read_tools: ${noReads.join(", ")}; delegated reads get every tool of the account and ask like writes (add read_tools in ${tildify(p.accountsFile, env)})`,
+        );
+      }
     } catch (err) {
       add("config", "fail", (err as Error).message);
     }

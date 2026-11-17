@@ -134,3 +134,18 @@ describe("turno upgrade --finish and the journal", () => {
     expect(readFileSync(file, "utf8")).toBe(old);
   });
 });
+
+describe("turno doctor and accounts", () => {
+  it("warns about accounts without read_tools, naming them", async () => {
+    sb.write(
+      ".config/turno/accounts.toml",
+      '[account."linear:work"]\nprofile = "work"\ntools = ["mcp__linear__*"]\nread_tools = ["mcp__linear__get_*"]\n\n[account."gmail:home"]\nprofile = "home"\ntools = ["mcp__gmail__*"]\n',
+    );
+    const { collectChecks } = await import("../src/cli/commands/doctor.js");
+    const checks = await collectChecks(sb.env);
+    const w = checks.find((c) => c.text.includes("read_tools"));
+    expect(w).toMatchObject({ area: "config", level: "warn" });
+    expect(w!.text).toContain("gmail:home");
+    expect(w!.text).not.toContain("linear:work");
+  });
+});
