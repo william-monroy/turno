@@ -83,9 +83,11 @@ describe("compile cache", () => {
   });
 
   it.skipIf(!BUILT)("is off for turno demo, which leaves HOME as it found it", () => {
-    const r = spawnSync(process.execPath, [DIST_MAIN, "demo", "--help"], { env: sb.env, encoding: "utf8" });
-    expect(r.status).toBe(0);
-    expect(readdirSync(sb.home)).toEqual([]);
+    for (const args of [["demo", "--help"], ["--no-input", "demo", "--help"]]) {
+      const r = spawnSync(process.execPath, [DIST_MAIN, ...args], { env: sb.env, encoding: "utf8" });
+      expect(r.status).toBe(0);
+      expect(readdirSync(sb.home)).toEqual([]);
+    }
   });
 
   it("is listed by turno uninstall as something that stays", async () => {
