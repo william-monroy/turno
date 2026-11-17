@@ -160,7 +160,10 @@ as a `systemd --user` unit, and links open with `xdg-open`. Windows is not suppo
 Codex, Copilot CLI or Cursor agent session it never asks. A command that would ask exits with
 code 2 and names the flag that answers it, for example `turno: init needs an answer; pass --yes
 (or run it in a terminal)`. `TURNO_NO_INPUT=0` lets you answer in an editor terminal that sets
-an agent's variable.
+an agent's variable. A command that needs a profile and gets none (`turno profile assign`,
+`turno run`, `turno session handoff`, `turno limit set`) shows a list to choose from on a
+terminal (arrows or j/k, type to filter, Enter, Esc to cancel); elsewhere it exits with 2 and
+lists the profiles: `pass a profile: personal, work`.
 
 **How do I undo it?** Every command that writes keeps a copy of each file it changes:
 `turno undo --list` shows them and `turno undo <stamp>` puts them back (backups older than 30

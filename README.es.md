@@ -101,7 +101,10 @@ terminal y dentro de una sesión de agente de Claude Code, Codex, Copilot CLI o 
 pregunta. Un comando que necesitaría preguntar termina con código 2 y nombra la opción que lo
 responde, por ejemplo `turno: init needs an answer; pass --yes (or run it in a terminal)`.
 `TURNO_NO_INPUT=0` te deja responder en la terminal de un editor que define la variable de un
-agente.
+agente. Un comando que necesita un perfil y no lo recibe (`turno profile assign`, `turno run`,
+`turno session handoff`, `turno limit set`) muestra una lista para elegir en una terminal
+(flechas o j/k, escribir para filtrar, Enter, Esc para cancelar); fuera de ella termina con
+código 2 y lista los perfiles: `pass a profile: personal, work`.
 
 **¿Cómo lo deshago?** Cada comando que escribe guarda una copia de lo que cambia:
 `turno undo --list` las muestra y `turno undo <stamp>` las restaura (las copias de más de 30

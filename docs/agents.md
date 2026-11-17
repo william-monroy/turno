@@ -34,7 +34,7 @@ so treat it as experimental.
 ## Folder rules per agent
 
 A folder can have one rule per agent: `turno profile assign <dir> <profile>` adds a rule for the
-profile's agent. `turno auto` resolves among Claude Code profiles, `turno auto --agent codex`
+profile's agent (without a profile, a terminal shows the profiles to choose from). `turno auto` resolves among Claude Code profiles, `turno auto --agent codex`
 among Codex profiles. `turno profile unassign <dir>` removes the folder's rules of every agent. Defaults and fallbacks of the other agents live in their own table:
 
 ```toml
