@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -6,6 +6,7 @@ import { type Check, collectChecks, doctor } from "../src/cli/commands/doctor.js
 import { writeLauncher } from "../src/cli/launchers.js";
 import { main } from "../src/cli/main.js";
 import { securityChecks } from "../src/cli/security.js";
+import { tokenSyncCheck } from "../src/mcpd/health.js";
 import { fakeCommand, fakeIo } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
@@ -178,5 +179,73 @@ describe("turno doctor names the fix for every finding", () => {
     expect(out).toMatch(/ {2}! {2}permissions: .*\n {5}fix: turno doctor --security --fix$/m);
     expect(out).toMatch(/MCP servers without an exact version: loose \(package loose-mcp@\^1\.2\.0\)\n {5}fix: turno mcp install loose$/m);
     expect(out).toMatch(/^Next {2}turno doctor --security --fix {2}repairs \d+ of \d+/m);
+  });
+});
+
+describe("turno doctor follow-ups", () => {
+  it("--fix runs turno mcp sync for a server that runs outside mcpd, and says what it changed", async () => {
+    sb.write(".claude.json", JSON.stringify({ mcpServers: { gh: { command: "gh-mcp" }, own: { command: "own-mcp" } } }));
+    const before = (await collectChecks(sb.env)).filter((c) => c.text.endsWith("runs outside mcpd"));
+    expect(before.find((c) => c.text.startsWith("gh "))?.fix?.label).toBe("turno mcp sync");
+    expect(before.find((c) => c.text.startsWith("own "))).toMatchObject({ hint: "turno mcp import" });
+    const io = fakeIo(sb.env);
+    await doctor(io, { fix: true });
+    const out = io.lines.join("\n");
+    expect(io.lines.filter((l) => l === "$ turno mcp sync")).toHaveLength(1);
+    expect(out).toMatch(/~\/\.claude\.json\s+added .*updated gh/);
+    const hub = JSON.parse(readFileSync(join(sb.home, ".claude.json"), "utf8")).mcpServers;
+    expect(hub.gh.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/mcp\/gh$/);
+    expect(hub.own).toEqual({ command: "own-mcp" });
+    expect(out).toContain("own runs outside mcpd");
+    expect(out).not.toMatch(/gh runs outside mcpd/);
+  });
+
+  it("names a server that mcp.toml does not serve to the hub's profile instead of syncing it", async () => {
+    sb.write(".config/turno/mcp.toml", '[server.gh]\ncommand = "gh-mcp"\nprofiles = ["work"]\n', 0o600);
+    sb.write(".claude.json", JSON.stringify({ mcpServers: { gh: { command: "gh-mcp" } } }));
+    const c = (await collectChecks(sb.env)).find((x) => x.text === "gh runs outside mcpd");
+    expect(c).toMatchObject({ level: "warn", manual: "remove gh from ~/.claude.json, or serve it to profile default in mcp.toml" });
+    expect(c?.fix).toBeUndefined();
+  });
+
+  it("reports env: and ${VAR} references mcp.toml cannot resolve here, never a value", async () => {
+    sb.write(
+      ".config/turno/mcp.toml",
+      [
+        '[server.gh]\ncommand = "gh-mcp"\nargs = ["--region=${REGION}", "--mode=${MODE:-fast}", "env:NOT_A_REF"]\nenv = { TOKEN = "env:GH_TOKEN", HOST = "env:GH_HOST:-github.com", KEY = "keychain:gh" }',
+        '[server.gh.variant.work]\nenv = { TOKEN = "env:WORK_TOKEN" }',
+        '[server.api]\nurl = "https://example.com/mcp"\nheaders = { Authorization = "env:API_TOKEN", "X-Region" = "${API_REGION}" }',
+        '[server.open]\nurl = "https://example.com/open"\nheaders = { "X-Note" = "${NOT_PROXIED}" }',
+      ].join("\n\n"),
+      0o600,
+    );
+    const env = { ...sb.env, GH_TOKEN: "s3cr3t-value-1", API_TOKEN: "s3cr3t-value-2" };
+    const mcp = (await collectChecks(env)).filter((c) => c.area === "mcp");
+    expect(mcp.find((c) => c.text.startsWith("gh: "))).toMatchObject({
+      level: "warn",
+      text: "gh: REGION and WORK_TOKEN are not set here, and mcp.toml reads them from mcpd's environment",
+    });
+    // A proxied remote's headers are mcpd's to resolve; a direct remote's are the agent's.
+    expect(mcp.find((c) => c.text.startsWith("api: "))?.text).toBe("api: API_REGION is not set here, and mcp.toml reads it from mcpd's environment");
+    expect(mcp.find((c) => c.text.startsWith("gh: "))?.manual).toContain("turno mcp daemon restart");
+    expect(mcp.some((c) => c.text.startsWith("open: "))).toBe(false);
+    const io = fakeIo(env);
+    await doctor(io, { json: true });
+    const text = io.lines.join("\n");
+    expect(text).not.toContain("s3cr3t-value");
+
+    const ok = (await collectChecks({ ...env, REGION: "eu", WORK_TOKEN: "s3cr3t-value-3", API_REGION: "eu" })).filter((c) => c.area === "mcp");
+    expect(ok.find((c) => c.text.startsWith("mcp.toml: every environment reference"))).toMatchObject({ level: "ok" });
+    expect(JSON.stringify(ok)).not.toContain("s3cr3t-value");
+  });
+
+  it("checks the gateway token in synced configs without mcp-managed.json", async () => {
+    const master = "m".repeat(43);
+    sb.write(".local/state/turno/mcpd.token", `${master}\n`, 0o600);
+    sb.write(".claude-work/.claude.json", JSON.stringify({ mcpServers: { gh: { type: "http", url: "http://127.0.0.1:1/mcp/gh", headers: { Authorization: `Bearer ${master}` } } } }));
+    const c = tokenSyncCheck(sb.env);
+    expect(c).toMatchObject({ level: "warn", fix: { label: "turno mcp sync" } });
+    expect(c?.text).toContain("~/.claude-work/.claude.json");
+    expect(c?.text).not.toContain(master);
   });
 });
