@@ -3,13 +3,13 @@ import { resolve as resolvePath } from "node:path";
 import { delimiter } from "node:path";
 import { type AgentId, adapter, agentHub, agentProfileDir, isAgentId, AGENT_IDS } from "../../agents/index.js";
 import { editConfig } from "../../core/config-edit.js";
-import { type Config, loadConfig } from "../../core/config.js";
+import { type Config, type ProjectRule, loadConfig } from "../../core/config.js";
 import { exhaustedUntil } from "../../core/exhausted.js";
 import { Journal } from "../../core/journal.js";
 import { expandHome, paths, profileDir, tildify } from "../../core/paths.js";
 import { agentOf, listProfiles } from "../../core/profiles.js";
-import { resolveProfile } from "../../core/resolve.js";
-import { addArrayTable, ensureTable, removeArrayTables, removeTable, setValue } from "../../core/toml-edit.js";
+import { candidateRoots, folderMcpSet, resolveProfile } from "../../core/resolve.js";
+import { type TomlValue, addArrayTable, ensureTable, removeArrayTables, removeTable, setValue } from "../../core/toml-edit.js";
 import { NAMED_COLORS } from "../../statusline/render.js";
 import { DRY_RUN, type FlagSpec, JSON_FLAG, bool, flagsOf, parseFlags, printJson, str } from "../args.js";
 import { group } from "../group.js";
@@ -201,7 +201,7 @@ async function remove(args: string[], io: Io): Promise<number> {
   editConfig(io.env, journal, (t) => {
     const r = removeArrayTables(removeTable(t, `profiles.${name}`), "projects", (e) => e.profile === name);
     rules = r.removed;
-    return r.text;
+    return keepSets(r.text, config.projects.filter((x) => x.profile === name), io.env);
   });
   const agent = agentOf(name, config);
   const launcher = launcherPath(name, io.env, agent);
@@ -213,6 +213,24 @@ async function remove(args: string[], io: Io): Promise<number> {
   const hint = journal.hint();
   if (hint) io.out(hint);
   return 0;
+}
+
+/** The server set keys of a rule (ADR 0031), to write back when its profile part goes. */
+function setKeys(rule: ProjectRule | undefined): Record<string, TomlValue> {
+  return { ...(rule?.mcp ? { mcp: rule.mcp } : {}), ...(rule?.mcpDeny ? { mcp_deny: rule.mcpDeny } : {}) };
+}
+
+/** Write back, as rules of their own, the server sets of removed profile rules: the folder keeps them. */
+function keepSets(text: string, removed: ProjectRule[], env: NodeJS.ProcessEnv): string {
+  let out = text;
+  for (const r of removed) if (r.mcp || r.mcpDeny) out = addArrayTable(out, "projects", { path: tildify(r.path, env), ...setKeys(r) });
+  return out;
+}
+
+/** "only docs, not mail": what a folder's server set lets sessions see. */
+function setText(set: ProjectRule): string {
+  const parts = [set.mcp ? `only ${set.mcp.join(", ") || "none"}` : "", set.mcpDeny ? `${set.mcp ? "not" : "all but"} ${set.mcpDeny.join(", ")}` : ""];
+  return parts.filter(Boolean).join(", ");
 }
 
 function folder(arg: string | undefined, io: Io): string {
@@ -245,15 +263,18 @@ export async function whichCommand(args: string[], io: Io): Promise<number> {
   const config = loadConfig(io.env);
   const all = resolveAll(dir, config, io.env);
   const r = all[0]!.r;
+  const set = folderMcpSet(candidateRoots(dir), config.projects, r.chosen || undefined);
   if (bool(p, "json")) {
     const one = (x: typeof r) => ({ assigned: x.assigned || null, chosen: x.chosen || null, reason: x.reason, note: x.note || null });
-    printJson(io.out, { dir: tildify(dir, io.env), ...one(r), agents: Object.fromEntries(all.map(({ agent, r: x }) => [agent, one(x)])) });
+    const mcp = set ? { rule: tildify(set.path, io.env), allow: set.mcp ?? null, deny: set.mcpDeny ?? null } : null;
+    printJson(io.out, { dir: tildify(dir, io.env), ...one(r), agents: Object.fromEntries(all.map(({ agent, r: x }) => [agent, one(x)])), mcp });
     return 0;
   }
   io.out(tildify(dir, io.env));
   io.out(`  assigned: ${r.assigned || "none"} (${r.reason})`);
   io.out(r.note ? `  using now: ${r.chosen} (${r.assigned} ${r.note})` : `  using now: ${r.chosen || "plain claude"}`);
   for (const { agent, r: x } of all.slice(1)) io.out(`  ${agent}: ${usingText(agent, x, io.env)}`);
+  if (set) io.out(`  mcp: ${setText(set)} (rule ${tildify(set.path, io.env)})`);
   return 0;
 }
 
@@ -268,15 +289,13 @@ async function assign(args: string[], io: Io): Promise<number> {
   const journal = new Journal(io.env, `profile assign ${tildify(dir, io.env)} ${name}`, dry);
   const shown = tildify(dir, io.env);
   // One rule per folder and agent: a Codex rule does not replace the folder's Claude Code rule.
+  // A rule with only a server set (ADR 0031) is not a profile rule and stays; a replaced rule
+  // passes its set on to the new one.
   const agent = agentOf(name, config);
-  editConfig(io.env, journal, (t) => {
-    const r = removeArrayTables(
-      t,
-      "projects",
-      (e) => resolvePath(expandHome(e.path ?? "", io.env)) === dir && agentOf(e.profile ?? "", config) === agent,
-    );
-    return addArrayTable(r.text, "projects", { path: shown, profile: name });
-  });
+  const same = (e: { path?: string; profile?: string }) =>
+    e.profile !== undefined && resolvePath(expandHome(e.path ?? "", io.env)) === dir && agentOf(e.profile, config) === agent;
+  const carried = config.projects.find((r) => same(r) && (r.mcp || r.mcpDeny));
+  editConfig(io.env, journal, (t) => addArrayTable(removeArrayTables(t, "projects", same).text, "projects", { path: shown, profile: name, ...setKeys(carried) }));
   io.out(`${shown} -> ${name}${dry ? " (dry run)" : ""}`);
   const hint = journal.hint();
   if (hint) io.out(hint);
@@ -288,11 +307,14 @@ async function unassign(args: string[], io: Io): Promise<number> {
   const dir = resolvePath(expandHome(p.positionals[0] ?? process.cwd(), io.env));
   const dry = bool(p, "dry-run");
   const journal = new Journal(io.env, `profile unassign ${tildify(dir, io.env)}`, dry);
+  const config = loadConfig(io.env);
+  // Profile rules only: the folder keeps its server set (ADR 0031).
+  const own = (e: { path?: string; profile?: string }) => e.profile !== undefined && resolvePath(expandHome(e.path ?? "", io.env)) === dir;
   let removed = 0;
   editConfig(io.env, journal, (t) => {
-    const r = removeArrayTables(t, "projects", (e) => resolvePath(expandHome(e.path ?? "", io.env)) === dir);
+    const r = removeArrayTables(t, "projects", own);
     removed = r.removed;
-    return r.text;
+    return removed ? keepSets(r.text, config.projects.filter(own), io.env) : t;
   });
   if (!removed) {
     io.out(`${tildify(dir, io.env)} has no rule of its own (turno profile which explains what applies)`);

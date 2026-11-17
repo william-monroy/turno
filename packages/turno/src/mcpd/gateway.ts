@@ -3,9 +3,13 @@ import { type IncomingMessage, type Server as HttpServer, type ServerResponse, c
 import { isAbsolute } from "node:path";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
+import type { ProjectRule } from "../core/config.js";
 import { type Manifest, type ToolFilter, filtersTools, servesProfile, toolAllowed, toolFilterFor } from "../core/manifest.js";
+import { tildify } from "../core/paths.js";
+import { folderMcpSet, mcpSetAllows } from "../core/resolve.js";
 import type { ServerDescription } from "./cache.js";
 import { cleanAgentName } from "./calllog.js";
+import { folderRoots } from "./folder-sets.js";
 import { type ClientContext, type ClientHandle, type InstanceManager, isDirectory, processCwd, projectRoot, scopeOf } from "./instances.js";
 import { ErrorCode, type Id, type Message, type Outcome, isNotification, isRequest, isResponse, rpcError, toResponse } from "./jsonrpc.js";
 import { StatelessFront, isInitialize, readJsonBody, wantsModern } from "./modern.js";
@@ -28,6 +32,10 @@ export interface GatewayOptions {
   clientRequestTimeoutMs?: number;
   /** Largest request body accepted, in bytes (default 32 MiB; the SDK default is 4 MiB). */
   maxRequestBodyBytes?: number;
+  /** The `[[projects]]` rules of config.toml, read on every use: their `mcp` sets hide servers per folder (ADR 0031). */
+  folderRules?: () => ProjectRule[];
+  /** Home folder, to show rule paths with `~` in messages. */
+  home?: string;
 }
 
 export const DEFAULT_MAX_REQUEST_BODY = 32 * 1024 * 1024;
@@ -104,6 +112,38 @@ function announcedCapabilities(caps: Record<string, unknown>): Record<string, un
   return out;
 }
 
+/** Lists a hidden server answers with: empty, so a client that asks anyway gets nothing. */
+const EMPTY_LISTS: Record<string, string> = {
+  "tools/list": "tools",
+  "prompts/list": "prompts",
+  "resources/list": "resources",
+  "resources/templates/list": "resourceTemplates",
+};
+
+/**
+ * What a session gets for a server its folder's set leaves out (ADR 0031): an initialize with
+ * no capabilities and an instructions line that says why, empty lists, and an error naming
+ * the rule for anything else. The session stays open, so the agent shows the server as
+ * connected with nothing in it rather than as a failure it may retry.
+ */
+function hiddenAnswer(m: Message, server: string, why: string): Outcome {
+  const method = m.method as string;
+  if (method === "initialize") {
+    return {
+      result: {
+        protocolVersion: negotiateVersion(m.params?.protocolVersion),
+        capabilities: {},
+        serverInfo: { name: server, version: "hidden" },
+        instructions: why,
+      },
+    };
+  }
+  if (method === "ping" || method === "logging/setLevel") return { result: {} };
+  const list = EMPTY_LISTS[method];
+  if (list) return { result: { [list]: [] } };
+  return rpcError(ErrorCode.InvalidParams, why);
+}
+
 /** One MCP client session against one server path. */
 class ClientSession implements ClientHandle {
   id = "";
@@ -115,6 +155,8 @@ class ClientSession implements ClientHandle {
     readonly ctx: ClientContext,
     readonly transport: StreamableHTTPServerTransport,
     private readonly gw: Gateway,
+    /** The session folder and, for a worktree, its main repository: what folder sets match. */
+    readonly folders: string[] = [],
   ) {}
 
   supports(capability: string): boolean {
@@ -179,6 +221,13 @@ class ClientSession implements ClientHandle {
     const method = m.method as string;
     const manager = this.gw.manager;
     try {
+      // Outside the folder's server set (ADR 0031): answer from mcpd, never start the server.
+      const hidden = this.gw.hiddenBySet(this);
+      if (hidden) {
+        if (method === "initialize") this.ctx.clientName ??= cleanAgentName((m.params?.clientInfo as { name?: unknown } | undefined)?.name);
+        this.reply(id, hiddenAnswer(m, this.ctx.serverName, hidden));
+        return;
+      }
       if (method === "initialize") {
         const init = m.params as { capabilities?: Record<string, unknown>; clientInfo?: { name?: unknown } } | undefined;
         this.ctx.clientCapabilities = init?.capabilities ?? {};
@@ -242,6 +291,7 @@ class ClientSession implements ClientHandle {
   private handleNotification(m: Message): void {
     const method = m.method as string;
     if (method === "notifications/initialized") return;
+    if (this.gw.hiddenBySet(this)) return;
     let inst: ReturnType<InstanceManager["existing"]>;
     try {
       inst = this.gw.manager.existing(this);
@@ -347,6 +397,20 @@ export class Gateway {
     if (!server) return undefined;
     const f = toolFilterFor(server, ctx.profile);
     return filtersTools(f) ? f : undefined;
+  }
+
+  /**
+   * Why a session's folder hides its server (ADR 0031), or undefined when the server is
+   * shown. Read on every use, so a changed config.toml applies to open sessions on their next
+   * list or call. A session whose folder mcpd could not learn is never hidden.
+   */
+  hiddenBySet(s: { ctx: ClientContext; folders: string[] }): string | undefined {
+    const rules = this.opts.folderRules?.();
+    if (!rules?.length || !s.folders.length) return undefined;
+    const set = folderMcpSet(s.folders, rules, s.ctx.profile);
+    if (mcpSetAllows(set, s.ctx.serverName)) return undefined;
+    const where = this.opts.home ? tildify(set!.path, { HOME: this.opts.home }) : set!.path;
+    return `${s.ctx.serverName} is not in the MCP set of ${where} (mcp / mcp_deny of its [[projects]] rule in config.toml); turno hides it in this folder`;
   }
 
   private lastMasterWarning = 0;
@@ -499,6 +563,7 @@ export class Gateway {
 
   private async createSession(req: IncomingMessage, name: string, profile: string, fixedId?: string): Promise<ClientSession | undefined> {
     const ctx = await this.sessionContext(req, name, profile);
+    const folders = ctx.cwd && this.opts.folderRules ? await folderRoots(ctx.cwd) : [];
     let session: ClientSession | undefined;
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => fixedId ?? randomUUID(),
@@ -512,7 +577,7 @@ export class Gateway {
       },
       onsessionclosed: (id) => this.dropSession(id),
     });
-    session = new ClientSession(ctx, transport, this);
+    session = new ClientSession(ctx, transport, this, folders);
     const s = session;
     transport.onmessage = (msg) => s.onMessage(msg as unknown as Message);
     transport.onclose = () => {

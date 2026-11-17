@@ -138,6 +138,35 @@ the authorization server rejects the refresh token (revoked or expired), calls f
 show the variant as "login required". After a logout, mcpd stops using the old access token
 within a minute.
 
+## Server sets per folder
+
+A `[[projects]]` rule in `config.toml` can also say which servers sessions in that folder see
+(ADR 0031). The rule may have a profile, a server set, or both:
+
+```toml
+[[projects]]
+path = "~/code/acme"
+profile = "work"
+mcp = ["issues", "docs"]      # only these servers, by their name in mcp.toml
+
+[[projects]]
+path = "~/code/oss"
+mcp_deny = ["mail"]           # every server but these
+```
+
+`mcp` keeps only the listed servers; `mcp_deny` then removes servers. The rule with the longest
+path that has a set wins (a nested rule replaces its parent's set, it does not add to it), and a
+git worktree matches the rules of its main repository. Every agent config still lists every
+server: mcpd hides the rest per session, from the folder the session sends (or the folder of its
+process). A hidden server answers `initialize` with no tools and a line that says which rule
+hides it, lists nothing, refuses calls, and is never started. A session whose folder mcpd cannot
+learn sees every server. mcpd reloads `config.toml` when it changes (or on SIGHUP); a changed
+set applies to open sessions on their next list or call.
+
+`turno config check` warns about names that are not in `mcp.toml` and about remote servers that
+skip mcpd, which a set cannot hide. `turno profile which <dir>` shows the set of a folder.
+`turno profile assign` and `unassign` change only the profile part of a rule and keep its set.
+
 ## Importing what you already have
 
 `turno mcp import` drafts `mcp.toml` from the servers your agents already use: user and project

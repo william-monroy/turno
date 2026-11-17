@@ -21,9 +21,17 @@ export interface AgentRoles {
   fallback?: string;
 }
 
+/**
+ * A folder rule. `profile` picks the account for the folder; `mcp` and `mcp_deny` pick which
+ * MCP servers mcpd shows to sessions in it (ADR 0031). A rule has a profile, a server set, or both.
+ */
 export interface ProjectRule {
   path: string;
-  profile: string;
+  profile?: string;
+  /** Only these servers (names from mcp.toml) are listed for sessions in the folder. */
+  mcp?: string[];
+  /** These servers are not listed, whatever `mcp` says. */
+  mcpDeny?: string[];
 }
 
 export interface Config {
@@ -61,7 +69,7 @@ export const KNOWN_KEYS: Record<string, readonly string[]> = {
   "": ["system", "default", "fallback", "icons", "nerd_terminals", "update_check", "profiles", "agents", "projects", "open", "mcpd"],
   "profiles.*": ["agent", "browser", "color"],
   "agents.*": ["default", "fallback"],
-  "projects[]": ["path", "profile"],
+  "projects[]": ["path", "profile", "mcp", "mcp_deny"],
   open: ["chrome_dir"],
   mcpd: ["port", "call_log", "max_request_body", "idle_under_pressure"],
 };
@@ -158,6 +166,13 @@ function str(v: unknown, file: string, key: string): string | undefined {
   return v;
 }
 
+/** A list of MCP server names (`[[projects]] mcp`), or undefined when unset. */
+function names(v: unknown, file: string, key: string): string[] | undefined {
+  if (v === undefined) return undefined;
+  if (!Array.isArray(v) || v.some((x) => typeof x !== "string" || !x)) throw new ConfigError(file, `${key} must be an array of server names, like ["issues", "docs"]`);
+  return v as string[];
+}
+
 function table(v: unknown, file: string, key: string): Record<string, unknown> {
   if (v === undefined) return {};
   if (typeof v !== "object" || v === null || Array.isArray(v)) throw new ConfigError(file, `[${key}] must be a table`);
@@ -249,8 +264,10 @@ export function parseConfig(text: string, path = "config.toml", env: NodeJS.Proc
     unknownKeys(v, KNOWN_KEYS["projects[]"]!, `projects[${i}].`, warnings);
     const path = str(v.path, file, `projects[${i}].path`);
     const profile = str(v.profile, file, `projects[${i}].profile`);
-    if (!path || !profile) throw new ConfigError(file, `projects[${i}] needs path and profile`);
-    cfg.projects.push({ path: expandHome(path, env), profile });
+    const mcp = names(v.mcp, file, `projects[${i}].mcp`);
+    const mcpDeny = names(v.mcp_deny, file, `projects[${i}].mcp_deny`);
+    if (!path || (!profile && !mcp && !mcpDeny)) throw new ConfigError(file, `projects[${i}] needs path and profile, mcp or mcp_deny`);
+    cfg.projects.push({ path: expandHome(path, env), ...(profile ? { profile } : {}), ...(mcp ? { mcp } : {}), ...(mcpDeny ? { mcpDeny } : {}) });
   }
 
   const open = table(raw.open, file, "open");

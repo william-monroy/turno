@@ -2,7 +2,8 @@ import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { type AgentId, adapter } from "../agents/index.js";
 import type { Config } from "./config.js";
-import { isValidProfileName } from "./config.js";
+import { isValidProfileName, suggestKey } from "./config.js";
+import { loadManifest } from "./manifest.js";
 import { paths, profileDir, tildify } from "./paths.js";
 
 /** The agent a profile runs: from config.toml, else Claude Code. */
@@ -71,7 +72,41 @@ export function configProblems(config: Config, env: NodeJS.ProcessEnv = process.
     if (name && known.has(name) && agentOf(name, config) !== "claude") out.push(`${role} = "${name}" is for Claude Code, but ${name} is a ${adapter(agentOf(name, config)).label} profile (use [agents.${agentOf(name, config)}])`);
   }
   for (const rule of config.projects) {
-    if (!known.has(rule.profile)) out.push(`the rule for ${tildify(rule.path, env)} uses profile ${rule.profile}, which does not exist (turno profile list)`);
+    if (rule.profile && !known.has(rule.profile)) out.push(`the rule for ${tildify(rule.path, env)} uses profile ${rule.profile}, which does not exist (turno profile list)`);
+  }
+  out.push(...folderSetProblems(config, env));
+  return out;
+}
+
+/**
+ * Folder server sets (ADR 0031) checked against mcp.toml: names it does not declare, and
+ * remote servers that skip mcpd, which a set cannot hide. Nothing when mcp.toml is missing or
+ * broken (its own check reports that).
+ */
+export function folderSetProblems(config: Config, env: NodeJS.ProcessEnv = process.env): string[] {
+  const rules = config.projects.filter((r) => r.mcp || r.mcpDeny);
+  if (!rules.length || !existsSync(paths(env).mcpFile)) return [];
+  let servers;
+  try {
+    servers = loadManifest(env).servers;
+  } catch {
+    return [];
+  }
+  const declared = Object.keys(servers);
+  const out: string[] = [];
+  for (const rule of rules) {
+    const where = `the rule for ${tildify(rule.path, env)}`;
+    for (const [key, list] of [["mcp", rule.mcp], ["mcp_deny", rule.mcpDeny]] as const) {
+      for (const name of list ?? []) {
+        if (servers[name]) continue;
+        const near = suggestKey(name, declared);
+        out.push(`${where} lists "${name}" in ${key}, which is not in mcp.toml${near ? ` (did you mean ${near}?)` : " (turno mcp list)"}`);
+      }
+    }
+    for (const [name, def] of Object.entries(servers)) {
+      const hidden = (rule.mcp && !rule.mcp.includes(name)) || rule.mcpDeny?.includes(name);
+      if (hidden && def.kind === "remote" && !def.proxy) out.push(`${where} cannot hide ${name}: it is a remote server that does not pass through mcpd`);
+    }
   }
   return out;
 }

@@ -229,7 +229,8 @@ export const command = group(
   },
   {
     fallback: "path",
-    footer: `Keys:\n${columns(Object.entries(KEYS), 2, 26)}\n\nProjects use turno profile assign; MCP servers live in mcp.toml (turno mcp).`,
+    footer: `Keys:\n${columns(Object.entries(KEYS), 2, 26)}\n\nProjects use turno profile assign; MCP servers live in mcp.toml (turno mcp).
+A [[projects]] rule with mcp = [...] limits the servers of that folder.`,
   },
 );
 
