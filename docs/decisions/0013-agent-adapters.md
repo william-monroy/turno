@@ -1,6 +1,6 @@
 # 0013. Agent adapters: Claude Code, Codex, Copilot and Cursor profiles, and gateway snippets for the rest
 
-Date: 2026-11-13. Status: accepted (Codex and Cursor details verified locally; Copilot from
+Date: 2026-11-13. Status: accepted, refined by ADR 0032 (Codex and Cursor details verified locally; Copilot from
 its documentation only).
 
 ## Context
