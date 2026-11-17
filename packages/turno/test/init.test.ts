@@ -128,11 +128,46 @@ describe("turno init", () => {
   it("without a terminal it needs --yes, and changes nothing", async () => {
     existingSetup();
     const r = await run(["init"]);
-    expect(r.code).toBe(1);
-    expect(r.err).toMatch(/--yes/);
+    expect(r.code).toBe(2);
+    expect(r.err.split("\n").at(-1)).toBe("turno: init needs an answer; pass --yes (or run it in a terminal)");
     expect(existsSync(cfgFile())).toBe(false);
     expect(existsSync(mcpFile())).toBe(false);
     expect(listJournals(sb.env)).toHaveLength(0);
+  });
+
+  const noInput: [string, string[], NodeJS.ProcessEnv][] = [
+    ["--no-input before the command", ["--no-input", "init"], {}],
+    ["--no-input after it", ["init", "--no-input"], {}],
+    ["TURNO_NO_INPUT=1", ["init"], { TURNO_NO_INPUT: "1" }],
+    ["Claude Code (CLAUDECODE)", ["init"], { CLAUDECODE: "1" }],
+    ["Claude Code (CLAUDE_CODE_CHILD_SESSION)", ["init"], { CLAUDE_CODE_CHILD_SESSION: "1" }],
+    ["Codex (CODEX_THREAD_ID)", ["init"], { CODEX_THREAD_ID: "0199a7c1-0000-7000-8000-000000000000" }],
+    ["Codex (CODEX_SANDBOX)", ["init"], { CODEX_SANDBOX: "seatbelt" }],
+    ["Copilot CLI (COPILOT_CLI)", ["init"], { COPILOT_CLI: "1" }],
+    ["Copilot CLI (COPILOT_AGENT_SESSION_ID)", ["init"], { COPILOT_AGENT_SESSION_ID: "abc" }],
+    ["Cursor (CURSOR_AGENT)", ["init"], { CURSOR_AGENT: "1" }],
+  ];
+  for (const [label, args, env] of noInput) {
+    it(`asks nothing with ${label}: exit 2, names --yes, changes nothing`, async () => {
+      existingSetup();
+      Object.assign(sb.env, env);
+      const io = answering([[/./, "y"]]);
+      const r = await run(args, io);
+      expect(io.asked).toEqual([]);
+      expect(r.code).toBe(2);
+      expect(r.err.split("\n").at(-1)).toBe("turno: init needs an answer; pass --yes (or run it in a terminal)");
+      expect(existsSync(cfgFile())).toBe(false);
+      expect(existsSync(mcpFile())).toBe(false);
+      expect(listJournals(sb.env)).toHaveLength(0);
+    });
+  }
+
+  it("TURNO_NO_INPUT=0 lets a person answer inside an agent session", async () => {
+    existingSetup();
+    Object.assign(sb.env, { CLAUDECODE: "1", TURNO_NO_INPUT: "0" });
+    const io = answering([[/./, "n"]]);
+    await run(["init"], io);
+    expect(io.asked.length).toBeGreaterThan(0);
   });
 
   it("--yes writes config, mcp.toml and profiles as one journal that one undo reverts", async () => {

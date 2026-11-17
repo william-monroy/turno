@@ -98,6 +98,22 @@ describe("turno upgrade --finish and mcp sync", () => {
     expect(token()).toBe("tp1.cx.stale");
   });
 
+  it("does not ask with --no-input or in an agent session: it names the sync", async () => {
+    const token = await staleSetup();
+    const { main } = await import("../src/cli/main.js");
+    for (const [args, env] of [
+      [["upgrade", "--finish", "--no-input"], {}],
+      [["upgrade", "--finish"], { CLAUDECODE: "1" }],
+    ] as const) {
+      const asked: string[] = [];
+      const io = { ...fakeIo({ ...sb.env, ...env }), ask: async (q: string) => (asked.push(q), "y") };
+      expect(await main([...args], io)).toBe(0);
+      expect(asked).toEqual([]);
+      expect(io.lines.join("\n")).toContain("run: turno mcp sync");
+    }
+    expect(token()).toBe("tp1.cx.stale");
+  });
+
   it("asks in a terminal, and --yes runs it without asking", async () => {
     const token = await staleSetup();
     const { finishUpgrade } = await import("../src/cli/commands/upgrade.js");

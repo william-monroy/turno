@@ -43,8 +43,51 @@ export function defaultIo(): Io {
     err: (line = "") => process.stderr.write(`${line}\n`),
     env: process.env,
     isTty: Boolean(process.stdout.isTTY),
-    ...(process.stdin.isTTY && process.stderr.isTTY ? { ask: askStdin } : {}),
+    ...(process.stdin.isTTY && process.stderr.isTTY && !noInputReason(process.env) ? { ask: askStdin } : {}),
   };
+}
+
+/**
+ * The variables each coding agent sets for the commands it runs, by agent id: inside them nobody
+ * reads a question, so turno never asks one. Sources are in ADR 0033. Kept here rather than in
+ * the adapters because every run loads io.ts and it stays free of heavy imports; a test keeps the
+ * ids in step with src/agents.
+ */
+export const AGENT_SESSION_ENV: Readonly<Record<string, readonly string[]>> = {
+  claude: ["CLAUDECODE", "CLAUDE_CODE_CHILD_SESSION"],
+  codex: ["CODEX_THREAD_ID", "CODEX_SANDBOX"],
+  copilot: ["COPILOT_CLI", "COPILOT_AGENT_SESSION_ID"],
+  cursor: ["CURSOR_AGENT"],
+};
+
+const on = (v: string | undefined): boolean => v !== undefined && v !== "" && v !== "0" && v.toLowerCase() !== "false";
+
+/**
+ * The variable that keeps turno from asking anything here (TURNO_NO_INPUT, or an agent's), or
+ * undefined when a person may answer on a terminal. TURNO_NO_INPUT=1 (or --no-input) turns
+ * questions off; TURNO_NO_INPUT=0 allows them inside an agent session, for a person in an
+ * editor terminal that sets an agent variable.
+ */
+export function noInputReason(env: NodeJS.ProcessEnv): string | undefined {
+  const own = env.TURNO_NO_INPUT;
+  if (own !== undefined && own !== "") return on(own) ? "TURNO_NO_INPUT" : undefined;
+  return Object.values(AGENT_SESSION_ENV)
+    .flat()
+    .find((name) => on(env[name]));
+}
+
+/** The same Io without a way to ask. */
+export function withoutAsk(io: Io): Io {
+  const { ask: _ask, ...rest } = io;
+  return rest;
+}
+
+/**
+ * A question nobody can answer here (no terminal, --no-input, an agent session): exit 2 and
+ * name the flag that answers it, the same way for every command.
+ */
+export function needsAnswer(what: string, flag = "--yes"): never {
+  throw new UsageError(`${what} needs an answer; pass ${flag} (or run it in a terminal)`);
 }
 
 /** Ask a yes/no question; false without a person to answer. */

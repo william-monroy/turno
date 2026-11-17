@@ -393,12 +393,33 @@ describe("profile add output and own files (02-H18)", () => {
 
   it("refuses to move your own files without a person or --yes", async () => {
     const r = await run(["profile", "add", "old"]);
-    expect(r.code).toBe(1);
-    expect(r.io.errors[0]).toBe(
-      "turno: ~/.claude-old has its own skills, settings.json. turno moves them to .aside-<time>/ in that folder and links the shared ones instead. Run again with --yes to go ahead.",
-    );
+    expect(r.code).toBe(2);
+    expect(r.io.errors).toEqual([
+      "~/.claude-old has its own skills, settings.json. turno moves them to .aside-<time>/ in that folder and links the shared ones instead.",
+      "turno: profile add needs an answer; pass --yes (or run it in a terminal)",
+    ]);
     expect(readFileSync(cfgFile(), "utf8")).not.toContain("[profiles.old]");
     expect(readdirSync(join(sb.home, ".claude-old")).some((e) => e.startsWith(".aside-"))).toBe(false);
+  });
+
+  it("asks nothing with --no-input or in an agent session, for add and repair", async () => {
+    const cases: [string, string[], NodeJS.ProcessEnv][] = [
+      ["add", ["profile", "add", "old", "--no-input"], {}],
+      ["add", ["profile", "add", "old"], { CURSOR_AGENT: "1" }],
+      ["repair", ["--no-input", "profile", "repair", "old"], {}],
+    ];
+    for (const [sub, args, env] of cases) {
+      const io = asking("y");
+      Object.assign(io.env, env);
+      if (sub === "repair") sb.write(".config/turno/config.toml", "[profiles.old]\n");
+      const r = await run(args, io);
+      expect(io.asked).toEqual([]);
+      expect(r.code).toBe(2);
+      expect(r.io.errors.at(-1)).toBe(`turno: profile ${sub} needs an answer; pass --yes (or run it in a terminal)`);
+      expect(readFileSync(join(sb.home, ".claude-old/settings.json"), "utf8")).toBe('{"mine":true}\n');
+      expect(readdirSync(join(sb.home, ".claude-old")).some((e) => e.startsWith(".aside-"))).toBe(false);
+      delete io.env.CURSOR_AGENT;
+    }
   });
 
   it("asks in a terminal: no leaves everything, yes moves and says where", async () => {

@@ -95,6 +95,14 @@ Llavero de macOS o al Secret Service de Linux. Qué guarda turno y dónde: [SECU
 **¿turno ve mis prompts?** No. Lanza el agente y se hace a un lado. Solo las llamadas a
 herramientas MCP pasan por `mcpd`, en `127.0.0.1` y con un token por perfil.
 
+**¿Pueden usar turno los scripts y los agentes?** Sí. turno solo pregunta cuando hay una
+persona en una terminal: con `--no-input` (o `TURNO_NO_INPUT=1`), cuando stdin no es una
+terminal y dentro de una sesión de agente de Claude Code, Codex, Copilot CLI o Cursor nunca
+pregunta. Un comando que necesitaría preguntar termina con código 2 y nombra la opción que lo
+responde, por ejemplo `turno: init needs an answer; pass --yes (or run it in a terminal)`.
+`TURNO_NO_INPUT=0` te deja responder en la terminal de un editor que define la variable de un
+agente.
+
 **¿Cómo lo deshago?** Cada comando que escribe guarda una copia de lo que cambia:
 `turno undo --list` las muestra y `turno undo <stamp>` las restaura (las copias de más de 30
 días se borran, conservando las 10 más recientes). Para quitar turno, `turno uninstall

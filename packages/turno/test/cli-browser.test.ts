@@ -107,6 +107,16 @@ describe("turno browser", () => {
     expect(JSON.parse(io.lines.join("\n"))).toEqual({ version: 1, results: [] });
   });
 
+  it("asks only when main left a way to ask (a terminal, no --no-input, no agent session)", async () => {
+    const { defaultDeps } = await import("../src/cli/commands/browser.js");
+    expect(defaultDeps.interactive({ ...fakeIo(sb.env), ask: async () => "y" })).toBe(true);
+    expect(defaultDeps.interactive(fakeIo(sb.env))).toBe(false);
+    const { cmd, calls, asked } = setup({ interactive: defaultDeps.interactive }, true);
+    await expect(cmd.run(["bench"], fakeIo(sb.env))).rejects.toThrow("browser bench needs an answer; pass --yes (or run it in a terminal)");
+    expect(calls.bench).toHaveLength(0);
+    expect(asked).toHaveLength(0);
+  });
+
   it("asks in a terminal and opens nothing on no", async () => {
     const { cmd, calls, asked } = setup({ interactive: () => true }, false);
     const io = fakeIo(sb.env);
