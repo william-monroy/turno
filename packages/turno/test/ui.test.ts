@@ -10,7 +10,7 @@ import { NERD } from "../src/statusline/render.js";
 import { codePoints } from "../src/ui/cmap.js";
 import { FALLBACK, type FontSource, checkFonts, fontSource, installFonts, sha256 } from "../src/ui/fonts.js";
 import { Journal } from "../src/core/journal.js";
-import { isTurnoStatusLine, setStatusLine, withNerdTerminals } from "../src/ui/settings.js";
+import { isTurnoStatusLine, setStatusLine, statusLineLabel, withNerdTerminals } from "../src/ui/settings.js";
 import { currentTerminal, nerdHere } from "../src/ui/terminal-id.js";
 import { detectNerdTerminals, isNerdFamily, jsoncGet, jsoncSet, tomlGet, tomlSet } from "../src/ui/terminals.js";
 import { fakeCommand, fakeIo } from "./helpers/cli.js";
@@ -170,6 +170,26 @@ describe("settings", () => {
     expect(setStatusLine(hub, "~/.local/bin/turno statusline", journal).changed).toBe(false);
     expect(isTurnoStatusLine(after.statusLine)).toBe(true);
     expect(isTurnoStatusLine({ type: "command", command: "python3 ~/.claude/statusline-claudio.py" })).toBe(false);
+  });
+
+  it("knows turno's status line when its path is quoted, as turno demo writes it", () => {
+    const cmd = (command: string) => ({ type: "command" as const, command });
+    expect(isTurnoStatusLine(cmd('"/tmp/turno-demo-x/.local/bin/turno" statusline'))).toBe(true);
+    expect(isTurnoStatusLine(cmd("'/opt/my tools/turno' statusline --plain"))).toBe(true);
+    expect(isTurnoStatusLine(cmd("turno statusline"))).toBe(true);
+    expect(isTurnoStatusLine(cmd("myturno statusline"))).toBe(false);
+    expect(isTurnoStatusLine(cmd("turno statuslines"))).toBe(false);
+  });
+
+  it("labels a status line for one row: turno's by name, another tildified, unquoted and cut", () => {
+    const env = { HOME: "/home/alice" };
+    const cmd = (command: string) => ({ type: "command" as const, command });
+    expect(statusLineLabel(cmd('"/tmp/turno-demo-x/.local/bin/turno" statusline'), env)).toBe("turno statusline");
+    expect(statusLineLabel(undefined, env)).toBe("none");
+    expect(statusLineLabel(cmd('python3 "/home/alice/.claude/line.py"'), env)).toBe("python3 ~/.claude/line.py");
+    const long = statusLineLabel(cmd(`node /home/alice/${"x".repeat(80)}.js --flag`), env, 40);
+    expect(long).toHaveLength(40);
+    expect(long).toMatch(/^node ~\/x+\.\.\.$/);
   });
 
   it("sets nerd_terminals before the first table and replaces it later", () => {

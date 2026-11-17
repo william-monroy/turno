@@ -7,7 +7,7 @@ import { paths, tildify } from "../../core/paths.js";
 import { availableUpdate } from "../../core/update.js";
 import { packageInfo } from "../../core/version.js";
 import { FALLBACK, checkFonts, userFontDir } from "../../ui/fonts.js";
-import { currentStatusLine, isTurnoStatusLine } from "../../ui/settings.js";
+import { currentStatusLine, isTurnoStatusLine, statusLineLabel } from "../../ui/settings.js";
 import { currentTerminal, nerdHere } from "../../ui/terminal-id.js";
 import { JSON_FLAG, bool, parseFlags, printJson } from "../args.js";
 import { type Command, type Io, plural } from "../io.js";
@@ -177,7 +177,12 @@ export function renderStatus(d: StatusData, io: Io, opts: { now?: number; colors
   const gateway = d.mcpd.running
     ? `${s.lead("on", "running")} ${s.muted(`on port ${d.mcpd.port}`)}`
     : `${s.lead("off", s.warn("not running"))} ${s.muted("(turno mcp daemon start)")}`;
-  const lineText = d.look.statusLine === "turno" ? "turno status line" : d.look.statusLine ? `status line \`${d.look.statusLine}\`` : "no status line";
+  const lineText =
+    d.look.statusLine === "turno"
+      ? "turno status line"
+      : d.look.statusLine
+        ? `status line ${statusLineLabel({ type: "command", command: d.look.statusLine }, io.env, 40)}`
+        : "no status line";
   const look = [lineText, d.look.font ? "font installed" : `font missing ${s.muted("(turno ui install)")}`, `${d.look.icons} icons here`].join(s.muted(" · "));
   out.push(s.kv("gateway", gateway, 8));
   for (const problem of d.mcpd.problems) out.push(s.wrap(`  ${" ".repeat(8)}  ${s.warn(s.icon("warn"))} `, s.warn(problem)));
