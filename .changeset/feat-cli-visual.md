@@ -1,0 +1,5 @@
+---
+"turno-cli": minor
+---
+
+A visual language for the CLI. `turno` and `turno status` now show sections (Here, Profiles, Machine), each profile as a pill in its own status line color, usage bars colored by level with the time to reset, a gateway icon, and a prominent Next row. `turno help` has section headers, commands in the accent color, an Examples block, and fits the terminal width. `turno init` prints its phases (Found, Plan, Write, Gateway, Sync) with a spinner while the gateway starts, a checklist of synced profiles, the time it took, and a `Try it:` line naming the launcher of the profile the current folder opens. `turno mcp sync` prints one aligned row per config and its timing. `turno undo` sums up each folder in one line (for example `~/.claude-work  23 links removed, settings.json moved back`) and lists every change with `-v`. Tables follow the real terminal width (COLUMNS, then the terminal, 80 otherwise). Without colors (a pipe, NO_COLOR) the same layout prints as plain text with ASCII icons; `--json` output is unchanged. Paths under HOME show as `~` even when HOME has a trailing or doubled slash.

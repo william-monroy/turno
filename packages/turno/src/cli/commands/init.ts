@@ -470,7 +470,7 @@ function printNext(io: Io, plan: Plan, started: boolean, st: Style): void {
   const w = Math.max(...steps.filter(([, why]) => why).map(([c]) => c.length));
   for (const [i, [cmd, why]] of steps.entries()) {
     if (why) io.out(`  ${st.muted(`${i + 1}.`)} ${st.bold(cmd.padEnd(w))}   ${st.muted(`(${why})`)}`);
-    else for (const [k, l] of wrap(cmd, st.width - 5).entries()) io.out(`  ${k ? "  " : st.muted(`${i + 1}.`)} ${l}`);
+    else for (const [k, l] of (st.color ? wrap(cmd, st.width - 5) : [cmd]).entries()) io.out(`  ${k ? "  " : st.muted(`${i + 1}.`)} ${l}`);
   }
   const launcher = tryLauncher(io, plan);
   if (launcher) io.out(`\n${st.lead("next", `${st.bold("Try it:")} ${st.accent(launcher)}`)}`);

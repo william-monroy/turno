@@ -202,6 +202,30 @@ describe("turno init", () => {
     expect(readdirSync(home(".claude-work")).filter((n) => n.startsWith(".aside-"))).toEqual([]);
   });
 
+  it("Try it names the launcher of the profile this folder resolves to, else the first new one", async () => {
+    existingSetup();
+    const saved = process.cwd();
+    process.chdir(home("code/acme/api"));
+    try {
+      // ~/.claude-work was used in ~/code/acme: init makes the rule, so this folder opens work.
+      const r = await run(["init", "--yes", "--no-mcp", "--profile", "lab"]);
+      expect(r.code).toBe(0);
+      expect(r.out).toContain("Try it: claude-work");
+      expect(r.out).toMatch(/^ok Done in \d+(ms|\.\ds)\. Undo all of it with: turno undo \d{8}-\d{6}/m);
+      expect(r.out).toMatch(/^Write\n {2}ok wrote ~\/\.config\/turno\/config\.toml$/m);
+    } finally {
+      process.chdir(saved);
+    }
+    const other = sandbox();
+    try {
+      const io = fakeIo({ ...other.env, PATH: sb.env.PATH });
+      expect(await main(["init", "--yes", "--no-mcp", "--profile", "lab"], io)).toBe(0);
+      expect(io.lines).toContain("Try it: claude-lab");
+    } finally {
+      other.cleanup();
+    }
+  });
+
   it("keeps literal secrets out of the output and says how to move them", async () => {
     existingSetup();
     const r = await run(["init", "--yes"]);
