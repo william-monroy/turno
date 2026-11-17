@@ -369,12 +369,12 @@ describe("first-run paths (02-H12, 02-H13, 02-H14)", () => {
     const checks = (await collectChecks(sb.env)).filter((c) => c.area === "system");
     const by = (cmd: string) => checks.find((c) => c.text.startsWith(`${cmd} `));
     expect(by("claude")?.level).toBe("ok");
-    expect(by("codex")).toMatchObject({ level: "info", text: "codex not installed (npm install --global @openai/codex)" });
+    expect(by("codex")).toMatchObject({ level: "info", text: "codex not installed", hint: "npm install --global @openai/codex" });
     expect(by("copilot")?.level).toBe("info");
     expect(by("cursor-agent")?.level).toBe("info");
     writeFileSync(cfgFile(), `${readFileSync(cfgFile(), "utf8")}\n[profiles.cx]\nagent = "codex"\n`);
     const after = (await collectChecks(sb.env)).find((c) => c.text.startsWith("codex "));
-    expect(after).toMatchObject({ level: "fail", text: "codex not found on PATH, and profiles use it (npm install --global @openai/codex)" });
+    expect(after).toMatchObject({ level: "fail", text: "codex not found on PATH, and profiles use it", hint: "npm install --global @openai/codex" });
   });
 
   it("profile add --agent warns when the agent is not installed", async () => {

@@ -48,7 +48,10 @@ function secretStoreCheck(env: NodeJS.ProcessEnv): Check {
   }
   return check({
     level: usesKeychain ? "fail" : "info",
-    text: `secret store: none found (no security or secret-tool on PATH)${usesKeychain ? "; mcp.toml has keychain: references that cannot resolve" : "; use env:NAME references in mcp.toml"}`,
+    text: `secret store: none found (no security or secret-tool on PATH)${usesKeychain ? "; mcp.toml has keychain: references that cannot resolve" : ""}`,
+    manual: usesKeychain
+      ? "install secret-tool (libsecret), or write env:NAME in place of each keychain: reference in mcp.toml"
+      : "use env:NAME references in mcp.toml",
   });
 }
 
@@ -164,6 +167,7 @@ function permissionChecks(env: NodeJS.ProcessEnv): Check[] {
           foreign.map((f) => f.path),
           env,
         )}`,
+        manual: `give them back to your user: sudo chown -R "$(id -un)" <path> for each one listed`,
       }),
     );
   }
@@ -183,7 +187,8 @@ async function portCheck(env: NodeJS.ProcessEnv): Promise<Check> {
   if (owner.uid !== undefined && uid !== undefined && owner.uid !== uid) {
     return check({
       level: "fail",
-      text: `mcpd port ${port}: held by ${describeOwner(owner)}, another user, so sessions would send it the gateway token. Stop it or move mcpd (turno config set mcpd.port <port>, turno mcp sync), then turno mcp token rotate`,
+      text: `mcpd port ${port}: held by ${describeOwner(owner)}, another user, so sessions would send it the gateway token`,
+      manual: "stop it or move mcpd (turno config set mcpd.port <port>, then turno mcp sync), then turno mcp token rotate",
     });
   }
   const ours = await answersAsMcpd(port, readToken(env, () => {}));
@@ -191,6 +196,7 @@ async function portCheck(env: NodeJS.ProcessEnv): Promise<Check> {
   return check({
     level: "warn",
     text: `mcpd port ${port}: held by ${describeOwner(owner)}, which does not answer as mcpd, so sessions would send it the gateway token`,
+    manual: "stop that process, or move mcpd: turno config set mcpd.port <port>, then turno mcp sync",
   });
 }
 
@@ -288,7 +294,8 @@ async function secretChecks(env: NodeJS.ProcessEnv, config: Config | undefined):
     out.push(
       check({
         level: "warn",
-        text: `literal secrets in ${tildify(p.mcpFile, env)}: ${inManifest.join(", ")} (store each with turno secret set <name> and write keychain:<name> in its place; args and URLs cannot, see docs/mcp.md)`,
+        text: `literal secrets in ${tildify(p.mcpFile, env)}: ${inManifest.join(", ")}`,
+        manual: "store each with turno secret set <name> and write keychain:<name> in its place (args and URLs cannot hold references; see docs/mcp.md)",
       }),
     );
   }
@@ -302,7 +309,8 @@ async function secretChecks(env: NodeJS.ProcessEnv, config: Config | undefined):
     out.push(
       check({
         level: "warn",
-        text: `literal secrets in ${tildify(file, env)}: ${found.join(", ")} (turno mcp import --write --move-secrets, then turno mcp sync, moves them to the secret store)`,
+        text: `literal secrets in ${tildify(file, env)}: ${found.join(", ")}`,
+        hint: "turno mcp import --write --move-secrets && turno mcp sync",
       }),
     );
   }
@@ -346,7 +354,8 @@ async function backupChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
   return [
     check({
       level: "warn",
-      text: `${holding.length} backup${holding.length === 1 ? "" : "s"} in ${tildify(dir, env)} hold configs with literal secrets (oldest ${holding[0]}); backups are pruned after 30 days, sooner with turno undo --prune --older-than 1d`,
+      text: `${holding.length} backup${holding.length === 1 ? "" : "s"} in ${tildify(dir, env)} hold configs with literal secrets (oldest ${holding[0]}); backups are pruned after 30 days`,
+      hint: "turno undo --prune --older-than 1d",
     }),
   ];
 }
@@ -396,13 +405,18 @@ async function versionChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
   }
   const serversDir = paths(env).serversDir;
   const loose: string[] = [];
+  /** Loose servers that `turno mcp install` can pin (an npm package); the others need an edit. */
+  const pinnable: string[] = [];
   const runtime: string[] = [];
   let stdio = 0;
   for (const s of Object.values(manifest.servers)) {
     if (s.kind !== "stdio" || s.builtin) continue;
     stdio++;
     if (s.package) {
-      if (!isExactNpmSpec(s.package)) loose.push(`${s.name} (package ${s.package}; turno mcp install ${s.name} pins it)`);
+      if (!isExactNpmSpec(s.package)) {
+        loose.push(`${s.name} (package ${s.package})`);
+        pinnable.push(s.name);
+      }
       else if (!existsSync(join(serversDir, s.name, "node_modules", ".bin", s.command))) runtime.push(s.name);
       continue;
     }
@@ -415,8 +429,19 @@ async function versionChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
     }
   }
   const out: Check[] = [];
-  if (loose.length) out.push(check({ level: "warn", text: `MCP servers without an exact version: ${loose.join("; ")}` }));
-  if (runtime.length) out.push(check({ level: "info", text: `pinned but not installed, so npx downloads them at each start: ${runtime.join(", ")} (turno mcp install)` }));
+  if (loose.length) {
+    const all = pinnable.length === loose.length;
+    out.push(
+      check({
+        level: "warn",
+        text: `MCP servers without an exact version: ${loose.join("; ")}`,
+        ...(all
+          ? { hint: `turno mcp install ${pinnable.join(" ")}` }
+          : { manual: `write an exact version (pkg@1.2.3) in each command in mcp.toml${pinnable.length ? `; turno mcp install ${pinnable.join(" ")} pins the npm packages` : ""}` }),
+      }),
+    );
+  }
+  if (runtime.length) out.push(check({ level: "info", text: `pinned but not installed, so npx downloads them at each start: ${runtime.join(", ")}`, hint: "turno mcp install" }));
   if (!loose.length && stdio) out.push(check({ level: "ok", text: `every stdio MCP server runs an exact version or a fixed command (${stdio})` }));
   return out;
 }
@@ -460,7 +485,8 @@ function tokenAgeCheck(env: NodeJS.ProcessEnv, now = Date.now()): Check[] {
     out.push(
       check({
         level: "warn",
-        text: `the mcpd token is ${days} days old (more than ${TOKEN_MAX_AGE_DAYS})${derived}; rotate it: turno mcp token rotate, then turno mcp sync`,
+        text: `the mcpd token is ${days} days old (more than ${TOKEN_MAX_AGE_DAYS})${derived}`,
+        hint: "turno mcp token rotate && turno mcp sync",
       }),
     );
   } else out.push(check({ level: "ok", text: `the mcpd token is ${days} day${days === 1 ? "" : "s"} old${derived}` }));
@@ -469,7 +495,8 @@ function tokenAgeCheck(env: NodeJS.ProcessEnv, now = Date.now()): Check[] {
     out.push(
       check({
         level: "warn",
-        text: `${stale.length} profile token file${one ? " predates" : "s predate"} the mcpd token, so ${one ? "its agent" : "their agents"} cannot reach mcpd (${listPaths(stale, env)}); run turno mcp sync`,
+        text: `${stale.length} profile token file${one ? " predates" : "s predate"} the mcpd token, so ${one ? "its agent" : "their agents"} cannot reach mcpd (${listPaths(stale, env)})`,
+        hint: "turno mcp sync",
       }),
     );
   }
@@ -483,11 +510,15 @@ function auditCheck(env: NodeJS.ProcessEnv): Check | undefined {
   try {
     v = verifyAudit(env);
   } catch (err) {
-    return check({ level: "warn", text: `audit log: cannot read it: ${(err as Error).message}` });
+    return check({ level: "warn", text: `audit log: cannot read it: ${(err as Error).message}`, manual: `check the owner and mode of ${tildify(paths(env).auditLog, env)} (yours, 600)` });
   }
   if (v.lines === 0) return undefined;
   if (!v.ok) {
-    return check({ level: "fail", text: `audit log: line ${v.line}: ${v.reason} (turno identity log --verify)` });
+    return check({
+      level: "fail",
+      text: `audit log: line ${v.line}: ${v.reason}`,
+      manual: `find out who changed ${tildify(paths(env).auditLog, env)} after it was written; turno identity log --verify shows the line`,
+    });
   }
   return check({ level: "ok", text: `audit log: hash chain intact (${v.lines} line${v.lines === 1 ? "" : "s"}${v.legacy ? `, ${v.legacy} before the chain` : ""})` });
 }

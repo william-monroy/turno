@@ -12,7 +12,12 @@ import { profileTokenFile, tokenProfile } from "./tokens.js";
 export interface McpdCheck {
   level: "ok" | "warn" | "fail" | "info";
   text: string;
+  /** A repair `turno doctor --fix` runs; its label is the command a person would type. */
   fix?: { label: string; run(io: Io): Promise<unknown> | unknown };
+  /** A command that fixes it, which a person runs (doctor --fix does not). */
+  hint?: string;
+  /** The manual step, when no single command fixes it. */
+  manual?: string;
 }
 
 const startFix = {
@@ -56,7 +61,7 @@ function tokenCheck(env: NodeJS.ProcessEnv): McpdCheck | undefined {
   try {
     const st = statSync(file);
     const uid = process.getuid?.();
-    if (uid !== undefined && st.uid !== uid) return { level: "fail", text: `mcpd: ${tildify(file, env)} belongs to uid ${st.uid}` };
+    if (uid !== undefined && st.uid !== uid) return { level: "fail", text: `mcpd: ${tildify(file, env)} belongs to uid ${st.uid}`, hint: `sudo chown "$(id -un)" ${tildify(file, env)}` };
     if (st.mode & 0o077) {
       return {
         level: "warn",
@@ -77,7 +82,7 @@ async function portChecks(env: NodeJS.ProcessEnv): Promise<McpdCheck[]> {
   const port = mcpdPort(env);
   const token = readToken(env, () => {});
   if (!token) {
-    out.push({ level: "info", text: `mcpd: no token at ${tildify(paths(env).mcpdToken, env)} (not started yet: turno mcp daemon start)` });
+    out.push({ level: "info", text: `mcpd: no token at ${tildify(paths(env).mcpdToken, env)}, so it has not started yet`, hint: "turno mcp daemon start" });
     return out;
   }
   const ours = await answersAsMcpd(port, token);
@@ -85,15 +90,21 @@ async function portChecks(env: NodeJS.ProcessEnv): Promise<McpdCheck[]> {
   const uid = process.getuid?.();
   if (ours) {
     if (owner?.uid !== undefined && uid !== undefined && owner.uid !== uid) {
-      out.push({ level: "fail", text: `mcpd: port ${port} answers with your token but belongs to uid ${owner.uid}; rotate it: turno mcp token rotate` });
+      out.push({ level: "fail", text: `mcpd: port ${port} answers with your token but belongs to uid ${owner.uid}`, hint: "turno mcp token rotate" });
     } else if (owner?.pid !== undefined && ours.pid !== undefined && owner.pid !== ours.pid) {
-      out.push({ level: "warn", text: `mcpd: port ${port} is held by pid ${owner.pid}, but mcpd reports pid ${ours.pid}` });
+      out.push({ level: "warn", text: `mcpd: port ${port} is held by pid ${owner.pid}, but mcpd reports pid ${ours.pid}`, hint: "turno mcp daemon restart" });
     } else out.push({ level: "ok", text: `mcpd: reachable on port ${port}${ours.pid ? ` (pid ${ours.pid})` : ""}` });
     try {
       const res = await fetch(`http://127.0.0.1:${port}/status`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(2000) });
       const s = (await res.json()) as { manifest?: { source: string; error: string | null }; config?: { error: string | null } };
-      if (s.manifest?.error) out.push({ level: "warn", text: `mcpd: mcp.toml is invalid, serving the ${s.manifest.source}: ${s.manifest.error}` });
-      if (s.config?.error) out.push({ level: "warn", text: `mcpd: config.toml is invalid, mcpd uses defaults: ${s.config.error}` });
+      if (s.manifest?.error) {
+        out.push({
+          level: "warn",
+          text: `mcpd: mcp.toml is invalid, serving the ${s.manifest.source}: ${s.manifest.error}`,
+          manual: `correct ${tildify(paths(env).mcpFile, env)} where the error points, then turno mcp daemon restart`,
+        });
+      }
+      if (s.config?.error) out.push({ level: "warn", text: `mcpd: config.toml is invalid, mcpd uses defaults: ${s.config.error}`, hint: "turno config edit" });
     } catch {
       /* answered a moment ago; nothing more to add */
     }
@@ -101,11 +112,15 @@ async function portChecks(env: NodeJS.ProcessEnv): Promise<McpdCheck[]> {
   }
   const configured = loadConfigSafe(env).config.mcpd.port;
   if (owner) {
-    out.push({ level: "fail", text: `mcpd: port ${port} is in use by ${describeOwner(owner)}, so mcpd cannot listen there (free it, or turno config set mcpd.port <port> and turno mcp sync)` });
-  } else out.push({ level: "info", text: `mcpd: not reachable on port ${port} (turno mcp daemon start)` });
+    out.push({
+      level: "fail",
+      text: `mcpd: port ${port} is in use by ${describeOwner(owner)}, so mcpd cannot listen there`,
+      manual: "stop that process, or move mcpd: turno config set mcpd.port <port>, then turno mcp sync",
+    });
+  } else out.push({ level: "info", text: `mcpd: not reachable on port ${port}`, hint: "turno mcp daemon start" });
   if (configured !== port) out.push({ level: "info", text: `mcpd: config.toml says port ${configured}, the last mcpd used ${port}` });
   const e = readStartError(env);
-  if (e) out.push({ level: "warn", text: `mcpd: last start failed at ${e.at}: ${e.message}` });
+  if (e) out.push({ level: "warn", text: `mcpd: last start failed at ${e.at}: ${e.message}`, hint: "turno mcp daemon start" });
   const lock = readLock(env);
   if (lock) out.push({ level: "info", text: `mcpd: stale lock from pid ${lock.pid} in ${tildify(daemonFiles(env).lock, env)} (the next start clears it)` });
   return out;
@@ -206,7 +221,7 @@ export async function mcpdChecks(env: NodeJS.ProcessEnv): Promise<McpdCheck[]> {
   try {
     out.push(...(await serviceChecks(env)));
   } catch (err) {
-    out.push({ level: "warn", text: `mcpd: cannot read the service file: ${(err as Error).message}` });
+    out.push({ level: "warn", text: `mcpd: cannot read the service file: ${(err as Error).message}`, hint: "turno mcp daemon start" });
   }
   const t = tokenCheck(env);
   if (t) out.push(t);
