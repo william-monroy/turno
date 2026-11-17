@@ -11,6 +11,7 @@ import { resolveRecord } from "../core/secrets.js";
 import { type DescriptionCache, type ServerDescription, fingerprint } from "./cache.js";
 import type { CallEvent } from "./calllog.js";
 import { ErrorCode, type Id, rpcError, type Outcome } from "./jsonrpc.js";
+import { type PressureLevel, type PressureProbe, effectiveIdle } from "./pressure.js";
 import { type ClientPort, Upstream } from "./upstream.js";
 
 const run = promisify(execFile);
@@ -38,6 +39,11 @@ export interface ClientContext {
 export interface ClientHandle extends ClientPort {
   ctx: ClientContext;
   lastSeen: number;
+  /**
+   * A 2026-07-28 `subscriptions/listen` stream (ADR 0028): it gets the resource list changes of
+   * its server even though it never joined an instance.
+   */
+  listening?: boolean;
 }
 
 /** Builds the transport for a server; injectable so tests and builtins can plug in. */
@@ -94,6 +100,10 @@ export interface ManagerOptions {
   breakerBaseMs?: number;
   /** Called after every relayed request settles (the call log, ADR 0026). Must not throw. */
   onCall?: (event: CallEvent) => void;
+  /** Reads memory pressure before each reap (ADR 0028); without it the pressure is always normal. */
+  pressure?: PressureProbe;
+  /** Idle limit in seconds while memory is tight (`[mcpd] idle_under_pressure`); 0 or unset turns it off. */
+  idleUnderPressure?: number;
 }
 
 export function processAlive(pid: number): boolean {
@@ -209,10 +219,15 @@ export class InstanceManager {
   private manifest?: () => Manifest;
   private readonly isAlive: (pid: number) => boolean;
   private readonly now: () => number;
+  /** When this manager started: descriptions relisted since then were checked against a running server. */
+  readonly bornAt: number;
+  /** The memory pressure seen by the last reap. */
+  pressureLevel: PressureLevel = "normal";
 
   constructor(private readonly opts: ManagerOptions) {
     this.isAlive = opts.isAlive ?? processAlive;
     this.now = opts.now ?? Date.now;
+    this.bornAt = this.now();
     if (opts.manifest) this.manifest = opts.manifest;
   }
 
@@ -289,6 +304,17 @@ export class InstanceManager {
       p.finally(() => this.describing.delete(descKey)).catch(() => {});
     }
     return p;
+  }
+
+  /** The cached description for this client's server, without starting anything. */
+  cachedDescription(client: ClientHandle): ServerDescription | undefined {
+    const { descKey, variant, server } = this.keyOf(client.ctx);
+    return this.opts.cache.get(descKey, descriptionFingerprint(server, variant));
+  }
+
+  /** Whether a description was relisted from a running server since this manager started. */
+  verified(d: ServerDescription): boolean {
+    return d.updatedAt >= this.bornAt;
   }
 
   /** The instance that serves a real request from this client (starts it, checks leases). */
@@ -556,8 +582,10 @@ export class InstanceManager {
       return;
     }
     if (method === "notifications/resources/list_changed") {
-      // Resources are not cached: tell this instance's clients, then refresh the templates quietly.
-      for (const c of inst.clients) c.notify(method, params);
+      // Resources are not cached: tell this instance's clients (and listen streams), then refresh the templates quietly.
+      const targets = new Set<ClientHandle>(inst.clients);
+      for (const c of this.clientsOf(inst.descKey)) if (c.listening) targets.add(c);
+      for (const c of targets) c.notify(method, params);
       this.relist(inst, [method]).catch((err) => this.opts.log?.(`refresh ${inst.upstream.label} failed: ${(err as Error).message}`));
       return;
     }
@@ -588,9 +616,35 @@ export class InstanceManager {
     return def !== undefined && definitionFingerprint(def) === inst.defFp;
   }
 
-  /** Stop instances whose owner died, whose definition changed, or that sat idle too long; forget dead clients. */
+  /** Read memory pressure; a failing probe counts as normal. Logs when the level changes. */
+  private async pressure(): Promise<PressureLevel> {
+    let level: PressureLevel = "normal";
+    if (this.opts.pressure && (this.opts.idleUnderPressure ?? 0) > 0) {
+      try {
+        level = await this.opts.pressure();
+      } catch {
+        level = "normal";
+      }
+    }
+    if (level !== this.pressureLevel) {
+      const under = this.opts.idleUnderPressure ?? 0;
+      this.opts.log?.(
+        level === "normal"
+          ? "memory pressure is normal again: servers keep their own idle limits"
+          : `memory pressure is ${level}: idle servers stop after ${effectiveIdle(Number.POSITIVE_INFINITY, level, under)}s at most`,
+      );
+      this.pressureLevel = level;
+    }
+    return level;
+  }
+
+  /**
+   * Stop instances whose owner died, whose definition changed, or that sat idle too long; forget
+   * dead clients. Under memory pressure the idle limit shrinks (ADR 0028).
+   */
   async reap(): Promise<string[]> {
     const stopped: string[] = [];
+    const level = await this.pressure();
     for (const c of [...this.clients]) {
       if (c.ctx.pid && !this.isAlive(c.ctx.pid)) this.detach(c);
     }
@@ -602,13 +656,16 @@ export class InstanceManager {
       const stale = quiet && !this.current(inst);
       // A session server lives as long as its session: its state (a browser, a login) is the point.
       const idleApplies = !(inst.scope === "session" && ownerAlive);
-      const idle = idleApplies && quiet && this.now() - inst.upstream.lastActivity > inst.server.idle * 1000;
+      const limit = effectiveIdle(inst.server.idle, level, this.opts.idleUnderPressure ?? 0);
+      const idleFor = this.now() - inst.upstream.lastActivity;
+      const idle = idleApplies && quiet && idleFor > limit * 1000;
       if (ownerDead || stale || idle) {
+        const why = ownerDead ? "owner exited" : stale ? "definition changed" : idleFor > inst.server.idle * 1000 ? "idle" : "idle (memory pressure)";
         this.instances.delete(inst.key);
         // That key never comes back (dead PID, old definition): forget its start count.
         if (ownerDead || stale) this.starts.delete(inst.key);
         await inst.upstream.close();
-        stopped.push(`${inst.upstream.label}: ${ownerDead ? "owner exited" : stale ? "definition changed" : "idle"}`);
+        stopped.push(`${inst.upstream.label}: ${why}`);
       }
     }
     return stopped;

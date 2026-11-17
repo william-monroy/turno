@@ -131,7 +131,17 @@ mcpd. With secret headers it is proxied, so the secret stays in the Keychain.
   not keep the server alive.
 - Stops instances idle for longer than `idle`, session instances whose launcher PID died, and
   instances whose definition changed in `mcp.toml`. Open sessions use the new definition on
-  their next call.
+  their next call. When memory is tight (the kernel pressure level on macOS, PSI on Linux, else
+  free memory), the idle limit shrinks to `idle_under_pressure` under `[mcpd]` in config.toml
+  (default `"5m"`, a quarter of it when pressure is critical, `false` turns it off). A session
+  server whose launcher still runs is kept either way.
+- Speaks two MCP revisions on the same endpoint: 2025-11-25 sessions (`initialize`,
+  `Mcp-Session-Id`) and 2026-07-28 stateless requests (`MCP-Protocol-Version: 2026-07-28`,
+  `Mcp-Method` and `Mcp-Name` headers, `server/discover`, `subscriptions/listen`). List results
+  for 2026-07-28 clients carry `ttlMs` (5 minutes once a running server confirmed the list since
+  mcpd started, else 0) and `cacheScope = "private"`. Servers behind mcpd are still spoken to as
+  2025-11-25. A 2026-07-28 client cannot answer elicitation or sampling through mcpd yet; see
+  [ADR 0028](decisions/0028-mcp-2026-07-28-and-memory-pressure-idle.md).
 - After 3 failed starts in a row, answers at once with the last lines of the server's log and
   retries with a growing delay (5 s, doubling, up to 5 minutes).
 - Rebuilds a session it does not know (mcpd restarted) from the request headers instead of

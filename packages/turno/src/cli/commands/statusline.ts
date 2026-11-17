@@ -324,7 +324,7 @@ const FALLBACK_CONFIG: Config = {
   agents: {},
   projects: [],
   open: { chromeDir: "" },
-  mcpd: { port: 47821, callLog: true },
+  mcpd: { port: 47821, callLog: true, idleUnderPressure: 300 },
 };
 
 /**
