@@ -48,9 +48,10 @@ export interface Config {
   open: { chromeDir: string };
   /**
    * `port` of the gateway; whether mcpd keeps the call log (ADR 0026); `maxRequestBody`, the
-   * largest request body mcpd accepts in bytes (unset: the gateway default, 32 MiB).
+   * largest request body mcpd accepts in bytes (unset: the gateway default, 32 MiB);
+   * `idleUnderPressure`, the idle limit in seconds while memory is tight (ADR 0028; 0 is off).
    */
-  mcpd: { port: number; callLog: boolean; maxRequestBody?: number };
+  mcpd: { port: number; callLog: boolean; maxRequestBody?: number; idleUnderPressure: number };
   /** Keys turno does not know (likely typos), with a suggestion when one is close. */
   warnings?: string[];
 }
@@ -62,7 +63,7 @@ export const KNOWN_KEYS: Record<string, readonly string[]> = {
   "agents.*": ["default", "fallback"],
   "projects[]": ["path", "profile"],
   open: ["chrome_dir"],
-  mcpd: ["port", "call_log", "max_request_body"],
+  mcpd: ["port", "call_log", "max_request_body", "idle_under_pressure"],
 };
 
 const SIZE_UNITS: Record<string, number> = { "": 1, b: 1, k: 1024, kb: 1000, kib: 1024, m: 1024 ** 2, mb: 1000 ** 2, mib: 1024 ** 2, g: 1024 ** 3, gb: 1000 ** 3, gib: 1024 ** 3 };
@@ -88,6 +89,27 @@ export function requestBodyProblem(v: unknown): string | undefined {
   if (n === undefined || n < MIN_REQUEST_BODY || n > MAX_REQUEST_BODY) return 'mcpd.max_request_body must be a size between 1MiB and 1GiB, in bytes or like "64MiB"';
   return undefined;
 }
+
+/** Default of `mcpd.idle_under_pressure`, in seconds. */
+export const DEFAULT_IDLE_UNDER_PRESSURE = 300;
+
+/**
+ * `mcpd.idle_under_pressure` in seconds: a duration ("5m", "90s", "1h" or seconds) between 30
+ * seconds and 24 hours, `false` (0, off) or `true` (the default). Undefined when invalid.
+ */
+export function parseIdleUnderPressure(v: unknown): number | undefined {
+  if (v === false) return 0;
+  if (v === true) return DEFAULT_IDLE_UNDER_PRESSURE;
+  let secs: number | undefined;
+  if (typeof v === "number") secs = v;
+  else if (typeof v === "string") {
+    const m = /^(\d+(?:\.\d+)?)\s*(s|m|h)?$/.exec(v.trim());
+    if (m) secs = Number(m[1]) * (m[2] === "h" ? 3600 : m[2] === "m" ? 60 : 1);
+  }
+  return secs !== undefined && Number.isFinite(secs) && secs >= 30 && secs <= 24 * 3600 ? secs : undefined;
+}
+
+export const IDLE_UNDER_PRESSURE_PROBLEM = 'mcpd.idle_under_pressure must be a duration between 30s and 24h, like "5m", or false';
 
 /** The known key closest to `key`, when it is a likely typo (or `colour` for `color`). */
 export function suggestKey(key: string, known: readonly string[]): string | undefined {
@@ -161,7 +183,7 @@ export function parseConfig(text: string, path = "config.toml", env: NodeJS.Proc
     agents: {},
     projects: [],
     open: { chromeDir: p.chromeProfilesDir },
-    mcpd: { port: 47821, callLog: true },
+    mcpd: { port: 47821, callLog: true, idleUnderPressure: DEFAULT_IDLE_UNDER_PRESSURE },
     warnings,
   };
   cfg.system = str(raw.system, file, "system");
@@ -252,6 +274,11 @@ export function parseConfig(text: string, path = "config.toml", env: NodeJS.Proc
     const problem = requestBodyProblem(mcpd.max_request_body);
     if (problem) throw new ConfigError(file, problem);
     cfg.mcpd.maxRequestBody = parseSize(mcpd.max_request_body)!;
+  }
+  if (mcpd.idle_under_pressure !== undefined) {
+    const secs = parseIdleUnderPressure(mcpd.idle_under_pressure);
+    if (secs === undefined) throw new ConfigError(file, IDLE_UNDER_PRESSURE_PROBLEM);
+    cfg.mcpd.idleUnderPressure = secs;
   }
   return cfg;
 }

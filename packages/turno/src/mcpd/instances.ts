@@ -11,6 +11,7 @@ import { resolveRecord } from "../core/secrets.js";
 import { type DescriptionCache, type ServerDescription, fingerprint } from "./cache.js";
 import type { CallEvent } from "./calllog.js";
 import { ErrorCode, type Id, rpcError, type Outcome } from "./jsonrpc.js";
+import { type PressureLevel, type PressureProbe, effectiveIdle } from "./pressure.js";
 import { type ClientPort, Upstream } from "./upstream.js";
 
 const run = promisify(execFile);
@@ -94,6 +95,10 @@ export interface ManagerOptions {
   breakerBaseMs?: number;
   /** Called after every relayed request settles (the call log, ADR 0026). Must not throw. */
   onCall?: (event: CallEvent) => void;
+  /** Reads memory pressure before each reap (ADR 0028); without it the pressure is always normal. */
+  pressure?: PressureProbe;
+  /** Idle limit in seconds while memory is tight (`[mcpd] idle_under_pressure`); 0 or unset turns it off. */
+  idleUnderPressure?: number;
 }
 
 export function processAlive(pid: number): boolean {
@@ -209,6 +214,8 @@ export class InstanceManager {
   private manifest?: () => Manifest;
   private readonly isAlive: (pid: number) => boolean;
   private readonly now: () => number;
+  /** The memory pressure seen by the last reap. */
+  pressureLevel: PressureLevel = "normal";
 
   constructor(private readonly opts: ManagerOptions) {
     this.isAlive = opts.isAlive ?? processAlive;
@@ -588,9 +595,35 @@ export class InstanceManager {
     return def !== undefined && definitionFingerprint(def) === inst.defFp;
   }
 
-  /** Stop instances whose owner died, whose definition changed, or that sat idle too long; forget dead clients. */
+  /** Read memory pressure; a failing probe counts as normal. Logs when the level changes. */
+  private async pressure(): Promise<PressureLevel> {
+    let level: PressureLevel = "normal";
+    if (this.opts.pressure && (this.opts.idleUnderPressure ?? 0) > 0) {
+      try {
+        level = await this.opts.pressure();
+      } catch {
+        level = "normal";
+      }
+    }
+    if (level !== this.pressureLevel) {
+      const under = this.opts.idleUnderPressure ?? 0;
+      this.opts.log?.(
+        level === "normal"
+          ? "memory pressure is normal again: servers keep their own idle limits"
+          : `memory pressure is ${level}: idle servers stop after ${effectiveIdle(Number.POSITIVE_INFINITY, level, under)}s at most`,
+      );
+      this.pressureLevel = level;
+    }
+    return level;
+  }
+
+  /**
+   * Stop instances whose owner died, whose definition changed, or that sat idle too long; forget
+   * dead clients. Under memory pressure the idle limit shrinks (ADR 0028).
+   */
   async reap(): Promise<string[]> {
     const stopped: string[] = [];
+    const level = await this.pressure();
     for (const c of [...this.clients]) {
       if (c.ctx.pid && !this.isAlive(c.ctx.pid)) this.detach(c);
     }
@@ -602,13 +635,16 @@ export class InstanceManager {
       const stale = quiet && !this.current(inst);
       // A session server lives as long as its session: its state (a browser, a login) is the point.
       const idleApplies = !(inst.scope === "session" && ownerAlive);
-      const idle = idleApplies && quiet && this.now() - inst.upstream.lastActivity > inst.server.idle * 1000;
+      const limit = effectiveIdle(inst.server.idle, level, this.opts.idleUnderPressure ?? 0);
+      const idleFor = this.now() - inst.upstream.lastActivity;
+      const idle = idleApplies && quiet && idleFor > limit * 1000;
       if (ownerDead || stale || idle) {
+        const why = ownerDead ? "owner exited" : stale ? "definition changed" : idleFor > inst.server.idle * 1000 ? "idle" : "idle (memory pressure)";
         this.instances.delete(inst.key);
         // That key never comes back (dead PID, old definition): forget its start count.
         if (ownerDead || stale) this.starts.delete(inst.key);
         await inst.upstream.close();
-        stopped.push(`${inst.upstream.label}: ${ownerDead ? "owner exited" : stale ? "definition changed" : "idle"}`);
+        stopped.push(`${inst.upstream.label}: ${why}`);
       }
     }
     return stopped;

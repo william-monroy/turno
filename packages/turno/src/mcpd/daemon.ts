@@ -29,6 +29,7 @@ import { type BuiltinFactory, DefaultConnector } from "./connectors.js";
 import { Gateway, type GatewayOptions } from "./gateway.js";
 import { InstanceManager, descriptionFingerprint, processAlive } from "./instances.js";
 import { describeOwner, peerPid, portOwner } from "./peerpid.js";
+import { memoryPressureProbe } from "./pressure.js";
 import { RssSampler } from "./rss.js";
 
 /** Files mcpd keeps in the state folder besides `mcpd.token` and `mcpd.port`. */
@@ -534,6 +535,8 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
       home: p.home,
       log,
       ...(calls ? { onCall: (e) => calls.record(e) } : {}),
+      pressure: memoryPressureProbe(),
+      idleUnderPressure: config.mcpd.idleUnderPressure,
     });
     const gwOpts: GatewayOptions = {
       manager,
