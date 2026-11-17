@@ -80,13 +80,21 @@ describe("doctor shared links", () => {
     sb.write(".claude-work/mystery", "");
     const io = fakeIo(sb.env);
     await doctor(io);
-    expect(io.lines).toEqual(
-      expect.arrayContaining([
-        "warn  profile work: skills is a local copy, not shared  [fix: turno profile repair work]",
-        "warn  profile work: missing link for CLAUDE.md  [fix: turno profile repair work]",
-        "info  profile work: mystery is new and unclassified: decide whether to share it",
-      ]),
+    const out = io.lines.join("\n");
+    // One fix line after the run of rows it repairs; plain text names the profile on every row.
+    expect(out).toMatch(
+      new RegExp(
+        [
+          "^ {2}! {2}work +skills is a local copy, not shared",
+          " {2}! {2}work +missing link for CLAUDE\\.md",
+          " {5}fix: turno profile repair work \\(turno doctor --fix runs it\\)",
+          " {2}- {2}work +mystery is new and unclassified: decide whether to share it$",
+        ].join("\n"),
+        "m",
+      ),
     );
+    expect(out).toMatch(/^\d+ ok, \d+ warnings?, \d+ skipped in \d/m);
+    expect(out).toMatch(/^Next {2}turno doctor --fix {2}repairs /m);
     expect(io.lines.some((l) => l.includes("history.jsonl"))).toBe(false);
     const fixed = fakeIo(sb.env);
     await doctor(fixed, { fix: true });
@@ -99,7 +107,7 @@ describe("doctor", () => {
   it("passes with claude on PATH and generated launchers", async () => {
     const io = fakeIo(sb.env);
     expect(await doctor(io)).toBe(0);
-    expect(io.lines.some((l) => /^ok {4}profile work: launcher ok$/.test(l))).toBe(true);
+    expect(io.lines.some((l) => /^ {2}ok work +launcher ok$/.test(l))).toBe(true);
     expect(io.lines.some((l) => l.includes("mcpd: no token"))).toBe(true);
   });
 

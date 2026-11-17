@@ -261,7 +261,8 @@ describe("turno doctor --security and profile tokens", () => {
     checks = await securityChecks(sb.env);
     const stale = checks.find((c) => c.text.includes("predate"));
     expect(stale).toMatchObject({ level: "warn" });
-    expect(stale!.text).toBe("1 profile token file predates the mcpd token, so its agent cannot reach mcpd (~/.local/state/turno/mcpd-tokens/old.token); run turno mcp sync");
+    expect(stale!.text).toBe("1 profile token file predates the mcpd token, so its agent cannot reach mcpd (~/.local/state/turno/mcpd-tokens/old.token)");
+    expect(stale!.hint).toBe("turno mcp sync");
   });
 });
 

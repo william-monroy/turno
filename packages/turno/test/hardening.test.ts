@@ -84,7 +84,7 @@ describe("turno doctor --security", () => {
     chmodSync(state("usage"), 0o755);
     const before = await security();
     const line = before.lines.find((l) => l.includes("permissions:"))!;
-    expect(line).toMatch(/^warn/);
+    expect(line).toMatch(/^ {2}! +permissions:/);
     expect(line).toContain("~/.local/state/turno/usage/work.json");
     expect(before.lines.join("\n")).toContain("turno doctor --security --fix");
 
@@ -92,7 +92,7 @@ describe("turno doctor --security", () => {
     expect(after.lines.join("\n")).toContain("narrowed");
     expect(mode(state("usage/work.json"))).toBe(0o600);
     expect(mode(state("usage"))).toBe(0o700);
-    expect(after.lines.find((l) => l.includes("permissions:"))).toMatch(/^ok .*only you can read/);
+    expect(after.lines.find((l) => l.includes("permissions:"))).toMatch(/^ {2}ok .*only you can read/);
   });
 
   it("fails when other users can write into turno's folders, and skips npm installs", async () => {
@@ -101,7 +101,7 @@ describe("turno doctor --security", () => {
     chmodSync(cfg(""), 0o777);
     const { code, lines } = await security();
     expect(code).toBe(1);
-    expect(lines.find((l) => l.includes("permissions:"))).toMatch(/^FAIL.*can be changed by other users: ~\/\.config\/turno/);
+    expect(lines.find((l) => l.includes("permissions:"))).toMatch(/^ {2}x +permissions: .*can be changed by other users: ~\/\.config\/turno/);
     expect(scanPermissions(sb.env).wide.map((f) => f.path)).not.toContain(join(sb.home, ".local/share/turno/servers/fx/node_modules/pkg/index.js"));
   });
 
@@ -142,7 +142,8 @@ describe("turno doctor --security", () => {
       0o600,
     );
     const text = (await security()).lines.join("\n");
-    expect(text).toContain("loose (package loose-mcp@^1.2.0; turno mcp install loose pins it)");
+    expect(text).toContain("loose (package loose-mcp@^1.2.0)");
+    expect(text).toContain("manual: write an exact version (pkg@1.2.3) in each command in mcp.toml; turno mcp install loose pins the npm packages");
     expect(text).toContain("npx (npx @scope/fresh-mcp fetches the newest version at each start)");
     expect(text).not.toMatch(/pinned \(|uv \(/);
     expect(text).toContain("pinned but not installed, so npx downloads them at each start: fixed");
@@ -156,7 +157,7 @@ describe("turno doctor --security", () => {
     expect((await security()).lines.join("\n")).toMatch(/ok +the mcpd token is 0 days old/);
     const old = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000);
     utimesSync(file, old, old);
-    expect((await security()).lines.join("\n")).toMatch(/warn +the mcpd token is 120 days old .*turno mcp token rotate/);
+    expect((await security()).lines.join("\n")).toMatch(/! +the mcpd token is 120 days old .*\n +fix: turno mcp token rotate && turno mcp sync$/m);
   });
 
   it("checks the audit log's hash chain", async () => {
@@ -168,7 +169,7 @@ describe("turno doctor --security", () => {
     writeFileSync(file, readFileSync(file, "utf8").replace('"two"', '"TWO"'));
     const { code, lines } = await security();
     expect(code).toBe(1);
-    expect(lines.join("\n")).toMatch(/FAIL +audit log: line 3: hash does not match/);
+    expect(lines.join("\n")).toMatch(/x +audit log: line 3: hash does not match.*\n +manual: .*turno identity log --verify shows the line/);
   });
 
   it("names a port holder that is not mcpd", async () => {
@@ -194,7 +195,7 @@ describe("turno doctor --security", () => {
     const bare = { ...sb.env, PATH: join(sb.home, "nothing") };
     const { code, lines } = await security(bare);
     expect(code).toBe(1);
-    expect(lines.join("\n")).toMatch(/FAIL +secret store: none found .*keychain: references that cannot resolve/);
+    expect(lines.join("\n")).toMatch(/x +secret store: none found .*keychain: references that cannot resolve\n +manual: install secret-tool/);
   });
 
   it("prints JSON with --json", async () => {
