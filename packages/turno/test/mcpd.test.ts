@@ -375,9 +375,11 @@ describe("call lifecycle (ADR 0016)", () => {
     const samePort = port;
     await manager.stopAll();
     await gw.close();
-    await sleep(100); // let the client notice its sockets were closed
     await boot(fixtureToml("fx"), { port: samePort });
-    expect(await callText(a, "echo", { text: "back" })).toBe("back");
+    // The first try may land on a keep-alive socket of the old server; a 404 would fail every try.
+    let echoed = "";
+    for (let i = 0; i < 20 && echoed !== "back"; i++) echoed = await callText(a, "echo", { text: "back" }).catch(() => "");
+    expect(echoed).toBe("back");
     expect(gw.sessionCount()).toBe(1);
   });
 });
@@ -426,17 +428,19 @@ describe("server-to-client routing (ADR 0016)", () => {
 
   it("sends resource updates only to the sessions that subscribed", async () => {
     await boot(fixtureToml("fx"));
-    const got = { a: 0, b: 0 };
+    const got: { a: string[]; b: string[] } = { a: [], b: [] };
     const a = await connect("fx");
     const b = await connect("fx");
-    a.setNotificationHandler(ResourceUpdatedNotificationSchema, async () => void got.a++);
-    b.setNotificationHandler(ResourceUpdatedNotificationSchema, async () => void got.b++);
+    a.setNotificationHandler(ResourceUpdatedNotificationSchema, async (n) => void got.a.push(n.params.uri));
+    b.setNotificationHandler(ResourceUpdatedNotificationSchema, async (n) => void got.b.push(n.params.uri));
     await a.subscribeResource({ uri: "test://one" });
     await b.subscribeResource({ uri: "test://two" });
     await callText(b, "touch", { uri: "test://one" });
-    await waitFor(() => got.a === 1, "the subscriber's update");
-    await sleep(100);
-    expect(got.b).toBe(0);
+    await waitFor(() => got.a.length === 1, "the subscriber's update");
+    // Updates reach b in order: once the update of its own URI is in, one for test://one would be too.
+    await callText(b, "touch", { uri: "test://two" });
+    await waitFor(() => got.b.includes("test://two"), "b's own update");
+    expect(got.b).toEqual(["test://two"]);
     await b.subscribeResource({ uri: "test://one" });
     await a.unsubscribeResource({ uri: "test://one" });
     // One upstream subscription per URI, dropped only when its last subscriber leaves.
