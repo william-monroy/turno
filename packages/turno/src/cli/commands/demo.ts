@@ -196,6 +196,7 @@ export async function startDemo(io: Io, opts: DemoOptions = {}): Promise<Demo> {
   }
 }
 
+// biome-ignore lint/suspicious/noControlCharactersInRegex: it strips ANSI color codes, which start with ESC.
 const strip = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
 
 function intro(io: Io, d: Demo): void {

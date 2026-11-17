@@ -13,7 +13,8 @@
     "test": "pnpm -r run test",
     "test:e2e": "pnpm --filter turno-cli run test:e2e",
     "typecheck": "pnpm -r run typecheck",
-    "check": "pnpm typecheck && pnpm test && node --test scripts/*.test.mjs && node scripts/no-em-dash.mjs && node scripts/licenses.mjs",
+    "lint": "biome lint && knip",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && node --test scripts/*.test.mjs && node scripts/no-em-dash.mjs && node scripts/licenses.mjs",
     "changeset": "changeset",
     "version-packages": "changeset version && node scripts/sync-server-json.mjs && pnpm install --lockfile-only",
     "pack:check": "pnpm build && node scripts/pack-check.mjs",
@@ -23,6 +24,8 @@
     "hooks": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
-    "@changesets/cli": "^3.0.3"
+    "@biomejs/biome": "2.6.6",
+    "@changesets/cli": "^3.0.3",
+    "knip": "6.44.2"
   }
 }

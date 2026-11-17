@@ -394,7 +394,7 @@ function printNext(io: Io, plan: Plan): void {
   }
   steps.push("turno ui install         (optional: the status line and its font)");
   io.out("Next:");
-  steps.forEach((s, i) => io.out(`  ${i + 1}. ${s}`));
+  for (const [i, s] of steps.entries()) io.out(`  ${i + 1}. ${s}`);
 }
 
 // Command -------------------------------------------------------------------------------------

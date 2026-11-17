@@ -94,7 +94,7 @@ function browserLines(env: NodeJS.ProcessEnv, platform: NodeJS.Platform, comment
 export function shPath(p: string, env: NodeJS.ProcessEnv = process.env): string {
   const home = paths(env).home;
   if (p === home) return '"$HOME"';
-  if (p.startsWith(home + "/")) return `"$HOME/${esc(p.slice(home.length + 1))}"`;
+  if (p.startsWith(`${home}/`)) return `"$HOME/${esc(p.slice(home.length + 1))}"`;
   return `"${esc(p)}"`;
 }
 
@@ -125,7 +125,7 @@ export function launcherText(name: string, env: NodeJS.ProcessEnv = process.env,
   const hub = agentHub(agent, env);
   const hubDirs = a.sharedDirs.map((d) => shPath(join(hub, d), env));
   const run = shPath(p.runDir, env);
-  const runFile = run.slice(0, -1) + '/$$"';
+  const runFile = `${run.slice(0, -1)}/$$"`;
   return [
     "#!/bin/sh",
     `# ${MARKER}: ${a.label} with the "${name}" account${a.classicLauncher ? `, sharing ${shPath(hub, env).slice(1, -1)}` : ""}.`,

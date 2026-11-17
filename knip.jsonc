@@ -1,0 +1,23 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.mjs", "bench/*.mjs"],
+      "project": ["scripts/*.mjs", "bench/*.mjs"]
+    },
+    "packages/turno": {
+      // demo/server.ts runs as its own process (turno demo starts it by path).
+      "entry": ["src/cli/main.ts", "src/demo/server.ts", "test/**/*.test.ts", "test/fixtures/**"],
+      "project": ["src/**/*.ts", "test/**/*.ts"],
+      // Optional packages the CLI imports at run time by a computed name; the tests install them.
+      "ignoreDependencies": ["turno-browser"]
+    },
+    "packages/browser": {
+      "entry": ["src/index.ts", "src/bin/mcp.ts", "test/**/*.test.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "packages/fonts": {}
+  },
+  // The Codex end-to-end test runs the real binary when it is installed.
+  "ignoreBinaries": ["codex"]
+}

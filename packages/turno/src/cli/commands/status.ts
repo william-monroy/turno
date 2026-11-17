@@ -49,7 +49,8 @@ export async function statusData(env: NodeJS.ProcessEnv, cwd = process.cwd()) {
       total: sessions.length,
       byProfile: sessions.reduce<Record<string, number>>((acc, s) => {
         const key = s.profile ?? (s.source === "desktop" ? "desktop" : "unknown");
-        return { ...acc, [key]: (acc[key] ?? 0) + 1 };
+        acc[key] = (acc[key] ?? 0) + 1;
+        return acc;
       }, {}),
     },
     mcpd: { running: mcpd.running, port: mcpd.port, problems: mcpdProblems },

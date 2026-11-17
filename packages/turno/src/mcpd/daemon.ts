@@ -653,7 +653,9 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
       gateway.pruneSessions(pidAlive);
       manager
         .reap()
-        .then((stopped) => stopped.forEach((s) => log(`reaped ${s}`)))
+        .then((stopped) => {
+          for (const s of stopped) log(`reaped ${s}`);
+        })
         .catch((err) => log(`reap failed: ${(err as Error).message}`));
       void sampler.sample(manager.list().map((i) => ({ descKey: i.descKey, pid: i.upstream.pid })));
     }, 15_000);

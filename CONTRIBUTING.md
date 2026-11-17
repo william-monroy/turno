@@ -25,7 +25,7 @@ pnpm install
 pnpm hooks              # commit-msg hook: Conventional Commits, no attribution trailers
 pnpm build
 pnpm test               # unit and integration tests, with a sandbox HOME
-pnpm check              # typecheck, tests, repository text rules, dependency licenses
+pnpm check              # typecheck, lint (Biome, knip), tests, repository text rules, dependency licenses
 ```
 
 Tests never touch your real setup: they run with a temporary `HOME` (see

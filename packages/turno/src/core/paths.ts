@@ -80,7 +80,7 @@ export function profileDir(name: string, env: NodeJS.ProcessEnv = process.env): 
 /** Replace the home prefix with ~ for display. */
 export function tildify(p: string, env: NodeJS.ProcessEnv = process.env): string {
   const home = paths(env).home;
-  return p === home ? "~" : p.startsWith(home + "/") ? "~" + p.slice(home.length) : p;
+  return p === home ? "~" : p.startsWith(`${home}/`) ? `~${p.slice(home.length)}` : p;
 }
 
 /** Expand a leading ~ to the home directory. */

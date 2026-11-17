@@ -607,7 +607,7 @@ export class StatelessFront {
     this.reply(res, id, method, outcome, manager.cachedDescription(client)?.serverInfo);
   }
 
-  private async listen(req: IncomingMessage, res: ServerResponse, id: Id, params: Json, client: StatelessClient): Promise<void> {
+  private async listen(_req: IncomingMessage, res: ServerResponse, id: Id, params: Json, client: StatelessClient): Promise<void> {
     const manager = this.opts.manager;
     const asked = isObject(params.notifications) ? params.notifications : {};
     const d = await manager.describe(client);

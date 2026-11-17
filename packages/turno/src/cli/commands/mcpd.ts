@@ -370,7 +370,11 @@ const SUBS: Record<string, Sub> = {
 export const tokenCommand: Command = {
   summary: "replace the gateway token",
   usage: "Usage: turno mcp token rotate [--dry-run]\n\nWrites a new token (mode 600), restarts mcpd, and asks you to run turno mcp sync.",
-  run: async (args, io) => (args.includes("--help") || args.includes("-h") ? (io.out(tokenCommand.usage), 0) : token(args, io)),
+  run: async (args, io) => {
+    if (!args.includes("--help") && !args.includes("-h")) return token(args, io);
+    io.out(tokenCommand.usage);
+    return 0;
+  },
 };
 
 export const command: Command = group("mcp daemon", "run or manage the MCP gateway daemon", SUBS, {
