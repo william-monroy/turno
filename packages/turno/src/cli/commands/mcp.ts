@@ -14,7 +14,7 @@ import { DRY_RUN, FORCE, type FlagSpec, JSON_FLAG, bool, parseFlags, printJson, 
 import { type Sub, group } from "../group.js";
 import { highlightJson, highlightToml } from "../highlight.js";
 import { type Io, colors, fail, paint, plural } from "../io.js";
-import { duration, padEnd, profileColor, style, visibleWidth } from "../style.js";
+import { duration, profileColor, style } from "../style.js";
 import { LOG_FLAGS, SAVINGS_FLAGS, TOP_FLAGS } from "./mcp-observe.js";
 import { LOGIN_FLAGS, LOGOUT_FLAGS, type LoginRow, describeLogin, oauthLogins } from "./mcp-oauth.js";
 
@@ -133,8 +133,8 @@ async function list(args: string[], io: Io): Promise<number> {
     const refs = Object.values(s.kind === "remote" ? s.headers : { ...s.env, ...Object.assign({}, ...Object.values(s.variants).map((v) => v.env)) });
     return refs.some((v) => typeof v === "string" && /^(keychain|env):/.test(v)) ? "secret" : st.muted("-");
   };
-  const rows: string[][] = [["SERVER", "KIND", "SCOPE", "IDLE", "PROFILES", "STATE", "AUTH"].map((h) => st.muted(h))];
-  const details: string[] = [st.muted("DETAILS")];
+  // Column titles: muted lowercase on a terminal, as in turno status; uppercase in plain text.
+  const rows: string[][] = [["SERVER", "KIND", "SCOPE", "IDLE", "PROFILES", "STATE", "AUTH", "DETAILS"].map((h) => st.muted(st.color ? h.toLowerCase() : h))];
   const sep = st.muted("; ");
   for (const name of names) {
     const s = m.servers[name]!;
@@ -145,14 +145,13 @@ async function list(args: string[], io: Io): Promise<number> {
         const text = `${l.variant === "default" ? "login" : `${l.variant} login`}: ${describeLogin(l)}`;
         return l.state === "logged in" || l.state === "expired" ? text : st.warn(text);
       });
-      details.push([st.accent(s.url), tools, ...logins].filter(Boolean).join(sep));
-      rows.push([st.bold(name), "remote", s.proxy ? "via mcpd" : "direct", s.proxy ? `${Math.round(s.idle / 60)}m` : st.muted("-"), where, state(s), auth(s)]);
+      const details = [st.accent(s.url), tools, ...logins].filter(Boolean).join(sep);
+      rows.push([st.bold(name), "remote", s.proxy ? "via mcpd" : "direct", s.proxy ? `${Math.round(s.idle / 60)}m` : st.muted("-"), where, state(s), auth(s), details]);
       continue;
     }
     const variants = Object.keys(s.variants);
     const installed = s.package && existsSync(join(paths(io.env).serversDir, s.name, "node_modules"));
-    details.push(
-      [
+    const details = [
         st.accent(s.builtin ? `builtin ${s.builtin}` : tildify(s.command, io.env)),
         variants.length ? `variants: ${variants.join(", ")}` : "",
         s.package ? (installed ? `package ${s.package}` : st.warn(`package ${s.package} (not installed)`)) : "",
@@ -160,23 +159,12 @@ async function list(args: string[], io: Io): Promise<number> {
         ...Object.entries(s.variants).map(([v, d]) => (filterText(d.tools) ? `${v} tools: ${filterText(d.tools)}` : "")),
       ]
         .filter(Boolean)
-        .join(sep),
-    );
-    rows.push([st.bold(name), s.builtin ? "builtin" : "stdio", `${s.scope}${s.exclusive ? ", exclusive" : ""}`, `${Math.round(s.idle / 60)}m`, where, state(s), auth(s)]);
+        .join(sep);
+    rows.push([st.bold(name), s.builtin ? "builtin" : "stdio", `${s.scope}${s.exclusive ? ", exclusive" : ""}`, `${Math.round(s.idle / 60)}m`, where, state(s), auth(s), details]);
   }
   io.out(st.header("MCP servers"));
-  // The short columns first (a narrow terminal drops idle times, then auth and scope); the
-  // details after them, wrapped under their own column instead of pushing the others out.
-  const table = st.tableRows(rows, { columns: [{}, {}, { drop: 1 }, { drop: 3 }, {}, {}, { drop: 2 }] });
-  const w = Math.max(...table.flat().map(visibleWidth));
-  // Too little room left beside the table (a narrow terminal): the details go under each row.
-  const under = st.color && st.width - w - 2 < 32;
-  table.forEach(([first = "", ...more], i) => {
-    if (!under) io.out(st.wrap(`${padEnd(first, w)}  `, details[i] ?? "").trimEnd());
-    else io.out(first);
-    for (const l of more) io.out(l);
-    if (under && i > 0 && details[i]) io.out(st.wrap("      ", details[i]!));
-  });
+  // A narrow terminal drops idle times, then auth and scope; the details wrap under their column.
+  for (const l of st.table(rows, { columns: [{}, {}, { drop: 1 }, { drop: 3 }, {}, {}, { drop: 2 }, {}] })) io.out(l);
   if (!live) io.out(st.wrap("  ", st.muted("mcpd is not running, so nothing is: servers start on first use once it runs (turno mcp daemon start)")));
   return 0;
 }

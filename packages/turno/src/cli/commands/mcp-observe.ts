@@ -2,7 +2,7 @@ import type { CallRecord } from "../../mcpd/calllog.js";
 import type { ProcTable } from "../../mcpd/rss.js";
 import { type FlagSpec, JSON_FLAG, TAIL, bool, count, parseFlags, printJson, str } from "../args.js";
 import { type Io, paint } from "../io.js";
-import { type IconName, padEnd, style } from "../style.js";
+import { type IconName, duration as elapsed, padEnd, style } from "../style.js";
 
 /**
  * Observability subcommands of `turno mcp` (ADR 0026): `log` reads the call log mcpd keeps,
@@ -55,27 +55,99 @@ const OUTCOME: Record<string, { icon: IconName; paint: "ok" | "err" | "warn" | "
   cancelled: { icon: "skip", paint: "muted" },
 };
 
+/** Column widths of `turno mcp log` on a terminal, chosen once so `--follow` lines stay aligned. */
+export interface LogLayout {
+  /** Time only (HH:MM:SS) when every call is from today; MM-DD HH:MM:SS otherwise. */
+  today: boolean;
+  server: number;
+  tool: number;
+  profile: number;
+  agent: number;
+  sizes: number;
+  showAgent: boolean;
+  showSizes: boolean;
+}
+
+const sizesText = (r: CallRecord) => `${size(r.requestBytes)} → ${size(r.responseBytes)}`;
+const serverText = (r: CallRecord) => (r.variant && r.variant !== "default" ? `${r.server}@${r.variant}` : r.server);
+const OUTCOME_W = 11;
+const DURATION_W = 5;
+const GAP = 2;
+
+/**
+ * Widths for these calls on this terminal: each name column as wide as its widest value within
+ * a cap, narrowed until the line fits, then sizes and the agent added while they fit (on a
+ * narrow terminal the agent goes first, then the sizes).
+ */
+export function logLayout(io: Pick<Io, "env" | "isTty" | "color">, records: readonly CallRecord[], now = new Date()): LogLayout {
+  const { width } = style(io);
+  const day = (iso: string) => {
+    const d = new Date(iso);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  };
+  const widest = (f: (r: CallRecord) => string, min: number, max: number, none: number) =>
+    records.length ? Math.min(max, Math.max(min, ...records.map((r) => f(r).length))) : none;
+  const l: LogLayout = {
+    today: records.every((r) => day(r.time)),
+    server: widest(serverText, 6, 18, 12),
+    tool: widest((r) => r.tool ?? "-", 4, 24, 16),
+    profile: widest((r) => r.profile ?? "-", 4, 12, 8),
+    agent: widest((r) => r.agent ?? "-", 5, 16, 12),
+    sizes: widest(sizesText, 5, 21, 17),
+    showAgent: false,
+    showSizes: false,
+  };
+  const core = () => (l.today ? 8 : 14) + OUTCOME_W + DURATION_W + l.server + l.tool + l.profile + GAP * 5;
+  while (core() > width && (l.tool > 10 || l.server > 8)) {
+    if (l.tool >= l.server && l.tool > 10) l.tool--;
+    else l.server--;
+  }
+  l.showSizes = core() + GAP + l.sizes <= width;
+  l.showAgent = l.showSizes && core() + GAP * 2 + l.sizes + l.agent <= width;
+  return l;
+}
+
+/** Cut text to `w` columns with an ellipsis. */
+const fit = (text: string, w: number) => (text.length > w ? `${text.slice(0, Math.max(0, w - 1))}…` : text);
+
 /**
  * One call as a line: local time, outcome, duration, server, tool, profile, agent, sizes, error.
- * Fixed column widths, so lines that `--follow` prints one at a time stay aligned.
+ * Plain text keeps the fixed widths scripts read; a terminal uses `layout` (logLayout) so every
+ * line fits, and puts an error on its own line under the call.
  */
-export function formatCall(io: Io, r: CallRecord, localTime: (iso: string) => string): string {
+export function formatCall(io: Io, r: CallRecord, localTime: (iso: string) => string, layout?: LogLayout): string {
   const s = style(io);
-  const server = r.variant && r.variant !== "default" ? `${r.server}@${r.variant}` : r.server;
+  const server = serverText(r);
+  if (!s.color) {
+    const cells = [
+      localTime(r.time),
+      r.outcome.padEnd(9),
+      `${r.durationMs} ms`.padStart(9),
+      server.padEnd(18),
+      (r.tool ?? "-").padEnd(22),
+      (r.profile ?? "-").padEnd(10),
+      (r.agent ?? "-").padEnd(16),
+      `${size(r.requestBytes)} in, ${size(r.responseBytes)} out`,
+    ];
+    return `${cells.join(" ")}${r.error ? `  ${r.error}` : ""}`;
+  }
+  const l = layout ?? logLayout(io, [r]);
   const o = OUTCOME[r.outcome];
-  const outcome = o ? `${s.icon(o.icon)} ${s[o.paint](r.outcome)}` : r.outcome;
+  const time = localTime(r.time);
   const slow = r.durationMs >= 10_000 ? s.warn : (t: string) => t;
   const cells = [
-    s.muted(localTime(r.time)),
-    padEnd(s.color ? outcome : r.outcome, s.color ? 11 : 9),
-    slow(`${r.durationMs} ms`.padStart(9)),
-    padEnd(s.bold(server), 18),
-    padEnd(r.tool ?? "-", 22),
-    padEnd(r.profile ?? "-", 10),
-    padEnd(s.muted(r.agent ?? "-"), 16),
-    s.muted(`${size(r.requestBytes)} in, ${size(r.responseBytes)} out`),
+    s.muted(l.today ? time.slice(11) : time.slice(5)),
+    padEnd(o ? `${s.icon(o.icon)} ${s[o.paint](r.outcome)}` : r.outcome, OUTCOME_W),
+    slow(elapsed(r.durationMs).padStart(DURATION_W)),
+    padEnd(s.bold(fit(server, l.server)), l.server),
+    padEnd(fit(r.tool ?? "-", l.tool), l.tool),
+    padEnd(fit(r.profile ?? "-", l.profile), l.profile),
+    ...(l.showAgent ? [padEnd(s.muted(fit(r.agent ?? "-", l.agent)), l.agent)] : []),
+    ...(l.showSizes ? [s.muted(sizesText(r))] : []),
   ];
-  return `${cells.join(" ")}${r.error ? `  ${s.err(r.error)}` : ""}`;
+  const line = cells.join(" ".repeat(GAP)).trimEnd();
+  if (!r.error) return line;
+  return `${line}\n${s.wrap(" ".repeat((l.today ? 8 : 14) + GAP), s.err(r.error))}`;
 }
 
 /** `turno mcp log`; `signal` stops `--follow` (Ctrl-C when not given). */
@@ -91,8 +163,9 @@ export async function log(args: string[], io: Io, signal?: AbortSignal): Promise
   if (!loadConfigSafe(io.env).config.mcpd.callLog) {
     io.err(`${paint(io, "note", "33")}: the call log is off (call_log = false under [mcpd] in config.toml); mcpd records no new calls`);
   }
-  const print = (r: CallRecord) => io.out(json ? JSON.stringify(r) : formatCall(io, r, localTime));
   const records = readCalls(file, n, filter);
+  const layout = logLayout(io, records);
+  const print = (r: CallRecord) => io.out(json ? JSON.stringify(r) : formatCall(io, r, localTime, layout));
   if (!records.length && !json && !bool(p, "follow")) {
     io.out("no tool calls logged yet (mcpd adds one line per tool call it relays)");
     return 0;
@@ -233,7 +306,8 @@ export function renderTop(io: Io, t: TopSnapshot): string[] {
     out.push(s.muted("  no servers running (they start on first use)"));
     return out;
   }
-  const rows = [["SERVER", "VARIANT", "SCOPE", "PID", "RSS", "SESSIONS", "IN FLIGHT", "IDLE", "RESTARTS", "UP", "HELD BY"].map((h) => s.muted(h))];
+  // Column titles: muted lowercase on a terminal, as in turno status; uppercase in plain text.
+  const rows = [["SERVER", "VARIANT", "SCOPE", "PID", "RSS", "SESSIONS", "IN FLIGHT", "IDLE", "RESTARTS", "UP", "HELD BY"].map((h) => s.muted(s.color ? h.toLowerCase() : h))];
   for (const i of t.instances) {
     rows.push([
       `${s.icon("on")}${s.color ? " " : ""}${s.bold(i.server)}`,

@@ -1,9 +1,9 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { saveRegistry } from "../src/accounts/registry.js";
 import { command as identity, setBrowserDeps } from "../src/cli/commands/identity.js";
-import { formatCall, renderTop, type TopSnapshot } from "../src/cli/commands/mcp-observe.js";
+import { formatCall, logLayout, renderTop, type TopSnapshot } from "../src/cli/commands/mcp-observe.js";
 import { pillColor } from "../src/cli/commands/statusline.js";
 import { renderUsage } from "../src/cli/commands/usage.js";
 import { colors } from "../src/cli/io.js";
@@ -161,14 +161,20 @@ describe("turno mcp list, top and log", () => {
     expect(stripAnsi(text)).toContain("mcpd is not running");
   });
 
-  it("on a narrow terminal the details go under each row", async () => {
-    const io = { ...fakeIo({ ...sb.env, COLUMNS: "60" }), isTty: true };
-    expect(await main(["mcp", "list"], io)).toBe(0);
-    const lines = io.lines.map(stripAnsi);
-    const calc = lines.findIndex((l) => l.startsWith("  calc "));
-    expect(lines[calc]).not.toContain("calc-mcp");
-    expect(lines[calc + 1]).toBe("      calc-mcp; tools: deny *_delete");
-    for (const l of lines) expect(l.length).toBeLessThanOrEqual(60);
+  it("on a terminal nothing runs past the width: details wrap under their column, paths too", async () => {
+    sb.write(".config/turno/mcp.toml", `${readFileSync(join(sb.home, ".config/turno/mcp.toml"), "utf8")}\n[server.deep]\ncommand = "${sb.home}/tools/${"nested/".repeat(12)}deep-mcp"\n`);
+    for (const cols of [60, 80, 100]) {
+      const io = { ...fakeIo({ ...sb.env, COLUMNS: String(cols) }), isTty: true };
+      expect(await main(["mcp", "list"], io)).toBe(0);
+      const lines = io.lines.map(stripAnsi);
+      for (const l of lines) expect(l.length, `${cols}: ${l}`).toBeLessThanOrEqual(cols);
+      expect(lines[1]).toMatch(/^ {2}server +kind/);
+      const deep = lines.findIndex((l) => l.startsWith("  deep "));
+      // Tildified, and continued under the details column.
+      expect(lines[deep]).toContain("~/tools/nested/");
+      const col = lines[deep]!.indexOf("~/tools");
+      expect(lines[deep + 1]!.slice(0, col).trim()).toBe("");
+    }
   });
 
   const snap: TopSnapshot = {
@@ -211,6 +217,45 @@ describe("turno mcp list, top and log", () => {
     expect(b.indexOf("docs@work")).toBe(a.indexOf("calc"));
     expect(b.indexOf("search")).toBe(a.indexOf("add"));
     expect(b).toMatch(/timed out after 30s$/);
+  });
+
+  it("log on a terminal: every line fits at 80 and 100 columns, agent first and sizes next go when narrow", () => {
+    const now = new Date();
+    const today = new Date(now.getTime() - 60_000).toISOString();
+    const records = [
+      call({ time: today, server: "a-server-with-a-very-long-name", variant: "work", tool: "search_everything_in_the_workspace", agent: "codex-mcp-client" }),
+      call({ time: today, outcome: "error", error: `upstream said no ${"because ".repeat(20)}`.trim() }),
+      call({ time: today, outcome: "cancelled", durationMs: 45_000 }),
+    ];
+    const local = (iso: string) => {
+      const d = new Date(iso);
+      const p = (n: number) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+    };
+    for (const cols of ["80", "100", "140"]) {
+      const io = { ...fakeIo({ ...sb.env, COLUMNS: cols }), isTty: true };
+      const layout = logLayout(io, records, now);
+      const lines = records.flatMap((r) => formatCall(io, r, local, layout).split("\n")).map(stripAnsi);
+      for (const l of lines) expect(l.length, `${cols}: ${l}`).toBeLessThanOrEqual(Number(cols));
+      expect(lines[0]).toMatch(/^\d\d:\d\d:\d\d {2}✓ ok/);
+      expect(lines.join("\n")).toContain("…");
+      if (cols === "80") expect(layout).toMatchObject({ showAgent: false, showSizes: false });
+      if (cols === "100") expect(layout).toMatchObject({ showAgent: false, showSizes: true });
+      if (cols === "140") expect(layout).toMatchObject({ showAgent: true, showSizes: true });
+    }
+    // Calls from another day show the date too, and still fit at 80.
+    const io = { ...fakeIo({ ...sb.env, COLUMNS: "80" }), isTty: true };
+    const old = [call({ time: "2026-01-02T10:00:00.000Z", server: "a-server-with-a-very-long-name", tool: "search_everything_in_the_workspace" })];
+    const layout = logLayout(io, old, now);
+    expect(layout.today).toBe(false);
+    const line = stripAnsi(formatCall(io, old[0]!, local, layout));
+    expect(line).toMatch(/^01-02 \d\d:\d\d:\d\d {2}/);
+    expect(line.length).toBeLessThanOrEqual(80);
+  });
+
+  it("top on a terminal: muted lowercase column titles, uppercase in plain text", () => {
+    expect(stripAnsi(renderTop(tty(), snap)[1]!)).toMatch(/^server +variant +scope/);
+    expect(renderTop(fakeIo(sb.env), snap)[1]).toMatch(/^SERVER +VARIANT +SCOPE/);
   });
 
   it("log on a terminal: the outcome gets an icon and its color, errors are red", () => {
