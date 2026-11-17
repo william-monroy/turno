@@ -10,6 +10,7 @@
       "packages/*/src/**/*.ts",
       "packages/*/test/**/*.ts",
       "scripts/**/*.mjs",
+      "plugins/**/*.mjs",
       "bench/*.mjs"
     ]
   },
