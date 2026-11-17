@@ -8,6 +8,7 @@ import type { ServerDescription } from "./cache.js";
 import { cleanAgentName } from "./calllog.js";
 import { type ClientContext, type ClientHandle, type InstanceManager, isDirectory, processCwd, projectRoot, scopeOf } from "./instances.js";
 import { ErrorCode, type Id, type Message, type Outcome, isNotification, isRequest, isResponse, rpcError, toResponse } from "./jsonrpc.js";
+import { StatelessFront, isInitialize, readJsonBody, wantsModern } from "./modern.js";
 import { tokenProfile } from "./tokens.js";
 
 export interface GatewayOptions {
@@ -263,11 +264,21 @@ export class Gateway {
   private sessions = new Map<string, ClientSession>();
   private recreating = new Map<string, Promise<ClientSession | undefined>>();
   private http?: HttpServer;
+  /** MCP 2026-07-28 stateless requests (ADR 0028). */
+  private readonly front: StatelessFront;
 
   constructor(private readonly opts: GatewayOptions) {
     this.manager = opts.manager;
     this.manager.useManifest(opts.manifest);
     this.clientRequestTimeoutMs = opts.clientRequestTimeoutMs ?? 10 * 60_000;
+    this.front = new StatelessFront({
+      manager: this.manager,
+      toolFilter: (ctx) => this.toolFilter(ctx),
+      context: (req, name, profile) => this.sessionContext(req, name, profile),
+      capabilities: announcedCapabilities,
+      ...(opts.peerPid ? { peerPid: opts.peerPid } : {}),
+      ...(opts.log ? { log: opts.log } : {}),
+    });
   }
 
   listen(port: number, host = "127.0.0.1"): Promise<number> {
@@ -287,6 +298,7 @@ export class Gateway {
   }
 
   async close(): Promise<void> {
+    this.front.close();
     for (const s of this.sessions.values()) {
       s.close();
       await s.transport.close().catch(() => {});
@@ -300,11 +312,12 @@ export class Gateway {
     return this.sessions.size;
   }
 
-  /** Drop sessions whose client process is gone. */
+  /** Drop sessions (and stateless clients) whose client process is gone. */
   pruneSessions(isAlive: (pid: number) => boolean): void {
     for (const [id, s] of this.sessions) {
       if (s.ctx.pid && !isAlive(s.ctx.pid)) this.dropSession(id);
     }
+    this.front.prune(isAlive);
   }
 
   private dropSession(id: string): void {
@@ -399,6 +412,25 @@ export class Gateway {
       json(res, 403, { error: `session ${sid} belongs to another profile` });
       return;
     }
+    // MCP 2026-07-28: the version header names a newer revision (ADR 0028).
+    let parsed: unknown;
+    if (wantsModern(req)) {
+      const body = await readJsonBody(req, this.opts.maxRequestBodyBytes ?? DEFAULT_MAX_REQUEST_BODY);
+      if (!("value" in body)) {
+        json(res, body.status, { jsonrpc: "2.0", id: null, error: { code: body.code, message: body.message } });
+        return;
+      }
+      if (!isInitialize(body.value)) {
+        await this.front.handle(req, res, name, caller.profile, body.value);
+        return;
+      }
+      if (sid) {
+        json(res, 400, { jsonrpc: "2.0", id: null, error: { code: ErrorCode.InvalidRequest, message: "initialize cannot carry an Mcp-Session-Id" } });
+        return;
+      }
+      // A dual-era client asking for a 2025-era session: the SDK takes it from here.
+      parsed = body.value;
+    }
     if (sid) {
       let s = open;
       // mcpd restarted (upgrade, refresh, crash): rebuild the session under the same id from
@@ -412,7 +444,7 @@ export class Gateway {
       return;
     }
     const session = await this.createSession(req, name, caller.profile);
-    await session?.transport.handleRequest(req, res);
+    await session?.transport.handleRequest(req, res, parsed);
     if (session && !session.transport.sessionId) await session.transport.close().catch(() => {});
   }
 
@@ -503,7 +535,7 @@ export class Gateway {
   /** Agent processes behind the open sessions: one entry per client PID (or per session without one). */
   agents(): { pid: number | null; profile: string | null; agent: string | null; servers: string[] }[] {
     const by = new Map<string, { pid: number | null; profile: string | null; agent: string | null; servers: string[] }>();
-    for (const s of this.sessions.values()) {
+    for (const s of [...this.sessions.values(), ...this.front.list()]) {
       const key = s.ctx.pid ? `pid:${s.ctx.pid}` : `sid:${s.id}`;
       const a = by.get(key) ?? { pid: s.ctx.pid ?? null, profile: s.ctx.profile ?? null, agent: s.ctx.clientName ?? null, servers: [] };
       if (!a.servers.includes(s.ctx.serverName)) a.servers.push(s.ctx.serverName);

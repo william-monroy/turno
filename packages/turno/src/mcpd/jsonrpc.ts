@@ -23,6 +23,8 @@ export const isNotification = (m: Message): boolean => typeof m.method === "stri
 export const isResponse = (m: Message): boolean => m.method === undefined && m.id !== undefined && ("result" in m || "error" in m);
 
 export const ErrorCode = {
+  ParseError: -32700,
+  InvalidRequest: -32600,
   MethodNotFound: -32601,
   InvalidParams: -32602,
   Internal: -32603,

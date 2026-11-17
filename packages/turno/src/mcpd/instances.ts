@@ -39,6 +39,11 @@ export interface ClientContext {
 export interface ClientHandle extends ClientPort {
   ctx: ClientContext;
   lastSeen: number;
+  /**
+   * A 2026-07-28 `subscriptions/listen` stream (ADR 0028): it gets the resource list changes of
+   * its server even though it never joined an instance.
+   */
+  listening?: boolean;
 }
 
 /** Builds the transport for a server; injectable so tests and builtins can plug in. */
@@ -214,12 +219,15 @@ export class InstanceManager {
   private manifest?: () => Manifest;
   private readonly isAlive: (pid: number) => boolean;
   private readonly now: () => number;
+  /** When this manager started: descriptions relisted since then were checked against a running server. */
+  readonly bornAt: number;
   /** The memory pressure seen by the last reap. */
   pressureLevel: PressureLevel = "normal";
 
   constructor(private readonly opts: ManagerOptions) {
     this.isAlive = opts.isAlive ?? processAlive;
     this.now = opts.now ?? Date.now;
+    this.bornAt = this.now();
     if (opts.manifest) this.manifest = opts.manifest;
   }
 
@@ -296,6 +304,17 @@ export class InstanceManager {
       p.finally(() => this.describing.delete(descKey)).catch(() => {});
     }
     return p;
+  }
+
+  /** The cached description for this client's server, without starting anything. */
+  cachedDescription(client: ClientHandle): ServerDescription | undefined {
+    const { descKey, variant, server } = this.keyOf(client.ctx);
+    return this.opts.cache.get(descKey, descriptionFingerprint(server, variant));
+  }
+
+  /** Whether a description was relisted from a running server since this manager started. */
+  verified(d: ServerDescription): boolean {
+    return d.updatedAt >= this.bornAt;
   }
 
   /** The instance that serves a real request from this client (starts it, checks leases). */
@@ -563,8 +582,10 @@ export class InstanceManager {
       return;
     }
     if (method === "notifications/resources/list_changed") {
-      // Resources are not cached: tell this instance's clients, then refresh the templates quietly.
-      for (const c of inst.clients) c.notify(method, params);
+      // Resources are not cached: tell this instance's clients (and listen streams), then refresh the templates quietly.
+      const targets = new Set<ClientHandle>(inst.clients);
+      for (const c of this.clientsOf(inst.descKey)) if (c.listening) targets.add(c);
+      for (const c of targets) c.notify(method, params);
       this.relist(inst, [method]).catch((err) => this.opts.log?.(`refresh ${inst.upstream.label} failed: ${(err as Error).message}`));
       return;
     }
