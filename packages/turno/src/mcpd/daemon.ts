@@ -27,6 +27,7 @@ import { DescriptionCache } from "./cache.js";
 import { createCallLog } from "./calllog.js";
 import { type BuiltinFactory, DefaultConnector } from "./connectors.js";
 import { Gateway, type GatewayOptions } from "./gateway.js";
+import { ClientNames } from "./client-names.js";
 import { InstanceManager, descriptionFingerprint, processAlive } from "./instances.js";
 import { describeOwner, peerPid, portOwner } from "./peerpid.js";
 import { memoryPressureProbe } from "./pressure.js";
@@ -550,6 +551,7 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
       log,
       folderRules: () => folderRules,
       home: p.home,
+      clientNames: new ClientNames(join(p.state, "mcpd-clients.json"), processAlive),
       ...(config.mcpd.maxRequestBody ? { maxRequestBodyBytes: config.mcpd.maxRequestBody } : {}),
     };
     const gateway = new DaemonGateway(gwOpts, () => ({

@@ -248,3 +248,50 @@ describe("turno doctor --security and profile tokens", () => {
     expect(stale!.text).toBe("1 profile token file predates the mcpd token, so its agent cannot reach mcpd (~/.local/state/turno/mcpd-tokens/old.token); run turno mcp sync");
   });
 });
+
+describe("client name of rebuilt sessions", () => {
+  it("keeps the agent name of a session that mcpd rebuilt after a restart", async () => {
+    const { parseManifest: parse } = await import("../src/core/manifest.js");
+    const { DescriptionCache } = await import("../src/mcpd/cache.js");
+    const { DefaultConnector } = await import("../src/mcpd/connectors.js");
+    const { Gateway } = await import("../src/mcpd/gateway.js");
+    const { InstanceManager } = await import("../src/mcpd/instances.js");
+    const { ClientNames } = await import("../src/mcpd/client-names.js");
+    const { profileToken } = await import("../src/mcpd/tokens.js");
+    const master = "c".repeat(64);
+    const fixture = fileURLToPath(new URL("./fixtures/fixture-server.mjs", import.meta.url));
+    const manifest = parse(`[server.fx]\ncommand = ${JSON.stringify(process.execPath)}\nargs = [${JSON.stringify(fixture)}]\n`);
+    const store = join(sb.home, "clients.json");
+    const managers: { stopAll(): Promise<void> }[] = [];
+    const boot = async (port = 0) => {
+      const manager = new InstanceManager({
+        cache: new DescriptionCache(join(sb.home, "cache")),
+        connector: new DefaultConnector({ resolve: async (v) => v, serversDir: join(sb.home, "s"), logsDir: join(sb.home, "l"), baseEnv: {} }),
+        home: sb.home,
+      });
+      managers.push(manager);
+      const gw = new Gateway({ manager, manifest: () => manifest, token: master, processCwd: async () => undefined, clientNames: new ClientNames(store, () => true) });
+      return { gw, port: await gw.listen(port) };
+    };
+    const headers = { authorization: `Bearer ${profileToken(master, "work")}`, "x-turno-pid": String(process.pid), "content-type": "application/json", accept: "application/json, text/event-stream" };
+    const post = (port: number, body: unknown, sid?: string) =>
+      fetch(`http://127.0.0.1:${port}/mcp/fx`, { method: "POST", headers: { ...headers, ...(sid ? { "mcp-session-id": sid } : {}) }, body: JSON.stringify(body) });
+    const first = await boot();
+    const init = await post(first.port, { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "claude-code", version: "1" } } });
+    const sid = init.headers.get("mcp-session-id")!;
+    await init.text();
+    expect(first.gw.agents()[0]?.agent).toBe("claude-code");
+    await first.gw.close();
+
+    const second = await boot(first.port);
+    try {
+      const ping = await post(second.port, { jsonrpc: "2.0", id: 2, method: "ping" }, sid);
+      expect(ping.status).toBe(200);
+      await ping.text();
+      expect(second.gw.agents()).toEqual([expect.objectContaining({ pid: process.pid, agent: "claude-code" })]);
+    } finally {
+      await second.gw.close();
+      for (const m of managers) await m.stopAll();
+    }
+  });
+});

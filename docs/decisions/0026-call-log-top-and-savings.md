@@ -32,7 +32,8 @@ outcome and the duration. A hook failure never fails the call. `mcpd/calllog.ts`
   characters. For `isError` results the text is a result, so it is not kept.
 - A record never holds arguments or results, only the byte size of their JSON.
 - `agent` is `clientInfo.name` from `initialize` (printable, at most 64 characters). A session
-  rebuilt after a restart has none until it reconnects.
+  rebuilt after a restart takes the name its process gave before: from another session of the
+  same PID, or from `state/mcpd-clients.json` (PID to name, mode 600, dead PIDs dropped).
 - Writes are synchronous appends (records keep their order), mode 600, rotated at 5 MiB with two
   old files, like `mcpd.log`. A disk that refuses writes is reported once in `mcpd.log` and never
   takes mcpd down.

@@ -9,6 +9,7 @@ import { tildify } from "../core/paths.js";
 import { folderMcpSet, mcpSetAllows } from "../core/resolve.js";
 import type { ServerDescription } from "./cache.js";
 import { cleanAgentName } from "./calllog.js";
+import type { ClientNames } from "./client-names.js";
 import { folderRoots } from "./folder-sets.js";
 import { type ClientContext, type ClientHandle, type InstanceManager, isDirectory, processCwd, projectRoot, scopeOf } from "./instances.js";
 import { ErrorCode, type Id, type Message, type Outcome, isNotification, isRequest, isResponse, rpcError, toResponse } from "./jsonrpc.js";
@@ -36,6 +37,8 @@ export interface GatewayOptions {
   folderRules?: () => ProjectRule[];
   /** Home folder, to show rule paths with `~` in messages. */
   home?: string;
+  /** Client names by PID, so sessions rebuilt after a restart keep their agent's name. */
+  clientNames?: ClientNames;
 }
 
 export const DEFAULT_MAX_REQUEST_BODY = 32 * 1024 * 1024;
@@ -224,7 +227,8 @@ class ClientSession implements ClientHandle {
       // Outside the folder's server set (ADR 0031): answer from mcpd, never start the server.
       const hidden = this.gw.hiddenBySet(this);
       if (hidden) {
-        if (method === "initialize") this.ctx.clientName ??= cleanAgentName((m.params?.clientInfo as { name?: unknown } | undefined)?.name);
+        const agent = method === "initialize" ? cleanAgentName((m.params?.clientInfo as { name?: unknown } | undefined)?.name) : undefined;
+        if (agent) this.gw.nameClient(this, agent);
         this.reply(id, hiddenAnswer(m, this.ctx.serverName, hidden));
         return;
       }
@@ -232,7 +236,7 @@ class ClientSession implements ClientHandle {
         const init = m.params as { capabilities?: Record<string, unknown>; clientInfo?: { name?: unknown } } | undefined;
         this.ctx.clientCapabilities = init?.capabilities ?? {};
         const agent = cleanAgentName(init?.clientInfo?.name);
-        if (agent) this.ctx.clientName = agent;
+        if (agent) this.gw.nameClient(this, agent);
         const d = await manager.describe(this);
         this.reply(id, {
           result: {
@@ -397,6 +401,18 @@ export class Gateway {
     if (!server) return undefined;
     const f = toolFilterFor(server, ctx.profile);
     return filtersTools(f) ? f : undefined;
+  }
+
+  /**
+   * Record the agent name a session gave in initialize. Sessions of the same process that mcpd
+   * rebuilt without one (after a restart) take it too, and it is kept for the next restart.
+   */
+  nameClient(session: ClientSession, name: string): void {
+    session.ctx.clientName = name;
+    const pid = session.ctx.pid;
+    if (!pid) return;
+    for (const s of this.sessions.values()) if (s.ctx.pid === pid && !s.ctx.clientName) s.ctx.clientName = name;
+    this.opts.clientNames?.set(pid, name);
   }
 
   /**
@@ -590,6 +606,9 @@ export class Gateway {
       }
       s.id = fixedId;
       ctx.sessionId = fixedId;
+      // A rebuilt session never sees initialize: take the name its process gave before.
+      const known = ctx.pid ? ([...this.sessions.values()].find((o) => o.ctx.pid === ctx.pid && o.ctx.clientName)?.ctx.clientName ?? this.opts.clientNames?.get(ctx.pid)) : undefined;
+      if (known) ctx.clientName = known;
       this.sessions.set(fixedId, s);
       this.manager.register(s);
       this.opts.log?.(`recreated session ${fixedId} for ${name} (unknown to this mcpd, likely after a restart)`);
