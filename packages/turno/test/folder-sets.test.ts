@@ -11,6 +11,7 @@ import { DescriptionCache } from "../src/mcpd/cache.js";
 import { DefaultConnector } from "../src/mcpd/connectors.js";
 import { Gateway } from "../src/mcpd/gateway.js";
 import { InstanceManager } from "../src/mcpd/instances.js";
+import { MODERN_PROTOCOL_VERSION } from "../src/mcpd/modern.js";
 import { profileToken } from "../src/mcpd/tokens.js";
 import { fakeIo } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -169,6 +170,36 @@ describe("mcpd enforces folder sets", () => {
     rules = [{ path: app, mcpDeny: ["docs"] }];
     expect((await shown.listTools()).tools).toEqual([]);
     await expect(shown.callTool({ name: "echo", arguments: { text: "x" } })).rejects.toThrow(/not in the MCP set/);
+  });
+
+  it("hides the server from MCP 2026-07-28 (stateless) requests too", async () => {
+    const app = folder("code/app");
+    const rules: ProjectRule[] = [{ path: app, mcp: ["docs"] }];
+    const port = await boot(fixture("docs") + fixture("issues"), () => rules);
+    const meta = { "io.modelcontextprotocol/protocolVersion": MODERN_PROTOCOL_VERSION, "io.modelcontextprotocol/clientInfo": { name: "modern", version: "1" }, "io.modelcontextprotocol/clientCapabilities": {} };
+    const modern = async (server: string, method: string, params: Record<string, unknown> = {}, where?: string) => {
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${profileToken(MASTER, "work")}`,
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+        "MCP-Protocol-Version": MODERN_PROTOCOL_VERSION,
+        "Mcp-Method": method,
+      };
+      if (method === "tools/call") headers["Mcp-Name"] = String(params.name);
+      if (where) headers["X-Turno-Cwd-B64"] = b64(where);
+      const res = await fetch(`http://127.0.0.1:${port}/mcp/${server}`, { method: "POST", headers, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params: { ...params, _meta: meta } }) });
+      return (await res.json()) as { result?: Record<string, any>; error?: { message: string } };
+    };
+
+    const discover = await modern("issues", "server/discover", {}, app);
+    expect(discover.result?.capabilities).toEqual({});
+    expect(discover.result?.instructions).toMatch(/issues is not in the MCP set of .*code\/app/);
+    expect((await modern("issues", "tools/list", {}, app)).result?.tools).toEqual([]);
+    expect((await modern("issues", "tools/call", { name: "echo", arguments: { text: "x" } }, app)).error?.message).toMatch(/not in the MCP set/);
+    expect(spawned()).toBe(0);
+
+    expect(((await modern("docs", "tools/list", {}, app)).result?.tools ?? []).length).toBeGreaterThan(0);
+    expect(((await modern("issues", "tools/list", {}, folder("other"))).result?.tools ?? []).length).toBeGreaterThan(0);
   });
 
   it("applies the set to a subfolder and to resources and prompts", async () => {

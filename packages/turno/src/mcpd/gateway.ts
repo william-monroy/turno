@@ -331,6 +331,8 @@ export class Gateway {
       context: (req, name, profile) => this.sessionContext(req, name, profile),
       capabilities: announcedCapabilities,
       ...(opts.peerPid ? { peerPid: opts.peerPid } : {}),
+      folders: async (ctx) => (ctx.cwd && this.opts.folderRules ? folderRoots(ctx.cwd) : []),
+      hiddenBySet: (c) => this.hiddenBySet(c),
       ...(opts.log ? { log: opts.log } : {}),
     });
   }

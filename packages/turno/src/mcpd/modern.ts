@@ -284,7 +284,11 @@ export class StatelessClient implements ClientHandle {
   readonly calls = new Map<Id, Call>();
   readonly listeners = new Set<Listener>();
 
-  constructor(readonly ctx: ClientContext) {
+  constructor(
+    readonly ctx: ClientContext,
+    /** The client folder and, for a worktree, its main repository: what folder sets match (ADR 0031). */
+    readonly folders: string[] = [],
+  ) {
     this.id = ctx.sessionId;
   }
 
@@ -334,6 +338,10 @@ export interface FrontOptions {
   /** Capabilities as mcpd announces them (listChanged on lists it can relist). */
   capabilities: (caps: Record<string, unknown>) => Record<string, unknown>;
   peerPid?: (remotePort: number) => Promise<number | undefined>;
+  /** Folders a client's server set is matched against (ADR 0031); none when sets are off. */
+  folders?: (ctx: ClientContext) => Promise<string[]>;
+  /** Why the client's folder hides its server (ADR 0031), or undefined when it is shown. */
+  hiddenBySet?: (c: { ctx: ClientContext; folders: string[] }) => string | undefined;
   log?: (line: string) => void;
 }
 
@@ -396,7 +404,8 @@ export class StatelessFront {
         const ctx = await this.opts.context(req, name, profile);
         if (pid && !ctx.pid) ctx.pid = pid;
         ctx.sessionId = `stateless-${++this.seq}`;
-        const c = new StatelessClient(ctx);
+        const folders = this.opts.folders ? await this.opts.folders(ctx) : [];
+        const c = new StatelessClient(ctx, folders);
         this.clients.set(key, c);
         this.opts.manager.register(c);
         return c;
@@ -464,6 +473,9 @@ export class StatelessFront {
     const agent = cleanAgentName(isObject(meta[CLIENT_INFO]) ? meta[CLIENT_INFO].name : undefined);
     if (agent) client.ctx.clientName = agent;
 
+    // Outside the folder's server set (ADR 0031): answer from mcpd, never start the server.
+    const hidden = this.opts.hiddenBySet?.(client);
+    if (hidden) return this.hiddenReply(res, id, method, hidden);
     try {
       if (method === "server/discover") return await this.discover(res, id, client);
       if (LISTS[method]) return await this.answerList(res, id, method, client);
@@ -472,6 +484,20 @@ export class StatelessFront {
     } catch (err) {
       this.reply(res, id, method, rpcError(ErrorCode.Internal, `${name}: ${(err as Error).message}`));
     }
+  }
+
+  /** A hidden server: no capabilities, empty lists that are not cached, every other request refused. */
+  private hiddenReply(res: ServerResponse, id: Id, method: string, why: string): void {
+    if (method === "server/discover") {
+      this.reply(res, id, method, { result: { supportedVersions: ALL_PROTOCOL_VERSIONS, capabilities: {}, instructions: why, ttlMs: 0, cacheScope: "private" } });
+      return;
+    }
+    const spec = LISTS[method] ?? (method === "resources/list" ? { field: "resources" } : undefined);
+    if (spec) {
+      this.reply(res, id, method, { result: { [spec.field]: [], ttlMs: 0, cacheScope: "private" } });
+      return;
+    }
+    this.reply(res, id, method, rpcError(ErrorCode.InvalidParams, why));
   }
 
   /** ttlMs for a cached description: trusted only once a running server confirmed it. */
