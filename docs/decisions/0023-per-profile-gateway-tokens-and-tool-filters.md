@@ -98,5 +98,5 @@ on their next list or call.
 - The tool filter is enforced at the gateway, not by the upstream server: a server that exposes
   the same action under another tool name is not covered, so deny lists should be paired with
   allow lists for anything sensitive.
-- A change to `tools` changes the definition fingerprint of a server, so the next session starts a
-  fresh instance and the old one idles out.
+- A change to `tools` keeps the running instance: the definition fingerprint leaves tool filters
+  out (changed after this ADR; at first a filter change started a fresh instance).
