@@ -129,7 +129,7 @@ function envRefChecks(manifest: Manifest, env: NodeJS.ProcessEnv): Check[] {
     out.push({
       area: "mcp",
       level: "warn",
-      text: `${server.name}: ${list} ${names.length === 1 ? "is" : "are"} not set here, and mcp.toml reads ${names.length === 1 ? "it" : "them"} from mcpd's environment`,
+      text: `${server.name} reads ${list} from mcpd's environment, and ${names.length === 1 ? "it is" : "they are"} not set here`,
       manual: `set ${list} where mcpd starts, then turno mcp daemon restart; or store ${names.length === 1 ? "it" : "each"} with turno secret set <name> and write keychain:<name> instead`,
     });
   }

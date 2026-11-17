@@ -221,14 +221,14 @@ describe("turno doctor follow-ups", () => {
     );
     const env = { ...sb.env, GH_TOKEN: "s3cr3t-value-1", API_TOKEN: "s3cr3t-value-2" };
     const mcp = (await collectChecks(env)).filter((c) => c.area === "mcp");
-    expect(mcp.find((c) => c.text.startsWith("gh: "))).toMatchObject({
+    expect(mcp.find((c) => c.text.startsWith("gh reads "))).toMatchObject({
       level: "warn",
-      text: "gh: REGION and WORK_TOKEN are not set here, and mcp.toml reads them from mcpd's environment",
+      text: "gh reads REGION and WORK_TOKEN from mcpd's environment, and they are not set here",
     });
     // A proxied remote's headers are mcpd's to resolve; a direct remote's are the agent's.
-    expect(mcp.find((c) => c.text.startsWith("api: "))?.text).toBe("api: API_REGION is not set here, and mcp.toml reads it from mcpd's environment");
-    expect(mcp.find((c) => c.text.startsWith("gh: "))?.manual).toContain("turno mcp daemon restart");
-    expect(mcp.some((c) => c.text.startsWith("open: "))).toBe(false);
+    expect(mcp.find((c) => c.text.startsWith("api reads "))?.text).toBe("api reads API_REGION from mcpd's environment, and it is not set here");
+    expect(mcp.find((c) => c.text.startsWith("gh reads "))?.manual).toContain("turno mcp daemon restart");
+    expect(mcp.some((c) => c.text.startsWith("open reads "))).toBe(false);
     const io = fakeIo(env);
     await doctor(io, { json: true });
     const text = io.lines.join("\n");
