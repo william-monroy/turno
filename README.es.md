@@ -39,15 +39,17 @@ ni telemetría, ni proxy del tráfico con el modelo.
 ## Inicio rápido
 
 ```sh
-turno init                    # encuentra tus agentes, perfiles, carpetas y servidores MCP y muestra el diff
+turno init                    # encuentra tus agentes, perfiles, carpetas y servidores MCP, muestra el diff,
+                              # arranca el gateway y apunta cada perfil a él
 claude-trabajo                # inicia sesión una vez por perfil (/login)
-turno mcp daemon start        # el gateway, mantenido por launchd (macOS) o systemd --user (Linux)
-turno mcp sync                # apunta cada perfil de cada agente al gateway
 cd ~/code/acme && turno auto  # Claude Code, con la cuenta de esta carpeta
+turno                         # dónde estás: esta carpeta, cuentas, gateway y qué sigue
 ```
 
 `turno init` pregunta antes de adoptar cualquier cosa y escribe todo como un solo cambio, así
-que un solo `turno undo <stamp>` lo revierte. Paso a paso:
+que un solo `turno undo <stamp>` lo revierte. El gateway corre como servicio de sesión (launchd
+en macOS, systemd --user en Linux); `turno init --no-start` lo deja para después
+(`turno mcp daemon start` y luego `turno mcp sync`). Paso a paso:
 
 ```sh
 turno profile add trabajo --color violet  # ~/.claude-trabajo y el comando claude-trabajo

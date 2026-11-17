@@ -236,13 +236,13 @@ async function waitFor(check: () => Promise<boolean>, ms: number): Promise<boole
 }
 
 /** Write (or rewrite) the service file and (re)load it. Shared by `start` and `upgrade --finish`. */
-export async function installDaemonService(io: Io, opts: { dryRun?: boolean; command?: string } = {}): Promise<number> {
+export async function installDaemonService(io: Io, opts: { dryRun?: boolean; command?: string; journal?: Journal } = {}): Promise<number> {
   const backend = await backendOrReport(io);
   if (!backend) return 1;
   return serviceStep(io, async () => {
     const { chooseProgram, installService } = await import("../../mcpd/service.js");
     const choice = chooseProgram({ env: io.env, execPath: process.execPath, script: entryScript() });
-    const journal = new Journal(io.env, opts.command ?? "mcp daemon start", Boolean(opts.dryRun));
+    const journal = opts.journal ?? new Journal(io.env, opts.command ?? "mcp daemon start", Boolean(opts.dryRun));
     if (!opts.dryRun) {
       const { ensureToken } = await import("../../mcpd/daemon.js");
       ensureToken(io.env, (m) => io.err(`turno: ${m}`));
@@ -254,23 +254,29 @@ export async function installDaemonService(io: Io, opts: { dryRun?: boolean; com
       io.out(r.text.trimEnd());
     } else io.out(`${backend.noun} ${r.changed ? "written" : "unchanged"}: ${tildify(r.file, io.env)}`);
     if (choice.warning) io.err(`turno: warning: ${choice.warning}`);
-    const hint = journal.hint();
+    const hint = opts.journal ? undefined : journal.hint();
     if (hint) io.out(hint);
     return 0;
   });
 }
 
-async function start(args: string[], io: Io): Promise<number> {
-  const p = parseFlags(args, DRY_RUN, 0);
-  const dryRun = bool(p, "dry-run");
-  const code = await installDaemonService(io, { dryRun });
-  if (code || dryRun) return code;
+/** Install the service and wait until mcpd answers. Non-zero when either step fails. */
+export async function startDaemonService(io: Io, opts: { journal?: Journal } = {}): Promise<number> {
+  const code = await installDaemonService(io, opts);
+  if (code) return code;
   if (await waitFor(async () => Boolean(await fetchStatus(io.env)), 5000)) {
     io.out("mcpd is running");
     return 0;
   }
   io.err("mcpd did not answer yet; see turno mcp daemon status and turno mcp daemon logs");
   return 1;
+}
+
+async function start(args: string[], io: Io): Promise<number> {
+  const p = parseFlags(args, DRY_RUN, 0);
+  const dryRun = bool(p, "dry-run");
+  if (dryRun) return installDaemonService(io, { dryRun });
+  return startDaemonService(io);
 }
 
 /** Stop the service and remove its file, so mcpd does not come back at login. A hand-started mcpd gets SIGTERM. */

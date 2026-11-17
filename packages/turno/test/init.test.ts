@@ -200,12 +200,53 @@ describe("turno init", () => {
     const io = answering([
       [/Use ~\//, ""],
       [/Default profile/, "none"],
+      [/Also start the gateway/, "y"],
       [/Write all of this/, "n"],
     ]);
     const r = await run(["init"], io);
     expect(r.code).toBe(1);
     expect(existsSync(cfgFile())).toBe(false);
     expect(listJournals(sb.env)).toHaveLength(0);
+  });
+
+  it("--yes --start also starts the gateway and points every profile at it, in the same journal", async () => {
+    existingSetup();
+    const calls = home("calls.log");
+    fakeCommand(sb, "launchctl", `echo "launchctl $*" >> "${calls}"`);
+    fakeCommand(sb, "systemctl", `echo "systemctl $*" >> "${calls}"`);
+    // An mcpd already answering /status in this sandbox, as the service would.
+    const { startDaemon } = await import("../src/mcpd/daemon.js");
+    const d = await startDaemon({ env: sb.env, port: 0 });
+    try {
+      const r = await run(["init", "--yes", "--start"]);
+      expect(r.code).toBe(0);
+      expect(r.out).toContain("mcpd is running");
+      expect(r.out).not.toMatch(/turno mcp daemon start {3}/);
+      expect(r.out).toContain("Try it: claude-work");
+      const service = process.platform === "darwin" ? home("Library/LaunchAgents") : home(".config/systemd/user");
+      expect(readdirSync(service).length).toBe(1);
+      expect(read(home(".claude-work/.claude.json"))).toContain("127.0.0.1");
+      const journals = listJournals(sb.env);
+      expect(journals).toHaveLength(1);
+      expect(r.out).toContain("the gateway keeps running until turno mcp daemon stop");
+
+      expect((await run(["undo", journals[0]!.stamp])).code).toBe(0);
+      expect(existsSync(join(service, readdirSync(service)[0] ?? "none"))).toBe(false);
+      expect(read(home(".claude-work/.claude.json"))).not.toContain("127.0.0.1");
+    } finally {
+      await d.stop();
+    }
+  });
+
+  it("--dry-run --start says it would start the gateway; --start and --no-start do not go together", async () => {
+    existingSetup();
+    const dry = await run(["init", "--dry-run", "--start"]);
+    expect(dry.code).toBe(0);
+    expect(dry.out).toContain("Then: start the gateway as a login service");
+    expect(listJournals(sb.env)).toHaveLength(0);
+    const both = await run(["init", "--yes", "--start", "--no-start"]);
+    expect(both.code).toBe(2);
+    expect(both.err).toContain("--start and --no-start do not go together");
   });
 
   it("takes profiles and the default from flags", async () => {

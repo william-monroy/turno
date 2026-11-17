@@ -194,9 +194,26 @@ const SYNC_FLAGS: FlagSpec = { ...DRY_RUN, ...FORCE };
 
 async function sync(args: string[], io: Io): Promise<number> {
   const flags = parseFlags(args, SYNC_FLAGS);
-  const dryRun = bool(flags, "dry-run");
-  const force = bool(flags, "force");
-  const only = flags.positionals;
+  const r = await syncProfiles(io, { dryRun: bool(flags, "dry-run"), force: bool(flags, "force"), only: flags.positionals, command: `mcp sync ${args.join(" ")}`.trim() });
+  return r.skipped ? 1 : 0;
+}
+
+export interface SyncOptions {
+  dryRun?: boolean;
+  force?: boolean;
+  /** Profiles to sync; all when empty. */
+  only?: string[];
+  /** The journal name when sync keeps its own journal. */
+  command?: string;
+  /** Record the changes in this journal (turno init's) instead of one of its own; no undo hint is printed. */
+  journal?: Journal;
+}
+
+/** Point every profile's agent config at the gateway. `changed` counts the files that change (or would). */
+export async function syncProfiles(io: Io, opts: SyncOptions = {}): Promise<{ changed: number; skipped: number }> {
+  const dryRun = Boolean(opts.dryRun);
+  const force = Boolean(opts.force);
+  const only = opts.only ?? [];
   const config = loadConfig(io.env);
   const known = new Set([...listProfiles(config, io.env), config.system ?? "default", "hub"]);
   for (const name of only) if (!known.has(name)) fail(`no profile '${name}' (turno profile list shows them)`);
@@ -214,7 +231,7 @@ async function sync(args: string[], io: Io): Promise<number> {
   let skipped = 0;
   let changed = 0;
   let gatewayTargets = 0;
-  const journal = new Journal(io.env, `mcp sync ${args.join(" ")}`.trim(), dryRun);
+  const journal = opts.journal ?? new Journal(io.env, opts.command ?? "mcp sync", dryRun);
   for (const t of targets(io, config, only)) {
     const where = tildify(t.file, io.env);
     const a = adapter(t.agent);
@@ -251,12 +268,12 @@ async function sync(args: string[], io: Io): Promise<number> {
   if (!dryRun && JSON.stringify(managed) !== managedBefore) writeManaged(p.mcpdManaged, managed);
   await syncTokenFiles(io, config, only, token, dryRun);
   if (!dryRun && changed) io.out("New sessions pick this up; open sessions keep their old servers until restarted.");
-  const hint = changed && !dryRun ? journal.hint() : undefined;
+  const hint = changed && !dryRun && !opts.journal ? journal.hint() : undefined;
   if (hint) io.out(hint);
   if (gatewayTargets && !(await mcpdAnswers(io.env))) {
     io.err(`${paint(io, "warning", "33")}: mcpd is not running, so these profiles have no local MCP servers until you run: turno mcp daemon start`);
   }
-  return skipped ? 1 : 0;
+  return { changed, skipped };
 }
 
 /**

@@ -200,6 +200,8 @@ const SPEC: FlagSpec = {
   skip: { type: "string", multiple: true },
   default: { type: "string" },
   "no-mcp": { type: "boolean" },
+  start: { type: "boolean" },
+  "no-start": { type: "boolean" },
 };
 
 function list(p: { values: Record<string, unknown> }, name: string): string[] {
@@ -398,17 +400,23 @@ function loginHint(agent: AgentId, command: string): string {
   return sub ? `${command} ${sub}` : `${command} (then /login)`;
 }
 
-function printNext(io: Io, plan: Plan): void {
+/** Whether the plan leaves MCP servers for the gateway to serve. */
+function hasServers(plan: Plan): boolean {
+  return plan.mcp.kind === "import" || (plan.mcp.kind === "keep" && plan.mcp.servers > 0);
+}
+
+function printNext(io: Io, plan: Plan, started: boolean): void {
   const steps: string[] = [];
   if (plan.profiles.length) steps.push(`sign in once per profile where needed: ${plan.profiles.map((np) => loginHint(np.agent, launcherName(np.name, np.agent))).join(", ")}`);
-  const hasServers = plan.mcp.kind === "import" || (plan.mcp.kind === "keep" && plan.mcp.servers > 0);
-  if (hasServers) {
+  if (hasServers(plan) && !started) {
     steps.push("turno mcp daemon start   (the gateway, as a login service)");
     steps.push("turno mcp sync           (point every profile at it)");
   }
   steps.push("turno ui install         (optional: the status line and its font)");
   io.out("Next:");
   for (const [i, s] of steps.entries()) io.out(`  ${i + 1}. ${s}`);
+  const first = plan.profiles[0];
+  if (first) io.out(`\nTry it: ${launcherName(first.name, first.agent)}`);
 }
 
 // Command -------------------------------------------------------------------------------------
@@ -417,6 +425,7 @@ async function run(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, SPEC, 0);
   const dry = bool(p, "dry-run");
   const yes = bool(p, "yes");
+  if (bool(p, "start") && bool(p, "no-start")) fail("--start and --no-start do not go together");
   // Questions only when a person can answer and has not answered everything with --yes.
   const ask = !dry && !yes && Boolean(io.ask);
   const { plan, before, after } = await makePlan(args, io, ask);
@@ -429,8 +438,15 @@ async function run(args: string[], io: Io): Promise<number> {
   }
   printPlan(io, plan, before, after);
   io.out("");
+  // Start the gateway and connect the profiles in the same run: asked in a terminal (yes by
+  // default), --start with --yes, never with --no-start. Both steps go in init's journal.
+  let start = hasServers(plan) && bool(p, "start");
+  if (hasServers(plan) && !bool(p, "no-start") && !bool(p, "start") && ask) {
+    start = await askYes(io, "Also start the gateway and connect the profiles to it (turno mcp daemon start, turno mcp sync)?");
+  }
   if (dry) {
-    io.out("Nothing written (dry run). turno init --yes writes all of it; one turno undo reverts it.");
+    if (start) io.out("Then: start the gateway as a login service and point every profile at it (turno mcp daemon start, turno mcp sync).");
+    io.out(`Nothing written (dry run). turno init --yes${hasServers(plan) ? " --start" : ""} writes all of it; one turno undo reverts it.`);
     return 0;
   }
   // Launchers keep the path of this turno; a path into npx's cache disappears.
@@ -449,16 +465,24 @@ async function run(args: string[], io: Io): Promise<number> {
   editConfig(env, journal, (text) => (text === before ? after : editText(text, plan, env)));
   if (plan.mcp.kind === "import") journal.write(paths(env).mcpFile, await resolveMcp(io, plan.mcp), 0o600);
   if (plan.profiles.length) setupProfiles(plan.profiles.map((np) => np.name), io, { journal });
+  let started = false;
+  if (start) {
+    io.out("");
+    const { startDaemonService } = await import("./mcpd.js");
+    const { syncProfiles } = await import("./mcp.js");
+    started = (await startDaemonService(io, { journal })) === 0;
+    await syncProfiles(io, { journal });
+  }
   io.out("");
-  io.out(`Done. Undo all of it with: turno undo ${journal.stamp}`);
+  io.out(`Done. Undo all of it with: turno undo ${journal.stamp}${start ? " (the gateway keeps running until turno mcp daemon stop)" : ""}`);
   const first = plan.profiles[0];
   if (first) warnPath(io, launcherName(first.name, first.agent));
-  printNext(io, plan);
+  printNext(io, plan, started);
   return 0;
 }
 
 const USAGE = `Usage: turno init [--dry-run] [--yes] [--profile <name[:agent]>]... [--skip <name>]...
-                  [--default <profile>] [--no-mcp]
+                  [--default <profile>] [--no-mcp] [--start | --no-start]
 
 Sets turno up in one step. It looks for installed agents, turno profiles, agent folders made by
 hand (~/.claude-<name>, ~/.codex-<name>, ...), MCP servers in every agent config, and the
@@ -475,9 +499,12 @@ and the default; without one, --yes is required and flags give the answers.
   --skip <name>        leave a found folder alone
   --default <p>        profile for folders without a rule
   --no-mcp             do not create mcp.toml
+  --start              also start the gateway and point every profile at it (with --yes)
+  --no-start           leave the gateway and the agent configs alone
 
-The gateway service and agent configs stay separate steps (turno mcp daemon start, then
-turno mcp sync); init prints them at the end.`;
+When there are MCP servers, init in a terminal also offers to start the gateway as a login
+service and point every profile at it (turno mcp daemon start, turno mcp sync), in the same
+journal. With --yes it does that only with --start.`;
 
 export const command: Command = {
   summary: "set turno up in one step: find agents, profiles, folders and MCP servers, show the diff, write it (one undo)",
