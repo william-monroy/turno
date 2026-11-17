@@ -8,9 +8,10 @@ import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import type { ServerDef } from "../core/manifest.js";
 import { effectiveLaunch } from "../core/manifest.js";
 import { PRIVATE_DIR_MODE, PRIVATE_FILE_MODE } from "../core/paths.js";
-import { type SecretResolver, expandVars, resolveRecord } from "../core/secrets.js";
+import { type SecretResolver, expandVars, resolveRecord, secretStore } from "../core/secrets.js";
 import type { ClientContext, Connector } from "./instances.js";
 import { isDirectory, resolveCommand } from "./instances.js";
+import { OAuthSessions, oauthFetch } from "./oauth.js";
 
 /** A builtin server runs inside mcpd; one is created per client session with its context. */
 export type BuiltinFactory = (ctx: ClientContext) => Server | Promise<Server>;
@@ -29,6 +30,11 @@ export interface ConnectorOptions {
   vars?: NodeJS.ProcessEnv;
   /** Bytes a server log may reach before it is rotated to `<name>.log.1`. */
   maxLogBytes?: number;
+  /**
+   * Logins of `auth = "oauth"` servers (ADR 0029). Defaults to sessions on the secret store
+   * found on the PATH of `vars`, logging to each server's log file.
+   */
+  oauth?: OAuthSessions;
 }
 
 const MAX_LOG = 5 * 1024 * 1024;
@@ -115,7 +121,31 @@ export function tailFile(file: string, lines = 10): string | undefined {
 }
 
 export class DefaultConnector implements Connector {
+  private oauthSessions?: OAuthSessions;
+  private oauthLogs = new Map<string, RotatingLog>();
+
   constructor(private readonly opts: ConnectorOptions) {}
+
+  private sessions(): OAuthSessions {
+    this.oauthSessions ??=
+      this.opts.oauth ??
+      new OAuthSessions((name, variant) => ({
+        store: () => secretStore(this.opts.vars ?? process.env),
+        resolve: this.opts.resolve,
+        log: (line) => this.oauthLog(name, variant).write(`turno: ${line}\n`),
+      }));
+    return this.oauthSessions;
+  }
+
+  private oauthLog(name: string, variant: string): RotatingLog {
+    const label = `${name}${variant === "default" ? "" : `@${variant}`}`;
+    let log = this.oauthLogs.get(label);
+    if (!log) {
+      log = new RotatingLog(logFileOf(this.opts.logsDir, label), this.opts.maxLogBytes ?? MAX_LOG);
+      this.oauthLogs.set(label, log);
+    }
+    return log;
+  }
 
   logTail(server: ServerDef, variant: string, lines = 10): string | undefined {
     return tailFile(logFileOf(this.opts.logsDir, `${server.name}${variant === "default" ? "" : `@${variant}`}`), lines);
@@ -124,11 +154,19 @@ export class DefaultConnector implements Connector {
   async connect(server: ServerDef, variant: string, ctx: ClientContext, workdir: string) {
     if (server.kind === "remote") {
       const headers = await resolveRecord(server.headers, this.opts.resolve);
+      let fetchOpt: { fetch?: ReturnType<typeof oauthFetch> } = {};
+      if (server.oauth) {
+        // mcpd is the OAuth client (ADR 0029). Asking for a token now fails fast with the login
+        // hint instead of a failed initialize; every request then gets a current token.
+        const session = this.sessions().get(server.name, variant);
+        await session.accessToken(server);
+        fetchOpt = { fetch: oauthFetch(session, () => server) };
+      }
       // `type = "sse"` is the legacy HTTP+SSE transport; everything else is Streamable HTTP.
       const transport =
         server.entry.type === "sse"
-          ? new SSEClientTransport(new URL(server.url), { requestInit: { headers } })
-          : new StreamableHTTPClientTransport(new URL(server.url), { requestInit: { headers } });
+          ? new SSEClientTransport(new URL(server.url), { requestInit: { headers }, ...fetchOpt })
+          : new StreamableHTTPClientTransport(new URL(server.url), { requestInit: { headers }, ...fetchOpt });
       return { transport };
     }
     if (server.builtin) {

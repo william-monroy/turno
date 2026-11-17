@@ -14,6 +14,7 @@ import { DRY_RUN, FORCE, type FlagSpec, JSON_FLAG, bool, parseFlags, printJson, 
 import { type Sub, group } from "../group.js";
 import { type Io, fail, paint } from "../io.js";
 import { LOG_FLAGS, SAVINGS_FLAGS, TOP_FLAGS } from "./mcp-observe.js";
+import { LOGIN_FLAGS, LOGOUT_FLAGS, type LoginRow, describeLogin, oauthLogins } from "./mcp-oauth.js";
 
 const run = promisify(execFile);
 
@@ -71,13 +72,22 @@ async function list(args: string[], io: Io): Promise<number> {
   const flags = parseFlags(args, LIST_FLAGS, 0);
   const m = loadManifest(io.env);
   const names = Object.keys(m.servers).sort();
+  const logins = await oauthLogins(io.env);
+  const loginsOf = (name: string) => logins.filter((l) => l.server === name);
   if (bool(flags, "json")) {
     printJson(
       io.out,
       names.map((n) => {
         const s = m.servers[n]!;
         return s.kind === "remote"
-          ? { name: n, kind: "remote", url: s.url, proxy: Boolean(s.proxy), profiles: s.profiles }
+          ? {
+              name: n,
+              kind: "remote",
+              url: s.url,
+              proxy: Boolean(s.proxy),
+              profiles: s.profiles,
+              ...(s.oauth ? { auth: "oauth", logins: Object.fromEntries(loginsOf(n).map((l) => [l.variant, l.state])) } : {}),
+            }
           : { name: n, kind: "stdio", command: s.builtin ? `builtin ${s.builtin}` : s.command, scope: s.scope, exclusive: Boolean(s.exclusive), idleSeconds: s.idle, profiles: s.profiles, package: s.package ?? null, variants: Object.keys(s.variants) };
       }),
     );
@@ -92,7 +102,9 @@ async function list(args: string[], io: Io): Promise<number> {
     const s = m.servers[name]!;
     const where = s.profiles.includes("*") ? "all" : s.profiles.join(", ");
     if (s.kind === "remote") {
-      rows.push([name, s.url, s.proxy ? "remote via mcpd" : "remote direct", s.proxy ? `${Math.round(s.idle / 60)}m` : "-", where, ""]);
+      const how = s.oauth ? "remote via mcpd, oauth" : s.proxy ? "remote via mcpd" : "remote direct";
+      const notes = loginsOf(name).map((l: LoginRow) => `${l.variant === "default" ? "login" : `${l.variant} login`}: ${describeLogin(l)}`);
+      rows.push([name, s.url, how, s.proxy ? `${Math.round(s.idle / 60)}m` : "-", where, notes.join("; ")]);
       continue;
     }
     const variants = Object.keys(s.variants);
@@ -596,10 +608,16 @@ async function doctor(args: string[], io: Io): Promise<number> {
   const flags = parseFlags(args, DOCTOR_FLAGS, 0);
   const found = await bypassingServers(io.env);
   const { plugins, direct } = found;
-  const code = plugins.length + direct.length ? 1 : 0;
+  const logins = await oauthLogins(io.env);
+  const missing = logins.filter((l) => l.state === "not logged in" || l.state === "login required");
+  const code = plugins.length + direct.length + missing.length ? 1 : 0;
   if (bool(flags, "json")) {
-    printJson(io.out, { ok: code === 0, ...found });
+    printJson(io.out, { ok: code === 0, ...found, ...(logins.length ? { logins: missing } : {}) });
     return code;
+  }
+  if (missing.length) {
+    io.out(paint(io, "Remote OAuth servers that need a login (ADR 0029):", "1"));
+    for (const l of missing) io.out(`  ${l.server}${l.variant === "default" ? "" : `@${l.variant}`}: ${describeLogin(l)}`);
   }
   if (plugins.length) {
     io.out(paint(io, "Plugin servers that start in every session (they bypass mcpd):", "1"));
@@ -611,7 +629,7 @@ async function doctor(args: string[], io: Io): Promise<number> {
     io.out(paint(io, "Stdio servers still configured directly in plain claude (~/.claude.json):", "1"));
     for (const d of direct) io.out(`  ${d.name}${d.inManifest ? ": in mcp.toml, run turno mcp sync" : ": not in mcp.toml, run turno mcp import"}`);
   }
-  if (!code) io.out("Every local server goes through mcpd.");
+  if (!code) io.out(`Every local server goes through mcpd${logins.length ? " and every OAuth server is logged in" : ""}.`);
   return code;
 }
 
@@ -647,6 +665,22 @@ const SUBS: Record<string, Sub> = {
   },
   refresh: { synopsis: "[server...] [--dry-run]", summary: "make mcpd relearn tool lists", args: ["server"], flags: flagsOf(REFRESH_FLAGS), run: refresh },
   doctor: { synopsis: "[--json]", summary: "find servers that bypass the gateway", flags: flagsOf(DOCTOR_FLAGS), run: doctor },
+  login: {
+    synopsis: "<server> [--profile <p>] [--scope <s>] [--no-browser] [--dry-run] [--json]",
+    summary: "log mcpd in to a remote OAuth server, once per variant",
+    args: ["server"],
+    flags: flagsOf(LOGIN_FLAGS),
+    details:
+      'For servers declared with auth = "oauth" in mcp.toml. mcpd keeps the tokens in the secret store\n(Keychain or Secret Service) and refreshes them; agents reach the server through mcpd.\n--profile logs in the variant of that profile ([server.<name>.variant.<profile>]); without one,\nthe login serves every profile that has no variant of its own.',
+    run: async (rest, io) => (await import("./mcp-oauth.js")).login(rest, io),
+  },
+  logout: {
+    synopsis: "<server> [--profile <p> | --all] [--no-revoke] [--dry-run]",
+    summary: "forget an OAuth login and revoke its token",
+    args: ["server"],
+    flags: flagsOf(LOGOUT_FLAGS),
+    run: async (rest, io) => (await import("./mcp-oauth.js")).logout(rest, io),
+  },
   log: {
     synopsis: "[-f] [-n N] [--server S] [--profile P] [--json]",
     summary: "tool calls mcpd relayed (no arguments or results)",

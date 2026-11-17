@@ -11,6 +11,7 @@ import { resolveRecord } from "../core/secrets.js";
 import { type DescriptionCache, type ServerDescription, fingerprint } from "./cache.js";
 import type { CallEvent } from "./calllog.js";
 import { ErrorCode, type Id, rpcError, type Outcome } from "./jsonrpc.js";
+import { LoginRequiredError } from "./oauth.js";
 import { type PressureLevel, type PressureProbe, effectiveIdle } from "./pressure.js";
 import { type ClientPort, Upstream } from "./upstream.js";
 
@@ -168,8 +169,9 @@ export const processCwd: (pid: number, now?: number) => Promise<string | undefin
   }
 });
 
+/** Stdio servers and OAuth remotes have variants per profile; other remotes have only "default". */
 export function variantOf(server: ServerDef, profile: string | undefined): string {
-  return server.kind === "stdio" ? variantKey(server, profile) : "default";
+  return variantKey(server, profile);
 }
 
 export function scopeOf(server: ServerDef): Scope {
@@ -439,7 +441,7 @@ export class InstanceManager {
    */
   async refresh(name: string): Promise<{ refreshed: string[]; forgotten: string[]; errors: Record<string, string> }> {
     const def = this.manifest?.().servers[name];
-    const variants = def?.kind === "stdio" ? ["default", ...Object.keys(def.variants)] : ["default"];
+    const variants = def ? ["default", ...Object.keys(def.variants)] : ["default"];
     const out = { refreshed: [] as string[], forgotten: [] as string[], errors: {} as Record<string, string> };
     for (const variant of variants) {
       const descKey = `${name}@${variant}`;
@@ -497,6 +499,8 @@ export class InstanceManager {
       this.breakers.delete(bkey);
       return inst;
     } catch (err) {
+      // A missing OAuth login is not a crash: no backoff, so the call after `turno mcp login` works.
+      if (err instanceof LoginRequiredError) throw err;
       const message = (err as Error).message;
       const failures = (b?.failures ?? 0) + 1;
       const threshold = this.opts.breakerThreshold ?? 3;

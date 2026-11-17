@@ -251,6 +251,11 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
     const b = await bypassingServers(env);
     for (const s of b.plugins) add("mcp", "info", `plugin server ${s.plugin}/${s.name} starts in every session (turno mcp doctor)`);
     for (const d of b.direct) add("mcp", "warn", `${d.name} runs outside mcpd (${d.inManifest ? "turno mcp sync" : "turno mcp import"})`);
+    const { describeLogin, oauthLogins } = await import("./mcp-oauth.js");
+    for (const l of await oauthLogins(env)) {
+      const ok = l.state === "logged in" || l.state === "expired";
+      add("mcp", ok ? "ok" : "warn", `${l.server}${l.variant === "default" ? "" : `@${l.variant}`} OAuth: ${describeLogin(l)}`);
+    }
   } catch {
     /* a broken mcp.toml is reported above */
   }
