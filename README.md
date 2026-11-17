@@ -357,7 +357,9 @@ that `turno undo` restores, and `turno uninstall` removes what it set up.
 Interactive commands ask the npm registry for a newer version at most once a day, sending only
 the package name. Turn it off with `update_check = false` in config.toml, `DO_NOT_TRACK=1`,
 `NO_UPDATE_NOTIFIER=1` or `TURNO_NO_UPDATE_CHECK=1`; it is also off in CI and outside a
-terminal. turno sends no other data anywhere.
+terminal. Apart from that, turno only goes online when you ask it to: `turno ui install`
+downloads the status line font, `turno mcp install` and `turno upgrade` fetch packages from npm, and
+`turno mcp login` talks to that server's authorization server. There is no telemetry.
 
 ## Contributing
 
