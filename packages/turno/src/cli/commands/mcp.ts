@@ -2,23 +2,22 @@ import { execFile } from "node:child_process";
 import { chmodSync, existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { type AgentId, adapter, mcpFileFor } from "../../agents/index.js";
+import { type AgentId, DEFAULT_AGENT, adapter, mcpFileFor } from "../../agents/index.js";
 import { gatewaySnippet, isSnippetAgent, SNIPPET_AGENTS } from "../../agents/snippets.js";
 import { type Config, isValidProfileName, loadConfig } from "../../core/config.js";
 import { Journal } from "../../core/journal.js";
 import { type StdioServer, type ToolFilter, loadManifest, parseManifest, servesProfile } from "../../core/manifest.js";
-import { PRIVATE_DIR_MODE, PRIVATE_FILE_MODE, ensurePrivateDir, paths, profileDir, tildify } from "../../core/paths.js";
+import { PRIVATE_DIR_MODE, PRIVATE_FILE_MODE, ensurePrivateDir, paths, tildify } from "../../core/paths.js";
 import { agentOf, listProfiles } from "../../core/profiles.js";
 import { liveSessions } from "../../core/sessions.js";
 import { DRY_RUN, FORCE, type FlagSpec, JSON_FLAG, bool, parseFlags, printJson, str } from "../args.js";
 import { type Sub, group } from "../group.js";
-import { type Io, fail, paint } from "../io.js";
+import { type Io, fail, paint, plural } from "../io.js";
 import { LOG_FLAGS, SAVINGS_FLAGS, TOP_FLAGS } from "./mcp-observe.js";
 import { LOGIN_FLAGS, LOGOUT_FLAGS, type LoginRow, describeLogin, oauthLogins } from "./mcp-oauth.js";
 
 const run = promisify(execFile);
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const flagsOf = (spec: FlagSpec) => Object.keys(spec).map((k) => `--${k}`);
 
 /**
@@ -151,30 +150,30 @@ interface Target {
   profile: string;
   file: string;
   agent: AgentId;
-  /** The hub config used by plain `claude` (~/.claude.json). */
+  /** The hub config of the default agent without a launcher (plain `claude`: ~/.claude.json). */
   plain?: boolean;
 }
 
 function targets(io: Io, config: Config, only: string[]): Target[] {
-  const p = paths(io.env);
   const out: Target[] = [];
-  let cursorDone = false;
+  const sharedDone = new Set<AgentId>();
   for (const name of listProfiles(config, io.env)) {
     if (only.length && !only.includes(name)) continue;
     const agent = agentOf(name, config);
-    if (adapter(agent).sharedMcpFile) {
-      // One file for every Cursor profile: entries route by the launcher's environment.
-      if (cursorDone) continue;
-      cursorDone = true;
+    if (adapter(agent).mcp.shared) {
+      // One file for every profile of the agent (Cursor): entries route by the launcher's environment.
+      if (sharedDone.has(agent)) continue;
+      sharedDone.add(agent);
       out.push({ profile: "", file: mcpFileFor(name, agent, io.env), agent });
       continue;
     }
-    out.push({ profile: name, file: agent === "claude" ? join(profileDir(name, io.env), ".claude.json") : mcpFileFor(name, agent, io.env), agent });
+    out.push({ profile: name, file: mcpFileFor(name, agent, io.env), agent });
   }
-  // The hub config belongs to the system profile (plain `claude`).
+  // The hub config belongs to the system profile (the default agent started without a launcher).
   const hubProfile = config.system ?? "default";
-  if ((!only.length || only.includes(hubProfile) || only.includes("hub")) && existsSync(p.hubConfig)) {
-    out.push({ profile: hubProfile, file: p.hubConfig, agent: "claude", plain: true });
+  const hubFile = adapter(DEFAULT_AGENT).mcp.hubFile(io.env);
+  if ((!only.length || only.includes(hubProfile) || only.includes("hub")) && existsSync(hubFile)) {
+    out.push({ profile: hubProfile, file: hubFile, agent: DEFAULT_AGENT, plain: true });
   }
   return out;
 }
@@ -201,7 +200,7 @@ async function sync(args: string[], io: Io): Promise<number> {
   const config = loadConfig(io.env);
   const known = new Set([...listProfiles(config, io.env), config.system ?? "default", "hub"]);
   for (const name of only) if (!known.has(name)) fail(`no profile '${name}' (turno profile list shows them)`);
-  const { profileServers, readManaged, syncCodexToml, syncConfigFile, syncJsonServers, writeManaged } = await import("../../mcpd/sync.js");
+  const { profileServers, readManaged, syncServers, writeManaged } = await import("../../mcpd/sync.js");
   const { ensureToken, mcpdPort, readToken } = await import("../../mcpd/daemon.js");
   const manifest = loadManifest(io.env);
   // A dry run never creates the token; without one, entries show a placeholder. Entries get
@@ -218,9 +217,10 @@ async function sync(args: string[], io: Io): Promise<number> {
   const journal = new Journal(io.env, `mcp sync ${args.join(" ")}`.trim(), dryRun);
   for (const t of targets(io, config, only)) {
     const where = tildify(t.file, io.env);
+    const a = adapter(t.agent);
     const label = t.plain
-      ? `plain claude${config.system ? `, profile ${config.system}` : ""} (${where})`
-      : `${t.profile || `${adapter(t.agent).label} profiles`} (${where})`;
+      ? `plain ${a.command}${config.system ? `, profile ${config.system}` : ""} (${where})`
+      : `${t.profile || `${a.label} profiles`} (${where})`;
     const isBusy = t.plain ? busy.plain || busy.profiles.has(t.profile) : Boolean(t.profile) && busy.profiles.has(t.profile);
     if (isBusy && !force) {
       io.out(`${paint(io, dryRun ? "would skip" : "skip", "33")} ${label}: has open sessions; close them or use --force`);
@@ -230,12 +230,7 @@ async function sync(args: string[], io: Io): Promise<number> {
     const wanted = profileServers(manifest, t.profile, port, token, t.agent);
     if (Object.values(manifest.servers).some((s) => servesProfile(s, t.profile) && !(s.kind === "remote" && !s.proxy))) gatewayTargets++;
     const prev = managed[t.file] ?? [];
-    const apply = (dry: boolean) =>
-      t.agent === "codex"
-        ? syncCodexToml(t.file, wanted, prev, { dryRun: dry })
-        : t.agent === "claude"
-          ? syncConfigFile(t.file, wanted, prev, { dryRun: dry })
-          : syncJsonServers(t.file, "mcpServers", wanted, prev, { dryRun: dry });
+    const apply = (dry: boolean) => syncServers(t.file, a.mcp.store, wanted, prev, { dryRun: dry });
     // Plan first, so a file that would not change is neither backed up nor rewritten.
     let res = apply(true);
     if (res.changed && !dryRun) {
@@ -250,9 +245,8 @@ async function sync(args: string[], io: Io): Promise<number> {
     const tag = dryRun ? "plan" : res.changed ? "sync" : "same";
     const detail = parts.length ? `: ${parts.join("; ")}` : dryRun && !res.changed ? ": no changes" : "";
     io.out(`${paint(io, tag, res.changed ? "32" : "2")} ${label}${detail}`);
-    if (t.agent === "cursor" && res.added.length && !dryRun) {
-      io.out(`  Cursor asks to approve new servers once: cursor-agent mcp enable <name> (${res.added.join(", ")})`);
-    }
+    const after = res.added.length && !dryRun ? a.mcp.afterSync?.(res.added) : undefined;
+    if (after) io.out(after);
   }
   if (!dryRun && JSON.stringify(managed) !== managedBefore) writeManaged(p.mcpdManaged, managed);
   await syncTokenFiles(io, config, only, token, dryRun);

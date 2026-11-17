@@ -1,6 +1,7 @@
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parse as parseToml } from "smol-toml";
+import { JSON_MCP_SERVERS, TOML_MCP_SERVERS } from "../../agents/adapter.js";
 import { agentProfileDir } from "../../agents/index.js";
 import { type Config, loadConfig, parseConfig } from "../../core/config.js";
 import { Journal, listJournals } from "../../core/journal.js";
@@ -304,11 +305,10 @@ async function apply(plan: UninstallPlan, journal: Journal, io: Io): Promise<voi
     for (let waited = 0; waited < 5000 && liveLock(env); waited += 250) await new Promise((r) => setTimeout(r, 250));
   }
   if (plan.configs.length) {
-    const { syncCodexToml, syncJsonServers } = await import("../../mcpd/sync.js");
+    const { syncServers } = await import("../../mcpd/sync.js");
     for (const c of plan.configs) {
       const at = journal.save(c.file);
-      if (c.file.endsWith(".toml")) syncCodexToml(c.file, {}, c.names);
-      else syncJsonServers(c.file, "mcpServers", {}, c.names);
+      syncServers(c.file, c.file.endsWith(".toml") ? TOML_MCP_SERVERS : JSON_MCP_SERVERS, {}, c.names);
       journal.settle(at);
     }
   }

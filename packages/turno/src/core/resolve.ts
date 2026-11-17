@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { sep } from "node:path";
-import type { AgentId } from "../agents/index.js";
+import { type AgentId, DEFAULT_AGENT } from "../agents/index.js";
 import type { Config, ProjectRule } from "./config.js";
 import { exhaustedUntil } from "./exhausted.js";
 import { tildify } from "./paths.js";
@@ -97,9 +97,9 @@ export function resolveProfile(
   config: Config,
   env: NodeJS.ProcessEnv = process.env,
   roots: string[] = candidateRoots(cwd),
-  agent: AgentId = "claude",
+  agent: AgentId = DEFAULT_AGENT,
 ): Resolution {
-  const roles = agent === "claude" ? { default: config.default, fallback: config.fallback } : (config.agents[agent] ?? {});
+  const roles = agent === DEFAULT_AGENT ? { default: config.default, fallback: config.fallback } : (config.agents[agent] ?? {});
   let best: { profile: string; root: string } | undefined;
   for (const rule of config.projects) {
     if (!rule.profile || agentOf(rule.profile, config) !== agent) continue;

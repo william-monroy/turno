@@ -2,7 +2,7 @@ import { chmodSync, existsSync, lstatSync, readFileSync, readdirSync, statSync }
 import { basename, dirname, join } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { verifyAudit } from "../accounts/audit.js";
-import { mcpFileFor } from "../agents/index.js";
+import { SCAN_ORDER, adapter, mcpFileFor } from "../agents/index.js";
 import { type Config, loadConfig } from "../core/config.js";
 import { loadManifest } from "../core/manifest.js";
 import { paths, privateRoots, tildify } from "../core/paths.js";
@@ -276,8 +276,7 @@ async function manifestSecrets(file: string): Promise<string[]> {
 
 /** The agent config files on this machine that can hold MCP servers: hubs and every profile's. */
 function agentConfigFiles(env: NodeJS.ProcessEnv, config: Config | undefined): string[] {
-  const p = paths(env);
-  const files = new Set<string>([p.hubConfig, join(p.home, ".codex", "config.toml"), join(p.home, ".cursor", "mcp.json"), join(p.home, ".copilot", "mcp-config.json")]);
+  const files = new Set<string>(SCAN_ORDER.map((id) => adapter(id).mcp.hubFile(env)));
   if (config) {
     for (const name of listProfiles(config, env)) files.add(mcpFileFor(name, agentOf(name, config), env));
   }

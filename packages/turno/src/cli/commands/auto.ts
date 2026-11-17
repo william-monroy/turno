@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { type AgentId, adapter, agentHub, isAgentId } from "../../agents/index.js";
+import { AGENT_IDS, type AgentId, DEFAULT_AGENT, adapter, agentHub, isAgentId } from "../../agents/index.js";
 import { type Config, loadConfig } from "../../core/config.js";
 import { paths, tildify } from "../../core/paths.js";
 import { listProfiles } from "../../core/profiles.js";
@@ -23,11 +23,11 @@ export interface AutoPlan {
  * config.toml are errors (TURNO_ALLOW_PLAIN=1 runs the plain agent despite a broken config).
  */
 export function planAuto(argv: string[], io: Io, cwd: string = process.cwd()): AutoPlan {
-  let agent: AgentId = "claude";
+  let agent: AgentId = DEFAULT_AGENT;
   let args = argv;
   if (argv[0] === "--agent" || argv[0]?.startsWith("--agent=")) {
     const v = argv[0] === "--agent" ? argv[1] : argv[0].slice("--agent=".length);
-    if (!isAgentId(v)) return fail("--agent must be claude, codex, copilot or cursor");
+    if (!isAgentId(v)) return fail(`--agent must be ${AGENT_IDS.slice(0, -1).join(", ")} or ${AGENT_IDS.at(-1)}`);
     agent = v;
     args = argv.slice(argv[0] === "--agent" ? 2 : 1);
   }
@@ -55,7 +55,7 @@ export function planAuto(argv: string[], io: Io, cwd: string = process.cwd()): A
     const launcher = launcherPath(r.chosen, env, agent);
     if (!launcher) {
       if (!listProfiles(config, env).includes(r.chosen)) {
-        const add = `turno profile add ${r.chosen}${agent === "claude" ? "" : ` --agent ${agent}`}`;
+        const add = `turno profile add ${r.chosen}${agent === DEFAULT_AGENT ? "" : ` --agent ${agent}`}`;
         throw new CliError(`${where} uses the ${r.chosen} profile (${r.reason}), but there is no such profile. Run: ${add}, or change the rule (turno profile which)`);
       }
       const missing = tildify(join(paths(env).bin, launcherName(r.chosen, agent)), env);
@@ -70,7 +70,7 @@ export function planAuto(argv: string[], io: Io, cwd: string = process.cwd()): A
   if (config.system === "") {
     throw new CliError(`${where} has no rule and no default profile, and system = "" says there is no default account. Assign one: turno profile assign ${where} <profile>`);
   }
-  if (agent !== "claude" && listProfiles(config, env, agent).length === 0) {
+  if (agent !== DEFAULT_AGENT && listProfiles(config, env, agent).length === 0) {
     return { file: plain(), args, notice: `turno: no ${a.label} profile yet, so this runs plain ${a.command} with ${hub} (turno profile add <name> --agent ${agent})`, always: true };
   }
   return { file: plain(), args, notice: `turno: no rule or default for ${where}; running plain ${a.command} with ${hub}` };

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { parse } from "smol-toml";
-import { type AgentId, AGENT_IDS, isAgentId } from "../agents/index.js";
+import { type AgentId, AGENT_IDS, DEFAULT_AGENT, adapter, isAgentId } from "../agents/index.js";
 import { distance } from "../cli/io.js";
 import { expandHome, paths, tildify } from "./paths.js";
 
@@ -237,15 +237,15 @@ export function parseConfig(text: string, path = "config.toml", env: NodeJS.Proc
     if (color !== undefined && typeof color !== "string" && typeof color !== "number") {
       throw new ConfigError(file, `profiles.${name}.color must be a name or a number`);
     }
-    const agent = v.agent ?? "claude";
+    const agent = v.agent ?? DEFAULT_AGENT;
     if (!isAgentId(agent)) throw new ConfigError(file, `profiles.${name}.agent must be one of ${AGENT_IDS.join(", ")}`);
     cfg.profiles[name] = { agent, browser, ...(color !== undefined ? { color } : {}) };
   }
 
   const agents = table(raw.agents, file, "agents");
   for (const [id, value] of Object.entries(agents)) {
-    if (!isAgentId(id) || id === "claude") {
-      throw new ConfigError(file, `[agents.${id}]: use one of ${AGENT_IDS.filter((a) => a !== "claude").join(", ")} (Claude Code uses the top-level default and fallback)`);
+    if (!isAgentId(id) || id === DEFAULT_AGENT) {
+      throw new ConfigError(file, `[agents.${id}]: use one of ${AGENT_IDS.filter((a) => a !== DEFAULT_AGENT).join(", ")} (${adapter(DEFAULT_AGENT).label} uses the top-level default and fallback)`);
     }
     const v = table(value, file, `agents.${id}`);
     unknownKeys(v, KNOWN_KEYS["agents.*"]!, `agents.${id}.`, warnings);

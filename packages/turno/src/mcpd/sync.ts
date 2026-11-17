@@ -1,78 +1,26 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { parse } from "smol-toml";
-import type { AgentId } from "../agents/index.js";
+import type { McpStore } from "../agents/adapter.js";
+import { type AgentId, DEFAULT_AGENT, adapter } from "../agents/index.js";
 import { PRIVATE_DIR_MODE, PRIVATE_FILE_MODE } from "../core/paths.js";
 import type { Manifest } from "../core/manifest.js";
 import { servesProfile } from "../core/manifest.js";
 import { profileToken } from "./tokens.js";
 
 /**
- * Headers every gateway entry carries. The PID and folder are expanded by Claude Code from the
- * launcher's environment. The folder travels base64url-encoded: a raw path outside Latin-1
- * (accents in NFD form, CJK, emoji) is an invalid header value and the client would refuse to
- * connect. Without the variable (a plain `claude`), mcpd reads the folder of the client process.
- */
-export function gatewayEntry(name: string, port: number, token: string, profile: string): Record<string, unknown> {
-  return {
-    type: "http",
-    url: `http://127.0.0.1:${port}/mcp/${encodeURIComponent(name)}`,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "X-Turno-Profile": profile,
-      "X-Turno-Pid": "${TURNO_SESSION_PID:-0}",
-      "X-Turno-Cwd-B64": "${TURNO_SESSION_CWD_B64:-}",
-    },
-  };
-}
-
-const gatewayUrl = (name: string, port: number) => `http://127.0.0.1:${port}/mcp/${encodeURIComponent(name)}`;
-
-/**
- * A gateway entry in the format of each agent (ADR 0013). Claude Code gets the profile's token
- * (ADR 0023) in the entry; the others read it, and the session PID, from the launcher's
- * environment. Cursor shares one file between profiles, so even the profile comes from the
- * environment.
+ * A gateway entry in the format of each agent (ADR 0013, ADR 0032). Claude Code gets the
+ * profile's token (ADR 0023) in the entry; the others read it, and the session PID, from the
+ * launcher's environment.
  */
 export function gatewayEntryFor(agent: AgentId, name: string, port: number, token: string, profile: string): Record<string, unknown> {
-  const url = gatewayUrl(name, port);
-  switch (agent) {
-    case "claude":
-      return gatewayEntry(name, port, token, profile);
-    case "codex":
-      return {
-        url,
-        bearer_token_env_var: "TURNO_MCPD_TOKEN",
-        http_headers: { "X-Turno-Profile": profile },
-        env_http_headers: { "X-Turno-Pid": "TURNO_SESSION_PID", "X-Turno-Cwd-B64": "TURNO_SESSION_CWD_B64" },
-      };
-    case "copilot":
-      return {
-        type: "http",
-        url,
-        headers: {
-          Authorization: "Bearer ${TURNO_MCPD_TOKEN}",
-          "X-Turno-Profile": profile,
-          "X-Turno-Pid": "${TURNO_SESSION_PID}",
-        },
-        tools: ["*"],
-      };
-    case "cursor":
-      return {
-        url,
-        headers: {
-          Authorization: "Bearer ${env:TURNO_MCPD_TOKEN}",
-          "X-Turno-Profile": "${env:TURNO_PROFILE}",
-          "X-Turno-Pid": "${env:TURNO_SESSION_PID}",
-        },
-      };
-  }
+  return adapter(agent).mcp.gatewayEntry(name, port, token, profile);
 }
 
 /**
  * The MCP entries a profile should have, according to the manifest. Remote servers that do not
- * go through the gateway are written as they are for Claude Code, and skipped for the other
- * agents (their formats differ; `turno mcp config` prints them). `master` is the gateway's
+ * go through the gateway are written as they are for agents that take them (Claude Code), and
+ * skipped for the others (their formats differ; `turno mcp config` prints them). `master` is the gateway's
  * master token: entries carry the profile's own token derived from it (ADR 0023), never the
  * master itself.
  */
@@ -81,17 +29,18 @@ export function profileServers(
   profile: string,
   port: number,
   master: string,
-  agent: AgentId = "claude",
+  agent: AgentId = DEFAULT_AGENT,
 ): Record<string, Record<string, unknown>> {
+  const a = adapter(agent);
   const out: Record<string, Record<string, unknown>> = {};
   const token = profile ? profileToken(master, profile) : "";
   for (const [name, def] of Object.entries(manifest.servers)) {
     if (!servesProfile(def, profile)) continue;
     if (def.kind === "remote" && !def.proxy) {
-      if (agent === "claude") out[name] = { ...def.entry };
+      if (a.mcp.directRemote) out[name] = { ...def.entry };
       continue;
     }
-    out[name] = gatewayEntryFor(agent, name, port, token, profile);
+    out[name] = a.mcp.gatewayEntry(name, port, token, profile);
   }
   return out;
 }
@@ -189,6 +138,22 @@ export function syncJsonServers(
   return res;
 }
 
+/**
+ * Rewrite the servers of an agent config file in its store's format (ADR 0032): add or update
+ * `wanted`, remove entries turno wrote earlier that left it, keep everything else.
+ */
+export function syncServers(
+  configFile: string,
+  store: McpStore,
+  wanted: Record<string, Record<string, unknown>>,
+  previouslyManaged: string[],
+  opts: SyncOptions = {},
+): SyncResult {
+  return store.format === "toml"
+    ? syncTomlServers(configFile, store.key, wanted, previouslyManaged, opts)
+    : syncJsonServers(configFile, store.key, wanted, previouslyManaged, opts);
+}
+
 /** The mcpServers of a Claude Code config file. */
 export function syncConfigFile(
   configFile: string,
@@ -212,9 +177,11 @@ function tomlValue(v: unknown): string {
   throw new Error(`cannot write ${String(v)} as TOML`);
 }
 
-/** Line ranges of every `[mcp_servers.<name>]` table (and its sub-tables) in a TOML text. */
-function codexTables(lines: string[]): Map<string, [number, number]> {
-  const header = /^\s*\[\s*mcp_servers\.("(?:[^"\\]|\\.)*"|[A-Za-z0-9_-]+)(\.[^\]]*)?\s*\]\s*(#.*)?$/;
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Line ranges of every `[<key>.<name>]` table (and its sub-tables) in a TOML text. */
+function serverTables(lines: string[], key: string): Map<string, [number, number]> {
+  const header = new RegExp(`^\\s*\\[\\s*${escapeRegExp(key)}\\.("(?:[^"\\\\]|\\\\.)*"|[A-Za-z0-9_-]+)(\\.[^\\]]*)?\\s*\\]\\s*(#.*)?$`);
   const anyHeader = /^\s*\[/;
   const out = new Map<string, [number, number]>();
   for (let i = 0; i < lines.length; i++) {
@@ -230,34 +197,44 @@ function codexTables(lines: string[]): Map<string, [number, number]> {
 }
 
 /**
- * The `[mcp_servers.*]` tables of a Codex config.toml, edited line by line so comments and
- * every other setting stay as they are.
+ * The `[<key>.*]` tables of a TOML config (Codex: `[mcp_servers.*]` in config.toml), edited
+ * line by line so comments and every other setting stay as they are.
  */
+function syncTomlServers(
+  configFile: string,
+  key: string,
+  wanted: Record<string, Record<string, unknown>>,
+  previouslyManaged: string[],
+  opts: SyncOptions,
+): SyncResult {
+  const text = existsSync(configFile) ? readFileSync(configFile, "utf8") : "";
+  const current = ((parse(text) as Record<string, unknown>)[key] ?? {}) as Record<string, unknown>;
+  const servers = { ...current };
+  const res = plan(servers, wanted, previouslyManaged, opts);
+  if (!res.changed || opts.dryRun) return res;
+  const lines = text === "" ? [] : text.replace(/\n$/, "").split("\n");
+  // Drop the tables that go or change, from the bottom up so ranges stay valid.
+  const drop = [...res.removed, ...res.updated];
+  const ranges = [...serverTables(lines, key).entries()].filter(([n]) => drop.includes(n)).map(([, r]) => r).sort((a, b) => b[0] - a[0]);
+  for (const [start, end] of ranges) lines.splice(start, end - start);
+  for (const name of [...res.updated, ...res.added]) {
+    while (lines.length && lines[lines.length - 1]!.trim() === "") lines.pop();
+    if (lines.length) lines.push("");
+    lines.push(`[${tomlKey(key)}.${tomlKey(name)}]`);
+    for (const [k, v] of Object.entries(wanted[name]!)) lines.push(`${tomlKey(k)} = ${tomlValue(v)}`);
+  }
+  const next = `${lines.join("\n")}\n`;
+  parse(next); // never write a file the agent cannot read
+  writeAtomic(configFile, next);
+  return res;
+}
+
+/** The `[mcp_servers.*]` tables of a Codex config.toml. */
 export function syncCodexToml(
   configFile: string,
   wanted: Record<string, Record<string, unknown>>,
   previouslyManaged: string[],
   opts: SyncOptions = {},
 ): SyncResult {
-  const text = existsSync(configFile) ? readFileSync(configFile, "utf8") : "";
-  const current = ((parse(text) as Record<string, unknown>).mcp_servers ?? {}) as Record<string, unknown>;
-  const servers = { ...current };
-  const res = plan(servers, wanted, previouslyManaged, opts);
-  if (!res.changed || opts.dryRun) return res;
-  let lines = text === "" ? [] : text.replace(/\n$/, "").split("\n");
-  // Drop the tables that go or change, from the bottom up so ranges stay valid.
-  const drop = [...res.removed, ...res.updated];
-  const ranges = [...codexTables(lines).entries()].filter(([n]) => drop.includes(n)).map(([, r]) => r).sort((a, b) => b[0] - a[0]);
-  for (const [start, end] of ranges) lines.splice(start, end - start);
-  for (const name of [...res.updated, ...res.added]) {
-    while (lines.length && lines[lines.length - 1]!.trim() === "") lines.pop();
-    if (lines.length) lines.push("");
-    lines.push(`[mcp_servers.${tomlKey(name)}]`);
-    for (const [k, v] of Object.entries(wanted[name]!)) lines.push(`${tomlKey(k)} = ${tomlValue(v)}`);
-  }
-  lines = lines.length ? lines : [];
-  const next = `${lines.join("\n")}\n`;
-  parse(next); // never write a file Codex cannot read
-  writeAtomic(configFile, next);
-  return res;
+  return syncTomlServers(configFile, "mcp_servers", wanted, previouslyManaged, opts);
 }

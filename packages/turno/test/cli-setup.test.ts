@@ -2,7 +2,8 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSy
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { UsageError } from "../src/cli/io.js";
-import { SHARED_DIRS, setupProfiles } from "../src/cli/commands/setup.js";
+import { SHARED_DIRS } from "../src/agents/claude.js";
+import { setupProfiles } from "../src/cli/commands/setup.js";
 import { fakeIo } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 

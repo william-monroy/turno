@@ -1,4 +1,5 @@
 import { loadRegistry } from "../../accounts/registry.js";
+import { AGENT_IDS, DEFAULT_AGENT } from "../../agents/index.js";
 import { loadConfig } from "../../core/config.js";
 import { listJournals } from "../../core/journal.js";
 import { loadManifest } from "../../core/manifest.js";
@@ -52,7 +53,7 @@ async function values(kind: ArgKind | string[], env: NodeJS.ProcessEnv): Promise
     case "key": {
       const { CONFIG_KEYS } = await import("./config.js");
       return CONFIG_KEYS.flatMap((k) =>
-        k.includes("<name>") ? profiles().map((p) => k.replace("<name>", p)) : k.includes("<agent>") ? ["codex", "copilot", "cursor"].map((a) => k.replace("<agent>", a)) : [k],
+        k.includes("<name>") ? profiles().map((p) => k.replace("<name>", p)) : k.includes("<agent>") ? AGENT_IDS.filter((a) => a !== DEFAULT_AGENT).map((a) => k.replace("<agent>", a)) : [k],
       );
     }
     case "shell":
