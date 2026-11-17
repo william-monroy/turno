@@ -35,8 +35,8 @@ describe("usage", () => {
     expect(await usage.run([], io)).toBe(0);
     const text = io.lines.join("\n");
     expect(text).toContain("work  alice@example.com · max");
-    expect(text).toMatch(/ {2}5 hours █{19}░{11}  62% {2}resets in 1h01m \(/);
-    expect(text).toMatch(/ {2}week {4}█{3}░{27}  10% {2}resets in 2d 23h/);
+    expect(text).toMatch(/^ {2}5 hours {2}█{12}░{8} {2}62% {2}resets in 1h01m \(/m);
+    expect(text).toMatch(/^ {2}week {5}█{2}░{18} {2}10% {2}resets in 2d 23h/m);
     expect(text).toContain("  data from 2 min ago");
     expect(text).toContain("personal  not logged in");
     expect(text).toContain("  no usage data yet: shows up once a session of this account gets a response");
