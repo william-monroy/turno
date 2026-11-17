@@ -3,8 +3,12 @@ import { loadRegistry } from "../../accounts/registry.js";
 import { tildify } from "../../core/paths.js";
 import { DRY_RUN, JSON_FLAG, bool, flagsOf, parseFlags, printJson, str } from "../args.js";
 import { group } from "../group.js";
-import { type Io, fail, paint } from "../io.js";
+import { launcherExists } from "../../accounts/delegate.js";
+import { loadConfig } from "../../core/config.js";
+import { type Io, fail } from "../io.js";
+import { profileColor, style } from "../style.js";
 import * as accounts from "./accounts.js";
+import { policyLine } from "./accounts.js";
 import { type BrowserDeps, type BrowserModule, NOT_INSTALLED, defaultDeps, dispatch } from "./browser.js";
 
 /**
@@ -53,22 +57,44 @@ async function list(args: string[], io: Io): Promise<number> {
     });
     return 0;
   }
-  io.out(paint(io, "Service accounts", "1"));
-  if (Object.keys(reg.accounts).length === 0 && reg.prefer.length === 0) {
-    io.out("  none yet (turno identity add linear:work --profile work --tools 'mcp__linear__*')");
-  } else {
-    accounts.list(io);
+  const st = style(io);
+  let colors: Record<string, { color?: string | number }> = {};
+  try {
+    colors = loadConfig(io.env).profiles;
+  } catch {
+    /* pills without their configured colors */
+  }
+  const pill = (name: string) => st.profile(name, profileColor(colors, name));
+  io.out(st.header("Service accounts"));
+  const services = Object.values(reg.accounts).sort((a, b) => a.id.localeCompare(b.id));
+  if (!services.length) io.out(`  none yet ${st.muted("(turno identity add linear:work --profile work --tools 'mcp__linear__*')")}`);
+  // Each account: id, profile, tools; under them its confirm policy and description.
+  const rows = st.tableRows(
+    services.map((a) => [
+      st.bold(a.id),
+      pill(a.profile),
+      `${a.tools.join(", ")}${launcherExists(a.profile, io.env) ? "" : `  ${st.warn("(no launcher)")}`}`,
+    ]),
+  );
+  // Under the profile name: a pill on a terminal starts with a space of its own.
+  const under = " ".repeat(2 + Math.max(0, ...services.map((a) => a.id.length)) + 2 + (st.color ? 1 : 0));
+  services.forEach((a, i) => {
+    for (const l of rows[i]!) io.out(l);
+    io.out(st.wrap(under, st.muted(policyLine(a))));
+    if (a.description) io.out(st.wrap(under, st.muted(a.description)));
+  });
+  if (reg.prefer.length) {
+    io.out("");
+    io.out(st.header("Folder preferences"));
+    for (const l of st.table(reg.prefer.map((r) => [tildify(r.path, io.env), Object.entries(r.accounts).map(([sv, id]) => `${sv}=${id}`).join("  ") || st.muted("(none)")]))) io.out(l);
   }
   io.out("");
-  io.out(paint(io, "Browser identities", "1"));
-  if (!mod) io.out(`  (${NOT_INSTALLED})`);
-  else if (!browsers.length) io.out("  none yet (turno identity add browser:<id>)");
+  io.out(st.header("Browser identities"));
+  if (!mod) io.out(st.note("warn", NOT_INSTALLED));
+  else if (!browsers.length) io.out(`  none yet ${st.muted("(turno identity add browser:<id>)")}`);
   else {
-    const w = Math.max(...browsers.map((b) => b.id.length)) + BROWSER.length;
-    for (const b of browsers) {
-      const state = b.inUse ? paint(io, "in use", "33") : paint(io, "free  ", "32");
-      io.out(`  ${`${BROWSER}${b.id}`.padEnd(w)}  ${state}  ${tildify(b.dir, io.env)}`);
-    }
+    const rows = browsers.map((b) => [st.bold(`${BROWSER}${b.id}`), b.inUse ? st.lead("on", st.warn("in use")) : st.lead("off", st.ok("free")), st.muted(tildify(b.dir, io.env))]);
+    for (const l of st.table(rows)) io.out(l);
   }
   return 0;
 }
