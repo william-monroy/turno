@@ -220,7 +220,12 @@ function intro(io: Io, d: Demo): void {
     ["turno undo --list", "every change turno made, each one undoable"],
   ];
   if (findOnPath("claude", d.env)) rows.push(["cd ~/code/acme && turno auto mcp list", "Claude Code connects to both servers through mcpd (no sign-in)"]);
-  for (const l of s.table(rows.map(([c, why]) => [s.bold(c), s.muted(why)]), { columns: [{}, { drop: 1 }] })) io.out(l);
+  // Commands up to 40 columns share one column; a longer one puts its note on the next line.
+  const w = Math.max(...rows.map(([c]) => c.length).filter((n) => n <= 40));
+  for (const [c, why] of rows) {
+    if (c.length > w) io.out(`  ${s.bold(c)}\n${s.wrap(`  ${" ".repeat(w)}  `, s.muted(why))}`);
+    else io.out(s.wrap(`  ${s.bold(c.padEnd(w))}  `, s.muted(why)));
+  }
   io.out(s.muted("Nothing here reads or changes your own HOME, and nothing signs in."));
 }
 
