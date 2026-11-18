@@ -7,16 +7,29 @@ const base = { created: "2026-11-18T00:00:00.000Z", updated: "2026-11-18T00:00:0
 
 describe("resolveTuning", () => {
   it("uses the defaults without identity.json or flags: a cap of 8, popups closed, park at 5m, close at 15m, no throttling", () => {
-    expect(resolveTuning(undefined)).toEqual({ tabs: { max: 8, popups: "close", parkMs: 300_000, closeMs: 900_000 }, backgroundThrottling: false });
+    expect(resolveTuning(undefined)).toEqual({ tabs: { max: 8, popups: "close", parkMs: 300_000, closeMs: 900_000 }, backgroundThrottling: false, resources: {} });
     expect(DEFAULT_TABS).toEqual({ max: 8, popups: "close", parkMs: 300_000, closeMs: 900_000 });
   });
 
   it("takes identity.json over the defaults and the flags over identity.json", () => {
     const settings = { ...base, version: 2, tabs: { max: 4, park: "2m", close: "0" }, backgroundThrottling: true };
-    expect(resolveTuning(settings)).toEqual({ tabs: { max: 4, popups: "close", parkMs: 120_000, closeMs: 0 }, backgroundThrottling: true });
+    expect(resolveTuning(settings)).toEqual({ tabs: { max: 4, popups: "close", parkMs: 120_000, closeMs: 0 }, backgroundThrottling: true, resources: {} });
     expect(resolveTuning(settings, { maxTabs: 0, popups: "keep", closeAfterMs: 60_000, backgroundThrottling: false })).toEqual({
       tabs: { max: 0, popups: "keep", parkMs: 120_000, closeMs: 60_000 },
       backgroundThrottling: false,
+      resources: {},
+    });
+  });
+
+  it("turns on blocking and the cache only when identity.json asks, with a 100MB cache by default", () => {
+    expect(resolveTuning({ ...base, version: 2, settle: "100ms" }).settleMs).toBe(100);
+    expect(resolveTuning({ ...base, version: 2, block: { trackers: true }, cache: {} }).resources).toEqual({
+      block: { trackers: true, types: [], patterns: [] },
+      cacheBytes: 100 * 1024 ** 2,
+    });
+    expect(resolveTuning({ ...base, version: 2, block: { types: ["image"], patterns: ["ads.example"] }, cache: { maxSize: "20MB" } }).resources).toEqual({
+      block: { trackers: false, types: ["image"], patterns: ["ads.example"] },
+      cacheBytes: 20 * 1024 ** 2,
     });
   });
 });

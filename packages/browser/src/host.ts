@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -10,7 +10,9 @@ import { explainFailure } from "./diagnose.js";
 import { type Engine, type IdentityRef, type LaunchedBrowser, createUpstreamEngine, selectEngine } from "./engine.js";
 import { TabGovernor } from "./governor.js";
 import { type HealthContext, NEEDS_AUTH_HOLD_MS, healthDue, needsAuthMessage, readHealth, runHealthCheck, writeHealth } from "./health.js";
+import { identityStateDir } from "./ids.js";
 import { recordChallenge, watchChallenges } from "./reputation.js";
+import { installResources } from "./resources.js";
 import { sessionFromMeta } from "./session.js";
 import { readIdentitySettings } from "./settings.js";
 import { type StockAccess, TURNO_TOOLS, type TurnoTool, checkTurnoTools, parseArguments } from "./tools.js";
@@ -227,6 +229,9 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       });
       try {
         await backend.initialize(clientInfo);
+        // After upstream's own routes (--allowed-origins, --blocked-origins), so this one runs
+        // first and hands every request it does not block or serve on to them.
+        if (identity) await installResources(launched.context, tuning.resources, join(identityStateDir(identity.id, identity.env), "resource-cache"));
       } catch (error) {
         await launched.close();
         throw error;
