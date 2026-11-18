@@ -79,7 +79,10 @@ describe("resolve", () => {
   });
 
   it("falls back to the default and to the fallback when exhausted", () => {
-    expect(resolveProfile("/nowhere", cfg(), sb.env, ["/nowhere"])).toMatchObject({ chosen: "personal", reason: "folder without a rule" });
+    expect(resolveProfile("/nowhere", cfg(), sb.env, ["/nowhere"])).toMatchObject({
+      chosen: "personal",
+      reason: "folder without a rule",
+    });
     markExhausted("personal", Date.now() / 1000 + 600, sb.env);
     const r = resolveProfile("/nowhere", cfg(), sb.env, ["/nowhere"]);
     expect(r.chosen).toBe("spare");

@@ -25,7 +25,12 @@ interface Entry {
 }
 
 function htmlEscape(v: string): string {
-  return v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  return v
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 /** The forms a value takes in page text, request bodies and JSON. */
@@ -47,7 +52,11 @@ export class Redactor {
   /** Redact `value` from now on, shown as `[vault: <label>]`; `ttlMs` for a one-time code. */
   add(value: string, label: string, ttlMs?: number, now: number = Date.now()): void {
     if (value.length < MIN_LENGTH) return;
-    this.entries.set(value, { label, variants: variantsOf(value), ...(ttlMs !== undefined ? { until: now + ttlMs } : {}) });
+    this.entries.set(value, {
+      label,
+      variants: variantsOf(value),
+      ...(ttlMs !== undefined ? { until: now + ttlMs } : {}),
+    });
   }
 
   /** True when there is something to redact. */
@@ -75,7 +84,9 @@ export class Redactor {
   /** A tool result with every text part (and any string in structured content) redacted. */
   result(result: ToolResult, now: number = Date.now()): ToolResult {
     if (!this.entries.size) return result;
-    const content = result.content.map((part) => (part.type === "text" ? { ...part, text: this.text((part as { text: string }).text, now) } : part));
+    const content = result.content.map((part) =>
+      part.type === "text" ? { ...part, text: this.text((part as { text: string }).text, now) } : part,
+    );
     const out: ToolResult = { ...result, content };
     if (result.structuredContent !== undefined) {
       try {

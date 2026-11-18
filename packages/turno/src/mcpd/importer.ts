@@ -151,7 +151,16 @@ export async function probeOAuth(url: string, timeoutMs = 5000): Promise<boolean
     const res = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "turno-mcp-import", version: "0" } } }),
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-11-25",
+          capabilities: {},
+          clientInfo: { name: "turno-mcp-import", version: "0" },
+        },
+      }),
       signal: AbortSignal.timeout(timeoutMs),
       redirect: "manual",
     });
@@ -168,11 +177,20 @@ export async function probeOAuth(url: string, timeoutMs = 5000): Promise<boolean
  * them. Only servers with no auth of their own are probed: no `auth`, no Authorization header,
  * no header that holds a secret or a variable. Returns the names it marked.
  */
-export async function markOAuth(servers: Record<string, Record<string, unknown>>, probe: (url: string) => Promise<boolean>, notes: string[]): Promise<string[]> {
+export async function markOAuth(
+  servers: Record<string, Record<string, unknown>>,
+  probe: (url: string) => Promise<boolean>,
+  notes: string[],
+): Promise<string[]> {
   const candidates = Object.entries(servers).filter(([, s]) => {
     if (typeof s.url !== "string" || s.auth !== undefined) return false;
     const headers = (s.headers ?? {}) as Record<string, unknown>;
-    return !Object.entries(headers).some(([k, v]) => k.toLowerCase() === "authorization" || (typeof v === "string" && (v.startsWith("keychain:") || v.startsWith("env:") || ANY_VAR.test(v) || isSecretValue(k, v))));
+    return !Object.entries(headers).some(
+      ([k, v]) =>
+        k.toLowerCase() === "authorization" ||
+        (typeof v === "string" &&
+          (v.startsWith("keychain:") || v.startsWith("env:") || ANY_VAR.test(v) || isSecretValue(k, v))),
+    );
   });
   const answers = await Promise.all(candidates.map(([, s]) => probe(s.url as string)));
   const marked: string[] = [];
@@ -182,7 +200,9 @@ export async function markOAuth(servers: Record<string, Record<string, unknown>>
     marked.push(name);
     const direct = notes.indexOf(`${name}: remote, written directly into profiles`);
     if (direct >= 0) notes.splice(direct, 1);
-    notes.push(`${name}: asks for an OAuth login; marked auth = "oauth" so mcpd logs in for your profiles (turno mcp login ${name})`);
+    notes.push(
+      `${name}: asks for an OAuth login; marked auth = "oauth" so mcpd logs in for your profiles (turno mcp login ${name})`,
+    );
   }
   return marked;
 }
@@ -217,7 +237,10 @@ export function parseNpx(args: string[]): { pkg?: string; rest: string[] } {
 
 export function guessScope(text: string): { scope: "shared" | "project" | "session"; note: string } {
   for (const k of KNOWN) if (k.match.test(text)) return { scope: k.scope, note: k.note };
-  return { scope: "project", note: 'unknown server, one process per project folder; set scope = "shared" if it ignores its folder' };
+  return {
+    scope: "project",
+    note: 'unknown server, one process per project folder; set scope = "shared" if it ignores its folder',
+  };
 }
 
 /** The key part of a Keychain service name for a secret: `turno/<server>/<key>`. */
@@ -240,7 +263,10 @@ const HEADER = [
   "",
 ].join("\n");
 
-export async function importServers(servers: Record<string, Record<string, unknown>>, opts: ImportOptions = {}): Promise<ImportReport> {
+export async function importServers(
+  servers: Record<string, Record<string, unknown>>,
+  opts: ImportOptions = {},
+): Promise<ImportReport> {
   const out: Record<string, Record<string, unknown>> = {};
   const notes: string[] = [];
   const secrets: PendingSecret[] = [];
@@ -307,7 +333,9 @@ export async function importServers(servers: Record<string, Record<string, unkno
         );
       }
       if (args.some((a) => ANY_VAR.test(a))) {
-        notes.push(`${name}: its args use \${...} variables; mcpd expands them from its own environment, which under the LaunchAgent only has variables set with launchctl setenv`);
+        notes.push(
+          `${name}: its args use \${...} variables; mcpd expands them from its own environment, which under the LaunchAgent only has variables set with launchctl setenv`,
+        );
       }
       fixed(name, "args", argSecrets(args));
       const { scope, note } = guessScope(`${command} ${args.join(" ")}`);
@@ -319,7 +347,8 @@ export async function importServers(servers: Record<string, Record<string, unkno
           const found = opts.binOf ? await opts.binOf(packageName(pkg)) : undefined;
           const bin = found ?? guess;
           if (!opts.binOf) notes.push(`${name}: command name guessed as ${guess}; checked on npm when written`);
-          else if (!found) notes.push(`${name}: npm did not name the command of ${packageName(pkg)}; using ${guess}, check it`);
+          else if (!found)
+            notes.push(`${name}: npm did not name the command of ${packageName(pkg)}; using ${guess}, check it`);
           server.command = bin;
           server.package = pkg;
           if (rest.length) server.args = rest;
@@ -361,7 +390,10 @@ export async function importServers(servers: Record<string, Record<string, unkno
       // mcpd proxies this server: whole variables become env: references, mixed ones it expands itself.
       const ref = envRef(headers[k]!);
       if (ref) headers[k] = ref;
-      else notes.push(`${name}: header ${k} mixes text and a variable; mcpd expands it from its own environment. If it is a secret, store the full value in the Keychain instead`);
+      else
+        notes.push(
+          `${name}: header ${k} mixes text and a variable; mcpd expands it from its own environment. If it is a secret, store the full value in the Keychain instead`,
+        );
     }
     fixed(name, "url", urlSecrets(url));
     if (ANY_VAR.test(url)) notes.push(`${name}: its URL uses a variable; kept as written so Claude Code expands it`);
@@ -369,11 +401,14 @@ export async function importServers(servers: Record<string, Record<string, unkno
     if (type !== "http") server.type = type;
     if (Object.keys(headers).length) server.headers = headers;
     const proxy = Object.values(headers).some((v) => v.startsWith("keychain:") || v.startsWith("env:"));
-    notes.push(`${name}: remote, ${proxy ? "proxied by mcpd so its secrets stay out of profile configs" : "written directly into profiles"}`);
+    notes.push(
+      `${name}: remote, ${proxy ? "proxied by mcpd so its secrets stay out of profile configs" : "written directly into profiles"}`,
+    );
     out[name] = server;
   }
   if (opts.probeAuth) await markOAuth(out, opts.probeAuth, notes);
-  else if (Object.values(out).some((s) => typeof s.url === "string")) notes.push("remote servers are checked for OAuth when written");
+  else if (Object.values(out).some((s) => typeof s.url === "string"))
+    notes.push("remote servers are checked for OAuth when written");
 
   const toml = `${HEADER}${stringify({ server: out })}\n`;
   const masks = new Map([...hidden].sort((a, b) => b.length - a.length).map((v) => [v, maskSecret(v)] as const));
@@ -402,7 +437,8 @@ function objectsOf(v: unknown): Record<string, Record<string, unknown>> {
   if (!v || typeof v !== "object" || Array.isArray(v)) return {};
   const out: Record<string, Record<string, unknown>> = {};
   for (const [k, e] of Object.entries(v)) {
-    if (e && typeof e === "object" && !Array.isArray(e) && !isGatewayEntry(e as Record<string, unknown>)) out[k] = e as Record<string, unknown>;
+    if (e && typeof e === "object" && !Array.isArray(e) && !isGatewayEntry(e as Record<string, unknown>))
+      out[k] = e as Record<string, unknown>;
   }
   return out;
 }
@@ -421,7 +457,9 @@ function readConfig(file: string, store: McpStore): Record<string, unknown> | un
  * shape: JSON with `mcpServers` (Claude Code, Cursor, Copilot CLI) or TOML with `[mcp_servers]`
  * (Codex). Undefined when the text is neither. Gateway entries are skipped.
  */
-export function agentConfigServers(text: string): { agent: string; servers: Record<string, Record<string, unknown>> } | undefined {
+export function agentConfigServers(
+  text: string,
+): { agent: string; servers: Record<string, Record<string, unknown>> } | undefined {
   let json: unknown;
   let toml: unknown;
   try {
@@ -439,7 +477,10 @@ export function agentConfigServers(text: string): { agent: string; servers: Reco
     if (!cfg || typeof cfg !== "object" || !(a.mcp.store.key in cfg)) continue;
     const raw = objectsOf((cfg as Record<string, unknown>)[a.mcp.store.key]);
     const toImport = a.mcp.toImport;
-    return { agent: a.label, servers: toImport ? Object.fromEntries(Object.entries(raw).map(([k, e]) => [k, toImport(e)])) : raw };
+    return {
+      agent: a.label,
+      servers: toImport ? Object.fromEntries(Object.entries(raw).map(([k, e]) => [k, toImport(e)])) : raw,
+    };
   }
   return undefined;
 }
@@ -457,7 +498,11 @@ export interface ProfileSource {
  * `profiles`, so servers set up inside one account are found too (the hub wins a shared name).
  * Missing files are skipped; unreadable ones are reported in `problems`.
  */
-export function collectSources(env: NodeJS.ProcessEnv, cwd: string, profiles: readonly ProfileSource[] = []): { sources: Source[]; problems: string[] } {
+export function collectSources(
+  env: NodeJS.ProcessEnv,
+  cwd: string,
+  profiles: readonly ProfileSource[] = [],
+): { sources: Source[]; problems: string[] } {
   const sources: Source[] = [];
   const problems: string[] = [];
   const t = (f: string) => tildify(f, env);
@@ -484,7 +529,8 @@ export function collectSources(env: NodeJS.ProcessEnv, cwd: string, profiles: re
       const cfg = readConfig(hubFile, m.store);
       if (!cfg) return;
       add(t(hubFile), shape(cfg[m.store.key]));
-      for (const [dir, servers] of m.projectServers?.(cfg) ?? []) add(`${t(hubFile)} project ${t(dir)}`, shape(servers));
+      for (const [dir, servers] of m.projectServers?.(cfg) ?? [])
+        add(`${t(hubFile)} project ${t(dir)}`, shape(servers));
     });
     if (m.folderFile) {
       const folder = join(cwd, m.folderFile);
@@ -511,7 +557,11 @@ export function collectSources(env: NodeJS.ProcessEnv, cwd: string, profiles: re
 const SERVER_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 
 /** One server map from every source: first source wins a name; differing duplicates are noted. */
-export function mergeSources(sources: Source[]): { servers: Record<string, Record<string, unknown>>; from: Record<string, string>; notes: string[] } {
+export function mergeSources(sources: Source[]): {
+  servers: Record<string, Record<string, unknown>>;
+  from: Record<string, string>;
+  notes: string[];
+} {
   const servers: Record<string, Record<string, unknown>> = {};
   const from: Record<string, string> = {};
   const notes: string[] = [];
@@ -524,7 +574,8 @@ export function mergeSources(sources: Source[]): { servers: Record<string, Recor
       }
       const prev = servers[name];
       if (prev) {
-        if (JSON.stringify(prev) !== JSON.stringify(entry)) notes.push(`${name}: also in ${src.label} with other settings; kept the one from ${from[name]}`);
+        if (JSON.stringify(prev) !== JSON.stringify(entry))
+          notes.push(`${name}: also in ${src.label} with other settings; kept the one from ${from[name]}`);
         continue;
       }
       servers[name] = entry;
@@ -555,7 +606,9 @@ export interface PluginServer {
 export function pluginServers(hub: string): PluginServer[] {
   let enabled: Record<string, boolean> = {};
   try {
-    const settings = JSON.parse(readFileSync(join(hub, "settings.json"), "utf8")) as { enabledPlugins?: Record<string, boolean> };
+    const settings = JSON.parse(readFileSync(join(hub, "settings.json"), "utf8")) as {
+      enabledPlugins?: Record<string, boolean>;
+    };
     enabled = settings.enabledPlugins ?? {};
   } catch {
     return [];

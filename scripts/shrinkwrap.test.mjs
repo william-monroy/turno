@@ -42,7 +42,13 @@ test("lays packages out like npm: hoisted, nested only on a version conflict", (
     "c@2": new Map([["d", "d@1"]]),
     "d@1": new Map(),
   };
-  const placed = layout(new Map([["a", "a@1"], ["b", "b@1"]]), (k) => edges[k]);
+  const placed = layout(
+    new Map([
+      ["a", "a@1"],
+      ["b", "b@1"],
+    ]),
+    (k) => edges[k],
+  );
   assert.deepEqual(Object.fromEntries(placed), {
     "node_modules/a": "a@1",
     "node_modules/b": "b@1",
@@ -52,7 +58,8 @@ test("lays packages out like npm: hoisted, nested only on a version conflict", (
   });
   // Every edge resolves, the way Node looks up node_modules, to the version it needs.
   for (const [path, key] of placed) {
-    for (const [name, want] of edges[key]) assert.equal(placed.get(resolveIn(placed, path, name)), want, `${path} -> ${name}`);
+    for (const [name, want] of edges[key])
+      assert.equal(placed.get(resolveIn(placed, path, name)), want, `${path} -> ${name}`);
   }
 });
 
@@ -75,10 +82,13 @@ test("finds install scripts, including an implicit node-gyp build", () => {
 });
 
 test("flags dependencies that are not exact versions", () => {
-  assert.deepEqual(inexactDependencies({ dependencies: { a: "1.2.3", b: "^1.0.0", c: "1.0.0-next.1" }, optionalDependencies: { d: "workspace:^" } }), [
-    "dependencies.b: ^1.0.0",
-    "optionalDependencies.d: workspace:^",
-  ]);
+  assert.deepEqual(
+    inexactDependencies({
+      dependencies: { a: "1.2.3", b: "^1.0.0", c: "1.0.0-next.1" },
+      optionalDependencies: { d: "workspace:^" },
+    }),
+    ["dependencies.b: ^1.0.0", "optionalDependencies.d: workspace:^"],
+  );
 });
 
 /** A tiny pnpm-style install: the package links to a virtual store entry, which links its deps. */
@@ -96,7 +106,10 @@ function fakeInstall() {
   symlinkSync(b, join(store, "a@1.0.0", "node_modules", "b"));
   const app = join(base, "packages", "app");
   mkdirSync(join(app, "node_modules"), { recursive: true });
-  writeFileSync(join(app, "package.json"), JSON.stringify({ name: "app", version: "0.1.0", dependencies: { a: "1.0.0" }, devDependencies: { z: "^1" } }));
+  writeFileSync(
+    join(app, "package.json"),
+    JSON.stringify({ name: "app", version: "0.1.0", dependencies: { a: "1.0.0" }, devDependencies: { z: "^1" } }),
+  );
   symlinkSync(a, join(app, "node_modules", "a"));
   return { base, app };
 }
@@ -122,7 +135,11 @@ test("builds a shrinkwrap from the installed tree and the lockfile, and reports 
 
     delete sw.packages["node_modules/b"];
     assert.ok(shrinkwrapProblems(manifest, sw, graph).includes("b@2.1.0 is installed but not in npm-shrinkwrap.json"));
-    assert.ok(shrinkwrapProblems({ ...manifest, dependencies: { a: "1.0.1" } }, sw, graph).includes("root dependencies differ from package.json"));
+    assert.ok(
+      shrinkwrapProblems({ ...manifest, dependencies: { a: "1.0.1" } }, sw, graph).includes(
+        "root dependencies differ from package.json",
+      ),
+    );
     assert.throws(() => buildShrinkwrap(graph, new Map()), /not in pnpm-lock.yaml/);
   } finally {
     rmSync(base, { recursive: true, force: true });
@@ -132,7 +149,10 @@ test("builds a shrinkwrap from the installed tree and the lockfile, and reports 
 test("refuses a required dependency that is not installed", () => {
   const { base, app } = fakeInstall();
   try {
-    writeFileSync(join(app, "package.json"), JSON.stringify({ name: "app", version: "0.1.0", dependencies: { a: "1.0.0", missing: "1.0.0" } }));
+    writeFileSync(
+      join(app, "package.json"),
+      JSON.stringify({ name: "app", version: "0.1.0", dependencies: { a: "1.0.0", missing: "1.0.0" } }),
+    );
     assert.throws(() => collectGraph(app), /needs missing@1.0.0/);
   } finally {
     rmSync(base, { recursive: true, force: true });
@@ -141,11 +161,19 @@ test("refuses a required dependency that is not installed", () => {
 
 test("publishes workspace: dependencies the way pnpm pack writes them", () => {
   const versions = new Map([["turno-core", "0.3.0"]]);
-  const m = { name: "app", version: "1.0.0", dependencies: { "turno-core": "workspace:*", a: "1.0.0" }, peerDependencies: { "turno-core": "workspace:^" } };
+  const m = {
+    name: "app",
+    version: "1.0.0",
+    dependencies: { "turno-core": "workspace:*", a: "1.0.0" },
+    peerDependencies: { "turno-core": "workspace:^" },
+  };
   assert.deepEqual(publishedManifest(m, versions).dependencies, { "turno-core": "0.3.0", a: "1.0.0" });
   assert.deepEqual(publishedManifest(m, versions).peerDependencies, { "turno-core": "^0.3.0" });
   assert.deepEqual(inexactDependencies(publishedManifest(m, versions)), ["peerDependencies.turno-core: ^0.3.0"]);
-  assert.throws(() => publishedManifest({ name: "x", dependencies: { other: "workspace:*" } }, versions), /not a package of this workspace/);
+  assert.throws(
+    () => publishedManifest({ name: "x", dependencies: { other: "workspace:*" } }, versions),
+    /not a package of this workspace/,
+  );
 });
 
 test("a sibling workspace package goes in the shrinkwrap at its exact version, without integrity", () => {
@@ -153,12 +181,32 @@ test("a sibling workspace package goes in the shrinkwrap at its exact version, w
   try {
     const core = join(base, "packages", "core");
     mkdirSync(core, { recursive: true });
-    writeFileSync(join(core, "package.json"), JSON.stringify({ name: "turno-core", version: "0.3.0", license: "Apache-2.0", devDependencies: { vitest: "^5" } }));
+    writeFileSync(
+      join(core, "package.json"),
+      JSON.stringify({
+        name: "turno-core",
+        version: "0.3.0",
+        license: "Apache-2.0",
+        devDependencies: { vitest: "^5" },
+      }),
+    );
     symlinkSync(core, join(app, "node_modules", "turno-core"));
-    writeFileSync(join(app, "package.json"), JSON.stringify({ name: "app", version: "0.1.0", dependencies: { a: "1.0.0", "turno-core": "workspace:*" } }));
-    const versions = new Map([["turno-core", "0.3.0"], ["app", "0.1.0"]]);
+    writeFileSync(
+      join(app, "package.json"),
+      JSON.stringify({ name: "app", version: "0.1.0", dependencies: { a: "1.0.0", "turno-core": "workspace:*" } }),
+    );
+    const versions = new Map([
+      ["turno-core", "0.3.0"],
+      ["app", "0.1.0"],
+    ]);
     const graph = collectGraph(app, versions);
-    const sw = buildShrinkwrap(graph, new Map([["a@1.0.0", "sha512-a"], ["b@2.1.0", "sha512-b"]]));
+    const sw = buildShrinkwrap(
+      graph,
+      new Map([
+        ["a@1.0.0", "sha512-a"],
+        ["b@2.1.0", "sha512-b"],
+      ]),
+    );
     assert.deepEqual(sw.packages[""].dependencies, { a: "1.0.0", "turno-core": "0.3.0" });
     assert.deepEqual(sw.packages["node_modules/turno-core"], {
       version: "0.3.0",

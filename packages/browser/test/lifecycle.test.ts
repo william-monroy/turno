@@ -70,7 +70,9 @@ describe("findProfileChrome", () => {
     expect(findProfileChrome(dir, { table: table([]), alive })).toBeUndefined();
     lock(500);
     expect(findProfileChrome(dir, { table: table([[500, 1, 500, "/usr/bin/vim notes.txt"]]), alive })).toBeUndefined();
-    expect(findProfileChrome(dir, { table: table([[500, 1, 500, browser(join(sb.home, "other"))]]), alive })).toBeUndefined();
+    expect(
+      findProfileChrome(dir, { table: table([[500, 1, 500, browser(join(sb.home, "other"))]]), alive }),
+    ).toBeUndefined();
   });
 
   it("calls a Chrome whose parent is init an orphan", () => {
@@ -80,7 +82,12 @@ describe("findProfileChrome", () => {
       [500, 1, 500, browser(dir)],
       [501, 500, 500, helper(dir)],
     ]);
-    expect(findProfileChrome(dir, { table: t, alive, selfPid: 99 })).toEqual({ pid: 500, pgid: 500, leaderAlive: true, owner: "orphan" });
+    expect(findProfileChrome(dir, { table: t, alive, selfPid: 99 })).toEqual({
+      pid: 500,
+      pgid: 500,
+      leaderAlive: true,
+      owner: "orphan",
+    });
   });
 
   it("calls a Chrome whose parent is this process its own, and one with another live parent in use", () => {
@@ -99,7 +106,9 @@ describe("findProfileChrome", () => {
 
   it("treats a parent that is gone, or a user service manager, as init", () => {
     lock(500);
-    expect(findProfileChrome(dir, { table: table([[500, 321, 500, browser(dir)]]), alive, selfPid: 99 })?.owner).toBe("orphan");
+    expect(findProfileChrome(dir, { table: table([[500, 321, 500, browser(dir)]]), alive, selfPid: 99 })?.owner).toBe(
+      "orphan",
+    );
     const user = table([
       [321, 1, 321, "/usr/lib/systemd/systemd --user"],
       [500, 321, 500, browser(dir)],
@@ -115,7 +124,12 @@ describe("findProfileChrome", () => {
       [502, 1, 500, helper(dir)],
       [600, 1, 500, "/usr/bin/unrelated"],
     ]);
-    expect(findProfileChrome(dir, { table: t, alive, selfPid: 99 })).toEqual({ pid: 500, pgid: 500, leaderAlive: false, owner: "orphan" });
+    expect(findProfileChrome(dir, { table: t, alive, selfPid: 99 })).toEqual({
+      pid: 500,
+      pgid: 500,
+      leaderAlive: false,
+      owner: "orphan",
+    });
   });
 
   it("does not read the process table when nothing behind the lock is alive", () => {

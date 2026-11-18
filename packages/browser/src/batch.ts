@@ -48,28 +48,28 @@ function textOf(result: ToolResult): string {
 function batchSchema(): ToolSchema {
   const z = upstream().utils.z;
   return {
-      name: "browser_batch",
-      title: "Run several browser actions",
-      description: [
-        "Run several browser actions in order in one call, stopping at the first one that fails.",
-        "Each action names a browser tool (browser_navigate, browser_click, browser_type, browser_select_option, browser_press_key, browser_hover, browser_wait_for, ...) and its arguments, exactly as that tool takes them.",
-        "Returns one short line per action instead of a snapshot after each, and one page snapshot after the last action when snapshot is true.",
-        "Refs come from the snapshot taken before the batch: when an action changes the page, later refs may no longer exist, so batch actions on one page (filling a form) and take a snapshot after.",
-      ].join(" "),
-      inputSchema: z.object({
-        actions: z
-          .array(
-            z.object({
-              tool: z.string().describe("A browser tool name, for example browser_click"),
-              arguments: z.record(z.string(), z.unknown()).optional().describe("The tool's arguments, as it takes them"),
-            }),
-          )
-          .min(1)
-          .max(MAX_BATCH)
-          .describe(`The actions, in order (at most ${MAX_BATCH})`),
-        snapshot: z.boolean().optional().describe("Return a snapshot of the page after the last action (default false)"),
-      }),
-      type: "action",
+    name: "browser_batch",
+    title: "Run several browser actions",
+    description: [
+      "Run several browser actions in order in one call, stopping at the first one that fails.",
+      "Each action names a browser tool (browser_navigate, browser_click, browser_type, browser_select_option, browser_press_key, browser_hover, browser_wait_for, ...) and its arguments, exactly as that tool takes them.",
+      "Returns one short line per action instead of a snapshot after each, and one page snapshot after the last action when snapshot is true.",
+      "Refs come from the snapshot taken before the batch: when an action changes the page, later refs may no longer exist, so batch actions on one page (filling a form) and take a snapshot after.",
+    ].join(" "),
+    inputSchema: z.object({
+      actions: z
+        .array(
+          z.object({
+            tool: z.string().describe("A browser tool name, for example browser_click"),
+            arguments: z.record(z.string(), z.unknown()).optional().describe("The tool's arguments, as it takes them"),
+          }),
+        )
+        .min(1)
+        .max(MAX_BATCH)
+        .describe(`The actions, in order (at most ${MAX_BATCH})`),
+      snapshot: z.boolean().optional().describe("Return a snapshot of the page after the last action (default false)"),
+    }),
+    type: "action",
   };
 }
 
@@ -90,11 +90,14 @@ export function batchTool(): TurnoTool {
       actions.forEach((a, i) => {
         const schema = stock.schemas.get(a.tool);
         if (!schema) {
-          problems.push(`action ${i + 1}: "${a.tool}" is not a browser tool of this server${a.tool === "browser_batch" ? " (a batch cannot hold a batch)" : ""}`);
+          problems.push(
+            `action ${i + 1}: "${a.tool}" is not a browser tool of this server${a.tool === "browser_batch" ? " (a batch cannot hold a batch)" : ""}`,
+          );
           return;
         }
         const parsed = schema.safeParse(a.arguments ?? {});
-        if (!parsed.success) problems.push(`action ${i + 1} (${a.tool}): invalid arguments: ${stock.formatError(parsed.error)}`);
+        if (!parsed.success)
+          problems.push(`action ${i + 1} (${a.tool}): invalid arguments: ${stock.formatError(parsed.error)}`);
       });
       if (problems.length) {
         return { content: [{ type: "text", text: `### Error\nNothing ran.\n${problems.join("\n")}` }], isError: true };
@@ -138,10 +141,14 @@ export function batchTool(): TurnoTool {
         }
       } else {
         const page = await stock.page();
-        if (page) out.push("### Page", `- Page URL: ${page.url}`, ...(page.title ? [`- Page Title: ${page.title}`] : []));
+        if (page)
+          out.push("### Page", `- Page URL: ${page.url}`, ...(page.title ? [`- Page Title: ${page.title}`] : []));
       }
       if (notes.length) out.push("### Tab governor", ...notes);
-      return { content: [{ type: "text", text: out.join("\n") }, ...attachments], ...(failure ? { isError: true } : {}) };
+      return {
+        content: [{ type: "text", text: out.join("\n") }, ...attachments],
+        ...(failure ? { isError: true } : {}),
+      };
     },
   };
 }

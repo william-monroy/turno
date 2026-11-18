@@ -6,7 +6,9 @@ import { readFileSync } from "node:fs";
 const EM_DASH = String.fromCharCode(0x2014);
 const files = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], {
   encoding: "utf8",
-}).split("\n").filter(Boolean);
+})
+  .split("\n")
+  .filter(Boolean);
 const bad = [];
 for (const file of files) {
   if (file.startsWith("LICENSES/")) continue;

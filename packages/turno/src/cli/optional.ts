@@ -31,7 +31,9 @@ export interface ApiVersion {
 
 function isApiVersion(v: unknown): v is ApiVersion {
   const o = v as Partial<ApiVersion> | null | undefined;
-  return typeof o === "object" && o !== null && [o.major, o.minor].every((n) => Number.isInteger(n) && (n as number) >= 0);
+  return (
+    typeof o === "object" && o !== null && [o.major, o.minor].every((n) => Number.isInteger(n) && (n as number) >= 0)
+  );
 }
 
 /**
@@ -43,8 +45,10 @@ export function apiMismatch(pkg: OptionalPackage, found: unknown, wanted: ApiVer
   const needs = `this turno needs ${wanted.major}.${wanted.minor} or a later ${wanted.major}.x`;
   const update = `update it: ${pkg.install}@latest`;
   if (!isApiVersion(found)) return `${pkg.name} is too old for this turno (it has no API_VERSION, ${needs}); ${update}`;
-  if (found.major > wanted.major) return `${pkg.name} is too new for this turno (its API is ${found.major}.${found.minor}, this turno speaks ${wanted.major}.x); update turno: turno upgrade`;
-  if (found.major < wanted.major || found.minor < wanted.minor) return `${pkg.name} is too old for this turno (its API is ${found.major}.${found.minor}, ${needs}); ${update}`;
+  if (found.major > wanted.major)
+    return `${pkg.name} is too new for this turno (its API is ${found.major}.${found.minor}, this turno speaks ${wanted.major}.x); update turno: turno upgrade`;
+  if (found.major < wanted.major || found.minor < wanted.minor)
+    return `${pkg.name} is too old for this turno (its API is ${found.major}.${found.minor}, ${needs}); ${update}`;
   return undefined;
 }
 
@@ -62,7 +66,14 @@ export function isMissingModule(err: unknown): boolean {
 /** The global npm folder, where `npm install --global <pkg>` puts packages. */
 function npmGlobalRoot(env: NodeJS.ProcessEnv): string | undefined {
   try {
-    return execFileSync("npm", ["root", "--global"], { env, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000 }).trim() || undefined;
+    return (
+      execFileSync("npm", ["root", "--global"], {
+        env,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+        timeout: 5000,
+      }).trim() || undefined
+    );
   } catch {
     return undefined;
   }
@@ -82,7 +93,9 @@ export function pnpmGlobalRoots(self: string): string[] {
     /* keep it */
   }
   const parts = real.split(sep);
-  const at = parts.findIndex((p, i) => p === "global" && /^v\d+$/.test(parts[i + 1] ?? "") && parts[i + 3] === "node_modules");
+  const at = parts.findIndex(
+    (p, i) => p === "global" && /^v\d+$/.test(parts[i + 1] ?? "") && parts[i + 3] === "node_modules",
+  );
   if (at < 0) return [];
   const groups = parts.slice(0, at + 2).join(sep);
   let names: string[];
@@ -129,7 +142,10 @@ export async function loadOptional<T>(pkg: OptionalPackage, options: LoadOptions
       const problem = apiMismatch(pkg, (mod as { API_VERSION?: unknown } | null | undefined)?.API_VERSION, options.api);
       if (problem) throw new CliError(problem);
     }
-    if (options.guard && !options.guard(mod)) throw new CliError(`this ${pkg.name} is too old or not a ${pkg.name} for this turno; update it: ${pkg.install}@latest`);
+    if (options.guard && !options.guard(mod))
+      throw new CliError(
+        `this ${pkg.name} is too old or not a ${pkg.name} for this turno; update it: ${pkg.install}@latest`,
+      );
     return mod as T;
   };
   try {
@@ -149,7 +165,12 @@ export async function loadOptional<T>(pkg: OptionalPackage, options: LoadOptions
 }
 
 /** The package as installed in the node_modules folder `root`, undefined when it is not there. */
-async function loadFrom<T>(root: string, pkg: OptionalPackage, load: (s: string) => Promise<unknown>, checked: (mod: unknown) => T): Promise<T | undefined> {
+async function loadFrom<T>(
+  root: string,
+  pkg: OptionalPackage,
+  load: (s: string) => Promise<unknown>,
+  checked: (mod: unknown) => T,
+): Promise<T | undefined> {
   let entry: string;
   try {
     entry = createRequire(join(root, "noop.js")).resolve(pkg.name);

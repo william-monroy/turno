@@ -53,21 +53,32 @@ describe("TOTP (RFC 6238)", () => {
 
   it("reads a base32 secret the way sites show it", () => {
     const secret = base32(SEEDS.SHA1);
-    const spaced = secret.toLowerCase().replace(/(.{4})/g, "$1 ").trim();
+    const spaced = secret
+      .toLowerCase()
+      .replace(/(.{4})/g, "$1 ")
+      .trim();
     expect(parseTotpSecret(spaced)).toEqual({ secret, algorithm: "SHA1", digits: 6, period: 30 });
     expect(base32Decode(`${secret}====`).equals(SEEDS.SHA1)).toBe(true);
   });
 
   it("reads an otpauth://totp URI with its own algorithm, digits and period", () => {
     const secret = base32(SEEDS.SHA256);
-    const p = parseTotpSecret(`otpauth://totp/Example:alice@example.com?secret=${secret}&issuer=Example&algorithm=SHA256&digits=8&period=60`);
+    const p = parseTotpSecret(
+      `otpauth://totp/Example:alice@example.com?secret=${secret}&issuer=Example&algorithm=SHA256&digits=8&period=60`,
+    );
     expect(p).toEqual({ secret, algorithm: "SHA256", digits: 8, period: 60 });
     expect(totp(p, 59_000)).toBe(totp({ ...p, period: 60 }, 0));
     expect(totpSecondsLeft(p, 59_000)).toBe(1);
   });
 
   it("refuses what is not a usable secret, without quoting it", () => {
-    for (const bad of ["not base32!", "ABC", "otpauth://hotp/x?secret=GEZDGNBVGY3TQOJQ", "otpauth://totp/x", "otpauth://totp/x?secret=GEZDGNBVGY3TQOJQGEZA&digits=9"]) {
+    for (const bad of [
+      "not base32!",
+      "ABC",
+      "otpauth://hotp/x?secret=GEZDGNBVGY3TQOJQ",
+      "otpauth://totp/x",
+      "otpauth://totp/x?secret=GEZDGNBVGY3TQOJQGEZA&digits=9",
+    ]) {
       let err: unknown;
       try {
         parseTotpSecret(bad);

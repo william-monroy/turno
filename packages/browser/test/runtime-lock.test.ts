@@ -3,7 +3,14 @@ import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { addIdentity, isInUse, inUseBy } from "../src/identities.js";
-import { IdentityInUseError, acquireRuntimeLock, inUseMessage, readRuntimeLock, runtimeLockAlive, runtimeLockPath } from "../src/runtime-lock.js";
+import {
+  IdentityInUseError,
+  acquireRuntimeLock,
+  inUseMessage,
+  readRuntimeLock,
+  runtimeLockAlive,
+  runtimeLockPath,
+} from "../src/runtime-lock.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
@@ -33,9 +40,19 @@ describe("runtime lock", () => {
     const file = runtimeLockPath("school", sb.env);
     expect(file).toBe(join(sb.home, ".local", "state", "turno", "browser", "identities", "school", "lock.json"));
     expect(statSync(file).mode & 0o777).toBe(0o600);
-    expect(readRuntimeLock("school", sb.env)).toEqual({ nodePid: process.pid, holder: "mcp", startedAt: T0.toISOString() });
+    expect(readRuntimeLock("school", sb.env)).toEqual({
+      nodePid: process.pid,
+      holder: "mcp",
+      startedAt: T0.toISOString(),
+    });
     held.update({ chromePid: 4242, pgid: 4242 });
-    expect(readRuntimeLock("school", sb.env)).toEqual({ nodePid: process.pid, chromePid: 4242, pgid: 4242, holder: "mcp", startedAt: T0.toISOString() });
+    expect(readRuntimeLock("school", sb.env)).toEqual({
+      nodePid: process.pid,
+      chromePid: 4242,
+      pgid: 4242,
+      holder: "mcp",
+      startedAt: T0.toISOString(),
+    });
     held.release();
     expect(existsSync(file)).toBe(false);
     held.release();
@@ -45,7 +62,10 @@ describe("runtime lock", () => {
     const other = sleeper();
     try {
       const file = runtimeLockPath("school", sb.env);
-      acquireRuntimeLock("school", sb.env, { holder: "mcp", nodePid: other.pid, now: T0 }).update({ chromePid: 777, pgid: 777 });
+      acquireRuntimeLock("school", sb.env, { holder: "mcp", nodePid: other.pid, now: T0 }).update({
+        chromePid: 777,
+        pgid: 777,
+      });
       let error: unknown;
       try {
         acquireRuntimeLock("school", sb.env, { holder: "mcp" });
@@ -54,7 +74,9 @@ describe("runtime lock", () => {
       }
       expect(error).toBeInstanceOf(IdentityInUseError);
       const message = (error as Error).message;
-      expect(message).toContain(`browser identity "school" is in use by turno-browser-mcp (pid ${other.pid}, Chrome pid 777) since ${T0.toISOString()}`);
+      expect(message).toContain(
+        `browser identity "school" is in use by turno-browser-mcp (pid ${other.pid}, Chrome pid 777) since ${T0.toISOString()}`,
+      );
       expect(message).toContain(`kill ${other.pid}`);
       expect(JSON.parse(readFileSync(file, "utf8")).nodePid).toBe(other.pid);
     } finally {
@@ -97,10 +119,17 @@ describe("runtime lock", () => {
     const other = sleeper();
     try {
       const mine = acquireRuntimeLock("school", sb.env, { holder: "mcp" });
-      writeFileSync(runtimeLockPath("school", sb.env), JSON.stringify({ nodePid: other.pid, holder: "mcp", startedAt: T0.toISOString() }));
+      writeFileSync(
+        runtimeLockPath("school", sb.env),
+        JSON.stringify({ nodePid: other.pid, holder: "mcp", startedAt: T0.toISOString() }),
+      );
       mine.update({ chromePid: 1 });
       mine.release();
-      expect(readRuntimeLock("school", sb.env)).toEqual({ nodePid: other.pid, holder: "mcp", startedAt: T0.toISOString() });
+      expect(readRuntimeLock("school", sb.env)).toEqual({
+        nodePid: other.pid,
+        holder: "mcp",
+        startedAt: T0.toISOString(),
+      });
     } finally {
       other.kill();
     }

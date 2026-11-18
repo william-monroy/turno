@@ -17,9 +17,7 @@ const LIVE = /^(TURNO_|CLAUDE|CODEX_|COPILOT_|CURSOR_|ANTHROPIC_|XDG_)/;
 /** Paths written under the guard HOME, relative to it. */
 export function guardFindings(home: string): string[] {
   try {
-    return readdirSync(home, { recursive: true })
-      .map(String)
-      .sort();
+    return readdirSync(home, { recursive: true }).map(String).sort();
   } catch {
     return [];
   }
@@ -43,7 +41,10 @@ export default function setup(): () => void {
   mkdirSync(guard);
   for (const name of ["security", "secret-tool"]) {
     const file = join(guard, name);
-    writeFileSync(file, `#!/bin/sh\necho "${name}: the real secret store is off in tests; use test/helpers/fake-secret-store.ts" >&2\nexit 1\n`);
+    writeFileSync(
+      file,
+      `#!/bin/sh\necho "${name}: the real secret store is off in tests; use test/helpers/fake-secret-store.ts" >&2\nexit 1\n`,
+    );
     chmodSync(file, 0o755);
   }
   process.env.PATH = `${guard}:${process.env.PATH ?? ""}`;
@@ -52,7 +53,9 @@ export default function setup(): () => void {
     rmSync(root, { recursive: true, force: true });
     if (found.length) {
       const shown = found.slice(0, 20).join("\n  ");
-      throw new Error(`Tests wrote to HOME instead of their sandbox (test/helpers/README.md):\n  ${shown}${found.length > 20 ? "\n  ..." : ""}`);
+      throw new Error(
+        `Tests wrote to HOME instead of their sandbox (test/helpers/README.md):\n  ${shown}${found.length > 20 ? "\n  ..." : ""}`,
+      );
     }
   };
 }

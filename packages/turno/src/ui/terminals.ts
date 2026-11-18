@@ -142,7 +142,8 @@ export const TERMINALS: Terminal[] = [
     id: "iterm2",
     name: "iTerm2",
     symbols: false,
-    manual: "Settings > Profiles > Text > Font: MesloLGS Nerd Font (iTerm2 rewrites its own preferences, so turno leaves them alone)",
+    manual:
+      "Settings > Profiles > Text > Font: MesloLGS Nerd Font (iTerm2 rewrites its own preferences, so turno leaves them alone)",
     app: "iTerm.app",
   },
   {
@@ -157,7 +158,8 @@ export const TERMINALS: Terminal[] = [
   { id: "orca", name: "Orca", symbols: true },
 ];
 
-for (const t of TERMINALS) if (t.symbols !== BUILTIN_SYMBOLS.has(t.id)) throw new Error(`terminal table out of sync: ${t.id}`);
+for (const t of TERMINALS)
+  if (t.symbols !== BUILTIN_SYMBOLS.has(t.id)) throw new Error(`terminal table out of sync: ${t.id}`);
 
 export function terminal(id: string): Terminal | undefined {
   return TERMINALS.find((t) => t.id === id);

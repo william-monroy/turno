@@ -25,7 +25,14 @@ import {
 } from "../src/mcpd/daemon.js";
 import { plist, plistProgram, plistPath } from "../src/mcpd/launchd.js";
 import { peerPid, portOwner } from "../src/mcpd/peerpid.js";
-import { ServiceError, chooseProgram, installService, removeService, runTool, serviceBackend } from "../src/mcpd/service.js";
+import {
+  ServiceError,
+  chooseProgram,
+  installService,
+  removeService,
+  runTool,
+  serviceBackend,
+} from "../src/mcpd/service.js";
 import { systemd, unit, unitPath, unitProgram } from "../src/mcpd/systemd.js";
 import { fakeCommand, fakeIo } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -86,7 +93,10 @@ afterEach(async () => {
 describe("single instance and port policy", () => {
   it("refuses a second mcpd in the same home and cleans its lock and port file on stop", async () => {
     const d = await start();
-    expect(JSON.parse(readFileSync(daemonFiles(sb.env).lock, "utf8"))).toMatchObject({ pid: process.pid, port: d.port });
+    expect(JSON.parse(readFileSync(daemonFiles(sb.env).lock, "utf8"))).toMatchObject({
+      pid: process.pid,
+      port: d.port,
+    });
     expect(mcpdPort(sb.env)).toBe(d.port);
     await expect(startDaemon({ env: sb.env, port: 0 })).rejects.toBeInstanceOf(AlreadyRunningError);
     await d.stop();
@@ -155,7 +165,9 @@ describe("manifest and config that do not validate", () => {
     const d = await start();
     sb.write(".config/turno/mcp.toml", "[server.x]\ncommand = 1\n");
     process.emit("SIGHUP", "SIGHUP");
-    await vi.waitFor(async () => expect(((await statusOf(d)).manifest as { error: string | null }).error).toContain("command"));
+    await vi.waitFor(async () =>
+      expect(((await statusOf(d)).manifest as { error: string | null }).error).toContain("command"),
+    );
     expect((await statusOf(d)).manifest).toMatchObject({ servers: 1 });
   });
 
@@ -263,7 +275,11 @@ describe("peer and port owner on Linux", () => {
 
   it("finds who listens on a port", async () => {
     const procRoot = fakeProc();
-    expect(await portOwner(8080, { platform: "linux", procRoot, env: { PATH: "" } })).toEqual({ pid: 77, uid: 1000, command: "node" });
+    expect(await portOwner(8080, { platform: "linux", procRoot, env: { PATH: "" } })).toEqual({
+      pid: 77,
+      uid: 1000,
+      command: "node",
+    });
   });
 });
 
@@ -292,11 +308,21 @@ describe("service files", () => {
     mkdirSync(bin);
     symlinkSync(script, join(bin, "turno"));
     chmodSync(script, 0o755);
-    expect(chooseProgram({ env: { PATH: bin }, execPath: "/x/.nvm/versions/node/v1/bin/node", script }).program).toEqual([join(bin, "turno")]);
-    expect(chooseProgram({ env: { PATH: "" }, execPath: "/usr/bin/node", script })).toEqual({ program: ["/usr/bin/node", script] });
+    expect(
+      chooseProgram({ env: { PATH: bin }, execPath: "/x/.nvm/versions/node/v1/bin/node", script }).program,
+    ).toEqual([join(bin, "turno")]);
+    expect(chooseProgram({ env: { PATH: "" }, execPath: "/usr/bin/node", script })).toEqual({
+      program: ["/usr/bin/node", script],
+    });
     const nvmScript = sb.write(".nvm/versions/node/v1/lib/node_modules/turno-cli/dist/cli/main.js", "");
-    const pinned = chooseProgram({ env: { PATH: "", HOME: "/x" }, execPath: "/x/.nvm/versions/node/v1/bin/node", script: nvmScript });
-    expect(pinned.warning).toBe("the service runs node from ~/.nvm/versions/node/v1/bin/node; after switching Node versions run `turno upgrade --finish`");
+    const pinned = chooseProgram({
+      env: { PATH: "", HOME: "/x" },
+      execPath: "/x/.nvm/versions/node/v1/bin/node",
+      script: nvmScript,
+    });
+    expect(pinned.warning).toBe(
+      "the service runs node from ~/.nvm/versions/node/v1/bin/node; after switching Node versions run `turno upgrade --finish`",
+    );
   });
 
   it("gives one clear line when there is no service manager", async () => {
@@ -311,9 +337,19 @@ describe("service files", () => {
   it("installs and removes the systemd unit through the journal, never creating ~/Library", async () => {
     const backend = await serviceBackend(sb.env, "linux");
     expect(backend).toBe(systemd);
-    const r = await installService(backend, { program: ["/usr/bin/turno"], env: sb.env }, new Journal(sb.env, "test start"));
+    const r = await installService(
+      backend,
+      { program: ["/usr/bin/turno"], env: sb.env },
+      new Journal(sb.env, "test start"),
+    );
     expect(readFileSync(r.file, "utf8")).toContain("ExecStart=");
-    expect(callLog()).toEqual(expect.arrayContaining(["systemctl --user daemon-reload", "systemctl --user enable turno-mcpd.service", "systemctl --user restart turno-mcpd.service"]));
+    expect(callLog()).toEqual(
+      expect.arrayContaining([
+        "systemctl --user daemon-reload",
+        "systemctl --user enable turno-mcpd.service",
+        "systemctl --user restart turno-mcpd.service",
+      ]),
+    );
     await removeService(backend, sb.env, new Journal(sb.env, "test stop"));
     expect(existsSync(r.file)).toBe(false);
     expect(callLog()).toContain("systemctl --user disable --now turno-mcpd.service");
@@ -381,7 +417,10 @@ describe("turno mcp daemon", () => {
   });
 
   it("status explains why mcpd is down", async () => {
-    sb.write(".local/state/turno/mcpd.error.json", JSON.stringify({ at: "2026-01-02T03:04:05.000Z", message: "port 1 is in use by x" }));
+    sb.write(
+      ".local/state/turno/mcpd.error.json",
+      JSON.stringify({ at: "2026-01-02T03:04:05.000Z", message: "port 1 is in use by x" }),
+    );
     const io = fakeIo(sb.env);
     // Exit 5: the gateway does not answer (ADR 0045; it was 1).
     expect(await main(["mcp", "daemon", "status"], io)).toBe(5);
@@ -402,7 +441,10 @@ describe("turno mcp daemon", () => {
 
   it("upgrade --finish rewrites an installed service and restarts it", async () => {
     const file = serviceFile();
-    sb.write(file.slice(sb.home.length + 1), process.platform === "darwin" ? "<plist><string>Background</string></plist>" : "[Service]\nExecStart=/old/node\n");
+    sb.write(
+      file.slice(sb.home.length + 1),
+      process.platform === "darwin" ? "<plist><string>Background</string></plist>" : "[Service]\nExecStart=/old/node\n",
+    );
     const io = fakeIo(sb.env);
     expect(await finishUpgrade(io)).toBe(0);
     expect(io.lines.join("\n")).toContain("restarting it");
@@ -425,7 +467,10 @@ describe("doctor, mcpd section", () => {
 
   it("is happy with our own mcpd and warns about synced profiles on another port", async () => {
     const d = await start();
-    const synced = sb.write(".claude-work/.claude.json", JSON.stringify({ mcpServers: { x: { url: "http://127.0.0.1:1234/mcp/x" } } }));
+    const synced = sb.write(
+      ".claude-work/.claude.json",
+      JSON.stringify({ mcpServers: { x: { url: "http://127.0.0.1:1234/mcp/x" } } }),
+    );
     sb.write(".local/state/turno/mcp-managed.json", JSON.stringify({ [synced]: ["x"] }));
     const checks = await mcpdLines();
     expect(checks.find((c) => c.text.includes(`reachable on port ${d.port}`))?.level).toBe("ok");
@@ -436,7 +481,10 @@ describe("doctor, mcpd section", () => {
 
   it("fails when the service file runs a path that no longer exists", async () => {
     const file = serviceFile();
-    const text = process.platform === "darwin" ? plist({ program: ["/nonexistent/turno"], env: sb.env }) : unit({ program: ["/nonexistent/turno"], env: sb.env });
+    const text =
+      process.platform === "darwin"
+        ? plist({ program: ["/nonexistent/turno"], env: sb.env })
+        : unit({ program: ["/nonexistent/turno"], env: sb.env });
     sb.write(file.slice(sb.home.length + 1), text);
     const c = (await mcpdLines()).find((x) => x.text.includes("no longer exists"));
     expect(c?.level).toBe("fail");
@@ -448,9 +496,13 @@ describe("registry versions", () => {
   it("accepts only strict semver from the registry and for --to", async () => {
     expect(isSemver("1.2.3")).toBe(true);
     expect(isSemver("1.2.3-next.0")).toBe(true);
-    for (const bad of ["git+https://example.com/x.git", "^1.2.3", "1.2", "v1.2.3", "1.2.3 && rm", "latest"]) expect(isSemver(bad)).toBe(false);
+    for (const bad of ["git+https://example.com/x.git", "^1.2.3", "1.2", "v1.2.3", "1.2.3 && rm", "latest"])
+      expect(isSemver(bad)).toBe(false);
     const env = { ...sb.env, TURNO_NO_UPDATE_CHECK: "" };
-    const evil = (async () => new Response(JSON.stringify({ version: "git+https://example.com/x.git" }), { status: 200 })) as unknown as typeof fetch;
+    const evil = (async () =>
+      new Response(JSON.stringify({ version: "git+https://example.com/x.git" }), {
+        status: 200,
+      })) as unknown as typeof fetch;
     const s = await fetchLatest(env, "latest", evil);
     expect(s.latest).toBeUndefined();
     expect(s.error).toContain("invalid version");

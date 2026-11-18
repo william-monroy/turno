@@ -1,4 +1,13 @@
-import { type JournalInfo, type UndoStep, PRUNE_DEFAULT_AGE_MS, PRUNE_DEFAULT_KEEP, listJournals, parseAge, pruneJournals, undoJournal } from "../../core/journal.js";
+import {
+  type JournalInfo,
+  type UndoStep,
+  PRUNE_DEFAULT_AGE_MS,
+  PRUNE_DEFAULT_KEEP,
+  listJournals,
+  parseAge,
+  pruneJournals,
+  undoJournal,
+} from "../../core/journal.js";
 import { tildify } from "../../core/paths.js";
 import { DRY_RUN, FORCE, JSON_FLAG, type Parsed, bool, count, parseFlags, str } from "../args.js";
 import { type Command, type Io, fail, paint } from "../io.js";
@@ -56,7 +65,11 @@ function prune(p: Parsed, io: Io): number {
   const dry = bool(p, "dry-run");
   const r = pruneJournals(io.env, { olderThanMs, keep, dryRun: dry });
   if (bool(p, "json")) {
-    emit(io, p, PRUNE_JSON, { dryRun: dry, pruned: r.pruned, kept: r.kept.map((k) => ({ stamp: k.stamp, path: tildify(k.path, io.env) })) });
+    emit(io, p, PRUNE_JSON, {
+      dryRun: dry,
+      pruned: r.pruned,
+      kept: r.kept.map((k) => ({ stamp: k.stamp, path: tildify(k.path, io.env) })),
+    });
     return 0;
   }
   const verb = dry ? "would delete" : "deleted";
@@ -105,13 +118,17 @@ function folderOf(step: UndoStep, env: NodeJS.ProcessEnv): { folder: string; rel
   const parts = t.slice(2).split("/");
   const container = CONTAINERS.find((c) => t.slice(2).startsWith(`${c}/`));
   const depth = container ? container.split("/").length + 1 : 1;
-  if (parts.length > depth) return { folder: `~/${parts.slice(0, depth).join("/")}`, rel: parts.slice(depth).join("/") };
+  if (parts.length > depth)
+    return { folder: `~/${parts.slice(0, depth).join("/")}`, rel: parts.slice(depth).join("/") };
   if (isDir) return { folder: t, rel: "" };
   return { folder: parts.length > 1 ? `~/${parts.slice(0, -1).join("/")}` : "~", rel: parts[parts.length - 1]! };
 }
 
 /** One line per folder: "23 links removed, settings.json moved back". */
-export function summarize(steps: readonly UndoStep[], env: NodeJS.ProcessEnv): { folder: string; text: string[]; skipped: boolean }[] {
+export function summarize(
+  steps: readonly UndoStep[],
+  env: NodeJS.ProcessEnv,
+): { folder: string; text: string[]; skipped: boolean }[] {
   const groups = new Map<string, Map<UndoStep["action"], string[]>>();
   for (const s of steps) {
     const { folder, rel } = folderOf(s, env);
@@ -138,7 +155,9 @@ function describe(j: JournalInfo, io: Io): string {
   const m = j.manifest;
   const undone = m.undoneBy ? paint(io, `  undone by ${m.undoneBy}`, "2") : "";
   const n = m.entries.length;
-  const what = m.entries.every((e) => (e.kind ?? "file") === "file") ? `${n} file${n === 1 ? "" : "s"}` : `${n} change${n === 1 ? "" : "s"}`;
+  const what = m.entries.every((e) => (e.kind ?? "file") === "file")
+    ? `${n} file${n === 1 ? "" : "s"}`
+    : `${n} change${n === 1 ? "" : "s"}`;
   return `${j.stamp}  ${m.command}  (${what})${undone}`;
 }
 
@@ -151,20 +170,41 @@ export const command: Command = {
   async run(args, io) {
     const p = parseFlags(
       args,
-      { list: { type: "boolean" }, prune: { type: "boolean" }, verbose: { type: "boolean", short: "v" }, "older-than": { type: "string" }, keep: { type: "string" }, ...DRY_RUN, ...FORCE, ...JSON_FLAG, tail: { type: "string", short: "n" } },
+      {
+        list: { type: "boolean" },
+        prune: { type: "boolean" },
+        verbose: { type: "boolean", short: "v" },
+        "older-than": { type: "string" },
+        keep: { type: "string" },
+        ...DRY_RUN,
+        ...FORCE,
+        ...JSON_FLAG,
+        tail: { type: "string", short: "n" },
+      },
       1,
     );
     if (bool(p, "prune")) {
       if (p.positionals.length) return fail("--prune takes no stamp");
       return prune(p, io);
     }
-    if (str(p, "older-than") !== undefined || str(p, "keep") !== undefined) return fail("--older-than and --keep go with --prune");
+    if (str(p, "older-than") !== undefined || str(p, "keep") !== undefined)
+      return fail("--older-than and --keep go with --prune");
     const all = listJournals(io.env);
     const target = p.positionals[0];
     if (bool(p, "list") || !target) {
       const shown = all.slice(0, count(p, "tail", 10));
       if (bool(p, "json")) {
-        emit(io, p, LIST_JSON, shown.map((j) => ({ stamp: j.stamp, command: j.manifest?.command ?? null, files: j.manifest?.entries.map((e) => tildify(e.path, io.env)) ?? null, undoneBy: j.manifest?.undoneBy ?? null })));
+        emit(
+          io,
+          p,
+          LIST_JSON,
+          shown.map((j) => ({
+            stamp: j.stamp,
+            command: j.manifest?.command ?? null,
+            files: j.manifest?.entries.map((e) => tildify(e.path, io.env)) ?? null,
+            undoneBy: j.manifest?.undoneBy ?? null,
+          })),
+        );
         return 0;
       }
       if (!shown.length) io.out("No changes recorded yet.");
@@ -172,9 +212,13 @@ export const command: Command = {
       if (!target && shown.length) io.out(`\nturno undo <stamp> puts one back (turno undo last: the newest).`);
       return 0;
     }
-    const info = target === "last" ? all.find((j) => j.manifest && !j.manifest.undoneBy) : all.find((j) => j.stamp === target);
+    const info =
+      target === "last" ? all.find((j) => j.manifest && !j.manifest.undoneBy) : all.find((j) => j.stamp === target);
     if (!info) return fail(target === "last" ? "nothing to undo" : `no change ${target} (turno undo --list)`);
-    if (info.manifest?.undoneBy && !bool(p, "force")) fail(`${info.stamp} was already undone by ${info.manifest.undoneBy} (turno undo ${info.manifest.undoneBy} redoes it)`);
+    if (info.manifest?.undoneBy && !bool(p, "force"))
+      fail(
+        `${info.stamp} was already undone by ${info.manifest.undoneBy} (turno undo ${info.manifest.undoneBy} redoes it)`,
+      );
     const dry = bool(p, "dry-run");
     const started = Date.now();
     let result;
@@ -202,14 +246,21 @@ export const command: Command = {
       // What was left alone, and why: never folded into a count.
       for (const s of result.steps.filter((x) => x.action === "skip" || x.action === "keep")) {
         const skip = s.action === "skip";
-        io.out(st.note(skip ? "warn" : "info", `${skip ? st.warn("skipped") : "kept"} ${tildify(s.path, io.env)}${s.reason ? st.muted(`: ${tildifyText(s.reason, io.env)}`) : ""}`));
+        io.out(
+          st.note(
+            skip ? "warn" : "info",
+            `${skip ? st.warn("skipped") : "kept"} ${tildify(s.path, io.env)}${s.reason ? st.muted(`: ${tildifyText(s.reason, io.env)}`) : ""}`,
+          ),
+        );
       }
     }
     const n = result.steps.length;
     io.out("");
-    io.out(st.wrap(
-      "",
-      `${dry ? "Would put back" : "Put back"} ${n} ${n === 1 ? "change" : "changes"}${bool(p, "verbose") ? "" : st.muted(" (-v lists each one)")}${dry ? "" : st.muted(` in ${duration(Date.now() - started)}`)}.`),
+    io.out(
+      st.wrap(
+        "",
+        `${dry ? "Would put back" : "Put back"} ${n} ${n === 1 ? "change" : "changes"}${bool(p, "verbose") ? "" : st.muted(" (-v lists each one)")}${dry ? "" : st.muted(` in ${duration(Date.now() - started)}`)}.`,
+      ),
     );
     if (result.journal.used) io.out(`${st.muted("Redo with:")} turno undo ${result.journal.stamp}`);
     return result.steps.some((s) => s.action === "skip") ? 1 : 0;

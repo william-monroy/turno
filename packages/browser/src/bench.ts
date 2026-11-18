@@ -91,7 +91,10 @@ interface Session {
 }
 
 interface LaunchableChromium {
-  launchPersistentContext(dir: string, options: Record<string, unknown>): Promise<{ newPage(): Promise<PageLike>; close(): Promise<void> }>;
+  launchPersistentContext(
+    dir: string,
+    options: Record<string, unknown>,
+  ): Promise<{ newPage(): Promise<PageLike>; close(): Promise<void> }>;
 }
 
 async function importResolved(name: string): Promise<Record<string, unknown>> {
@@ -118,7 +121,9 @@ async function persistentChrome(chromium: LaunchableChromium, headless: boolean)
 }
 
 function chromiumOf(mod: Record<string, unknown>): LaunchableChromium {
-  const chromium = (mod.chromium ?? (mod.default as Record<string, unknown> | undefined)?.chromium) as LaunchableChromium | undefined;
+  const chromium = (mod.chromium ?? (mod.default as Record<string, unknown> | undefined)?.chromium) as
+    | LaunchableChromium
+    | undefined;
   if (!chromium) throw new Error("module has no chromium export");
   return chromium;
 }
@@ -126,7 +131,8 @@ function chromiumOf(mod: Record<string, unknown>): LaunchableChromium {
 /** Why an optional engine cannot run, or undefined when it can. */
 export function unavailableReason(engine: EngineName): string | undefined {
   if (engine === "chrome-baseline" && !resolveFrom("playwright-core")) return "playwright-core is not installed";
-  if (engine === "firefox" && !resolveFrom("camoufox-js")) return "camoufox-js is not installed; it is never installed automatically";
+  if (engine === "firefox" && !resolveFrom("camoufox-js"))
+    return "camoufox-js is not installed; it is never installed automatically";
   return undefined;
 }
 
@@ -211,7 +217,13 @@ export async function runBench(options: BenchOptions = {}): Promise<BenchReport>
   for (const url of options.urls ?? []) targets.push({ target: "url", url });
 
   const started = new Date();
-  const report: BenchReport = { version: 1, startedAt: started.toISOString(), finishedAt: "", engines: [], results: [] };
+  const report: BenchReport = {
+    version: 1,
+    startedAt: started.toISOString(),
+    finishedAt: "",
+    engines: [],
+    results: [],
+  };
   for (const engine of engines) {
     const reason = unavailableReason(engine);
     if (reason) {
@@ -235,7 +247,14 @@ export async function runBench(options: BenchOptions = {}): Promise<BenchReport>
         try {
           report.results.push(await runTarget(session, engine, t.target, t.url, settleMs));
         } catch (err) {
-          report.results.push({ engine, target: t.target, url: t.url, ok: false, summary: "error", error: firstLine(err) });
+          report.results.push({
+            engine,
+            target: t.target,
+            url: t.url,
+            ok: false,
+            summary: "error",
+            error: firstLine(err),
+          });
         }
       }
     } finally {
@@ -268,6 +287,11 @@ export function formatBenchTable(report: BenchReport): string {
   }
   const widths = [0, 1, 2].map((i) => Math.max(...rows.map((r) => r[i]!.length)));
   return rows
-    .map((r) => r.map((cell, i) => (i < 3 ? cell.padEnd(widths[i]!) : cell)).join("  ").trimEnd())
+    .map((r) =>
+      r
+        .map((cell, i) => (i < 3 ? cell.padEnd(widths[i]!) : cell))
+        .join("  ")
+        .trimEnd(),
+    )
     .join("\n");
 }

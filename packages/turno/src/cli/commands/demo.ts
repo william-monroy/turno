@@ -1,5 +1,14 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,7 +35,21 @@ const PREFIX = "turno-demo-";
 const OWNER = ".turno-demo";
 
 /** Variables a demo session keeps from the caller: terminal and locale, never config or tokens. */
-const KEEP = ["PATH", "TERM", "COLORTERM", "TERM_PROGRAM", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "USER", "LOGNAME", "SHELL", "COLUMNS", "NO_COLOR"];
+const KEEP = [
+  "PATH",
+  "TERM",
+  "COLORTERM",
+  "TERM_PROGRAM",
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "TMPDIR",
+  "USER",
+  "LOGNAME",
+  "SHELL",
+  "COLUMNS",
+  "NO_COLOR",
+];
 
 /** The env of everything that runs inside the demo: the demo HOME, its launchers first on PATH. */
 export function demoEnv(base: NodeJS.ProcessEnv, home: string): NodeJS.ProcessEnv {
@@ -104,7 +127,13 @@ function write(file: string, text: string, mode = 0o600): void {
 function manifestText(server: { command: string; args: string[] }): string {
   const lines = ["# turno demo: two MCP servers behind the gateway. Each starts on first use and stops when idle.", ""];
   for (const name of SERVERS) {
-    lines.push(`[server.${name}]`, `command = ${literal(server.command)}`, `args = ${literal([...server.args, name])}`, 'scope = "shared"', "");
+    lines.push(
+      `[server.${name}]`,
+      `command = ${literal(server.command)}`,
+      `args = ${literal([...server.args, name])}`,
+      'scope = "shared"',
+      "",
+    );
   }
   // The same server, another account: the work profile gets its own process.
   lines.push("[server.issues.variant.work]", 'env = { DEMO_ACCOUNT = "work" }', "");
@@ -112,7 +141,12 @@ function manifestText(server: { command: string; args: string[] }): string {
 }
 
 function configText(): string {
-  const lines = ["# turno demo: ~/code/acme opens with the work profile, every other folder with personal.", 'default = "personal"', 'icons = "unicode"', ""];
+  const lines = [
+    "# turno demo: ~/code/acme opens with the work profile, every other folder with personal.",
+    'default = "personal"',
+    'icons = "unicode"',
+    "",
+  ];
   for (const p of PROFILES) lines.push(`[profiles.${p.name}]`, `color = "${p.color}"`, "");
   lines.push("[[projects]]", 'path = "~/code/acme"', 'profile = "work"', "");
   return lines.join("\n");
@@ -125,7 +159,10 @@ function samplePayload(home: string, folder: string, now: number): Record<string
     workspace: { current_dir: join(home, folder), project_dir: join(home, folder) },
     cost: { total_cost_usd: 0.42, total_lines_added: 120, total_lines_removed: 18 },
     context_window: { used_percentage: 23, total_input_tokens: 46_000, context_window_size: 200_000 },
-    rate_limits: { five_hour: { used_percentage: 38, resets_at: Math.trunc(now) + 2 * 3600 }, seven_day: { used_percentage: 12, resets_at: Math.trunc(now) + 4 * 86400 } },
+    rate_limits: {
+      five_hour: { used_percentage: 38, resets_at: Math.trunc(now) + 2 * 3600 },
+      seven_day: { used_percentage: 12, resets_at: Math.trunc(now) + 4 * 86400 },
+    },
   };
 }
 
@@ -157,11 +194,18 @@ export async function startDemo(io: Io, opts: DemoOptions = {}): Promise<Demo> {
     const entry = opts.entry ?? join(here, "..", "main.js");
     const server = opts.server ?? { command: process.execPath, args: [join(here, "..", "..", "demo", "server.js")] };
     const shim = join(p.bin, "turno");
-    write(shim, `#!/bin/sh\n# turno demo: the turno that started this demo\nexec ${sq(process.execPath)} ${sq(entry)} "$@"\n`, 0o755);
+    write(
+      shim,
+      `#!/bin/sh\n# turno demo: the turno that started this demo\nexec ${sq(process.execPath)} ${sq(entry)} "$@"\n`,
+      0o755,
+    );
     write(join(home, ".zshrc"), "# turno demo\nPROMPT='%F{magenta}turno demo%f %~ %# '\n");
     write(join(home, ".bashrc"), "# turno demo\nPS1='turno demo \\w \\$ '\n");
     // The hub settings.json is linked into every profile, so both draw turno's status line.
-    write(join(p.hub, "settings.json"), `${JSON.stringify({ statusLine: { type: "command", command: `${JSON.stringify(shim)} statusline`, padding: 0 } }, null, 2)}\n`);
+    write(
+      join(p.hub, "settings.json"),
+      `${JSON.stringify({ statusLine: { type: "command", command: `${JSON.stringify(shim)} statusline`, padding: 0 } }, null, 2)}\n`,
+    );
     for (const f of PROFILES) mkdirSync(join(home, f.folder), { recursive: true });
     write(p.mcpFile, manifestText(server));
     write(p.configFile, configText());
@@ -177,18 +221,29 @@ export async function startDemo(io: Io, opts: DemoOptions = {}): Promise<Demo> {
     const port = daemon.port;
     write(p.configFile, setValue(configText(), "mcpd", "port", port));
     const { command: mcp } = await import("./mcp.js");
-    if ((await mcp.run(["sync"], quiet)) !== 0) throw new Error(`mcp sync failed in the demo:\n${quiet.text.join("\n")}`);
+    if ((await mcp.run(["sync"], quiet)) !== 0)
+      throw new Error(`mcp sync failed in the demo:\n${quiet.text.join("\n")}`);
 
     // The status line without its background workers: a known plan, a gateway known to answer.
     const now = Date.now() / 1000;
     write(join(p.planDir, "work"), "max");
     write(join(p.planDir, "personal"), "pro");
-    write(join(p.state, "cache", "mcpd-health.json"), JSON.stringify({ ok: true, port, checked_at: Math.trunc(now) + 10 * 365 * 86400 }));
+    write(
+      join(p.state, "cache", "mcpd-health.json"),
+      JSON.stringify({ ok: true, port, checked_at: Math.trunc(now) + 10 * 365 * 86400 }),
+    );
     write(join(home, "statusline.json"), `${JSON.stringify(samplePayload(home, PROFILES[0].folder, now), null, 2)}\n`);
     const { collect } = await import("./statusline.js");
     const { render } = await import("../../statusline/render.js");
     const statusLines = PROFILES.map((f) =>
-      render(collect(samplePayload(home, f.folder, now), { ...env, CLAUDE_CONFIG_DIR: join(home, `.claude-${f.name}`) }, now, [])).replace(/\n$/, ""),
+      render(
+        collect(
+          samplePayload(home, f.folder, now),
+          { ...env, CLAUDE_CONFIG_DIR: join(home, `.claude-${f.name}`) },
+          now,
+          [],
+        ),
+      ).replace(/\n$/, ""),
     );
     return { home, env, port, statusLines, stop };
   } catch (err) {
@@ -204,8 +259,16 @@ function intro(io: Io, d: Demo): void {
   io.out(s.header("Set up"));
   const colors = Object.fromEntries(PROFILES.map((p) => [p.name, { color: p.color }]));
   const [work, personal] = PROFILES.map((p) => s.profile(p.name, profileColor(colors, p.name)));
-  io.out(s.kv("profiles", `${work} for ~/code/acme, ${personal} for every other folder ${s.muted("(Claude Code)")}`, 8));
-  io.out(s.kv("gateway", `${s.lead("on", "mcpd")} on 127.0.0.1:${d.port} ${s.muted("with docs and issues, synced into both profiles")}`, 8));
+  io.out(
+    s.kv("profiles", `${work} for ~/code/acme, ${personal} for every other folder ${s.muted("(Claude Code)")}`, 8),
+  );
+  io.out(
+    s.kv(
+      "gateway",
+      `${s.lead("on", "mcpd")} on 127.0.0.1:${d.port} ${s.muted("with docs and issues, synced into both profiles")}`,
+      8,
+    ),
+  );
   io.out(s.kv("status", s.muted("the line Claude Code draws for each profile:"), 8));
   io.out("");
   for (const l of d.statusLines) io.out(s.color ? l : stripAnsi(l));
@@ -219,7 +282,11 @@ function intro(io: Io, d: Demo): void {
     ["CLAUDE_CONFIG_DIR=~/.claude-work turno statusline < ~/statusline.json", "draw the work status line yourself"],
     ["turno undo --list", "every change turno made, each one undoable"],
   ];
-  if (findOnPath("claude", d.env)) rows.push(["cd ~/code/acme && turno auto mcp list", "Claude Code connects to both servers through mcpd (no sign-in)"]);
+  if (findOnPath("claude", d.env))
+    rows.push([
+      "cd ~/code/acme && turno auto mcp list",
+      "Claude Code connects to both servers through mcpd (no sign-in)",
+    ]);
   // Commands up to 40 columns share one column; a longer one puts its note on the next line.
   const w = Math.max(...rows.map(([c]) => c.length).filter((n) => n <= 40));
   for (const [c, why] of rows) {
@@ -285,7 +352,9 @@ export async function runDemo(args: string[], io: Io, opts: DemoOptions = {}): P
       io.out(
         style(io).wrap(
           "",
-          style(io).muted("No terminal here (a pipe, --no-input or an agent), so the demo ends now. Run a command in it with turno demo -- turno status, or pass --keep to keep it until Ctrl-C."),
+          style(io).muted(
+            "No terminal here (a pipe, --no-input or an agent), so the demo ends now. Run a command in it with turno demo -- turno status, or pass --keep to keep it until Ctrl-C.",
+          ),
         ),
       );
       return 0;

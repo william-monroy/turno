@@ -57,16 +57,26 @@ function textOf(res: unknown): string {
 }
 
 /** A tool's text and whether it failed. */
-async function call(client: Client, name: string, args: Record<string, unknown> = {}): Promise<{ text: string; error: boolean }> {
+async function call(
+  client: Client,
+  name: string,
+  args: Record<string, unknown> = {},
+): Promise<{ text: string; error: boolean }> {
   const res = await client.callTool({ name, arguments: args });
   return { text: textOf(res), error: Boolean(res.isError) };
 }
 
 /** No vault value, in any of the forms the redactor covers or a few it does not need to. */
 function assertClean(text: string, codes: string[] = []): void {
-  const leaks = [USERNAME, PASSWORD, encodeURIComponent(USERNAME), encodeURIComponent(PASSWORD), new URLSearchParams({ p: PASSWORD }).toString().slice(2), TOTP_SECRET, ...codes].filter(
-    (v) => text.includes(v),
-  );
+  const leaks = [
+    USERNAME,
+    PASSWORD,
+    encodeURIComponent(USERNAME),
+    encodeURIComponent(PASSWORD),
+    new URLSearchParams({ p: PASSWORD }).toString().slice(2),
+    TOTP_SECRET,
+    ...codes,
+  ].filter((v) => text.includes(v));
   // Report how many leaked, never which value.
   expect(leaks.length, "vault values in a tool result").toBe(0);
 }
@@ -109,111 +119,132 @@ async function site(): Promise<{ url: string; posted: string[]; close(): Promise
 
 async function store(id: string, url: string, withTotp = false): Promise<void> {
   addIdentity(id, sb.env);
-  await vaultAdd(id, "local", { urls: [`${url}/login`], username: USERNAME, password: PASSWORD, ...(withTotp ? { totp: TOTP_SECRET } : {}) }, { env: sb.env });
+  await vaultAdd(
+    id,
+    "local",
+    { urls: [`${url}/login`], username: USERNAME, password: PASSWORD, ...(withTotp ? { totp: TOTP_SECRET } : {}) },
+    { env: sb.env },
+  );
 }
 
-describe.skipIf(reason !== undefined)(reason ? `browser_login on real Chrome (skipped: ${reason})` : "browser_login on real Chrome", () => {
-  it("fills without submitting, and no result shows a value: snapshot, network, errors", async () => {
-    const web = await site();
-    onTestFinished(() => web.close());
-    await store("login", web.url);
-    const client = await start("login");
-    await call(client, "browser_navigate", { url: `${web.url}/login` });
-    const filled = await call(client, "browser_login", { site: "local" });
-    expect(filled.error, filled.text).toBe(false);
-    expect(filled.text).toMatch(/Filled the username and password of "local"/);
-    expect(filled.text).toMatch(/Nothing was submitted/);
-    expect(filled.text).toMatch(/\[vault: local (username|password)\]/);
-    assertClean(filled.text);
-    expect(web.posted).toEqual([]);
+describe.skipIf(reason !== undefined)(
+  reason ? `browser_login on real Chrome (skipped: ${reason})` : "browser_login on real Chrome",
+  () => {
+    it("fills without submitting, and no result shows a value: snapshot, network, errors", async () => {
+      const web = await site();
+      onTestFinished(() => web.close());
+      await store("login", web.url);
+      const client = await start("login");
+      await call(client, "browser_navigate", { url: `${web.url}/login` });
+      const filled = await call(client, "browser_login", { site: "local" });
+      expect(filled.error, filled.text).toBe(false);
+      expect(filled.text).toMatch(/Filled the username and password of "local"/);
+      expect(filled.text).toMatch(/Nothing was submitted/);
+      expect(filled.text).toMatch(/\[vault: local (username|password)\]/);
+      assertClean(filled.text);
+      expect(web.posted).toEqual([]);
 
-    // The script tools are refused on the filled page.
-    const evaluated = await call(client, "browser_evaluate", { function: "() => document.querySelector('[type=password]').value" });
-    expect(evaluated.error).toBe(true);
-    expect(evaluated.text).toMatch(/holds values browser_login filled/);
-    assertClean(evaluated.text);
+      // The script tools are refused on the filled page.
+      const evaluated = await call(client, "browser_evaluate", {
+        function: "() => document.querySelector('[type=password]').value",
+      });
+      expect(evaluated.error).toBe(true);
+      expect(evaluated.text).toMatch(/holds values browser_login filled/);
+      assertClean(evaluated.text);
 
-    // The model clicks sign in itself; the POST body and the network log stay redacted.
-    const clicked = await call(client, "browser_click", { target: "button", element: "Sign in button" });
-    assertClean(clicked.text);
-    expect(web.posted).toHaveLength(1);
-    expect(new URLSearchParams(web.posted[0]).get("password") === PASSWORD).toBe(true);
-    const network = await call(client, "browser_network_requests", { static: true });
-    assertClean(network.text);
-    const posts = network.text.split("\n").filter((l) => /POST/.test(l));
-    expect(posts.length, network.text).toBeGreaterThan(0);
-    const index = Number(/^\s*\[?(\d+)/.exec(posts[0]!.replace(/^[-*\s]+/, ""))?.[1] ?? network.text.split("\n").indexOf(posts[0]!) + 1);
-    const request = await call(client, "browser_network_request", { index, part: "request-body" });
-    expect(request.text).toMatch(/\[vault: local (username|password)\]/);
-    assertClean(request.text);
-    for (const t of [(await call(client, "browser_snapshot")).text, (await call(client, "browser_console_messages")).text]) assertClean(t);
+      // The model clicks sign in itself; the POST body and the network log stay redacted.
+      const clicked = await call(client, "browser_click", { target: "button", element: "Sign in button" });
+      assertClean(clicked.text);
+      expect(web.posted).toHaveLength(1);
+      expect(new URLSearchParams(web.posted[0]).get("password") === PASSWORD).toBe(true);
+      const network = await call(client, "browser_network_requests", { static: true });
+      assertClean(network.text);
+      const posts = network.text.split("\n").filter((l) => /POST/.test(l));
+      expect(posts.length, network.text).toBeGreaterThan(0);
+      const index = Number(
+        /^\s*\[?(\d+)/.exec(posts[0]!.replace(/^[-*\s]+/, ""))?.[1] ?? network.text.split("\n").indexOf(posts[0]!) + 1,
+      );
+      const request = await call(client, "browser_network_request", { index, part: "request-body" });
+      expect(request.text).toMatch(/\[vault: local (username|password)\]/);
+      assertClean(request.text);
+      for (const t of [
+        (await call(client, "browser_snapshot")).text,
+        (await call(client, "browser_console_messages")).text,
+      ])
+        assertClean(t);
 
-    // After the navigation the page is no longer held.
-    const after = await call(client, "browser_evaluate", { function: "() => document.title" });
-    expect(after.error, after.text).toBe(false);
-    expect(after.text).toContain("Welcome");
-  }, 120_000);
+      // After the navigation the page is no longer held.
+      const after = await call(client, "browser_evaluate", { function: "() => document.title" });
+      expect(after.error, after.text).toBe(false);
+      expect(after.text).toContain("Welcome");
+    }, 120_000);
 
-  it("refuses another origin, and browser_run_code_unsafe for an identity with a vault", async () => {
-    const web = await site();
-    onTestFinished(() => web.close());
-    await store("origin", web.url);
-    const client = await start("origin");
-    const other = web.url.replace("127.0.0.1", "localhost");
-    await call(client, "browser_navigate", { url: `${other}/login` });
-    const refused = await call(client, "browser_login", { site: "local" });
-    expect(refused.error).toBe(true);
-    expect(refused.text).toMatch(/not on an origin "local" was stored for/);
-    const unknown = await call(client, "browser_login", { site: "nowhere" });
-    expect(unknown.error).toBe(true);
-    expect(unknown.text).toMatch(/no credentials for "nowhere"/);
-    const code = await call(client, "browser_run_code_unsafe", { code: "async (page) => page.title()" });
-    expect(code.error).toBe(true);
-    expect(code.text).toMatch(/has vault credentials/);
-  }, 120_000);
+    it("refuses another origin, and browser_run_code_unsafe for an identity with a vault", async () => {
+      const web = await site();
+      onTestFinished(() => web.close());
+      await store("origin", web.url);
+      const client = await start("origin");
+      const other = web.url.replace("127.0.0.1", "localhost");
+      await call(client, "browser_navigate", { url: `${other}/login` });
+      const refused = await call(client, "browser_login", { site: "local" });
+      expect(refused.error).toBe(true);
+      expect(refused.text).toMatch(/not on an origin "local" was stored for/);
+      const unknown = await call(client, "browser_login", { site: "nowhere" });
+      expect(unknown.error).toBe(true);
+      expect(unknown.text).toMatch(/no credentials for "nowhere"/);
+      const code = await call(client, "browser_run_code_unsafe", { code: "async (page) => page.title()" });
+      expect(code.error).toBe(true);
+      expect(code.text).toMatch(/has vault credentials/);
+    }, 120_000);
 
-  it("fills the current TOTP code on a second step and submits when the identity opted in", async () => {
-    const web = await site();
-    onTestFinished(() => web.close());
-    addIdentity("twostep", sb.env);
-    await vaultAdd("twostep", "local", { urls: [`${web.url}/login`], username: USERNAME, password: PASSWORD, totp: TOTP_SECRET }, { env: sb.env });
-    vaultSetSubmit("twostep", "auto", { env: sb.env });
-    const client = await start("twostep");
-    await call(client, "browser_navigate", { url: `${web.url}/code` });
-    const before = Date.now();
-    const filled = await call(client, "browser_login", { site: "local" });
-    expect(filled.error, filled.text).toBe(false);
-    expect(filled.text).toMatch(/Filled the one-time code/);
-    expect(filled.text).toMatch(/Submitted the form/);
-    expect(web.posted).toHaveLength(1);
-    const sent = new URLSearchParams(web.posted[0]).get("otp") ?? "";
-    const params = { secret: TOTP_SECRET, algorithm: "SHA1" as const, digits: 6, period: 30 };
-    const valid = [before, before + 30_000, Date.now()].map((t) => totp(params, t));
-    expect(valid.includes(sent), "the code is one of the current TOTP codes").toBe(true);
-    assertClean(filled.text, [sent]);
-    expect(base32Decode(TOTP_SECRET).length).toBe(20);
-  }, 120_000);
+    it("fills the current TOTP code on a second step and submits when the identity opted in", async () => {
+      const web = await site();
+      onTestFinished(() => web.close());
+      addIdentity("twostep", sb.env);
+      await vaultAdd(
+        "twostep",
+        "local",
+        { urls: [`${web.url}/login`], username: USERNAME, password: PASSWORD, totp: TOTP_SECRET },
+        { env: sb.env },
+      );
+      vaultSetSubmit("twostep", "auto", { env: sb.env });
+      const client = await start("twostep");
+      await call(client, "browser_navigate", { url: `${web.url}/code` });
+      const before = Date.now();
+      const filled = await call(client, "browser_login", { site: "local" });
+      expect(filled.error, filled.text).toBe(false);
+      expect(filled.text).toMatch(/Filled the one-time code/);
+      expect(filled.text).toMatch(/Submitted the form/);
+      expect(web.posted).toHaveLength(1);
+      const sent = new URLSearchParams(web.posted[0]).get("otp") ?? "";
+      const params = { secret: TOTP_SECRET, algorithm: "SHA1" as const, digits: 6, period: 30 };
+      const valid = [before, before + 30_000, Date.now()].map((t) => totp(params, t));
+      expect(valid.includes(sent), "the code is one of the current TOTP codes").toBe(true);
+      assertClean(filled.text, [sent]);
+      expect(base32Decode(TOTP_SECRET).length).toBe(20);
+    }, 120_000);
 
-  it("checks a field the model names: a password goes only into a password input", async () => {
-    const web = await site();
-    onTestFinished(() => web.close());
-    await store("named", web.url);
-    const client = await start("named");
-    await call(client, "browser_navigate", { url: `${web.url}/login` });
-    const wrong = await call(client, "browser_login", { site: "local", passwordField: "textarea" });
-    expect(wrong.error).toBe(true);
-    expect(wrong.text).toMatch(/not a password field/);
-    assertClean(wrong.text);
-  }, 120_000);
+    it("checks a field the model names: a password goes only into a password input", async () => {
+      const web = await site();
+      onTestFinished(() => web.close());
+      await store("named", web.url);
+      const client = await start("named");
+      await call(client, "browser_navigate", { url: `${web.url}/login` });
+      const wrong = await call(client, "browser_login", { site: "local", passwordField: "textarea" });
+      expect(wrong.error).toBe(true);
+      expect(wrong.text).toMatch(/not a password field/);
+      assertClean(wrong.text);
+    }, 120_000);
 
-  it("is refused while the server saves its session", async () => {
-    const web = await site();
-    onTestFinished(() => web.close());
-    await store("traced", web.url);
-    const client = await start("traced", ["--save-session", "--output-dir", join(sb.home, "out")]);
-    await call(client, "browser_navigate", { url: `${web.url}/login` });
-    const refused = await call(client, "browser_login", { site: "local" });
-    expect(refused.error).toBe(true);
-    expect(refused.text).toMatch(/records the session/);
-  }, 120_000);
-});
+    it("is refused while the server saves its session", async () => {
+      const web = await site();
+      onTestFinished(() => web.close());
+      await store("traced", web.url);
+      const client = await start("traced", ["--save-session", "--output-dir", join(sb.home, "out")]);
+      await call(client, "browser_navigate", { url: `${web.url}/login` });
+      const refused = await call(client, "browser_login", { site: "local" });
+      expect(refused.error).toBe(true);
+      expect(refused.text).toMatch(/records the session/);
+    }, 120_000);
+  },
+);

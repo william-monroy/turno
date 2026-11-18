@@ -49,11 +49,20 @@ async function values(kind: ArgKind | string[], env: NodeJS.ProcessEnv): Promise
     case "server":
       return safe(() => Object.keys(loadManifest(env).servers), []);
     case "stamp":
-      return ["last", ...listJournals(env).filter((j) => j.manifest).map((j) => j.stamp)];
+      return [
+        "last",
+        ...listJournals(env)
+          .filter((j) => j.manifest)
+          .map((j) => j.stamp),
+      ];
     case "key": {
       const { CONFIG_KEYS } = await import("./config.js");
       return CONFIG_KEYS.flatMap((k) =>
-        k.includes("<name>") ? profiles().map((p) => k.replace("<name>", p)) : k.includes("<agent>") ? AGENT_IDS.filter((a) => a !== DEFAULT_AGENT).map((a) => k.replace("<agent>", a)) : [k],
+        k.includes("<name>")
+          ? profiles().map((p) => k.replace("<name>", p))
+          : k.includes("<agent>")
+            ? AGENT_IDS.filter((a) => a !== DEFAULT_AGENT).map((a) => k.replace("<agent>", a))
+            : [k],
       );
     }
     case "shell":
@@ -92,7 +101,9 @@ export async function complete(words: string[], env: NodeJS.ProcessEnv): Promise
   if (cur.startsWith("-")) return match(comp.flags ?? []);
   const positionals = args.filter((a, i) => !a.startsWith("-") && !(i > 0 && FLAG_VALUES[args[i - 1]!]));
   const kinds = comp.args ?? [];
-  const kind = kinds[positionals.length] ?? (kinds[kinds.length - 1] === "profile" && kinds.length === 1 && name === "profile" ? "profile" : undefined);
+  const kind =
+    kinds[positionals.length] ??
+    (kinds[kinds.length - 1] === "profile" && kinds.length === 1 && name === "profile" ? "profile" : undefined);
   if (!kind) return [];
   if (kind === "dir") return [":dir"];
   return match(await values(kind, env));

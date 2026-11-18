@@ -14,7 +14,14 @@ import { writeLauncher } from "../src/cli/launchers.js";
 import { main } from "../src/cli/main.js";
 import { loadConfig } from "../src/core/config.js";
 import { Journal, listJournals, undoJournal } from "../src/core/journal.js";
-import { addArrayTable, ensureTable, removeArrayTables, removeTable, removeValue, setValue } from "../src/core/toml-edit.js";
+import {
+  addArrayTable,
+  ensureTable,
+  removeArrayTables,
+  removeTable,
+  removeValue,
+  setValue,
+} from "../src/core/toml-edit.js";
 import { envOptOut, fetchLatest, registryUrl, updateChecksOff, updateNotice } from "../src/core/update.js";
 import { compareVersions, detectInstall, packageInfo, upgradeCommand } from "../src/core/version.js";
 import { fakeCommand, fakeIo } from "./helpers/cli.js";
@@ -36,21 +43,30 @@ const cfg = () => readFileSync(join(sb.home, ".config/turno/config.toml"), "utf8
 
 describe("flags", () => {
   it("parses long, short and = forms and rejects unknown ones plainly", () => {
-    const p = parseFlags(["a", "--json", "-n", "5", "--until=x"], { json: { type: "boolean" }, tail: { type: "string", short: "n" }, until: { type: "string" } });
+    const p = parseFlags(["a", "--json", "-n", "5", "--until=x"], {
+      json: { type: "boolean" },
+      tail: { type: "string", short: "n" },
+      until: { type: "string" },
+    });
     expect(p.positionals).toEqual(["a"]);
     expect(bool(p, "json")).toBe(true);
     expect(count(p, "tail", 1)).toBe(5);
     expect(() => parseFlags(["--nope"], {})).toThrow("unknown option --nope");
     expect(() => parseFlags(["a", "b"], {}, 1)).toThrow("unexpected argument 'b'");
-    expect(() => count(parseFlags(["-n", "0"], { tail: { type: "string", short: "n" } }), "tail", 1)).toThrow(/positive/);
+    expect(() => count(parseFlags(["-n", "0"], { tail: { type: "string", short: "n" } }), "tail", 1)).toThrow(
+      /positive/,
+    );
   });
 });
 
 describe("toml edits", () => {
-  const base = '# my config\nsystem = "work" # me\n\n[profiles.work]\ncolor = 25 # blue-ish\n\n[[projects]]\npath = "~/a"\nprofile = "work"\n';
+  const base =
+    '# my config\nsystem = "work" # me\n\n[profiles.work]\ncolor = 25 # blue-ish\n\n[[projects]]\npath = "~/a"\nprofile = "work"\n';
 
   it("keeps comments while setting, adding and removing", () => {
-    expect(setValue(base, undefined, "default", "work")).toContain('system = "work" # me\ndefault = "work"\n\n[profiles.work]');
+    expect(setValue(base, undefined, "default", "work")).toContain(
+      'system = "work" # me\ndefault = "work"\n\n[profiles.work]',
+    );
     expect(setValue(base, "profiles.work", "color", "blue")).toContain('[profiles.work]\ncolor = "blue"\n');
     expect(setValue(base, "mcpd", "port", 5000).endsWith('profile = "work"\n\n[mcpd]\nport = 5000\n')).toBe(true);
     expect(removeValue(base, undefined, "system")).toBe(base.replace('system = "work" # me\n', ""));
@@ -83,7 +99,10 @@ describe("journal and undo", () => {
     expect(await undo.run(["last"], undone)).toBe(0);
     expect(readFileSync(a, "utf8")).toBe("old a\n");
     expect(existsSync(b)).toBe(false);
-    const redo = undone.lines.find((l) => l.startsWith("Redo with:"))!.split(" ").pop()!;
+    const redo = undone.lines
+      .find((l) => l.startsWith("Redo with:"))!
+      .split(" ")
+      .pop()!;
     expect(await undo.run([redo], fakeIo(sb.env))).toBe(0);
     expect(readFileSync(a, "utf8")).toBe("new a\n");
     expect(readFileSync(b, "utf8")).toBe("new b\n");
@@ -193,7 +212,9 @@ describe("limit and old names", () => {
     expect(await main(["available", "work"], fakeIo(sb.env))).toBe(0);
     expect(existsSync(join(sb.home, ".local/state/turno/exhausted/work"))).toBe(false);
     expect(await main(["exhausted", "work", "until", "2099-01-02 03:04"], fakeIo(sb.env))).toBe(0);
-    expect(readFileSync(join(sb.home, ".local/state/turno/exhausted/work"), "utf8").trim()).toBe(String(new Date(2099, 0, 2, 3, 4).getTime() / 1000));
+    expect(readFileSync(join(sb.home, ".local/state/turno/exhausted/work"), "utf8").trim()).toBe(
+      String(new Date(2099, 0, 2, 3, 4).getTime() / 1000),
+    );
     expect(await main(["agotada", "work", "hasta", "2099-01-02 03:05"], fakeIo(sb.env))).toBe(0);
     expect(await main(["disponible", "work"], fakeIo(sb.env))).toBe(0);
     const err = fakeIo(sb.env);
@@ -225,7 +246,10 @@ describe("completion", () => {
     expect(await complete(["profile", "add", "lab", "--browser", ""], sb.env)).toEqual(["chrome", "default"]);
     expect(await complete(["profile", "assign", ""], sb.env)).toEqual([":dir"]);
     expect(await complete(["run", ""], sb.env)).toEqual(["personal", "work", "auto"]);
-    expect(await complete(["config", "set", "profiles.w"], sb.env)).toEqual(["profiles.work.color", "profiles.work.browser"]);
+    expect(await complete(["config", "set", "profiles.w"], sb.env)).toEqual([
+      "profiles.work.color",
+      "profiles.work.browser",
+    ]);
     expect(await complete(["work", ""], sb.env)).toEqual([]);
     for (const s of Object.values(SCRIPTS)) expect(s).toContain("turno __complete --");
   });
@@ -242,9 +266,20 @@ describe("versions and upgrades", () => {
     expect(detectInstall("/Users/a/.bun/install/global/node_modules/x").method).toBe("bun");
     expect(detectInstall(packageInfo().root).method).toBe("source");
     expect(detectInstall("/opt/homebrew/Cellar/turno/0.1.0/libexec/lib/node_modules/turno-cli").method).toBe("brew");
-    expect(upgradeCommand({ method: "brew", root: "/x" }, "turno-cli", "0.2.0")).toEqual([["brew", "update"], ["brew", "upgrade", "turno"]]);
-    expect(upgradeCommand({ method: "npm", root: "/x" }, "@x/turno", "1.2.3")).toEqual([["npm", "install", "--global", "@x/turno@1.2.3"]]);
-    expect(upgradeCommand({ method: "source", root: "/r/p", repo: "/r" }, "turno", "latest")![0]).toEqual(["git", "-C", "/r", "pull", "--ff-only"]);
+    expect(upgradeCommand({ method: "brew", root: "/x" }, "turno-cli", "0.2.0")).toEqual([
+      ["brew", "update"],
+      ["brew", "upgrade", "turno"],
+    ]);
+    expect(upgradeCommand({ method: "npm", root: "/x" }, "@x/turno", "1.2.3")).toEqual([
+      ["npm", "install", "--global", "@x/turno@1.2.3"],
+    ]);
+    expect(upgradeCommand({ method: "source", root: "/r/p", repo: "/r" }, "turno", "latest")![0]).toEqual([
+      "git",
+      "-C",
+      "/r",
+      "pull",
+      "--ff-only",
+    ]);
     expect(registryUrl({}, "@x/turno", "latest")).toBe("https://registry.npmjs.org/@x%2Fturno/latest");
   });
 
@@ -260,7 +295,8 @@ describe("versions and upgrades", () => {
   it("checks the registry, caches the answer and mentions a newer version once a day", async () => {
     expect(updateChecksOff(sb.env)).toBeDefined(); // sandbox and private package
     const env = { ...sb.env, TURNO_NO_UPDATE_CHECK: "" };
-    const fake = (async () => new Response(JSON.stringify({ version: "99.0.0" }), { status: 200 })) as unknown as typeof fetch;
+    const fake = (async () =>
+      new Response(JSON.stringify({ version: "99.0.0" }), { status: 200 })) as unknown as typeof fetch;
     const s = await fetchLatest(env, "latest", fake);
     expect(s.latest).toBe("99.0.0");
     if (!packageInfo().private) {

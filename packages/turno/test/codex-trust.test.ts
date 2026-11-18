@@ -25,7 +25,11 @@ async function run(args: string[], env = sb.env) {
 }
 
 const projects = (profile: string) =>
-  ((parse(readFileSync(join(sb.home, `.codex-${profile}/config.toml`), "utf8")) as { projects?: Record<string, { trust_level: string }> }).projects ?? {});
+  (
+    parse(readFileSync(join(sb.home, `.codex-${profile}/config.toml`), "utf8")) as {
+      projects?: Record<string, { trust_level: string }>;
+    }
+  ).projects ?? {};
 
 describe("Codex trust entries for folder rules", () => {
   it("profile assign trusts the folder in the Codex profile, and keeps comments and existing entries", async () => {
@@ -34,7 +38,10 @@ describe("Codex trust entries for folder rules", () => {
     const other = join(sb.home, "code/other");
     mkdirSync(app, { recursive: true });
     mkdirSync(other, { recursive: true });
-    sb.write(".codex-cx/config.toml", `# mine\ncli_auth_credentials_store = "file"\n\n[projects."${other}"]\ntrust_level = "untrusted"\n`);
+    sb.write(
+      ".codex-cx/config.toml",
+      `# mine\ncli_auth_credentials_store = "file"\n\n[projects."${other}"]\ntrust_level = "untrusted"\n`,
+    );
     const r = await run(["profile", "assign", app, "cx"]);
     expect(r.code).toBe(0);
     expect(r.out).toMatch(/\+ trusts ~\/code\/app in Codex/);
@@ -51,7 +58,10 @@ describe("Codex trust entries for folder rules", () => {
   it("profile repair writes the entries for rules made before, and undo takes them back", async () => {
     expect((await run(["profile", "add", "cx", "--agent", "codex"])).code).toBe(0);
     const app = join(sb.home, "code/app");
-    sb.write(".config/turno/config.toml", `[profiles.cx]\nagent = "codex"\n\n[[projects]]\npath = "${app}"\nprofile = "cx"\n`);
+    sb.write(
+      ".config/turno/config.toml",
+      `[profiles.cx]\nagent = "codex"\n\n[[projects]]\npath = "${app}"\nprofile = "cx"\n`,
+    );
     const r = await run(["profile", "repair", "cx"]);
     expect(r.code).toBe(0);
     expect(projects("cx")[app]).toEqual({ trust_level: "trusted" });
@@ -60,7 +70,7 @@ describe("Codex trust entries for folder rules", () => {
   });
 
   it("trusts the real folder too when the rule's path is a symlink, and quotes odd paths", () => {
-    const real = join(sb.home, "real dir/\"quoted\"");
+    const real = join(sb.home, 'real dir/"quoted"');
     mkdirSync(real, { recursive: true });
     const link = join(sb.home, "link");
     symlinkSync(real, link);

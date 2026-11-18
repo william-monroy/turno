@@ -49,7 +49,8 @@ describe("other agents against mcpd", () => {
         TURNO_SESSION_PID: String(process.pid),
       });
       const cursor = async (args: string[], e: NodeJS.ProcessEnv) =>
-        (await promisify(execFile)("cursor-agent", args, { env: e, cwd: sb.home, encoding: "utf8", timeout: 90_000 })).stdout;
+        (await promisify(execFile)("cursor-agent", args, { env: e, cwd: sb.home, encoding: "utf8", timeout: 90_000 }))
+          .stdout;
       const run = (e: NodeJS.ProcessEnv) => cursor(["mcp", "list"], e);
       // Cursor asks the user to approve each new server once.
       expect(await run(env)).toMatch(/fx: not loaded \(needs approval\)/);
@@ -61,29 +62,44 @@ describe("other agents against mcpd", () => {
     200_000,
   );
 
-  it.skipIf(skipE2e || !hasBinary("codex"))("Codex reads the gateway entries turno writes, with the token left in the environment", async () => {
-    const toml = manifest(join(sb.home, "spawns.log"));
-    const file = sb.write(".codex-cx/config.toml", 'cli_auth_credentials_store = "file"\n');
-    syncCodexToml(file, profileServers(parseManifest(toml), "cx", 47821, "secret-token", "codex"), []);
-    const env = realBinEnv(sb, { CODEX_HOME: join(sb.home, ".codex-cx") });
-    const out = execFileSync("codex", ["mcp", "get", "fx", "--json"], { env, cwd: sb.home, encoding: "utf8", timeout: 60_000 });
-    const entry = JSON.parse(out) as { transport: Record<string, unknown> };
-    expect(entry.transport).toMatchObject({
-      type: "streamable_http",
-      url: "http://127.0.0.1:47821/mcp/fx",
-      bearer_token_env_var: "TURNO_MCPD_TOKEN",
-      http_headers: { "X-Turno-Profile": "cx" },
-      env_http_headers: { "X-Turno-Pid": "TURNO_SESSION_PID", "X-Turno-Cwd-B64": "TURNO_SESSION_CWD_B64" },
-    });
-    expect(readFileSync(file, "utf8")).not.toContain("secret-token");
-    // A fresh profile is logged out: the login is per CODEX_HOME, not the shared Keychain.
-    let status = "";
-    try {
-      status = execFileSync("codex", ["login", "status"], { env, cwd: sb.home, encoding: "utf8", timeout: 60_000, stdio: ["ignore", "pipe", "pipe"] });
-    } catch (err) {
-      const e = err as { stdout?: string; stderr?: string };
-      status = `${e.stdout ?? ""}${e.stderr ?? ""}`;
-    }
-    expect(status).toMatch(/Not logged in/);
-  }, 120_000);
+  it.skipIf(skipE2e || !hasBinary("codex"))(
+    "Codex reads the gateway entries turno writes, with the token left in the environment",
+    async () => {
+      const toml = manifest(join(sb.home, "spawns.log"));
+      const file = sb.write(".codex-cx/config.toml", 'cli_auth_credentials_store = "file"\n');
+      syncCodexToml(file, profileServers(parseManifest(toml), "cx", 47821, "secret-token", "codex"), []);
+      const env = realBinEnv(sb, { CODEX_HOME: join(sb.home, ".codex-cx") });
+      const out = execFileSync("codex", ["mcp", "get", "fx", "--json"], {
+        env,
+        cwd: sb.home,
+        encoding: "utf8",
+        timeout: 60_000,
+      });
+      const entry = JSON.parse(out) as { transport: Record<string, unknown> };
+      expect(entry.transport).toMatchObject({
+        type: "streamable_http",
+        url: "http://127.0.0.1:47821/mcp/fx",
+        bearer_token_env_var: "TURNO_MCPD_TOKEN",
+        http_headers: { "X-Turno-Profile": "cx" },
+        env_http_headers: { "X-Turno-Pid": "TURNO_SESSION_PID", "X-Turno-Cwd-B64": "TURNO_SESSION_CWD_B64" },
+      });
+      expect(readFileSync(file, "utf8")).not.toContain("secret-token");
+      // A fresh profile is logged out: the login is per CODEX_HOME, not the shared Keychain.
+      let status = "";
+      try {
+        status = execFileSync("codex", ["login", "status"], {
+          env,
+          cwd: sb.home,
+          encoding: "utf8",
+          timeout: 60_000,
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+      } catch (err) {
+        const e = err as { stdout?: string; stderr?: string };
+        status = `${e.stdout ?? ""}${e.stderr ?? ""}`;
+      }
+      expect(status).toMatch(/Not logged in/);
+    },
+    120_000,
+  );
 });

@@ -32,7 +32,9 @@ confirm = "never"
 describe("account policy fields", () => {
   it("parses read_tools and confirm, and writes them back", () => {
     const reg = parseRegistry(TEXT, "x", sb.env);
-    expect(reg.accounts["linear:work"]).toMatchObject({ readTools: ["mcp__linear__get_*", "mcp__linear__list_issues"] });
+    expect(reg.accounts["linear:work"]).toMatchObject({
+      readTools: ["mcp__linear__get_*", "mcp__linear__list_issues"],
+    });
     expect(reg.accounts["linear:work"]?.confirm).toBeUndefined();
     expect(reg.accounts["jira:work"]).toMatchObject({ confirm: "never" });
     expect(reg.accounts["jira:work"]?.readTools).toBeUndefined();
@@ -42,14 +44,30 @@ describe("account policy fields", () => {
   });
 
   it("rejects read tools outside the account's tools and unknown policies", () => {
-    expect(() => parseRegistry(`[account."linear:work"]\nprofile = "work"\ntools = ["mcp__linear__*"]\nread_tools = ["mcp__gmail__send"]\n`, "x", sb.env)).toThrow(
-      /read_tools: "mcp__gmail__send" is not covered by the account's tools/,
+    expect(() =>
+      parseRegistry(
+        `[account."linear:work"]\nprofile = "work"\ntools = ["mcp__linear__*"]\nread_tools = ["mcp__gmail__send"]\n`,
+        "x",
+        sb.env,
+      ),
+    ).toThrow(/read_tools: "mcp__gmail__send" is not covered by the account's tools/);
+    expect(() =>
+      parseRegistry(
+        `[account."linear:work"]\nprofile = "work"\ntools = ["mcp__linear__get_issue"]\nread_tools = ["mcp__linear__*"]\n`,
+        "x",
+        sb.env,
+      ),
+    ).toThrow(/not covered/);
+    expect(() =>
+      parseRegistry(
+        `[account."linear:work"]\nprofile = "work"\ntools = ["mcp__linear__*"]\nconfirm = "sometimes"\n`,
+        "x",
+        sb.env,
+      ),
+    ).toThrow(/confirm must be "always", "writes" or "never"/);
+    expect(() => makeAccount("linear:work", { profile: "work", tools: ["mcp__linear__*"], readTools: [] })).toThrow(
+      /read_tools must be a non-empty array/,
     );
-    expect(() => parseRegistry(`[account."linear:work"]\nprofile = "work"\ntools = ["mcp__linear__get_issue"]\nread_tools = ["mcp__linear__*"]\n`, "x", sb.env)).toThrow(/not covered/);
-    expect(() => parseRegistry(`[account."linear:work"]\nprofile = "work"\ntools = ["mcp__linear__*"]\nconfirm = "sometimes"\n`, "x", sb.env)).toThrow(
-      /confirm must be "always", "writes" or "never"/,
-    );
-    expect(() => makeAccount("linear:work", { profile: "work", tools: ["mcp__linear__*"], readTools: [] })).toThrow(/read_tools must be a non-empty array/);
   });
 
   it("matches tool patterns with a trailing star", () => {
@@ -74,21 +92,41 @@ describe("decide", () => {
   });
 
   it("gives a read only the read tools, without confirmation under writes", () => {
-    expect(decide(reg()["linear:work"]!, false)).toMatchObject({ policy: "writes", confirm: false, toolset: "read", tools: ["mcp__linear__get_*", "mcp__linear__list_issues"] });
+    expect(decide(reg()["linear:work"]!, false)).toMatchObject({
+      policy: "writes",
+      confirm: false,
+      toolset: "read",
+      tools: ["mcp__linear__get_*", "mcp__linear__list_issues"],
+    });
   });
 
   it("confirms a write and gives it every tool", () => {
-    expect(decide(reg()["linear:work"]!, true)).toMatchObject({ policy: "writes", confirm: true, toolset: "all", tools: ["mcp__linear__*"] });
+    expect(decide(reg()["linear:work"]!, true)).toMatchObject({
+      policy: "writes",
+      confirm: true,
+      toolset: "all",
+      tools: ["mcp__linear__*"],
+    });
   });
 
   it("confirms every call on a mail account, reads still limited to the read tools", () => {
-    expect(decide(reg()["gmail:work"]!, false)).toMatchObject({ policy: "always", confirm: true, toolset: "read", tools: ["mcp__claude_ai_Gmail__search_threads"] });
+    expect(decide(reg()["gmail:work"]!, false)).toMatchObject({
+      policy: "always",
+      confirm: true,
+      toolset: "read",
+      tools: ["mcp__claude_ai_Gmail__search_threads"],
+    });
     expect(decide(reg()["gmail:work"]!, true)).toMatchObject({ confirm: true, toolset: "all" });
   });
 
   it("treats a read without read_tools like a write", () => {
     const acct = makeAccount("linear:other", { profile: "work", tools: ["mcp__linear__*"] });
-    expect(decide(acct, false)).toMatchObject({ policy: "writes", confirm: true, toolset: "all", tools: ["mcp__linear__*"] });
+    expect(decide(acct, false)).toMatchObject({
+      policy: "writes",
+      confirm: true,
+      toolset: "all",
+      tools: ["mcp__linear__*"],
+    });
     expect(decide(acct, false).reason).toMatch(/no read_tools/);
   });
 
@@ -107,18 +145,46 @@ describe("turno identity add with a policy", () => {
 
   it("records read tools and the confirm policy, and lists them", async () => {
     const t = io();
-    expect(await command.run(["add", "linear:work", "--profile", "work", "--tools", "mcp__linear__*", "--read-tools", "mcp__linear__get_*,mcp__linear__list_issues", "--confirm", "writes"], t)).toBe(0);
-    expect(await command.run(["add", "gmail:work", "--profile", "work", "--tools", "mcp__claude_ai_Gmail__*"], t)).toBe(0);
+    expect(
+      await command.run(
+        [
+          "add",
+          "linear:work",
+          "--profile",
+          "work",
+          "--tools",
+          "mcp__linear__*",
+          "--read-tools",
+          "mcp__linear__get_*,mcp__linear__list_issues",
+          "--confirm",
+          "writes",
+        ],
+        t,
+      ),
+    ).toBe(0);
+    expect(await command.run(["add", "gmail:work", "--profile", "work", "--tools", "mcp__claude_ai_Gmail__*"], t)).toBe(
+      0,
+    );
     const reg = loadRegistry(sb.env);
-    expect(reg.accounts["linear:work"]).toMatchObject({ readTools: ["mcp__linear__get_*", "mcp__linear__list_issues"], confirm: "writes" });
+    expect(reg.accounts["linear:work"]).toMatchObject({
+      readTools: ["mcp__linear__get_*", "mcp__linear__list_issues"],
+      confirm: "writes",
+    });
     expect(reg.accounts["gmail:work"]?.confirm).toBeUndefined();
     const l = io();
     await command.run(["list"], l);
     const text = l.lines.join("\n");
     expect(text).toMatch(/linear:work .*\n\s+confirm writes; reads: mcp__linear__get_\*, mcp__linear__list_issues/);
     expect(text).toMatch(/gmail:work .*\n\s+confirm always \(default\); no read_tools: every call is confirmed/);
-    await expect(command.run(["add", "linear:x", "--profile", "work", "--tools", "mcp__linear__*", "--confirm", "maybe"], t)).rejects.toThrow(/confirm must be/);
-    await expect(command.run(["add", "linear:x", "--profile", "work", "--tools", "mcp__linear__get_issue", "--read-tools", "mcp__linear__*"], t)).rejects.toThrow(/not covered/);
+    await expect(
+      command.run(["add", "linear:x", "--profile", "work", "--tools", "mcp__linear__*", "--confirm", "maybe"], t),
+    ).rejects.toThrow(/confirm must be/);
+    await expect(
+      command.run(
+        ["add", "linear:x", "--profile", "work", "--tools", "mcp__linear__get_issue", "--read-tools", "mcp__linear__*"],
+        t,
+      ),
+    ).rejects.toThrow(/not covered/);
   });
 
   it("shows the decision in the log", async () => {
@@ -133,7 +199,14 @@ describe("turno identity add with a policy", () => {
         detail: "2 turns; blocked: mcp__linear__create_issue",
         durationMs: 1000,
         costUsd: 0.01,
-        decision: { policy: "writes", asked: false, toolset: "read", allowed: ["mcp__linear__get_*"], mcp: "strict", denied: ["mcp__linear__create_issue"] },
+        decision: {
+          policy: "writes",
+          asked: false,
+          toolset: "read",
+          allowed: ["mcp__linear__get_*"],
+          mcp: "strict",
+          denied: ["mcp__linear__create_issue"],
+        },
       },
       sb.env,
     );

@@ -17,7 +17,8 @@ test("copies the package version into server.json", () => {
 
 test("refuses a server name that differs from mcpName", () => {
   assert.throws(
-    () => syncServerJson(server, { name: "turno-browser", version: "0.2.0", mcpName: "io.github.someone/turno-browser" }),
+    () =>
+      syncServerJson(server, { name: "turno-browser", version: "0.2.0", mcpName: "io.github.someone/turno-browser" }),
     /mcpName/,
   );
 });

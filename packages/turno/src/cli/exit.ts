@@ -42,10 +42,26 @@ export function exitName(code: number): string {
 export const EXIT_ROWS: readonly (readonly [number, string, string])[] = [
   [Exit.ok, "ok", "done"],
   [Exit.failure, "failure", "it did not work; the message on stderr says why"],
-  [Exit.usage, "usage", "the command line was wrong: an unknown command or flag, a missing argument, or a question nobody can answer (no terminal, --no-input)"],
-  [Exit.noProfile, "no_profile", "no profile for this folder: no rule and no default, or a rule naming a profile that does not exist (turno auto, turno profile which --check)"],
-  [Exit.notSignedIn, "not_signed_in", "the folder's profile exists but its account is not signed in (turno profile which --check)"],
-  [Exit.gatewayDown, "gateway_down", "the gateway (mcpd) does not answer (turno mcp daemon status, turno mcp top, turno mcp savings)"],
+  [
+    Exit.usage,
+    "usage",
+    "the command line was wrong: an unknown command or flag, a missing argument, or a question nobody can answer (no terminal, --no-input)",
+  ],
+  [
+    Exit.noProfile,
+    "no_profile",
+    "no profile for this folder: no rule and no default, or a rule naming a profile that does not exist (turno auto, turno profile which --check)",
+  ],
+  [
+    Exit.notSignedIn,
+    "not_signed_in",
+    "the folder's profile exists but its account is not signed in (turno profile which --check)",
+  ],
+  [
+    Exit.gatewayDown,
+    "gateway_down",
+    "the gateway (mcpd) does not answer (turno mcp daemon status, turno mcp top, turno mcp savings)",
+  ],
   [Exit.notInstalled, "not_installed", "the agent's own command is not installed (turno auto with no profile to open)"],
   [Exit.cancelled, "cancelled", "cancelled by you: Ctrl-C, or Esc in a profile list"],
 ];

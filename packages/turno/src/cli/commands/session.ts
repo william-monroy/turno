@@ -12,7 +12,7 @@ export function sessionsData(env: NodeJS.ProcessEnv) {
   const config = loadConfig(env);
   return liveSessions(env, config).map((s) => ({
     name: displayName(s),
-    profile: s.source === "record" ? (s.profile ?? null) : s.source === "desktop" ? null : (config.system || null),
+    profile: s.source === "record" ? (s.profile ?? null) : s.source === "desktop" ? null : config.system || null,
     source: s.source,
     status: s.status,
     cwd: s.cwd,
@@ -24,7 +24,12 @@ const LIST_JSON = jsonOutput(["name", "profile", "source", "status", "cwd"]);
 async function list(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, JSON_FLAG, 0);
   if (bool(p, "json")) {
-    emit(io, p, LIST_JSON, sessionsData(io.env).map((s) => ({ ...s, cwd: tildify(s.cwd, io.env) })));
+    emit(
+      io,
+      p,
+      LIST_JSON,
+      sessionsData(io.env).map((s) => ({ ...s, cwd: tildify(s.cwd, io.env) })),
+    );
     return 0;
   }
   return sessions.run([], io);
@@ -34,7 +39,13 @@ export const command = group(
   "session",
   "live Claude Code sessions, and moving one to another account",
   {
-    list: { summary: "live sessions and the account of each", synopsis: "[--json]", flags: ["--json"], json: LIST_JSON, run: list },
+    list: {
+      summary: "live sessions and the account of each",
+      synopsis: "[--json]",
+      flags: ["--json"],
+      json: LIST_JSON,
+      run: list,
+    },
     handoff: {
       summary: "print the command that continues or forks this session under another profile",
       synopsis: "[profile|auto] [--fork] [--copy]",
@@ -45,10 +56,6 @@ export const command = group(
   },
   {
     fallback: "list",
-    examples: [
-      "turno session list",
-      "turno session handoff personal",
-      "turno session handoff work --fork --copy",
-    ],
+    examples: ["turno session list", "turno session handoff personal", "turno session handoff work --fork --copy"],
   },
 );

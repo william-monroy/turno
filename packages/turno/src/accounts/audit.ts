@@ -1,5 +1,16 @@
 import { createHash } from "node:crypto";
-import { chmodSync, closeSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, rmdirSync, statSync, writeSync } from "node:fs";
+import {
+  chmodSync,
+  closeSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+  rmdirSync,
+  statSync,
+  writeSync,
+} from "node:fs";
 import { dirname } from "node:path";
 import { PRIVATE_FILE_MODE, ensurePrivateDir, paths } from "../core/paths.js";
 import type { ConfirmPolicy } from "./policy.js";
@@ -31,7 +42,14 @@ export interface AuditEntry {
 
 /** One line of audit.jsonl as `turno identity log` reads it (state-file.ts). */
 const isAuditEntry = (v: unknown): v is AuditEntry =>
-  hasFields(v, { ts: "string", caller: "object", account: "string", outcome: "string", task: "string", durationMs: "number" }) &&
+  hasFields(v, {
+    ts: "string",
+    caller: "object",
+    account: "string",
+    outcome: "string",
+    task: "string",
+    durationMs: "number",
+  }) &&
   (v.prev === undefined || typeof v.prev === "string");
 
 /** What the bridge decided for a call, and what the run did with it. */
@@ -210,14 +228,26 @@ export function verifyAudit(env: NodeJS.ProcessEnv = process.env): AuditVerifica
     lines++;
     const fail = (reason: string): AuditVerification => ({ ok: false, lines, legacy, line: i + 1, reason });
     const parsed = parseState(line, isAuditEntry, 1, "line");
-    if (!parsed.ok) return fail(parsed.problem === "corrupt" ? "not valid JSON" : parsed.problem === "newer" ? "written by a newer turno" : "not an audit entry");
+    if (!parsed.ok)
+      return fail(
+        parsed.problem === "corrupt"
+          ? "not valid JSON"
+          : parsed.problem === "newer"
+            ? "written by a newer turno"
+            : "not an audit entry",
+      );
     const entry = parsed.value;
     if (entry.prev === undefined) {
       if (chained) return fail("line without a hash after the chain started (added by hand?)");
       legacy++;
     } else {
       const expected = prevLine === undefined ? GENESIS : lineHash(prevLine);
-      if (entry.prev !== expected) return fail(prevLine === undefined ? "first line does not start the chain (lines removed from the start?)" : "hash does not match the previous line (edited, removed or reordered)");
+      if (entry.prev !== expected)
+        return fail(
+          prevLine === undefined
+            ? "first line does not start the chain (lines removed from the start?)"
+            : "hash does not match the previous line (edited, removed or reordered)",
+        );
       chained = true;
     }
     prevLine = line;

@@ -121,16 +121,36 @@ export interface IdentitySettings {
 
 /** A change to identity.json: a value sets the key, `null` removes it. */
 export type SettingsPatch = {
-  [K in "timezone" | "locale" | "languages" | "region" | "health" | (typeof FORMAT_2_KEYS)[number] | (typeof FORMAT_3_KEYS)[number]]?: IdentitySettings[K] | null;
+  [K in
+    | "timezone"
+    | "locale"
+    | "languages"
+    | "region"
+    | "health"
+    | (typeof FORMAT_2_KEYS)[number]
+    | (typeof FORMAT_3_KEYS)[number]]?: IdentitySettings[K] | null;
 };
 
-const KEYS = new Set(["version", "timezone", "locale", "languages", "region", "health", ...FORMAT_2_KEYS, ...FORMAT_3_KEYS, "created", "updated"]);
+const KEYS = new Set([
+  "version",
+  "timezone",
+  "locale",
+  "languages",
+  "region",
+  "health",
+  ...FORMAT_2_KEYS,
+  ...FORMAT_3_KEYS,
+  "created",
+  "updated",
+]);
 
 /**
  * The Chrome switches to drop for this identity's keychain setting, as Playwright launch
  * options: nothing for the default mock keychain.
  */
-export function keychainArgs(settings: Pick<IdentitySettings, "keychain"> | undefined): { ignoreDefaultArgs?: string[] } {
+export function keychainArgs(settings: Pick<IdentitySettings, "keychain"> | undefined): {
+  ignoreDefaultArgs?: string[];
+} {
   return settings?.keychain === "system" ? { ignoreDefaultArgs: [...MOCK_KEYCHAIN_SWITCHES] } : {};
 }
 
@@ -156,15 +176,19 @@ function browserProblems(v: Record<string, unknown>, out: string[]): void {
     const t = v.tabs;
     if (!isObject(t)) out.push("tabs must be an object with max, popups, park or close");
     else {
-      if (t.max !== undefined && (typeof t.max !== "number" || !Number.isInteger(t.max) || t.max < 0 || t.max > 100)) out.push("tabs.max must be a whole number from 0 (no cap) to 100");
-      if (t.popups !== undefined && t.popups !== "close" && t.popups !== "keep") out.push('tabs.popups must be "close" or "keep"');
+      if (t.max !== undefined && (typeof t.max !== "number" || !Number.isInteger(t.max) || t.max < 0 || t.max > 100))
+        out.push("tabs.max must be a whole number from 0 (no cap) to 100");
+      if (t.popups !== undefined && t.popups !== "close" && t.popups !== "keep")
+        out.push('tabs.popups must be "close" or "keep"');
       for (const k of ["park", "close"] as const) {
-        if (t[k] !== undefined && (typeof t[k] !== "string" || parseDuration(t[k] as string) === undefined)) out.push(`tabs.${k} must be a duration like "5m" or "0" (off)`);
+        if (t[k] !== undefined && (typeof t[k] !== "string" || parseDuration(t[k] as string) === undefined))
+          out.push(`tabs.${k} must be a duration like "5m" or "0" (off)`);
       }
       unknownKeys(t, ["max", "popups", "park", "close"], "tabs", out);
     }
   }
-  if (v.backgroundThrottling !== undefined && typeof v.backgroundThrottling !== "boolean") out.push("backgroundThrottling must be true or false");
+  if (v.backgroundThrottling !== undefined && typeof v.backgroundThrottling !== "boolean")
+    out.push("backgroundThrottling must be true or false");
   if (v.settle !== undefined) {
     const ms = typeof v.settle === "string" ? parseDuration(v.settle) : undefined;
     if (ms === undefined || ms > MAX_SETTLE_MS) out.push('settle must be a duration from "0" to "10s", like "250ms"');
@@ -174,23 +198,33 @@ function browserProblems(v: Record<string, unknown>, out: string[]): void {
     if (!isObject(b)) out.push("block must be an object with trackers, types or patterns");
     else {
       if (b.trackers !== undefined && typeof b.trackers !== "boolean") out.push("block.trackers must be true or false");
-      if (b.types !== undefined && (!Array.isArray(b.types) || b.types.some((t) => !(BLOCKABLE_TYPES as readonly unknown[]).includes(t)))) {
+      if (
+        b.types !== undefined &&
+        (!Array.isArray(b.types) || b.types.some((t) => !(BLOCKABLE_TYPES as readonly unknown[]).includes(t)))
+      ) {
         out.push(`block.types must be a list of ${BLOCKABLE_TYPES.map((t) => `"${t}"`).join(", ")}`);
       }
-      if (b.patterns !== undefined && (!Array.isArray(b.patterns) || b.patterns.length > 500 || b.patterns.some((p) => typeof p !== "string" || !p.trim() || /\s/.test(p)))) {
+      if (
+        b.patterns !== undefined &&
+        (!Array.isArray(b.patterns) ||
+          b.patterns.length > 500 ||
+          b.patterns.some((p) => typeof p !== "string" || !p.trim() || /\s/.test(p)))
+      ) {
         out.push("block.patterns must be a list of host names or URL patterns without spaces (at most 500)");
       }
       unknownKeys(b, ["trackers", "types", "patterns"], "block", out);
     }
   }
-  if (v.keychain !== undefined && v.keychain !== "mock" && v.keychain !== "system") out.push('keychain must be "mock" (the default) or "system"');
+  if (v.keychain !== undefined && v.keychain !== "mock" && v.keychain !== "system")
+    out.push('keychain must be "mock" (the default) or "system"');
   if (v.cache !== undefined) {
     const c = v.cache;
     if (!isObject(c)) out.push('cache must be an object, like {} or { "maxSize": "100MB" }');
     else {
       if (c.maxSize !== undefined) {
         const bytes = typeof c.maxSize === "string" ? parseSize(c.maxSize) : undefined;
-        if (bytes === undefined || bytes < 1024 ** 2 || bytes > MAX_CACHE_BYTES) out.push('cache.maxSize must be a size from "1MB" to "10GB", like "100MB"');
+        if (bytes === undefined || bytes < 1024 ** 2 || bytes > MAX_CACHE_BYTES)
+          out.push('cache.maxSize must be a size from "1MB" to "10GB", like "100MB"');
       }
       unknownKeys(c, ["maxSize"], "cache", out);
     }
@@ -233,19 +267,25 @@ function problemsOf(raw: unknown): string[] {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return ["must be a JSON object"];
   const v = raw as Record<string, unknown>;
   const out: string[] = [];
-  if (v.version !== undefined && (typeof v.version !== "number" || !Number.isInteger(v.version) || v.version < 1)) out.push("version must be a positive integer");
+  if (v.version !== undefined && (typeof v.version !== "number" || !Number.isInteger(v.version) || v.version < 1))
+    out.push("version must be a positive integer");
   else if (typeof v.version === "number" && v.version > IDENTITY_FORMAT_VERSION) {
-    return [`is format ${v.version}, from a newer turno-browser (this one reads up to ${IDENTITY_FORMAT_VERSION}); update turno-browser`];
+    return [
+      `is format ${v.version}, from a newer turno-browser (this one reads up to ${IDENTITY_FORMAT_VERSION}); update turno-browser`,
+    ];
   }
   if (v.timezone !== undefined) {
     if (typeof v.timezone !== "string") out.push("timezone must be a string");
-    else if (!validTimezone(v.timezone)) out.push(`timezone "${v.timezone}" is not an IANA time zone (for example "America/Monterrey")`);
+    else if (!validTimezone(v.timezone))
+      out.push(`timezone "${v.timezone}" is not an IANA time zone (for example "America/Monterrey")`);
   }
   if (v.locale !== undefined) {
-    if (typeof v.locale !== "string" || !canonicalLocale(v.locale)) out.push(`locale "${String(v.locale)}" is not a language tag (for example "es-MX")`);
+    if (typeof v.locale !== "string" || !canonicalLocale(v.locale))
+      out.push(`locale "${String(v.locale)}" is not a language tag (for example "es-MX")`);
   }
   if (v.languages !== undefined) {
-    if (!Array.isArray(v.languages) || v.languages.some((l) => typeof l !== "string" || !canonicalLocale(l))) out.push("languages must be a list of language tags");
+    if (!Array.isArray(v.languages) || v.languages.some((l) => typeof l !== "string" || !canonicalLocale(l)))
+      out.push("languages must be a list of language tags");
     else if (v.languages.length === 0) out.push("languages needs at least one language tag");
   }
   if (v.region !== undefined && (typeof v.region !== "string" || !/^[A-Z]{2}$/.test(v.region))) {
@@ -253,12 +293,18 @@ function problemsOf(raw: unknown): string[] {
   }
   if (v.health !== undefined) {
     const h = v.health as Record<string, unknown> | null;
-    if (typeof h !== "object" || h === null || Array.isArray(h)) out.push("health must be an object with url and text or selector");
+    if (typeof h !== "object" || h === null || Array.isArray(h))
+      out.push("health must be an object with url and text or selector");
     else {
-      if (typeof h.url !== "string" || !/^https?:\/\//.test(h.url)) out.push("health.url must start with http:// or https://");
-      for (const k of ["text", "selector"] as const) if (h[k] !== undefined && (typeof h[k] !== "string" || !h[k])) out.push(`health.${k} must be a non-empty string`);
-      if (h.text === undefined && h.selector === undefined) out.push("health needs text or selector (what only a signed-in page shows)");
-      for (const k of Object.keys(h)) if (!["url", "text", "selector"].includes(k)) out.push(`unknown key "health.${k}"`);
+      if (typeof h.url !== "string" || !/^https?:\/\//.test(h.url))
+        out.push("health.url must start with http:// or https://");
+      for (const k of ["text", "selector"] as const)
+        if (h[k] !== undefined && (typeof h[k] !== "string" || !h[k]))
+          out.push(`health.${k} must be a non-empty string`);
+      if (h.text === undefined && h.selector === undefined)
+        out.push("health needs text or selector (what only a signed-in page shows)");
+      for (const k of Object.keys(h))
+        if (!["url", "text", "selector"].includes(k)) out.push(`unknown key "health.${k}"`);
     }
   }
   browserProblems(v, out);
@@ -299,7 +345,10 @@ export function checkIdentitySettings(id: string, env: NodeJS.ProcessEnv = proce
 /** identity.json of the identity, undefined when there is none. Throws when it is invalid. */
 export function readIdentitySettings(id: string, env: NodeJS.ProcessEnv = process.env): IdentitySettings | undefined {
   const { path, settings, problems } = checkIdentitySettings(id, env);
-  if (problems.length) throw new IdentityError(`identity.json of "${id}" (${path}) ${problems[0]!.startsWith("is ") ? problems[0] : `is invalid: ${problems.join("; ")}`}`);
+  if (problems.length)
+    throw new IdentityError(
+      `identity.json of "${id}" (${path}) ${problems[0]!.startsWith("is ") ? problems[0] : `is invalid: ${problems.join("; ")}`}`,
+    );
   return settings;
 }
 
@@ -307,7 +356,12 @@ export function readIdentitySettings(id: string, env: NodeJS.ProcessEnv = proces
  * Applies a patch and writes the file (mode 600, through a rename so a reader never sees half
  * a file). Validates first: a bad value throws and leaves the file as it was.
  */
-export function writeIdentitySettings(id: string, patch: SettingsPatch, env: NodeJS.ProcessEnv = process.env, now: Date = new Date()): IdentitySettings {
+export function writeIdentitySettings(
+  id: string,
+  patch: SettingsPatch,
+  env: NodeJS.ProcessEnv = process.env,
+  now: Date = new Date(),
+): IdentitySettings {
   const path = identitySettingsPath(id, env);
   const current = existsSync(path) ? readIdentitySettings(id, env) : undefined;
   const stamp = now.toISOString();
@@ -317,14 +371,20 @@ export function writeIdentitySettings(id: string, patch: SettingsPatch, env: Nod
     if (value === null) delete next[key];
     else next[key] = value;
   }
-  next.version = FORMAT_3_KEYS.some((k) => next[k] !== undefined) ? 3 : FORMAT_2_KEYS.some((k) => next[k] !== undefined) ? 2 : 1;
+  next.version = FORMAT_3_KEYS.some((k) => next[k] !== undefined)
+    ? 3
+    : FORMAT_2_KEYS.some((k) => next[k] !== undefined)
+      ? 2
+      : 1;
   if (typeof next.locale === "string") next.locale = canonicalLocale(next.locale) ?? next.locale;
   if (Array.isArray(next.languages)) next.languages = (next.languages as string[]).map((l) => canonicalLocale(l) ?? l);
   if (typeof next.region === "string" && /^[a-z]{2}$/i.test(next.region)) next.region = next.region.toUpperCase();
   const problems = problemsOf(next);
   if (problems.length) throw new IdentityError(`identity "${id}": ${problems.join("; ")}`);
   // Stable key order, whatever order the patch came in.
-  const ordered = Object.fromEntries([...KEYS].filter((k) => next[k] !== undefined).map((k) => [k, next[k]])) as unknown as IdentitySettings;
+  const ordered = Object.fromEntries(
+    [...KEYS].filter((k) => next[k] !== undefined).map((k) => [k, next[k]]),
+  ) as unknown as IdentitySettings;
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const tmp = `${path}.${process.pid}.tmp`;
   writeFileSync(tmp, `${JSON.stringify(ordered, null, 2)}\n`, { mode: 0o600 });
@@ -363,7 +423,9 @@ export function launchSettings(
   if (!settings) return out;
   if (settings.locale && !hasArg(userArgs, "--lang")) out.args.push(`--lang=${settings.locale}`);
   const languages = acceptLanguages(settings);
-  if (languages && !hasArg(userArgs, "--accept-lang") && userContext.locale === undefined) out.args.push(`--accept-lang=${languages.join(",")}`);
-  if (settings.timezone && settings.timezone !== systemTz && userContext.timezoneId === undefined) out.timezoneId = settings.timezone;
+  if (languages && !hasArg(userArgs, "--accept-lang") && userContext.locale === undefined)
+    out.args.push(`--accept-lang=${languages.join(",")}`);
+  if (settings.timezone && settings.timezone !== systemTz && userContext.timezoneId === undefined)
+    out.timezoneId = settings.timezone;
   return out;
 }

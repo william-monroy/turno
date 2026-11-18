@@ -1,7 +1,13 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BROWSER_API, type BrowserApi, type BrowserDeps, browserCommand, loadBrowser } from "../src/cli/commands/browser.js";
+import {
+  BROWSER_API,
+  type BrowserApi,
+  type BrowserDeps,
+  browserCommand,
+  loadBrowser,
+} from "../src/cli/commands/browser.js";
 import { command as identity, setBrowserDeps } from "../src/cli/commands/identity.js";
 import { fakeIo } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -34,12 +40,38 @@ describe("turno identity add/show/set for browser identities", () => {
   it("writes identity.json on add, shows it, and changes it with set", async () => {
     prev = setBrowserDeps(deps(real));
     const add = fakeIo(sb.env);
-    expect(await identity.run(["add", "browser:school", "--timezone", "America/Monterrey", "--languages", "es-MX, es", "--region", "mx"], add)).toBe(0);
-    expect(add.lines.join("\n")).toMatch(/settings \(time zone, languages, health check\) in ~\/\.local\/share\/turno\/browser\/identities\/school\.json/);
-    expect(JSON.parse(readFileSync(settingsFile("school"), "utf8"))).toMatchObject({ version: 1, timezone: "America/Monterrey", languages: ["es-MX", "es"], region: "MX" });
+    expect(
+      await identity.run(
+        ["add", "browser:school", "--timezone", "America/Monterrey", "--languages", "es-MX, es", "--region", "mx"],
+        add,
+      ),
+    ).toBe(0);
+    expect(add.lines.join("\n")).toMatch(
+      /settings \(time zone, languages, health check\) in ~\/\.local\/share\/turno\/browser\/identities\/school\.json/,
+    );
+    expect(JSON.parse(readFileSync(settingsFile("school"), "utf8"))).toMatchObject({
+      version: 1,
+      timezone: "America/Monterrey",
+      languages: ["es-MX", "es"],
+      region: "MX",
+    });
 
     const set = fakeIo(sb.env);
-    expect(await identity.run(["set", "browser:school", "--health-url", "https://mail.example.com/", "--health-text", "Inbox", "--region", ""], set)).toBe(0);
+    expect(
+      await identity.run(
+        [
+          "set",
+          "browser:school",
+          "--health-url",
+          "https://mail.example.com/",
+          "--health-text",
+          "Inbox",
+          "--region",
+          "",
+        ],
+        set,
+      ),
+    ).toBe(0);
     expect(set.lines.join("\n")).toMatch(/health check +https:\/\/mail\.example\.com\/ shows "Inbox"/);
 
     const show = fakeIo(sb.env);
@@ -49,7 +81,11 @@ describe("turno identity add/show/set for browser identities", () => {
       schemaVersion: 1,
       id: "browser:school",
       settingsFile: "~/.local/share/turno/browser/identities/school.json",
-      settings: { timezone: "America/Monterrey", languages: ["es-MX", "es"], health: { url: "https://mail.example.com/", text: "Inbox" } },
+      settings: {
+        timezone: "America/Monterrey",
+        languages: ["es-MX", "es"],
+        health: { url: "https://mail.example.com/", text: "Inbox" },
+      },
       problems: [],
       inUse: false,
       holder: null,
@@ -59,7 +95,10 @@ describe("turno identity add/show/set for browser identities", () => {
 
     // Only the text changes; the URL stays.
     expect(await identity.run(["set", "browser:school", "--health-text", "Mailbox"], fakeIo(sb.env))).toBe(0);
-    expect(JSON.parse(readFileSync(settingsFile("school"), "utf8")).health).toEqual({ url: "https://mail.example.com/", text: "Mailbox" });
+    expect(JSON.parse(readFileSync(settingsFile("school"), "utf8")).health).toEqual({
+      url: "https://mail.example.com/",
+      text: "Mailbox",
+    });
     expect(await identity.run(["set", "browser:school", "--no-health"], fakeIo(sb.env))).toBe(0);
     expect(JSON.parse(readFileSync(settingsFile("school"), "utf8")).health).toBeUndefined();
   });
@@ -68,10 +107,16 @@ describe("turno identity add/show/set for browser identities", () => {
     prev = setBrowserDeps(deps(real));
     await identity.run(["add", "browser:school"], fakeIo(sb.env));
     const before = readFileSync(settingsFile("school"), "utf8");
-    await expect(identity.run(["set", "browser:school", "--timezone", "Mars/Base"], fakeIo(sb.env))).rejects.toThrow(/not an IANA time zone/);
+    await expect(identity.run(["set", "browser:school", "--timezone", "Mars/Base"], fakeIo(sb.env))).rejects.toThrow(
+      /not an IANA time zone/,
+    );
     await expect(identity.run(["set", "browser:school"], fakeIo(sb.env))).rejects.toThrow(/nothing to set/);
-    await expect(identity.run(["set", "browser:school", "--health-text", "Inbox"], fakeIo(sb.env))).rejects.toThrow(/needs --health-url/);
-    await expect(identity.run(["set", "browser:nope", "--region", "MX"], fakeIo(sb.env))).rejects.toThrow(/identity "nope" does not exist/);
+    await expect(identity.run(["set", "browser:school", "--health-text", "Inbox"], fakeIo(sb.env))).rejects.toThrow(
+      /needs --health-url/,
+    );
+    await expect(identity.run(["set", "browser:nope", "--region", "MX"], fakeIo(sb.env))).rejects.toThrow(
+      /identity "nope" does not exist/,
+    );
     await expect(identity.run(["show", "linear:work"], fakeIo(sb.env))).rejects.toThrow(/works on browser identities/);
     expect(readFileSync(settingsFile("school"), "utf8")).toBe(before);
     const dry = fakeIo(sb.env);
@@ -114,16 +159,37 @@ describe("turno identity add/show/set for browser identities", () => {
     expect(text).toMatch(/cache +on, up to 200MB/);
 
     // One part of a group changes; the rest of it stays. An empty value removes that part.
-    expect(await identity.run(["set", "browser:school", "--tabs-max", "0", "--tabs-park", "", "--block-patterns", ""], fakeIo(sb.env))).toBe(0);
+    expect(
+      await identity.run(
+        ["set", "browser:school", "--tabs-max", "0", "--tabs-park", "", "--block-patterns", ""],
+        fakeIo(sb.env),
+      ),
+    ).toBe(0);
     expect(file().tabs).toEqual({ max: 0, popups: "keep", close: "1h" });
     expect(file().block).toEqual({ trackers: true, types: ["image", "font"] });
 
     // --cache alone turns the cache on with its default size; --no-* removes a whole group.
     expect(await identity.run(["set", "browser:school", "--cache-max-size", ""], fakeIo(sb.env))).toBe(0);
     expect(file().cache).toEqual({});
-    expect(await identity.run(["set", "browser:school", "--no-tabs", "--no-block", "--no-cache", "--background-throttling", "", "--settle", ""], fakeIo(sb.env))).toBe(0);
+    expect(
+      await identity.run(
+        [
+          "set",
+          "browser:school",
+          "--no-tabs",
+          "--no-block",
+          "--no-cache",
+          "--background-throttling",
+          "",
+          "--settle",
+          "",
+        ],
+        fakeIo(sb.env),
+      ),
+    ).toBe(0);
     expect(file()).toMatchObject({ version: 1 });
-    for (const key of ["tabs", "backgroundThrottling", "settle", "block", "cache"]) expect(file()[key], key).toBeUndefined();
+    for (const key of ["tabs", "backgroundThrottling", "settle", "block", "cache"])
+      expect(file()[key], key).toBeUndefined();
     expect(await identity.run(["set", "browser:school", "--cache"], fakeIo(sb.env))).toBe(0);
     expect(file()).toMatchObject({ version: 2, cache: {} });
     // Removing the last part of a group removes the group.
@@ -137,8 +203,13 @@ describe("turno identity add/show/set for browser identities", () => {
     await identity.run(["add", "browser:school"], fakeIo(sb.env));
     const before = readFileSync(settingsFile("school"), "utf8");
     const bad = async (args: string[], message: RegExp) => {
-      await expect(identity.run(["set", "browser:school", ...args], fakeIo(sb.env)), args.join(" ")).rejects.toThrow(message);
-      await expect(identity.run(["set", "browser:school", ...args, "--dry-run"], fakeIo(sb.env)), `${args.join(" ")} --dry-run`).rejects.toThrow(message);
+      await expect(identity.run(["set", "browser:school", ...args], fakeIo(sb.env)), args.join(" ")).rejects.toThrow(
+        message,
+      );
+      await expect(
+        identity.run(["set", "browser:school", ...args, "--dry-run"], fakeIo(sb.env)),
+        `${args.join(" ")} --dry-run`,
+      ).rejects.toThrow(message);
     };
     await bad(["--tabs-max", "many"], /^--tabs-max must be a whole number from 0 \(no cap\) to 100$/);
     await bad(["--tabs-max", "101"], /^--tabs-max must be a whole number from 0 \(no cap\) to 100$/);
@@ -148,7 +219,10 @@ describe("turno identity add/show/set for browser identities", () => {
     await bad(["--settle", "20s"], /^--settle must be a duration from "0" to "10s", like "250ms"$/);
     await bad(["--block-trackers", "yes please"], /^--block-trackers must be true or false/);
     await bad(["--block-types", "image,script"], /^--block-types must be a list of "image", "media", "font"$/);
-    await bad(["--block-patterns", "a b"], /^--block-patterns must be a list of host names or URL patterns without spaces/);
+    await bad(
+      ["--block-patterns", "a b"],
+      /^--block-patterns must be a list of host names or URL patterns without spaces/,
+    );
     await bad(["--cache-max-size", "1KB"], /^--cache-max-size must be a size from "1MB" to "10GB", like "100MB"$/);
     await bad(["--no-tabs", "--tabs-max", "3"], /--no-tabs does not go with the other --tabs flags/);
     await bad(["--no-block", "--block-trackers", "true"], /--no-block does not go with the other --block flags/);
@@ -176,7 +250,11 @@ describe("turno identity add/show/set for browser identities", () => {
     const io = fakeIo(sb.env);
     expect(await browserCommand(deps(real)).run(["set", "school", "--settle", "500ms", "--json"], io)).toBe(0);
     const done = JSON.parse(io.lines.join("\n"));
-    expect(done).toMatchObject({ dryRun: false, changes: { settle: "500ms" }, settings: { version: 2, settle: "500ms" } });
+    expect(done).toMatchObject({
+      dryRun: false,
+      changes: { settle: "500ms" },
+      settings: { version: 2, settle: "500ms" },
+    });
     expect(JSON.parse(readFileSync(settingsFile("school"), "utf8")).settle).toBe("500ms");
 
     const fields = fakeIo(sb.env);
@@ -193,10 +271,16 @@ describe("turno identity add/show/set for browser identities", () => {
       "turno-browser is too old for this turno (it has no API_VERSION, this turno needs 1.2 or a later 1.x); update it: npm install --global turno-browser@latest",
     );
     // 1.1 has no session export and import (ADR 0055).
-    setBrowserDeps(deps(() => loadBrowser({ importer: async () => ({ ...pkg, API_VERSION: { major: 1, minor: 1 } }) })));
-    await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(/its API is 1\.1, this turno needs 1\.2 or a later 1\.x/);
+    setBrowserDeps(
+      deps(() => loadBrowser({ importer: async () => ({ ...pkg, API_VERSION: { major: 1, minor: 1 } }) })),
+    );
+    await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(
+      /its API is 1\.1, this turno needs 1\.2 or a later 1\.x/,
+    );
     setBrowserDeps(deps(() => loadBrowser({ importer: async () => newer })));
-    await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(/^turno-browser is too new for this turno \(its API is 2\.0, this turno speaks 1\.x\); update turno: turno upgrade$/);
+    await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(
+      /^turno-browser is too new for this turno \(its API is 2\.0, this turno speaks 1\.x\); update turno: turno upgrade$/,
+    );
   });
 
   it("is built against the API_VERSION of the workspace turno-browser", async () => {
@@ -211,8 +295,19 @@ describe("turno browser doctor", () => {
     { area: "chrome", level: "ok", text: "Google Chrome 157.0.8103.79 at /Applications/Google Chrome.app" },
     { area: "chrome", level: "info", text: "smoke launch skipped (--no-launch)" },
     { area: "identity school", level: "ok", text: "free: no process holds it" },
-    { area: "identity school", level: "warn", text: "stale runtime lock of pid 12 (that process is gone)", fix: "turno browser doctor --fix", auto: true },
-    { area: "identity bank", level: "fail", text: "NEEDS_AUTH: not signed in at https://bank.example.com/", fix: "turno browser login bank" },
+    {
+      area: "identity school",
+      level: "warn",
+      text: "stale runtime lock of pid 12 (that process is gone)",
+      fix: "turno browser doctor --fix",
+      auto: true,
+    },
+    {
+      area: "identity bank",
+      level: "fail",
+      text: "NEEDS_AUTH: not signed in at https://bank.example.com/",
+      fix: "turno browser login bank",
+    },
   ] as const;
 
   function doctorModule(seen: unknown[]): BrowserApi {
@@ -245,8 +340,20 @@ describe("turno browser doctor", () => {
     expect(await cmd.run(["doctor", "--json", "--fix"], io)).toBe(1);
     expect(seen).toEqual([{ env: sb.env, fix: true, launch: true }]);
     const json = JSON.parse(io.lines.join("\n"));
-    expect(json).toMatchObject({ schemaVersion: 1, ok: false, counts: { ok: 2, warn: 1, fail: 1, skip: 1 }, fixed: [] });
-    expect(json.checks[1]).toEqual({ area: "chrome", status: "skip", text: "smoke launch skipped (--no-launch)", fix: null, auto: false, manual: null });
+    expect(json).toMatchObject({
+      schemaVersion: 1,
+      ok: false,
+      counts: { ok: 2, warn: 1, fail: 1, skip: 1 },
+      fixed: [],
+    });
+    expect(json.checks[1]).toEqual({
+      area: "chrome",
+      status: "skip",
+      text: "smoke launch skipped (--no-launch)",
+      fix: null,
+      auto: false,
+      manual: null,
+    });
     expect(json.checks[3]).toMatchObject({ status: "warn", fix: "turno browser doctor --fix", auto: true });
   });
 });
@@ -256,8 +363,11 @@ describe("turno browser reputation", () => {
     const mod = await real();
     mod.addIdentity("school", sb.env);
     const now = Date.now();
-    const line = (days: number, site: string, kind: string) => JSON.stringify({ ts: new Date(now - days * 86_400_000).toISOString(), site, kind, markers: [] });
-    const log = [line(1, "a.example", "captcha"), line(2, "a.example", "verify"), line(9, "b.example", "block")].join("\n");
+    const line = (days: number, site: string, kind: string) =>
+      JSON.stringify({ ts: new Date(now - days * 86_400_000).toISOString(), site, kind, markers: [] });
+    const log = [line(1, "a.example", "captcha"), line(2, "a.example", "verify"), line(9, "b.example", "block")].join(
+      "\n",
+    );
     sb.write(".local/state/turno/browser/identities/school/reputation.jsonl", `${log}\n`);
     const cmd = browserCommand(deps(real));
 
@@ -270,7 +380,12 @@ describe("turno browser reputation", () => {
 
     const json = fakeIo(sb.env);
     expect(await cmd.run(["reputation", "browser:school", "--json"], json)).toBe(0);
-    expect(JSON.parse(json.lines.join("\n"))[0]).toMatchObject({ schemaVersion: 1, id: "browser:school", total: 3, file: "~/.local/state/turno/browser/identities/school/reputation.jsonl" });
+    expect(JSON.parse(json.lines.join("\n"))[0]).toMatchObject({
+      schemaVersion: 1,
+      id: "browser:school",
+      total: 3,
+      file: "~/.local/state/turno/browser/identities/school/reputation.jsonl",
+    });
     const picked = fakeIo(sb.env);
     expect(await cmd.run(["reputation", "school", "--json=id,total"], picked)).toBe(0);
     expect(JSON.parse(picked.lines.join("\n"))).toEqual([{ schemaVersion: 1, id: "browser:school", total: 3 }]);

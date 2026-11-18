@@ -134,7 +134,8 @@ export function acquireRuntimeLock(id: string, env: NodeJS.ProcessEnv = process.
       if ((err as NodeJS.ErrnoException).code !== "EEXIST" || attempt >= 3) throw err;
     }
     const current = readRuntimeLock(id, env);
-    if (current && current.nodePid !== nodePid && runtimeLockAlive(current)) throw new IdentityInUseError(inUseMessage(id, current), current);
+    if (current && current.nodePid !== nodePid && runtimeLockAlive(current))
+      throw new IdentityInUseError(inUseMessage(id, current), current);
     // Stale, unreadable, or ours already: replace it.
     rmSync(file, { force: true });
   }

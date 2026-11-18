@@ -186,7 +186,7 @@ describe("gateway entries per agent", () => {
     const e = gatewayEntryFor("cursor", "calendar", 47821, "tok", "cur") as { headers: Record<string, string> };
     expect(e.headers.Authorization).toBe("Bearer ${env:TURNO_MCPD_TOKEN}");
     expect(e.headers["X-Turno-Profile"]).toBe("${env:TURNO_PROFILE}");
-    expect(JSON.stringify(e)).not.toContain("tok\"");
+    expect(JSON.stringify(e)).not.toContain('tok"');
   });
 
   it("Copilot uses http entries with variables", () => {
@@ -228,7 +228,10 @@ describe("syncing MCP entries", () => {
     const cfg = parse(text) as { mcp_servers: Record<string, Record<string, unknown>> };
     expect(Object.keys(cfg.mcp_servers).sort()).toEqual(["calendar", "mine"]);
     expect(cfg.mcp_servers.calendar!.bearer_token_env_var).toBe("TURNO_MCPD_TOKEN");
-    expect(cfg.mcp_servers.calendar!.env_http_headers).toEqual({ "X-Turno-Pid": "TURNO_SESSION_PID", "X-Turno-Cwd-B64": "TURNO_SESSION_CWD_B64" });
+    expect(cfg.mcp_servers.calendar!.env_http_headers).toEqual({
+      "X-Turno-Pid": "TURNO_SESSION_PID",
+      "X-Turno-Cwd-B64": "TURNO_SESSION_CWD_B64",
+    });
     expect(statSync(file).mode & 0o777).toBe(0o600);
 
     const again = syncCodexToml(file, wanted, ["calendar"]);
@@ -238,7 +241,12 @@ describe("syncing MCP entries", () => {
   it("writes JSON server maps for Copilot and Cursor", () => {
     const file = join(sb.home, ".cursor/mcp.json");
     sb.write(".cursor/mcp.json", JSON.stringify({ mcpServers: { editorOnly: { command: "x" } }, other: 1 }));
-    const res = syncJsonServers(file, "mcpServers", { calendar: gatewayEntryFor("cursor", "calendar", 47821, "tok", "") }, []);
+    const res = syncJsonServers(
+      file,
+      "mcpServers",
+      { calendar: gatewayEntryFor("cursor", "calendar", 47821, "tok", "") },
+      [],
+    );
     expect(res.added).toEqual(["calendar"]);
     const json = JSON.parse(readFileSync(file, "utf8"));
     expect(Object.keys(json.mcpServers).sort()).toEqual(["calendar", "editorOnly"]);
@@ -270,7 +278,10 @@ describe("gateway snippets for other agents", () => {
 describe("agent commands", () => {
   it("adds a Codex profile, syncs its gateway entries and prints snippets for other agents", async () => {
     const { main } = await import("../src/cli/main.js");
-    sb.write(".config/turno/mcp.toml", '[server.calendar]\ncommand = "cal-mcp"\nscope = "shared"\n\n[server.docs]\nurl = "https://docs.example.com/mcp"\n');
+    sb.write(
+      ".config/turno/mcp.toml",
+      '[server.calendar]\ncommand = "cal-mcp"\nscope = "shared"\n\n[server.docs]\nurl = "https://docs.example.com/mcp"\n',
+    );
     const io = fakeIo(sb.env);
     expect(await main(["profile", "add", "cx", "--agent", "codex"], io)).toBe(0);
     // The sandbox PATH lacks ~/.local/bin, so the next step uses turno <name>.
@@ -283,7 +294,9 @@ describe("agent commands", () => {
     const sync = fakeIo(sb.env);
     expect(await main(["mcp", "sync", "cx"], sync)).toBe(0);
     expect(sync.errors.join("\n")).toContain("mcpd is not running");
-    const cfg = parse(readFileSync(join(sb.home, ".codex-cx/config.toml"), "utf8")) as { mcp_servers: Record<string, Record<string, unknown>> };
+    const cfg = parse(readFileSync(join(sb.home, ".codex-cx/config.toml"), "utf8")) as {
+      mcp_servers: Record<string, Record<string, unknown>>;
+    };
     expect(Object.keys(cfg.mcp_servers)).toEqual(["calendar"]);
     expect(cfg.mcp_servers.calendar!.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/mcp\/calendar$/);
     expect(readFileSync(join(sb.home, ".codex-cx/config.toml"), "utf8")).not.toMatch(/Bearer/);

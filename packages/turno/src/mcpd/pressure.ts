@@ -54,7 +54,10 @@ export interface ProbeOptions {
 }
 
 async function realSysctl(): Promise<string> {
-  const { stdout } = await run("/usr/sbin/sysctl", ["-n", "kern.memorystatus_vm_pressure_level"], { encoding: "utf8", timeout: 2000 });
+  const { stdout } = await run("/usr/sbin/sysctl", ["-n", "kern.memorystatus_vm_pressure_level"], {
+    encoding: "utf8",
+    timeout: 2000,
+  });
   return stdout;
 }
 

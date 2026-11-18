@@ -65,9 +65,15 @@ const FIX = "turno browser doctor --fix";
 
 const CHROME_PATHS = (env: NodeJS.ProcessEnv, platform: NodeJS.Platform): string[] => {
   const home = paths(env).home;
-  if (platform === "darwin") return ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", join(home, "Applications", "Google Chrome.app", "Contents", "MacOS", "Google Chrome")];
+  if (platform === "darwin")
+    return [
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+      join(home, "Applications", "Google Chrome.app", "Contents", "MacOS", "Google Chrome"),
+    ];
   if (platform === "win32") {
-    return [env.LOCALAPPDATA, env.PROGRAMFILES, env["PROGRAMFILES(X86)"]].filter(Boolean).map((root) => join(root!, "Google", "Chrome", "Application", "chrome.exe"));
+    return [env.LOCALAPPDATA, env.PROGRAMFILES, env["PROGRAMFILES(X86)"]]
+      .filter(Boolean)
+      .map((root) => join(root!, "Google", "Chrome", "Application", "chrome.exe"));
   }
   return ["/opt/google/chrome/chrome", "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable"];
 };
@@ -78,13 +84,20 @@ export function chromeVersionFromPlist(xml: string): string | undefined {
 }
 
 /** The installed Google Chrome (the `chrome` channel Playwright launches) and its version. */
-export function findChrome(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): ChromeInfo | undefined {
+export function findChrome(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): ChromeInfo | undefined {
   const path = CHROME_PATHS(env, platform).find((p) => existsSync(p));
   if (!path) return undefined;
   let version: string | undefined;
   try {
-    if (platform === "darwin") version = chromeVersionFromPlist(readFileSync(join(dirname(dirname(path)), "Info.plist"), "utf8"));
-    else version = /(\d+\.\d+\.\d+\.\d+)/.exec(execFileSync(path, ["--version"], { encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "ignore"] }))?.[1];
+    if (platform === "darwin")
+      version = chromeVersionFromPlist(readFileSync(join(dirname(dirname(path)), "Info.plist"), "utf8"));
+    else
+      version = /(\d+\.\d+\.\d+\.\d+)/.exec(
+        execFileSync(path, ["--version"], { encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "ignore"] }),
+      )?.[1];
   } catch {
     /* found, version unknown */
   }
@@ -97,7 +110,12 @@ async function smokeLaunch(env: NodeJS.ProcessEnv): Promise<number> {
   const t0 = Date.now();
   try {
     const { chromium } = await import("patchright-core");
-    const context = await chromium.launchPersistentContext(join(dir, "profile"), { channel: "chrome", headless: true, timeout: 30_000, env: { ...env } as Record<string, string> });
+    const context = await chromium.launchPersistentContext(join(dir, "profile"), {
+      channel: "chrome",
+      headless: true,
+      timeout: 30_000,
+      env: { ...env } as Record<string, string>,
+    });
     try {
       const page = context.pages()[0] ?? (await context.newPage());
       await page.goto("about:blank");
@@ -115,7 +133,11 @@ const firstLine = (e: unknown) => String((e as Error).message ?? e).split("\n")[
 function systemChecks(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): DoctorCheck[] {
   const out: DoctorCheck[] = [];
   if (platform === "darwin") {
-    out.push({ area: "system", level: "ok", text: "macOS: driving Chrome through its DevTools pipe needs no Accessibility or Screen Recording permission" });
+    out.push({
+      area: "system",
+      level: "ok",
+      text: "macOS: driving Chrome through its DevTools pipe needs no Accessibility or Screen Recording permission",
+    });
     if (env.SSH_CONNECTION || env.SSH_TTY) {
       out.push({
         area: "system",
@@ -125,8 +147,19 @@ function systemChecks(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): Doctor
       });
     }
   } else if (platform === "linux") {
-    if (env.DISPLAY || env.WAYLAND_DISPLAY) out.push({ area: "system", level: "ok", text: `display: ${env.WAYLAND_DISPLAY ? `Wayland ${env.WAYLAND_DISPLAY}` : `X11 ${env.DISPLAY}`}` });
-    else out.push({ area: "system", level: "warn", text: "no display: a headed Chrome cannot open here", manual: "pass --headless to turno-browser-mcp, or run it inside a desktop session" });
+    if (env.DISPLAY || env.WAYLAND_DISPLAY)
+      out.push({
+        area: "system",
+        level: "ok",
+        text: `display: ${env.WAYLAND_DISPLAY ? `Wayland ${env.WAYLAND_DISPLAY}` : `X11 ${env.DISPLAY}`}`,
+      });
+    else
+      out.push({
+        area: "system",
+        level: "warn",
+        text: "no display: a headed Chrome cannot open here",
+        manual: "pass --headless to turno-browser-mcp, or run it inside a desktop session",
+      });
   }
   return out;
 }
@@ -162,9 +195,20 @@ function identityChecks(id: string, env: NodeJS.ProcessEnv, now: Date): DoctorCh
   const { path, settings, problems } = checkIdentitySettings(id, env);
   if (problems.length) {
     const fix = settingsFix(id, problems[0]!);
-    add({ level: "fail", text: `identity.json ${problems[0]!.startsWith("is ") ? problems[0] : `is invalid: ${problems.join("; ")}`}`, ...(fix ? { fix } : {}), manual: problems[0]!.startsWith("is format") ? "update turno-browser: npm install --global turno-browser@latest" : `edit or delete ${path}` });
+    add({
+      level: "fail",
+      text: `identity.json ${problems[0]!.startsWith("is ") ? problems[0] : `is invalid: ${problems.join("; ")}`}`,
+      ...(fix ? { fix } : {}),
+      manual: problems[0]!.startsWith("is format")
+        ? "update turno-browser: npm install --global turno-browser@latest"
+        : `edit or delete ${path}`,
+    });
   } else if (!settings) {
-    add({ level: "info", text: "no identity.json: Chrome's own time zone and languages, which follow this computer", fix: `turno identity set browser:${id} --timezone ${systemTimezone()}` });
+    add({
+      level: "info",
+      text: "no identity.json: Chrome's own time zone and languages, which follow this computer",
+      fix: `turno identity set browser:${id} --timezone ${systemTimezone()}`,
+    });
   } else {
     add({ level: "ok", text: `identity.json: ${describeSettings(settings)}` });
   }
@@ -172,13 +216,32 @@ function identityChecks(id: string, env: NodeJS.ProcessEnv, now: Date): DoctorCh
   const lock = readRuntimeLock(id, env);
   const chrome = findProfileChrome(identityDir(id, env));
   if (lock && runtimeLockAlive(lock)) {
-    add({ level: "ok", text: inUseMessage(id, lock).replace(/^browser identity "[^"]+" is /, "").replace(/\. .*$/, "") });
+    add({
+      level: "ok",
+      text: inUseMessage(id, lock)
+        .replace(/^browser identity "[^"]+" is /, "")
+        .replace(/\. .*$/, ""),
+    });
   } else if (chrome?.owner === "orphan") {
-    add({ level: "warn", text: `Chrome pid ${chrome.pid} was left running on this profile with no server`, fix: FIX, auto: true });
+    add({
+      level: "warn",
+      text: `Chrome pid ${chrome.pid} was left running on this profile with no server`,
+      fix: FIX,
+      auto: true,
+    });
   } else if (chrome) {
-    add({ level: "warn", text: `Chrome pid ${chrome.pid} holds this profile, but no turno process does`, manual: "close that Chrome window (a Chrome opened by hand, or a login of an older turno)" });
+    add({
+      level: "warn",
+      text: `Chrome pid ${chrome.pid} holds this profile, but no turno process does`,
+      manual: "close that Chrome window (a Chrome opened by hand, or a login of an older turno)",
+    });
   } else if (lock) {
-    add({ level: "warn", text: `stale runtime lock of pid ${lock.nodePid} (that process is gone)`, fix: FIX, auto: true });
+    add({
+      level: "warn",
+      text: `stale runtime lock of pid ${lock.nodePid} (that process is gone)`,
+      fix: FIX,
+      auto: true,
+    });
   } else {
     add({ level: "ok", text: "free: no process holds it" });
   }
@@ -186,15 +249,27 @@ function identityChecks(id: string, env: NodeJS.ProcessEnv, now: Date): DoctorCh
   const check = settings?.health;
   const health = readHealth(id, env);
   if (!check) {
-    add({ level: "info", text: "no session health check: a signed-out session shows up only when a page asks to sign in", fix: `turno identity set browser:${id} --health-url <url> --health-text <text>` });
+    add({
+      level: "info",
+      text: "no session health check: a signed-out session shows up only when a page asks to sign in",
+      fix: `turno identity set browser:${id} --health-url <url> --health-text <text>`,
+    });
   } else if (!health || health.url !== check.url) {
     add({ level: "info", text: `health check of ${check.url}: not run yet (it runs when the browser starts)` });
   } else if (health.status === "ok") {
     add({ level: "ok", text: `signed in at ${health.url} (checked ${health.checkedAt})` });
   } else if (health.status === "needs_auth") {
-    add({ level: "fail", text: `NEEDS_AUTH: not signed in at ${health.url}: ${health.detail ?? "the check failed"} (checked ${health.checkedAt})`, fix: `turno browser login ${id}` });
+    add({
+      level: "fail",
+      text: `NEEDS_AUTH: not signed in at ${health.url}: ${health.detail ?? "the check failed"} (checked ${health.checkedAt})`,
+      fix: `turno browser login ${id}`,
+    });
   } else {
-    add({ level: "warn", text: `the health check of ${health.url} could not run: ${health.detail ?? "unknown error"} (checked ${health.checkedAt})`, manual: "check the URL and the network; the next browser start tries again" });
+    add({
+      level: "warn",
+      text: `the health check of ${health.url} could not run: ${health.detail ?? "unknown error"} (checked ${health.checkedAt})`,
+      manual: "check the URL and the network; the next browser start tries again",
+    });
   }
 
   const sites = summarizeChallenges(readChallenges(id, env), now).filter((s) => s.last7d > 0);
@@ -225,30 +300,56 @@ function identityIds(env: NodeJS.ProcessEnv): string[] {
   }
 }
 
-async function collect(opts: DoctorOptions, env: NodeJS.ProcessEnv, platform: NodeJS.Platform, now: Date): Promise<DoctorCheck[]> {
+async function collect(
+  opts: DoctorOptions,
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform,
+  now: Date,
+): Promise<DoctorCheck[]> {
   const checks: DoctorCheck[] = [];
   const chrome = (opts.chrome ?? findChrome)(env, platform);
-  if (chrome) checks.push({ area: "chrome", level: "ok", text: `Google Chrome${chrome.version ? ` ${chrome.version}` : ""} at ${chrome.path}` });
+  if (chrome)
+    checks.push({
+      area: "chrome",
+      level: "ok",
+      text: `Google Chrome${chrome.version ? ` ${chrome.version}` : ""} at ${chrome.path}`,
+    });
   else {
     checks.push({
       area: "chrome",
       level: "fail",
       text: "Google Chrome not found",
-      manual: "install Google Chrome (https://www.google.com/chrome/): turno-browser drives the installed Chrome, not a bundled browser",
+      manual:
+        "install Google Chrome (https://www.google.com/chrome/): turno-browser drives the installed Chrome, not a bundled browser",
     });
   }
   if (opts.launch === false) checks.push({ area: "chrome", level: "info", text: "smoke launch skipped (--no-launch)" });
   else {
     try {
       const ms = await (opts.smoke ?? smokeLaunch)(env);
-      checks.push({ area: "chrome", level: "ok", text: `smoke launch: Chrome started and closed in ${(ms / 1000).toFixed(1)}s on a temporary profile` });
+      checks.push({
+        area: "chrome",
+        level: "ok",
+        text: `smoke launch: Chrome started and closed in ${(ms / 1000).toFixed(1)}s on a temporary profile`,
+      });
     } catch (err) {
-      checks.push({ area: "chrome", level: "fail", text: `smoke launch failed: ${firstLine(err)}`, manual: "open Chrome by hand once; on Linux install its system libraries" });
+      checks.push({
+        area: "chrome",
+        level: "fail",
+        text: `smoke launch failed: ${firstLine(err)}`,
+        manual: "open Chrome by hand once; on Linux install its system libraries",
+      });
     }
   }
   checks.push(...systemChecks(env, platform));
   const ids = identityIds(env);
-  if (!ids.length) checks.push({ area: "identities", level: "info", text: "no browser identities yet", fix: "turno identity add browser:<id>" });
+  if (!ids.length)
+    checks.push({
+      area: "identities",
+      level: "info",
+      text: "no browser identities yet",
+      fix: "turno identity add browser:<id>",
+    });
   for (const id of ids) checks.push(...identityChecks(id, env, now));
   return checks;
 }
@@ -263,7 +364,8 @@ async function repair(env: NodeJS.ProcessEnv): Promise<string[]> {
       done.push(`${id}: removed the stale runtime lock of pid ${lock.nodePid}`);
     }
     const swept = await sweepOrphan(identityDir(id, env));
-    if (swept.action === "exited" || swept.action === "killed") done.push(`${id}: closed Chrome pid ${swept.pid}, left running with no server`);
+    if (swept.action === "exited" || swept.action === "killed")
+      done.push(`${id}: closed Chrome pid ${swept.pid}, left running with no server`);
     else if (swept.action === "survived") done.push(`${id}: Chrome pid ${swept.pid} did not stop`);
   }
   return done;

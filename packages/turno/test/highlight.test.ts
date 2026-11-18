@@ -68,7 +68,9 @@ describe("highlightToml", () => {
   });
 
   it("keeps #, = and escaped quotes inside strings", () => {
-    expect(lines[4]).toBe(`${KEY("args")} = [${STR('"stdio"')}, ${STR('"--flag=#x"')}, ${STR('"say \\"hi\\" = ok"')}, ${STR("'C:\\path'")}]`);
+    expect(lines[4]).toBe(
+      `${KEY("args")} = [${STR('"stdio"')}, ${STR('"--flag=#x"')}, ${STR('"say \\"hi\\" = ok"')}, ${STR("'C:\\path'")}]`,
+    );
     expect(lines[14]).toBe(`${KEY("path")} = ${STR('"~/code/a#b"')}`);
   });
 
@@ -86,7 +88,9 @@ describe("highlightToml", () => {
   });
 
   it("colors keys of inline tables and quoted keys", () => {
-    expect(lines[21]).toBe(`${KEY("inline")} = { ${KEY("a")} = ${LIT("1")}, ${KEY('"b.c"')} = ${STR('"x = y"')}, ${KEY("d.e")} = ${LIT("false")} }`);
+    expect(lines[21]).toBe(
+      `${KEY("inline")} = { ${KEY("a")} = ${LIT("1")}, ${KEY('"b.c"')} = ${STR('"x = y"')}, ${KEY("d.e")} = ${LIT("false")} }`,
+    );
     expect(lines[25]).toBe(`  ${KEY("'quoted key'")} = ${LIT("2")}`);
   });
 
@@ -97,7 +101,7 @@ describe("highlightToml", () => {
   });
 
   it("never throws on broken input and still round-trips", () => {
-    for (const bad of ['a = "unclosed', "]]]", "[[", "= = =", 'x = """', "{ a = [ 1, }", "\\", "'''\n'''x", "[a.\"b]"]) {
+    for (const bad of ['a = "unclosed', "]]]", "[[", "= = =", 'x = """', "{ a = [ 1, }", "\\", "'''\n'''x", '[a."b]']) {
       expect(strip(highlightToml(bad))).toBe(bad);
     }
   });
@@ -178,7 +182,12 @@ describe("colored output in a terminal", () => {
     fakeCommand(sb, "npm", "echo null");
     mkdirSync(home(".claude"), { recursive: true });
     writeFileSync(home(".claude/settings.json"), "{}\n");
-    sb.write(".claude.json", JSON.stringify({ mcpServers: { github: { command: "github-mcp-server", args: ["stdio"], env: { GITHUB_TOKEN: GHP } } } }));
+    sb.write(
+      ".claude.json",
+      JSON.stringify({
+        mcpServers: { github: { command: "github-mcp-server", args: ["stdio"], env: { GITHUB_TOKEN: GHP } } },
+      }),
+    );
   });
   afterEach(() => sb.cleanup());
 
@@ -189,7 +198,11 @@ describe("colored output in a terminal", () => {
       const code = await main(args, io);
       return { code, out: io.lines.join("\n"), err: io.errors.join("\n") };
     };
-    return { piped: await once(sb.env, false), noColor: await once({ ...sb.env, NO_COLOR: "1" }, true), tty: await once(sb.env, true) };
+    return {
+      piped: await once(sb.env, false),
+      noColor: await once({ ...sb.env, NO_COLOR: "1" }, true),
+      tty: await once(sb.env, true),
+    };
   }
 
   /**
@@ -200,11 +213,21 @@ describe("colored output in a terminal", () => {
   const words = (text: string) =>
     strip(text)
       .split("\n")
-      .map((l) => l.replace(/ ─+$/, "").replace(/^\s*(✓|✗|•|–|!|ok|x|-|●|○|➜|→)\s+/, "").replace(/\s+/g, " ").trim())
+      .map((l) =>
+        l
+          .replace(/ ─+$/, "")
+          .replace(/^\s*(✓|✗|•|–|!|ok|x|-|●|○|➜|→)\s+/, "")
+          .replace(/\s+/g, " ")
+          .trim(),
+      )
       .join(" ")
       .replace(/\s+/g, " ");
 
-  for (const args of [["init", "--dry-run"], ["mcp", "import"], ["config", "path", "--json"]]) {
+  for (const args of [
+    ["init", "--dry-run"],
+    ["mcp", "import"],
+    ["config", "path", "--json"],
+  ]) {
     it(`turno ${args.join(" ")}: colors only a terminal, and the text is the same`, async () => {
       const { piped, noColor, tty } = await threeWays(args);
       expect(piped.code).toBe(0);
@@ -221,7 +244,9 @@ describe("colored output in a terminal", () => {
   it("turno init: diff markers keep their color and the content is highlighted", async () => {
     const { tty } = await threeWays(["init", "--dry-run"]);
     expect(tty.out).toContain(`${c("32", "+")}${BOLD("[server.github]")}`);
-    expect(tty.out).toContain(`${c("32", "+")}${KEY("GITHUB_TOKEN")} = ${SECRET('"ghp_****6789"')}  ${SECRET("# secret, hidden")}`);
+    expect(tty.out).toContain(
+      `${c("32", "+")}${KEY("GITHUB_TOKEN")} = ${SECRET('"ghp_****6789"')}  ${SECRET("# secret, hidden")}`,
+    );
   });
 
   it("turno init: the config.toml diff highlights context lines inside a multi-line array", async () => {
@@ -230,7 +255,9 @@ describe("colored output in a terminal", () => {
     expect(piped.out).toContain('       "warp",  # mine\n     ]\n    +\n    +[profiles.work]');
     expect(noColor).toEqual(piped);
     expect(words(tty.out)).toBe(words(piped.out));
-    expect(tty.out).toContain(`       ${STR('"warp"')},  ${DIM("# mine")}\n     ]\n    ${c("32", "+")}\n    ${c("32", "+")}${BOLD("[profiles.work]")}`);
+    expect(tty.out).toContain(
+      `       ${STR('"warp"')},  ${DIM("# mine")}\n     ]\n    ${c("32", "+")}\n    ${c("32", "+")}${BOLD("[profiles.work]")}`,
+    );
   });
 
   it("turno mcp config: the JSON snippet is highlighted, the header lines are dim", async () => {

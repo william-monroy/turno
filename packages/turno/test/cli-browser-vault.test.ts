@@ -23,7 +23,8 @@ interface Added {
 function fakeModule(added: Added[], removed: string[], cleared: string[], order: string[] = []): BrowserApi {
   const fake = {
     assertIdentityId: (id: string) => {
-      if (!/^[a-z0-9][a-z0-9_-]*$/.test(id)) throw Object.assign(new Error(`invalid identity id "${id}"`), { name: "IdentityError" });
+      if (!/^[a-z0-9][a-z0-9_-]*$/.test(id))
+        throw Object.assign(new Error(`invalid identity id "${id}"`), { name: "IdentityError" });
     },
     identityExists: (id: string) => id === "work",
     isInUse: () => false,
@@ -31,7 +32,13 @@ function fakeModule(added: Added[], removed: string[], cleared: string[], order:
     vaultAdd: async (id: string, site: string, input: Added["input"]) => {
       if (input.totp === "bad") throw Object.assign(new Error("not a TOTP secret"), { name: "TotpError" });
       added.push({ id, site, input });
-      return { site, origins: input.urls.map((u) => new URL(u).origin), totp: !!input.totp, created: "c", updated: "u" };
+      return {
+        site,
+        origins: input.urls.map((u) => new URL(u).origin),
+        totp: !!input.totp,
+        created: "c",
+        updated: "u",
+      };
     },
     vaultList: async (id: string) => ({
       identity: id,
@@ -64,7 +71,11 @@ function setup(input: Partial<VaultInput> = {}) {
   const cleared: string[] = [];
   const order: string[] = [];
   const asked: string[] = [];
-  const deps: BrowserDeps = { load: async () => fakeModule(added, removed, cleared, order), interactive: () => false, confirm: async () => false };
+  const deps: BrowserDeps = {
+    load: async () => fakeModule(added, removed, cleared, order),
+    interactive: () => false,
+    confirm: async () => false,
+  };
   const vaultInput: VaultInput = {
     isTty: () => false,
     hidden: async (prompt) => {
@@ -88,9 +99,16 @@ describe("turno browser vault", () => {
   it("adds a site from stdin: the password on line 1, the TOTP secret on line 2, never printed", async () => {
     const { cmd, added } = setup();
     const io = fakeIo(sb.env);
-    expect(await cmd.run(["add", "work", "github", "--url", "https://github.com/login", "--username", "alice", "--totp"], io)).toBe(0);
+    expect(
+      await cmd.run(
+        ["add", "work", "github", "--url", "https://github.com/login", "--username", "alice", "--totp"],
+        io,
+      ),
+    ).toBe(0);
     expect(added).toHaveLength(1);
-    expect(added[0]!.input.password === PASSWORD && added[0]!.input.totp === TOTP && added[0]!.input.username === "alice").toBe(true);
+    expect(
+      added[0]!.input.password === PASSWORD && added[0]!.input.totp === TOTP && added[0]!.input.username === "alice",
+    ).toBe(true);
     expect(added[0]!.input.urls).toEqual(["https://github.com/login"]);
     const out = printed(io);
     expect(out).toMatch(/stored the credentials of github/);
@@ -102,7 +120,11 @@ describe("turno browser vault", () => {
     const { cmd, added, asked } = setup({ isTty: () => true });
     const io = fakeIo({ ...sb.env, TURNO_NO_INPUT: "0" });
     expect(await cmd.run(["add", "work", "github", "--url", "https://github.com", "--totp"], io)).toBe(0);
-    expect(asked).toEqual(["Username for github: ", "Password for github (input hidden): ", "TOTP secret or otpauth:// URI (input hidden): "]);
+    expect(asked).toEqual([
+      "Username for github: ",
+      "Password for github (input hidden): ",
+      "TOTP secret or otpauth:// URI (input hidden): ",
+    ]);
     expect(added[0]!.input.username).toBe("alice");
     expect(printed(io)).not.toContain(PASSWORD);
 
@@ -116,22 +138,30 @@ describe("turno browser vault", () => {
     const run = (args: string[]) => cmd.run(args, fakeIo(sb.env)).then(String, (e: Error) => e.message);
     expect(await run(["add", "work", "github", "--username", "a"])).toMatch(/--url/);
     expect(await run(["add", "work", "github", "--url", "https://github.com"])).toMatch(/--username/);
-    expect(await run(["add", "work", "github", "--url", "https://github.com", "--username", "a"])).toMatch(/password is empty/);
-    expect(await run(["add", "nobody", "github", "--url", "https://github.com", "--username", "a"])).toMatch(/does not exist/);
+    expect(await run(["add", "work", "github", "--url", "https://github.com", "--username", "a"])).toMatch(
+      /password is empty/,
+    );
+    expect(await run(["add", "nobody", "github", "--url", "https://github.com", "--username", "a"])).toMatch(
+      /does not exist/,
+    );
     expect(await run(["add", "work"])).toMatch(/usage: turno browser vault add/);
     expect(added).toEqual([]);
   });
 
   it("turns the package's vault errors into one-line failures", async () => {
     const { cmd } = setup({ stdin: async () => `${PASSWORD}\nbad` });
-    const msg = await cmd.run(["add", "work", "github", "--url", "https://github.com", "--username", "a", "--totp"], fakeIo(sb.env)).then(String, (e: Error) => e.message);
+    const msg = await cmd
+      .run(["add", "work", "github", "--url", "https://github.com", "--username", "a", "--totp"], fakeIo(sb.env))
+      .then(String, (e: Error) => e.message);
     expect(msg).toBe("not a TOTP secret");
   });
 
   it("writes nothing with --dry-run", async () => {
     const { cmd, added, removed } = setup();
     const io = fakeIo(sb.env);
-    expect(await cmd.run(["add", "work", "github", "--url", "https://github.com", "--username", "a", "--dry-run"], io)).toBe(0);
+    expect(
+      await cmd.run(["add", "work", "github", "--url", "https://github.com", "--username", "a", "--dry-run"], io),
+    ).toBe(0);
     expect(await cmd.run(["remove", "work", "github", "--dry-run"], io)).toBe(0);
     expect(added).toEqual([]);
     expect(removed).toEqual([]);
@@ -172,7 +202,11 @@ describe("turno browser vault", () => {
   it("has help with examples for the group and each subcommand, through turno browser", async () => {
     const { deps } = setup();
     const browser = browserCommand(deps);
-    for (const args of [["vault", "--help"], ["vault", "add", "--help"], ["vault", "list", "--help"]]) {
+    for (const args of [
+      ["vault", "--help"],
+      ["vault", "add", "--help"],
+      ["vault", "list", "--help"],
+    ]) {
       const io = fakeIo(sb.env);
       expect(await browser.run(args, io)).toBe(0);
       expect(io.lines.join("\n")).toMatch(/Examples:[\s\S]*turno browser vault/);

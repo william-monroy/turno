@@ -1,5 +1,16 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -70,7 +81,9 @@ describe("turno demo", () => {
     expect(cfg).toContain('path = "~/code/acme"');
     expect(cfg).toContain(`port = ${d.port}`);
     // mcp sync pointed the profiles at the demo gateway.
-    const work = JSON.parse(readFileSync(join(d.home, ".claude-work/.claude.json"), "utf8")) as { mcpServers: Record<string, { url: string }> };
+    const work = JSON.parse(readFileSync(join(d.home, ".claude-work/.claude.json"), "utf8")) as {
+      mcpServers: Record<string, { url: string }>;
+    };
     expect(Object.keys(work.mcpServers).sort()).toEqual(["docs", "issues"]);
     expect(work.mcpServers.issues!.url).toBe(`http://127.0.0.1:${d.port}/mcp/issues`);
     // The status line, rendered for each profile.
@@ -96,17 +109,33 @@ describe("turno demo", () => {
   });
 
   it("keeps only safe variables in the demo env", () => {
-    const env = demoEnv({ PATH: "/usr/bin", HOME: "/real", TERM: "xterm", CLAUDE_CONFIG_DIR: "/real/.claude-x", TURNO_MCPD_TOKEN: "t", XDG_CONFIG_HOME: "/real/.config", ZDOTDIR: "/real" }, "/demo");
+    const env = demoEnv(
+      {
+        PATH: "/usr/bin",
+        HOME: "/real",
+        TERM: "xterm",
+        CLAUDE_CONFIG_DIR: "/real/.claude-x",
+        TURNO_MCPD_TOKEN: "t",
+        XDG_CONFIG_HOME: "/real/.config",
+        ZDOTDIR: "/real",
+      },
+      "/demo",
+    );
     expect(env.HOME).toBe("/demo");
     expect(env.PATH).toBe("/demo/.local/bin:/usr/bin");
     expect(env.TERM).toBe("xterm");
-    for (const k of ["CLAUDE_CONFIG_DIR", "TURNO_MCPD_TOKEN", "XDG_CONFIG_HOME", "ZDOTDIR"]) expect(env[k]).toBeUndefined();
+    for (const k of ["CLAUDE_CONFIG_DIR", "TURNO_MCPD_TOKEN", "XDG_CONFIG_HOME", "ZDOTDIR"])
+      expect(env[k]).toBeUndefined();
   });
 
   it("runs a command inside the demo, passes its exit code on and cleans up", async () => {
     const marker = join(tmp, "seen-home");
     const io = fakeIo(sb.env);
-    const code = await runDemo(["--", "sh", "-c", `echo "$HOME" > "${marker}"; test -x "$HOME/.local/bin/claude-work" && exit 3`], io, { tmp, server, entry: DIST_MAIN });
+    const code = await runDemo(
+      ["--", "sh", "-c", `echo "$HOME" > "${marker}"; test -x "$HOME/.local/bin/claude-work" && exit 3`],
+      io,
+      { tmp, server, entry: DIST_MAIN },
+    );
     expect(code).toBe(3);
     const seen = readFileSync(marker, "utf8").trim();
     expect(seen.startsWith(`${tmp}/turno-demo-`)).toBe(true);
@@ -174,7 +203,8 @@ describe.skipIf(!BUILT)("turno demo (built CLI)", () => {
     children.push(child);
     return { child, out: () => text };
   }
-  const exited = (c: ChildProcess) => new Promise<number | null>((r) => (c.exitCode !== null ? r(c.exitCode) : c.once("exit", (code) => r(code))));
+  const exited = (c: ChildProcess) =>
+    new Promise<number | null>((r) => (c.exitCode !== null ? r(c.exitCode) : c.once("exit", (code) => r(code))));
 
   it("ends by itself without a terminal, so scripts and agents can run it", async () => {
     const { child, out } = launch(DIST_MAIN, []);
@@ -202,7 +232,12 @@ describe.skipIf(!BUILT)("turno demo (built CLI)", () => {
     cpSync(join(PKG, "dist"), join(pkg, "dist"), { recursive: true });
     cpSync(join(PKG, "package.json"), join(pkg, "package.json"));
     symlinkSync(join(PKG, "node_modules"), join(pkg, "node_modules"));
-    const { child, out } = launch(join(pkg, "dist/cli/main.js"), ["--", "sh", "-c", "turno profile list && turno mcp list"]);
+    const { child, out } = launch(join(pkg, "dist/cli/main.js"), [
+      "--",
+      "sh",
+      "-c",
+      "turno profile list && turno mcp list",
+    ]);
     expect(await exited(child)).toBe(0);
     expect(out()).toMatch(/personal/);
     expect(out()).toMatch(/issues/);

@@ -4,7 +4,11 @@ import type { ChildProcess } from "node:child_process";
  * Poll `check` until it returns a truthy value, instead of sleeping for a guessed time.
  * Throws with `what` once `timeout` ms pass.
  */
-export async function waitFor<T>(check: () => T | Promise<T>, what = "condition", { timeout = 5000, every = 10 } = {}): Promise<T> {
+export async function waitFor<T>(
+  check: () => T | Promise<T>,
+  what = "condition",
+  { timeout = 5000, every = 10 } = {},
+): Promise<T> {
   const end = Date.now() + timeout;
   for (;;) {
     const v = await check();

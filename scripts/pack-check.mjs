@@ -8,11 +8,29 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { FILE, collectGraph, inexactDependencies, installScripts, publishedManifest, shrinkwrapProblems, shrinkwrapText, workspaceVersions } from "./shrinkwrap.mjs";
+import {
+  FILE,
+  collectGraph,
+  inexactDependencies,
+  installScripts,
+  publishedManifest,
+  shrinkwrapProblems,
+  shrinkwrapText,
+  workspaceVersions,
+} from "./shrinkwrap.mjs";
 
 const root = new URL("..", import.meta.url).pathname;
 const MAX_BYTES = 20 * 1024 * 1024;
-const FORBIDDEN = [/^test\//, /^src\//, /\.map$/, /(^|\/)\.env/, /\.tgz$/, /(^|\/)\.DS_Store$/, /(^|\/)node_modules\//, /\.tmp$/];
+const FORBIDDEN = [
+  /^test\//,
+  /^src\//,
+  /\.map$/,
+  /(^|\/)\.env/,
+  /\.tgz$/,
+  /(^|\/)\.DS_Store$/,
+  /(^|\/)node_modules\//,
+  /\.tmp$/,
+];
 const home = homedir();
 let failed = 0;
 const fail = (pkg, msg) => {
@@ -23,7 +41,11 @@ const fail = (pkg, msg) => {
 for (const dir of readdirSync(join(root, "packages"))) {
   const cwd = join(root, "packages", dir);
   const pkg = JSON.parse(readFileSync(join(cwd, "package.json"), "utf8"));
-  const out = execFileSync("pnpm", ["pack", "--dry-run", "--json"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  const out = execFileSync("pnpm", ["pack", "--dry-run", "--json"], {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
   const report = JSON.parse(out.slice(out.indexOf("{")));
   const files = report.files.map((f) => f.path);
   const has = new Set(files);
@@ -35,7 +57,8 @@ for (const dir of readdirSync(join(root, "packages"))) {
   ]
     .filter((f) => typeof f === "string")
     .map((f) => f.replace(/^\.\//, ""));
-  for (const f of need) if (!has.has(f)) fail(pkg.name, `${f} is referenced by package.json but not packed (did the build run?)`);
+  for (const f of need)
+    if (!has.has(f)) fail(pkg.name, `${f} is referenced by package.json but not packed (did the build run?)`);
   for (const f of files) if (FORBIDDEN.some((re) => re.test(f))) fail(pkg.name, `${f} should not be published`);
   let bytes = 0;
   for (const f of files) {
@@ -43,15 +66,20 @@ for (const dir of readdirSync(join(root, "packages"))) {
     const buf = readFileSync(existsSync(join(cwd, f)) ? join(cwd, f) : join(root, f));
     bytes += buf.length;
     if (!buf.includes(0) && buf.toString("utf8").includes(home)) fail(pkg.name, `${f} contains a local home path`);
-    if (!pkg.private && !buf.includes(0) && buf.toString("utf8").includes("github.com/OWNER/")) fail(pkg.name, `${f} still links to the OWNER placeholder repository`);
+    if (!pkg.private && !buf.includes(0) && buf.toString("utf8").includes("github.com/OWNER/"))
+      fail(pkg.name, `${f} still links to the OWNER placeholder repository`);
   }
   for (const bin of Object.values(typeof pkg.bin === "string" ? { x: pkg.bin } : (pkg.bin ?? {}))) {
-    if (has.has(bin) && !readFileSync(join(cwd, bin), "utf8").startsWith("#!/usr/bin/env node")) fail(pkg.name, `${bin} has no node shebang`);
+    if (has.has(bin) && !readFileSync(join(cwd, bin), "utf8").startsWith("#!/usr/bin/env node"))
+      fail(pkg.name, `${bin} has no node shebang`);
   }
-  if (bytes > MAX_BYTES) fail(pkg.name, `${(bytes / 1e6).toFixed(1)} MB unpacked is over the ${MAX_BYTES / 1e6} MB limit`);
+  if (bytes > MAX_BYTES)
+    fail(pkg.name, `${(bytes / 1e6).toFixed(1)} MB unpacked is over the ${MAX_BYTES / 1e6} MB limit`);
   if (!pkg.license) fail(pkg.name, "no license field");
   if (!pkg.private) checkTree(cwd, pkg, has);
-  console.log(`${failed ? "    " : "ok  "}${pkg.name}@${pkg.version}: ${files.length} files, ${(bytes / 1e6).toFixed(2)} MB${pkg.private ? " (private: not publishable yet)" : ""}`);
+  console.log(
+    `${failed ? "    " : "ok  "}${pkg.name}@${pkg.version}: ${files.length} files, ${(bytes / 1e6).toFixed(2)} MB${pkg.private ? " (private: not publishable yet)" : ""}`,
+  );
 }
 process.exit(failed ? 1 : 0);
 
@@ -80,7 +108,10 @@ function checkTree(cwd, source, packed) {
   // npm's own view: every edge of the locked tree resolves to a version in range (offline).
   const tmp = mkdtempSync(join(tmpdir(), "turno-pack-check-"));
   try {
-    writeFileSync(join(tmp, "package.json"), JSON.stringify({ name: pkg.name, version: pkg.version, dependencies: pkg.dependencies ?? {} }));
+    writeFileSync(
+      join(tmp, "package.json"),
+      JSON.stringify({ name: pkg.name, version: pkg.version, dependencies: pkg.dependencies ?? {} }),
+    );
     writeFileSync(join(tmp, FILE), text);
     execFileSync("npm", ["ls", "--package-lock-only", "--all", "--offline", "--json"], {
       cwd: tmp,

@@ -69,7 +69,10 @@ export function isLegacyScript(file: string): boolean {
   }
 }
 
-export async function mcpdStatus(env: NodeJS.ProcessEnv, config: Config | undefined): Promise<{ level: Level; text: string; running: boolean; port: number }> {
+export async function mcpdStatus(
+  env: NodeJS.ProcessEnv,
+  config: Config | undefined,
+): Promise<{ level: Level; text: string; running: boolean; port: number }> {
   const p = paths(env);
   let port = config?.mcpd.port ?? 47821;
   try {
@@ -82,14 +85,20 @@ export async function mcpdStatus(env: NodeJS.ProcessEnv, config: Config | undefi
   try {
     token = readFileSync(p.mcpdToken, "utf8").trim();
   } catch {
-    return { level: "info", running: false, port, text: `mcpd: no token at ${tildify(p.mcpdToken, env)} (not started yet: turno mcp daemon start)` };
+    return {
+      level: "info",
+      running: false,
+      port,
+      text: `mcpd: no token at ${tildify(p.mcpdToken, env)} (not started yet: turno mcp daemon start)`,
+    };
   }
   try {
     const res = await fetch(`http://127.0.0.1:${port}/status`, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(2000),
     });
-    if (!res.ok) return { level: "warn", running: false, port, text: `mcpd on port ${port} answered HTTP ${res.status}` };
+    if (!res.ok)
+      return { level: "warn", running: false, port, text: `mcpd on port ${port} answered HTTP ${res.status}` };
     return { level: "ok", running: true, port, text: `mcpd reachable on port ${port}` };
   } catch {
     return { level: "info", running: false, port, text: `mcpd not reachable on port ${port} (turno mcp daemon start)` };
@@ -137,7 +146,8 @@ function envRefChecks(manifest: Manifest, env: NodeJS.ProcessEnv): Check[] {
       manual: `set ${list} where mcpd starts, then turno mcp daemon restart; or store ${names.length === 1 ? "it" : "each"} with turno secret set <name> and write keychain:<name> instead`,
     });
   }
-  if (refs && !out.length) out.push({ area: "mcp", level: "ok", text: `mcp.toml: every environment reference is set here (${refs})` });
+  if (refs && !out.length)
+    out.push({ area: "mcp", level: "ok", text: `mcp.toml: every environment reference is set here (${refs})` });
   return out;
 }
 
@@ -169,7 +179,13 @@ function profileChecks(name: string, agent: AgentId, env: NodeJS.ProcessEnv): Ch
   const area = `profile ${name}`;
   const out: Check[] = [];
   const launcher = join(paths(env).bin, launcherName(name, agent));
-  if (!existsSync(launcher)) out.push({ area, level: "fail", text: `profile ${name}: no launcher ${tildify(launcher, env)}`, fix: repair(name) });
+  if (!existsSync(launcher))
+    out.push({
+      area,
+      level: "fail",
+      text: `profile ${name}: no launcher ${tildify(launcher, env)}`,
+      fix: repair(name),
+    });
   else if (!isGenerated(launcher)) {
     out.push({
       area,
@@ -180,9 +196,16 @@ function profileChecks(name: string, agent: AgentId, env: NodeJS.ProcessEnv): Ch
   } else {
     // Classic launchers vary with the turno that wrote them: only a bash claudio one is stale.
     const text = readFileSync(launcher, "utf8");
-    const stale = a.classicLauncher ? !text.includes(MARKER) && "launcher from the bash claudio" : text !== launcherText(name, env, agent) && "launcher is out of date";
+    const stale = a.classicLauncher
+      ? !text.includes(MARKER) && "launcher from the bash claudio"
+      : text !== launcherText(name, env, agent) && "launcher is out of date";
     if (stale) out.push({ area, level: "warn", text: `profile ${name}: ${stale}`, fix: repair(name) });
-    else out.push({ area, level: "ok", text: `profile ${name}: ${agent === DEFAULT_AGENT ? "" : `${a.label} `}launcher ok` });
+    else
+      out.push({
+        area,
+        level: "ok",
+        text: `profile ${name}: ${agent === DEFAULT_AGENT ? "" : `${a.label} `}launcher ok`,
+      });
   }
   const dir = agentProfileDir(name, agent, env);
   if (!existsSync(dir)) {
@@ -195,10 +218,18 @@ function profileChecks(name: string, agent: AgentId, env: NodeJS.ProcessEnv): Ch
     const path = join(dir, item);
     const target = join(hub, item);
     if (isLinkTo(path, target)) continue;
-    if (existsSync(path)) out.push({ area, level: "warn", text: `profile ${name}: ${item} is a local copy, not shared`, fix: repair(name) });
-    else if (existsSync(target)) out.push({ area, level: "warn", text: `profile ${name}: missing link for ${item}`, fix: repair(name) });
+    if (existsSync(path))
+      out.push({
+        area,
+        level: "warn",
+        text: `profile ${name}: ${item} is a local copy, not shared`,
+        fix: repair(name),
+      });
+    else if (existsSync(target))
+      out.push({ area, level: "warn", text: `profile ${name}: missing link for ${item}`, fix: repair(name) });
   }
-  for (const w of a.doctorWarnings?.(dir) ?? []) out.push({ area, level: "warn", text: `profile ${name}: ${w}`, fix: repair(name) });
+  for (const w of a.doctorWarnings?.(dir) ?? [])
+    out.push({ area, level: "warn", text: `profile ${name}: ${w}`, fix: repair(name) });
   if (a.perAccount) {
     const known = new Set<string>([...shared, ...a.perAccount.items]);
     let entries: string[] = [];
@@ -209,7 +240,11 @@ function profileChecks(name: string, agent: AgentId, env: NodeJS.ProcessEnv): Ch
     }
     for (const item of entries) {
       if (known.has(item) || !lexists(join(dir, item)) || a.perAccount.ignore.test(item)) continue;
-      out.push({ area, level: "info", text: `profile ${name}: ${item} is new and unclassified: decide whether to share it` });
+      out.push({
+        area,
+        level: "info",
+        text: `profile ${name}: ${item} is new and unclassified: decide whether to share it`,
+      });
     }
   }
   return out;
@@ -218,11 +253,15 @@ function profileChecks(name: string, agent: AgentId, env: NodeJS.ProcessEnv): Ch
 export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
   const p = paths(env);
   const checks: Check[] = [];
-  const add = (area: string, level: Level, text: string, how: { fix?: Fix; hint?: string; manual?: string } = {}) => checks.push({ area, level, text, ...how });
+  const add = (area: string, level: Level, text: string, how: { fix?: Fix; hint?: string; manual?: string } = {}) =>
+    checks.push({ area, level, text, ...how });
 
   const major = Number(process.versions.node.split(".")[0]);
   if (major >= 20) add("system", "ok", `node ${process.versions.node}`);
-  else add("system", "fail", `node ${process.versions.node}, and turno needs 20 or newer`, { manual: "install Node.js 20 or newer (https://nodejs.org)" });
+  else
+    add("system", "fail", `node ${process.versions.node}, and turno needs 20 or newer`, {
+      manual: "install Node.js 20 or newer (https://nodejs.org)",
+    });
   // Every agent is listed; only one that a profile uses can fail.
   let early: Config | undefined;
   try {
@@ -244,23 +283,36 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
   const { pathAdvice } = await import("./profile.js");
   const advice = names.length ? pathAdvice(env) : undefined;
   if (advice) {
-    add("system", "warn", `${tildify(p.bin, env)} is not on your PATH, so launchers like ${launcherName(names[0]!, agentOf(names[0]!, early!))} will not be found (turno ${names[0]} works meanwhile)`, {
-      manual: `${advice.charAt(0).toLowerCase()}${advice.slice(1)}, then open a new terminal`,
-    });
+    add(
+      "system",
+      "warn",
+      `${tildify(p.bin, env)} is not on your PATH, so launchers like ${launcherName(names[0]!, agentOf(names[0]!, early!))} will not be found (turno ${names[0]} works meanwhile)`,
+      {
+        manual: `${advice.charAt(0).toLowerCase()}${advice.slice(1)}, then open a new terminal`,
+      },
+    );
   }
   const { secretStoreLabel } = await import("../security.js");
   const store = secretStoreLabel(env);
-  if (store === "none") add("system", "info", "secret store: none (keychain: references cannot resolve; env: ones work)", { manual: "install secret-tool (libsecret) to use keychain: references" });
+  if (store === "none")
+    add("system", "info", "secret store: none (keychain: references cannot resolve; env: ones work)", {
+      manual: "install secret-tool (libsecret) to use keychain: references",
+    });
   else add("system", "ok", `secret store: ${store}`);
   const chrome = env.TURNO_CHROME_APP || "/Applications/Google Chrome.app";
   if (existsSync(chrome)) add("system", "ok", "Google Chrome installed");
-  else add("system", "warn", "Google Chrome not found: claude.ai links open in the default browser", { manual: "install Google Chrome, or set TURNO_CHROME_APP to where it is" });
+  else
+    add("system", "warn", "Google Chrome not found: claude.ai links open in the default browser", {
+      manual: "install Google Chrome, or set TURNO_CHROME_APP to where it is",
+    });
 
   const { recordedVersion, finishUpgrade } = await import("./upgrade.js");
   const version = packageInfo().version;
   const recorded = recordedVersion(env);
   if (recorded && recorded !== version) {
-    add("turno", "warn", `turno ${version} runs, but ${recorded} set up the launchers`, { fix: { label: "turno upgrade --finish", run: (io) => finishUpgrade(io, { sync: "no" }) } });
+    add("turno", "warn", `turno ${version} runs, but ${recorded} set up the launchers`, {
+      fix: { label: "turno upgrade --finish", run: (io) => finishUpgrade(io, { sync: "no" }) },
+    });
   } else add("turno", "ok", `turno ${version}`);
   const newer = availableUpdate(env);
   if (newer) add("turno", "info", `turno ${newer} is available`, { hint: "turno upgrade" });
@@ -270,9 +322,13 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
   try {
     config = loadConfig(env);
     if (existsSync(p.configFile)) add("config", "ok", `${tildify(p.configFile, env)} parses`);
-    else if (migrationPending(env)) add("config", "info", `no ${tildify(p.configFile, env)} yet, but a bash claudio config is there`, { hint: "turno migrate" });
+    else if (migrationPending(env))
+      add("config", "info", `no ${tildify(p.configFile, env)} yet, but a bash claudio config is there`, {
+        hint: "turno migrate",
+      });
     else add("config", "info", `no ${tildify(p.configFile, env)} (defaults)`);
-    for (const f of configFindings(config, env)) add("config", "warn", f.text, f.manual ? { manual: f.manual } : { hint: f.hint ?? "turno config edit" });
+    for (const f of configFindings(config, env))
+      add("config", "warn", f.text, f.manual ? { manual: f.manual } : { hint: f.hint ?? "turno config edit" });
   } catch (err) {
     add("config", "fail", (err as Error).message, editConfig);
   }
@@ -280,24 +336,37 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
   try {
     const m = loadManifest(env);
     manifest = m;
-    if (existsSync(p.mcpFile)) add("config", "ok", `${tildify(p.mcpFile, env)} parses (${Object.keys(m.servers).length} servers)`);
+    if (existsSync(p.mcpFile))
+      add("config", "ok", `${tildify(p.mcpFile, env)} parses (${Object.keys(m.servers).length} servers)`);
     else add("config", "info", `no ${tildify(p.mcpFile, env)} yet`, { hint: "turno mcp import" });
   } catch (err) {
-    add("config", "fail", (err as Error).message, { manual: `correct ${tildify(p.mcpFile, env)} where the error points` });
+    add("config", "fail", (err as Error).message, {
+      manual: `correct ${tildify(p.mcpFile, env)} where the error points`,
+    });
   }
   if (existsSync(p.accountsFile)) {
     try {
       const reg = loadRegistry(env);
       add("config", "ok", `${tildify(p.accountsFile, env)} parses`);
       // Without read_tools a delegated read is a write (ADR 0024): confirmed, with every tool.
-      const noReads = Object.values(reg.accounts).filter((a) => !a.readTools?.length).map((a) => a.id).sort();
+      const noReads = Object.values(reg.accounts)
+        .filter((a) => !a.readTools?.length)
+        .map((a) => a.id)
+        .sort();
       if (noReads.length) {
-        add("config", "warn", `accounts without read_tools: ${noReads.join(", ")}; delegated reads get every tool of the account and ask like writes`, {
-          manual: `add read_tools to each of them in ${tildify(p.accountsFile, env)}`,
-        });
+        add(
+          "config",
+          "warn",
+          `accounts without read_tools: ${noReads.join(", ")}; delegated reads get every tool of the account and ask like writes`,
+          {
+            manual: `add read_tools to each of them in ${tildify(p.accountsFile, env)}`,
+          },
+        );
       }
     } catch (err) {
-      add("config", "fail", (err as Error).message, { manual: `correct ${tildify(p.accountsFile, env)} where the error points` });
+      add("config", "fail", (err as Error).message, {
+        manual: `correct ${tildify(p.accountsFile, env)} where the error points`,
+      });
     }
   }
 
@@ -309,12 +378,14 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
     }
   }
   const legacyBin = join(p.bin, "claudio");
-  if (isLegacyScript(legacyBin)) add("turno", "info", `${tildify(legacyBin, env)} is still the bash claudio (the cutover points it at turno)`);
+  if (isLegacyScript(legacyBin))
+    add("turno", "info", `${tildify(legacyBin, env)} is still the bash claudio (the cutover points it at turno)`);
 
   try {
     const { bypassingServers } = await import("./mcp.js");
     const b = await bypassingServers(env);
-    for (const s of b.plugins) add("mcp", "info", `plugin server ${s.plugin}/${s.name} starts in every session`, { hint: "turno mcp doctor" });
+    for (const s of b.plugins)
+      add("mcp", "info", `plugin server ${s.plugin}/${s.name} starts in every session`, { hint: "turno mcp doctor" });
     // turno mcp sync replaces a hub entry with the gateway's when mcp.toml serves it to the profile the hub belongs to.
     const hubProfile = config?.system || "default";
     for (const d of b.direct) {
@@ -323,7 +394,9 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
         ? { hint: "turno mcp import" }
         : def && servesProfile(def, hubProfile)
           ? { fix: syncFix }
-          : { manual: `remove ${d.name} from ${tildify(p.hubConfig, env)}, or serve it to profile ${hubProfile} in mcp.toml` };
+          : {
+              manual: `remove ${d.name} from ${tildify(p.hubConfig, env)}, or serve it to profile ${hubProfile} in mcp.toml`,
+            };
       add("mcp", "warn", `${d.name} runs outside mcpd`, how);
     }
     const { describeLogin, oauthLogins } = await import("./mcp-oauth.js");
@@ -333,8 +406,17 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
       const said = describeLogin(l);
       // describeLogin ends with the login command; the fix line shows it instead.
       const text = said.endsWith(`: ${login}`) ? said.slice(0, -login.length - 2) : said;
-      const how = ok ? {} : said !== text ? { hint: login } : { manual: "install a secret store (macOS Keychain or secret-tool) so turno can read the login" };
-      add("mcp", ok ? "ok" : "warn", `${l.server}${l.variant === "default" ? "" : `@${l.variant}`} OAuth: ${text}`, how);
+      const how = ok
+        ? {}
+        : said !== text
+          ? { hint: login }
+          : { manual: "install a secret store (macOS Keychain or secret-tool) so turno can read the login" };
+      add(
+        "mcp",
+        ok ? "ok" : "warn",
+        `${l.server}${l.variant === "default" ? "" : `@${l.variant}`} OAuth: ${text}`,
+        how,
+      );
     }
   } catch {
     /* a broken mcp.toml is reported above */
@@ -344,13 +426,19 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
   const settings = join(p.hub, "settings.json");
   const line = currentStatusLine(settings);
   if (isTurnoStatusLine(line)) add("look", "ok", "status line: turno statusline");
-  else add("look", "info", `status line: ${statusLineLabel(line, env)} in ${tildify(settings, env)}`, { hint: "turno ui install" });
+  else
+    add("look", "info", `status line: ${statusLineLabel(line, env)} in ${tildify(settings, env)}`, {
+      hint: "turno ui install",
+    });
   const fontDir = userFontDir(env);
   if (fontDir) {
     const fonts = checkFonts(FALLBACK, fontDir);
     const have = fonts.filter((f) => f.state === "installed").length;
     if (have === fonts.length) add("look", "ok", `font: ${FALLBACK.family} installed`);
-    else add("look", "info", `font: ${FALLBACK.family} ${have}/${fonts.length} files in ${tildify(fontDir, env)}`, { hint: "turno ui install" });
+    else
+      add("look", "info", `font: ${FALLBACK.family} ${have}/${fonts.length} files in ${tildify(fontDir, env)}`, {
+        hint: "turno ui install",
+      });
   }
 
   checks.push(...(await mcpdSection(env)));
@@ -400,7 +488,15 @@ function countChecks(checks: readonly Check[]): Counts {
 }
 
 /** "12 ok, 2 warnings, 1 failure, 3 skipped": zero problems and skips are left out. */
-function countsText(n: Counts, paint: { ok?: (s: string) => string; warn?: (s: string) => string; err?: (s: string) => string; muted?: (s: string) => string } = {}): string {
+function countsText(
+  n: Counts,
+  paint: {
+    ok?: (s: string) => string;
+    warn?: (s: string) => string;
+    err?: (s: string) => string;
+    muted?: (s: string) => string;
+  } = {},
+): string {
   const id = (s: string) => s;
   const parts = [(paint.ok ?? id)(`${n.ok} ok`)];
   if (n.warn) parts.push((paint.warn ?? id)(`${n.warn} warning${n.warn === 1 ? "" : "s"}`));
@@ -432,7 +528,17 @@ function summaryLine(checks: readonly Check[], opts: { security?: boolean } = {}
 }
 
 /** The doctor screen as lines: sections, one row per check with its fix, and a summary. */
-function renderDoctor(checks: readonly Check[], io: Pick<Io, "env" | "isTty">, opts: { ms: number; security?: boolean; fixed?: boolean; nerd?: boolean; colors?: Record<string, { color?: string | number }> }): string[] {
+function renderDoctor(
+  checks: readonly Check[],
+  io: Pick<Io, "env" | "isTty">,
+  opts: {
+    ms: number;
+    security?: boolean;
+    fixed?: boolean;
+    nerd?: boolean;
+    colors?: Record<string, { color?: string | number }>;
+  },
+): string[] {
   const s = style(io, { nerd: opts.nerd });
   const out: string[] = [];
   const order = [...SECTIONS.map(([name]) => name)];
@@ -469,24 +575,36 @@ function renderDoctor(checks: readonly Check[], io: Pick<Io, "env" | "isTty">, o
       const cmd = fixCommand(c);
       // Rows in a run with the same fix (one profile's links) share one fix line, after the last.
       const nextRow = rows[i + 1];
-      if (cmd && nextRow && nextRow.area === c.area && statusOf(nextRow.level) !== "ok" && fixCommand(nextRow) === cmd) continue;
+      if (cmd && nextRow && nextRow.area === c.area && statusOf(nextRow.level) !== "ok" && fixCommand(nextRow) === cmd)
+        continue;
       const label = status === "skip" ? "optional:" : "fix:";
       if (cmd) {
         const auto = c.fix && isProblem(c) && cmd !== fixFlag ? s.muted(` (${fixFlag} runs it)`) : "";
         out.push(s.wrap(`${under}${s.muted(label)} `, `${status === "skip" ? s.muted(cmd) : s.bold(cmd)}${auto}`));
       } else if (c.manual) {
-        out.push(s.wrap(`${under}${s.muted(status === "skip" ? label : "manual:")} `, status === "skip" ? s.muted(c.manual) : c.manual));
+        out.push(
+          s.wrap(
+            `${under}${s.muted(status === "skip" ? label : "manual:")} `,
+            status === "skip" ? s.muted(c.manual) : c.manual,
+          ),
+        );
       }
     }
   }
 
   const n = countChecks(checks);
-  out.push("", `${countsText(n, { ok: s.ok, warn: s.warn, err: s.err, muted: s.muted })} ${s.muted(`in ${duration(opts.ms)}`)}`);
+  out.push(
+    "",
+    `${countsText(n, { ok: s.ok, warn: s.warn, err: s.err, muted: s.muted })} ${s.muted(`in ${duration(opts.ms)}`)}`,
+  );
   const problems = checks.filter(isProblem);
   const repairable = problems.filter((c) => c.fix).length;
   if (repairable && !opts.fixed) {
     const label = s.lead("next", s.bold(s.accent("Next")));
-    const what = repairable === problems.length ? `repairs ${repairable === 1 ? "it" : `all ${repairable}`}` : `repairs ${repairable} of ${problems.length}; the others name their fix above`;
+    const what =
+      repairable === problems.length
+        ? `repairs ${repairable === 1 ? "it" : `all ${repairable}`}`
+        : `repairs ${repairable} of ${problems.length}; the others name their fix above`;
     out.push(s.wrap(`${label}  `, `${s.bold(fixFlag)}  ${s.muted(what)}`));
   }
   return out;
@@ -508,12 +626,18 @@ async function report(io: Io, checks: readonly Check[], security: boolean): Prom
   if (mcpd.running) {
     const { mcpdRequest } = await import("./mcp.js");
     const r = await mcpdRequest(io.env, "GET", "/status");
-    if (r !== "down" && r.status === 200 && typeof r.body === "object" && r.body !== null) status = r.body as Record<string, unknown>;
+    if (r !== "down" && r.status === 200 && typeof r.body === "object" && r.body !== null)
+      status = r.body as Record<string, unknown>;
   }
   const { reportMarkdown } = await import("../diagnostics.js");
   const lines = await reportMarkdown(io.env, {
     counts: countChecks(checks),
-    checks: checks.map((c) => ({ status: statusOf(c.level), area: c.area, text: c.text, ...(fixCommand(c) ? { fix: fixCommand(c)! } : {}) })),
+    checks: checks.map((c) => ({
+      status: statusOf(c.level),
+      area: c.area,
+      text: c.text,
+      ...(fixCommand(c) ? { fix: fixCommand(c)! } : {}),
+    })),
     mcpd,
     ...(status ? { status } : {}),
     security,
@@ -522,7 +646,17 @@ async function report(io: Io, checks: readonly Check[], security: boolean): Prom
   return checks.some((c) => c.level === "fail") ? 1 : 0;
 }
 
-export async function doctor(io: Io, opts: { fix?: boolean; json?: boolean; security?: boolean; summary?: boolean; report?: boolean; parsed?: Parsed } = {}): Promise<number> {
+export async function doctor(
+  io: Io,
+  opts: {
+    fix?: boolean;
+    json?: boolean;
+    security?: boolean;
+    summary?: boolean;
+    report?: boolean;
+    parsed?: Parsed;
+  } = {},
+): Promise<number> {
   const start = Date.now();
   const collect = opts.security ? securitySection : collectChecks;
   const quiet = opts.json || opts.summary;
@@ -552,7 +686,13 @@ export async function doctor(io: Io, opts: { fix?: boolean; json?: boolean; secu
       checks: checks.map(({ fix, hint, manual, ...c }) => {
         const status = statusOf(c.level);
         const command = status === "ok" ? undefined : (fix?.label ?? hint);
-        return { ...c, status, fix: command ?? null, auto: Boolean(fix) && status !== "ok" && status !== "skip", manual: status === "ok" ? null : (manual ?? null) };
+        return {
+          ...c,
+          status,
+          fix: command ?? null,
+          auto: Boolean(fix) && status !== "ok" && status !== "skip",
+          manual: status === "ok" ? null : (manual ?? null),
+        };
       }),
     });
     return failed ? 1 : 0;
@@ -570,7 +710,10 @@ export async function doctor(io: Io, opts: { fix?: boolean; json?: boolean; secu
 function lookOf(env: NodeJS.ProcessEnv): { nerd: boolean; colors?: Record<string, { color?: string | number }> } {
   try {
     const config = loadConfig(env);
-    return { nerd: config.icons === "nerd" || (config.icons === "auto" && nerdHere(env, config.nerdTerminals)), colors: config.profiles };
+    return {
+      nerd: config.icons === "nerd" || (config.icons === "auto" && nerdHere(env, config.nerdTerminals)),
+      colors: config.profiles,
+    };
   } catch {
     return { nerd: false };
   }
@@ -584,7 +727,7 @@ export const command: Command = {
     "One row per check, in sections. Under each problem: the command that fixes it",
     "(fix: ...) or the manual step. Exits 1 when a check fails; warnings exit 0.",
     "",
-    "--fix runs every repair marked \"turno doctor --fix runs it\" (relink a profile,",
+    '--fix runs every repair marked "turno doctor --fix runs it" (relink a profile,',
     "rewrite launchers, finish an upgrade, start mcpd, sync configs), then checks",
     "again. --summary prints one line, the counts and the first fix, for hooks and",
     "status lines. --json gives each check a status (ok, warn, fail or skip), fix (a",
@@ -611,10 +754,28 @@ export const command: Command = {
   flags: ["--security", "--fix", "--json", "--summary", "--report"],
   json: DOCTOR_JSON,
   async run(args, io) {
-    const p = parseFlags(args, { security: { type: "boolean" }, fix: { type: "boolean" }, summary: { type: "boolean" }, report: { type: "boolean" }, ...JSON_FLAG }, 0);
+    const p = parseFlags(
+      args,
+      {
+        security: { type: "boolean" },
+        fix: { type: "boolean" },
+        summary: { type: "boolean" },
+        report: { type: "boolean" },
+        ...JSON_FLAG,
+      },
+      0,
+    );
     const modes = (["json", "summary", "report"] as const).filter((m) => bool(p, m));
     if (modes.length > 1) return fail(`${modes.map((m) => `--${m}`).join(" and ")} do not go together`);
-    if (bool(p, "report") && bool(p, "fix")) return fail("--report only reads; run turno doctor --fix first, then --report");
-    return doctor(io, { fix: bool(p, "fix"), json: bool(p, "json"), security: bool(p, "security"), summary: bool(p, "summary"), report: bool(p, "report"), parsed: p });
+    if (bool(p, "report") && bool(p, "fix"))
+      return fail("--report only reads; run turno doctor --fix first, then --report");
+    return doctor(io, {
+      fix: bool(p, "fix"),
+      json: bool(p, "json"),
+      security: bool(p, "security"),
+      summary: bool(p, "summary"),
+      report: bool(p, "report"),
+      parsed: p,
+    });
   },
 };

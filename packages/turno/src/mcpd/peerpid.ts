@@ -41,7 +41,13 @@ function procTcpRows(procRoot = "/proc"): TcpRow[] {
     for (const line of text.split("\n").slice(1)) {
       const f = line.trim().split(/\s+/);
       if (f.length < 10) continue;
-      rows.push({ localPort: hexPort(f[1]), remotePort: hexPort(f[2]), state: f[3] ?? "", uid: Number(f[7]), inode: f[9] ?? "" });
+      rows.push({
+        localPort: hexPort(f[1]),
+        remotePort: hexPort(f[2]),
+        state: f[3] ?? "",
+        uid: Number(f[7]),
+        inode: f[9] ?? "",
+      });
     }
   }
   return rows;
@@ -78,12 +84,16 @@ function pidOfInode(inode: string, procRoot = "/proc", skip?: number): number | 
 
 async function lsofPeer(remotePort: number, self: number, env: NodeJS.ProcessEnv): Promise<number | undefined> {
   try {
-    const { stdout } = await run("lsof", ["-nP", `-iTCP:${remotePort}`, "-sTCP:ESTABLISHED", "-Fpn"], { timeout: 3000, env });
+    const { stdout } = await run("lsof", ["-nP", `-iTCP:${remotePort}`, "-sTCP:ESTABLISHED", "-Fpn"], {
+      timeout: 3000,
+      env,
+    });
     let pid: number | undefined;
     for (const line of stdout.split("\n")) {
       if (line.startsWith("p")) pid = Number(line.slice(1));
       // The client side is the socket whose local port is remotePort: "n127.0.0.1:<remotePort>->..."
-      if (line.startsWith("n") && pid && pid !== self && line.slice(1).split("->")[0]?.endsWith(`:${remotePort}`)) return pid;
+      if (line.startsWith("n") && pid && pid !== self && line.slice(1).split("->")[0]?.endsWith(`:${remotePort}`))
+        return pid;
     }
   } catch {
     // lsof missing or nothing found
@@ -97,7 +107,11 @@ async function lsofPeer(remotePort: number, self: number, env: NodeJS.ProcessEnv
  * /proc/net/tcp(6) and /proc/<pid>/fd; elsewhere, or when that finds nothing, it asks lsof;
  * without either it gives up.
  */
-export async function peerPid(remotePort: number, self = process.pid, opts: PeerOptions = {}): Promise<number | undefined> {
+export async function peerPid(
+  remotePort: number,
+  self = process.pid,
+  opts: PeerOptions = {},
+): Promise<number | undefined> {
   const platform = opts.platform ?? process.platform;
   if (platform === "linux") {
     const procRoot = opts.procRoot ?? "/proc";
@@ -132,7 +146,10 @@ export async function portOwner(port: number, opts: PeerOptions = {}): Promise<P
     }
   }
   try {
-    const { stdout } = await run("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-Fpcu"], { timeout: 3000, env: opts.env ?? process.env });
+    const { stdout } = await run("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-Fpcu"], {
+      timeout: 3000,
+      env: opts.env ?? process.env,
+    });
     const owner: PortOwner = {};
     for (const line of stdout.split("\n")) {
       if (line.startsWith("p") && owner.pid === undefined) owner.pid = Number(line.slice(1));

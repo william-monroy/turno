@@ -16,7 +16,14 @@ function fakeStock(answers: Record<string, (args: Record<string, unknown>) => To
       calls.push({ name, args, snapshot });
       const answer = answers[name];
       if (answer) return answer(args);
-      return { content: [{ type: "text", text: `### Ran Playwright code\n\`\`\`js\nawait page.x();\n\`\`\`${snapshot ? "\n### Snapshot\n- big tree" : ""}` }] };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `### Ran Playwright code\n\`\`\`js\nawait page.x();\n\`\`\`${snapshot ? "\n### Snapshot\n- big tree" : ""}`,
+          },
+        ],
+      };
     },
     page: async () => ({ url: "http://127.0.0.1/form", title: "Sign up" }),
     currentPage: () => undefined,
@@ -28,7 +35,10 @@ async function run(stock: StockAccess, params: Record<string, unknown>): Promise
   const tool = batchTool();
   const parsed = parseArguments(tool, params);
   if ("error" in parsed) return { text: parsed.error, isError: true };
-  const res = await tool.handle({ config: {} as McpConfig, clientInfo: { cwd: "/", clientName: "t" }, stock }, parsed.params);
+  const res = await tool.handle(
+    { config: {} as McpConfig, clientInfo: { cwd: "/", clientName: "t" }, stock },
+    parsed.params,
+  );
   return { text: res.content.map((c) => (c as { text?: string }).text ?? "").join("\n"), isError: !!res.isError };
 }
 
@@ -53,7 +63,11 @@ describe("browser_batch", () => {
 
   it("takes one snapshot after the last action when asked", async () => {
     const { stock, calls } = fakeStock({
-      browser_snapshot: () => ({ content: [{ type: "text", text: "### Page\n- Page URL: u\n### Snapshot\n```yaml\n- button \"Save\" [ref=e2]\n```" }] }),
+      browser_snapshot: () => ({
+        content: [
+          { type: "text", text: '### Page\n- Page URL: u\n### Snapshot\n```yaml\n- button "Save" [ref=e2]\n```' },
+        ],
+      }),
     });
     const res = await run(stock, { actions: [{ tool: "browser_click", arguments: { target: "e7" } }], snapshot: true });
     expect(calls.map((c) => c.name)).toEqual(["browser_click", "browser_snapshot"]);
@@ -63,7 +77,10 @@ describe("browser_batch", () => {
 
   it("stops at the first failure and says which actions did not run", async () => {
     const { stock, calls } = fakeStock({
-      browser_click: () => ({ content: [{ type: "text", text: "### Error\nCould not click button \"Save\": dialog covers it" }], isError: true }),
+      browser_click: () => ({
+        content: [{ type: "text", text: '### Error\nCould not click button "Save": dialog covers it' }],
+        isError: true,
+      }),
     });
     const res = await run(stock, {
       actions: [
@@ -76,7 +93,9 @@ describe("browser_batch", () => {
     });
     expect(res.isError).toBe(true);
     expect(calls.map((c) => c.name)).toEqual(["browser_type", "browser_click"]);
-    expect(res.text).toMatch(/^### Error\nAction 2 of 4 \(browser_click e7\) failed; the last 2 actions did not run\.\nCould not click button "Save": dialog covers it/);
+    expect(res.text).toMatch(
+      /^### Error\nAction 2 of 4 \(browser_click e7\) failed; the last 2 actions did not run\.\nCould not click button "Save": dialog covers it/,
+    );
     expect(res.text).toContain("1. browser_type e3: ok\n2. browser_click e7: failed");
     expect(res.text).not.toContain("### Snapshot");
   });
@@ -101,7 +120,14 @@ describe("browser_batch", () => {
 
   it("keeps the tab governor's notes and a dialog the page opened", async () => {
     const { stock } = fakeStock({
-      browser_click: () => ({ content: [{ type: "text", text: "### Modal state\n- [\"alert\" dialog with message \"Saved\"]: can be handled by browser_handle_dialog\n### Tab governor\n- closed a popup" }] }),
+      browser_click: () => ({
+        content: [
+          {
+            type: "text",
+            text: '### Modal state\n- ["alert" dialog with message "Saved"]: can be handled by browser_handle_dialog\n### Tab governor\n- closed a popup',
+          },
+        ],
+      }),
     });
     const res = await run(stock, { actions: [{ tool: "browser_click", arguments: { target: "e7" } }] });
     expect(res.text).toContain('1. browser_click e7: ok\n   - ["alert" dialog with message "Saved"]');
@@ -111,13 +137,22 @@ describe("browser_batch", () => {
   it(`takes 1 to ${MAX_BATCH} actions`, async () => {
     const { stock } = fakeStock();
     expect((await run(stock, { actions: [] })).text).toMatch(/Invalid arguments for tool "browser_batch"/);
-    const many = Array.from({ length: MAX_BATCH + 1 }, () => ({ tool: "browser_press_key", arguments: { key: "Tab" } }));
+    const many = Array.from({ length: MAX_BATCH + 1 }, () => ({
+      tool: "browser_press_key",
+      arguments: { key: "Tab" },
+    }));
     expect((await run(stock, { actions: many })).text).toMatch(/Invalid arguments for tool "browser_batch"/);
   });
 });
 
 describe("configForSession", () => {
-  const base = () => ({ server: {}, browser: { browserName: "chromium", launchOptions: {} }, timeouts: { idle: 1000, settle: 500 }, snapshot: { mode: "full" } }) as unknown as McpConfig;
+  const base = () =>
+    ({
+      server: {},
+      browser: { browserName: "chromium", launchOptions: {} },
+      timeouts: { idle: 1000, settle: 500 },
+      snapshot: { mode: "full" },
+    }) as unknown as McpConfig;
 
   it("is a copy, with the identity's settle", () => {
     const config = base();
@@ -130,6 +165,8 @@ describe("configForSession", () => {
 
   it("leaves Playwright's settle when identity.json has none or the user set --timeout-settle", () => {
     expect(configForSession(base(), {}, resolveTuning(undefined)).timeouts!.settle).toBe(500);
-    expect(configForSession(base(), { timeoutSettle: 900 }, resolveTuning({ settle: "100ms" } as never)).timeouts!.settle).toBe(500);
+    expect(
+      configForSession(base(), { timeoutSettle: 900 }, resolveTuning({ settle: "100ms" } as never)).timeouts!.settle,
+    ).toBe(500);
   });
 });

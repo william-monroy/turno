@@ -3,13 +3,31 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-const SCRIPTS = join(dirname(fileURLToPath(import.meta.url)), "..", "plugins", "turno", "skills", "copy-artifact", "scripts");
+const SCRIPTS = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "plugins",
+  "turno",
+  "skills",
+  "copy-artifact",
+  "scripts",
+);
 const A = "a".repeat(32);
 const B = "b".repeat(32);
 const C = "c".repeat(32);
@@ -23,7 +41,10 @@ beforeEach(() => {
   src = join(home, "scratch", "artifact");
   mkdirSync(join(src, "project", "pages"), { recursive: true });
   mkdirSync(join(home, "downloads"));
-  writeFileSync(join(src, "project", "canvas.json"), JSON.stringify({ font: `/_blob/${A}`, hero: `/_blob/${B}`, again: `/_blob/${A}` }));
+  writeFileSync(
+    join(src, "project", "canvas.json"),
+    JSON.stringify({ font: `/_blob/${A}`, hero: `/_blob/${B}`, again: `/_blob/${A}` }),
+  );
   writeFileSync(join(src, "project", "pages", "one.html"), `<img src="/_blob/${B}">`);
   writeFileSync(join(src, "project", "logo.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
   writeFileSync(join(home, "downloads", `${A}.woff2`), "font bytes");
@@ -38,13 +59,32 @@ function run(script, args) {
 }
 
 const blob = (id, ext) => `--blob=${id}=${join(home, "downloads", `${id}${ext}`)}`;
-const base = () => ["--from", src, "--url", "https://claude.ai/artifact/x", "--title", "Café Lienzo: Diseño", "--profile", "work", "--type", "Design"];
+const base = () => [
+  "--from",
+  src,
+  "--url",
+  "https://claude.ai/artifact/x",
+  "--title",
+  "Café Lienzo: Diseño",
+  "--profile",
+  "work",
+  "--type",
+  "Design",
+];
 const allPaths = ["project/canvas.json", "project/pages/one.html", "project/logo.png"];
-const packages = () => (existsSync(join(home, ".cache", "turno", "artifacts")) ? readdirSync(join(home, ".cache", "turno", "artifacts")) : []);
+const packages = () =>
+  existsSync(join(home, ".cache", "turno", "artifacts")) ? readdirSync(join(home, ".cache", "turno", "artifacts")) : [];
 const sha = (file) => createHash("sha256").update(readFileSync(file)).digest("hex");
 
 function packOk() {
-  const r = run("pack.mjs", [...base(), "--main", "project/canvas.json", blob(A, ".woff2"), blob(B, ".png"), ...allPaths]);
+  const r = run("pack.mjs", [
+    ...base(),
+    "--main",
+    "project/canvas.json",
+    blob(A, ".woff2"),
+    blob(B, ".png"),
+    ...allPaths,
+  ]);
   assert.equal(r.code, 0, r.err);
   return r.out.trim();
 }
@@ -90,21 +130,61 @@ test("pack writes a null type and takes the first path as main when they are not
 });
 
 const failures = [
-  ["a missing file", () => [...base(), blob(A, ".woff2"), blob(B, ".png"), ...allPaths, "project/nope.css"], /project\/nope\.css is missing/],
+  [
+    "a missing file",
+    () => [...base(), blob(A, ".woff2"), blob(B, ".png"), ...allPaths, "project/nope.css"],
+    /project\/nope\.css is missing/,
+  ],
   ["a path outside the folder", () => [...base(), "../outside.txt"], /outside/],
   ["an absolute path", () => [...base(), join(home, "downloads", `${A}.woff2`)], /outside/],
-  ["a symlink that leaves the folder", () => {
+  [
+    "a symlink that leaves the folder",
+    () => {
       symlinkSync(join(home, "downloads", `${A}.woff2`), join(src, "link.woff2"));
       return [...base(), "link.woff2"];
-    }, /outside/],
-  ["an asset no file cites", () => [...base(), blob(A, ".woff2"), blob(B, ".png"), "project/pages/one.html"], new RegExp(`assets no file cites: ${A}`)],
-  ["a cited asset with no --blob", () => [...base(), blob(A, ".woff2"), ...allPaths], new RegExp(`cite assets with no --blob: ${B}`)],
-  ["a --blob that is not a 32 hex id", () => [...base(), `--blob=xyz=${join(home, "downloads", `${A}.woff2`)}`, ...allPaths], /invalid --blob/],
-  ["a --blob whose file is missing", () => [...base(), `--blob=${A}=${join(home, "nope")}`, ...allPaths], /invalid --blob/],
-  ["the same --blob twice", () => [...base(), blob(A, ".woff2"), blob(A, ".woff2"), blob(B, ".png"), ...allPaths], /given twice/],
-  ["a main file that is not packed", () => [...base(), "--main", "index.html", blob(A, ".woff2"), blob(B, ".png"), ...allPaths], /main file index\.html/],
-  ["a path named twice", () => [...base(), blob(A, ".woff2"), blob(B, ".png"), ...allPaths, "project/logo.png"], /named twice/],
-  ["a missing source folder", () => ["--from", join(home, "nope"), "--url", "u", "--title", "t", "--profile", "p", "x"], /does not exist/],
+    },
+    /outside/,
+  ],
+  [
+    "an asset no file cites",
+    () => [...base(), blob(A, ".woff2"), blob(B, ".png"), "project/pages/one.html"],
+    new RegExp(`assets no file cites: ${A}`),
+  ],
+  [
+    "a cited asset with no --blob",
+    () => [...base(), blob(A, ".woff2"), ...allPaths],
+    new RegExp(`cite assets with no --blob: ${B}`),
+  ],
+  [
+    "a --blob that is not a 32 hex id",
+    () => [...base(), `--blob=xyz=${join(home, "downloads", `${A}.woff2`)}`, ...allPaths],
+    /invalid --blob/,
+  ],
+  [
+    "a --blob whose file is missing",
+    () => [...base(), `--blob=${A}=${join(home, "nope")}`, ...allPaths],
+    /invalid --blob/,
+  ],
+  [
+    "the same --blob twice",
+    () => [...base(), blob(A, ".woff2"), blob(A, ".woff2"), blob(B, ".png"), ...allPaths],
+    /given twice/,
+  ],
+  [
+    "a main file that is not packed",
+    () => [...base(), "--main", "index.html", blob(A, ".woff2"), blob(B, ".png"), ...allPaths],
+    /main file index\.html/,
+  ],
+  [
+    "a path named twice",
+    () => [...base(), blob(A, ".woff2"), blob(B, ".png"), ...allPaths, "project/logo.png"],
+    /named twice/,
+  ],
+  [
+    "a missing source folder",
+    () => ["--from", join(home, "nope"), "--url", "u", "--title", "t", "--profile", "p", "x"],
+    /does not exist/,
+  ],
 ];
 for (const [name, argv, message] of failures) {
   test(`pack fails on ${name} and writes nothing`, () => {
@@ -153,8 +233,16 @@ test("relink rewrites every old id and prints the count per asset", () => {
 
 const relinkFailures = [
   ["an id the map does not know", { [A]: `/_blob/${NEW_A}` }, new RegExp(`not in the map: ${B}`)],
-  ["a mapping that is not a /_blob/ url", { [A]: `https://claude.ai/_blob/${NEW_A}`, [B]: `/_blob/${NEW_B}` }, /invalid map entry/],
-  ["an old key that is not a 32 hex id", { xyz: `/_blob/${NEW_A}`, [A]: `/_blob/${NEW_A}`, [B]: `/_blob/${NEW_B}` }, /invalid map entry/],
+  [
+    "a mapping that is not a /_blob/ url",
+    { [A]: `https://claude.ai/_blob/${NEW_A}`, [B]: `/_blob/${NEW_B}` },
+    /invalid map entry/,
+  ],
+  [
+    "an old key that is not a 32 hex id",
+    { xyz: `/_blob/${NEW_A}`, [A]: `/_blob/${NEW_A}`, [B]: `/_blob/${NEW_B}` },
+    /invalid map entry/,
+  ],
   ["a map that reuses an old id as a new one", { [A]: `/_blob/${B}`, [B]: `/_blob/${NEW_B}` }, /old id as a new one/],
 ];
 for (const [name, map, message] of relinkFailures) {
@@ -169,7 +257,11 @@ for (const [name, map, message] of relinkFailures) {
 }
 
 test("relink fails when the counts do not match the manifest, before writing", () => {
-  const { files, mapFile, manifest } = relinkSetup({ [A]: `/_blob/${NEW_A}`, [B]: `/_blob/${NEW_B}`, [C]: `/_blob/${"3".repeat(32)}` });
+  const { files, mapFile, manifest } = relinkSetup({
+    [A]: `/_blob/${NEW_A}`,
+    [B]: `/_blob/${NEW_B}`,
+    [C]: `/_blob/${"3".repeat(32)}`,
+  });
   const m = JSON.parse(readFileSync(manifest, "utf8"));
   m.assets[0].references = 3;
   writeFileSync(manifest, JSON.stringify(m));

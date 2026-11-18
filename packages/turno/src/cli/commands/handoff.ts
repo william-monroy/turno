@@ -62,7 +62,8 @@ export function buildHandoff(target: string, fork: boolean, env: NodeJS.ProcessE
   const config = loadConfig(env);
   // A Claude Code session continues only under another Claude Code profile.
   const profiles = listProfiles(config, env, "claude");
-  if (target !== "auto" && !profiles.includes(target)) fail(`no profile '${target}'; available: ${[...profiles, "auto"].join(", ")}`);
+  if (target !== "auto" && !profiles.includes(target))
+    fail(`no profile '${target}'; available: ${[...profiles, "auto"].join(", ")}`);
   const cfg = env.CLAUDE_CONFIG_DIR || paths(env).hub;
   const transcript = findTranscript(cfg, sid!);
   if (!transcript) fail(`cannot find ${sid}.jsonl under ${join(cfg, "projects")}`);
@@ -72,7 +73,9 @@ export function buildHandoff(target: string, fork: boolean, env: NodeJS.ProcessE
   const current = profileFromConfigDir(env.CLAUDE_CONFIG_DIR, config, env);
   if (!fork && target === current) warnings.push(`this session already runs as '${target}'`);
   if (target !== "auto" && realOr(join(cfg, "projects")) !== realOr(join(profileDir(target, env), "projects"))) {
-    warnings.push(`${target} does not share the projects folder with this profile, so it will not see this session (turno profile repair ${target})`);
+    warnings.push(
+      `${target} does not share the projects folder with this profile, so it will not see this session (turno profile repair ${target})`,
+    );
   }
   const command = `cd ${shellQuote(cwd!)} && turno ${target} --resume ${sid}${fork ? " --fork-session" : ""}`;
   return { command, warnings };

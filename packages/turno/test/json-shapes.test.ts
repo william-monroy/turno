@@ -31,7 +31,9 @@ describe("JSON files other programs write (H15)", () => {
 
     const text = '{"mcpServers":"oops"}';
     const bad = sb.write(".claude-p2/.claude.json", text);
-    expect(() => syncServers(bad, JSON_MCP_SERVERS, { a: { url: "u" } }, [])).toThrow(/mcpServers is not a JSON object/);
+    expect(() => syncServers(bad, JSON_MCP_SERVERS, { a: { url: "u" } }, [])).toThrow(
+      /mcpServers is not a JSON object/,
+    );
     expect(readFileSync(bad, "utf8")).toBe(text);
   });
 

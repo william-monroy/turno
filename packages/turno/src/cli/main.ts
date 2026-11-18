@@ -3,14 +3,28 @@ import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { enableCompileCache } from "./compile-cache.js";
 import { Exit, exitName } from "./exit.js";
-import { CliError, type ColorMode, type Io, UsageError, closest, defaultIo, fail, isColorMode, noInputReason, paint, withoutAsk } from "./io.js";
+import {
+  CliError,
+  type ColorMode,
+  type Io,
+  UsageError,
+  closest,
+  defaultIo,
+  fail,
+  isColorMode,
+  noInputReason,
+  paint,
+  withoutAsk,
+} from "./io.js";
 import { COMMANDS, HELP_SUMMARY, HELP_TOPICS, QUIET, SECTIONS, expand, visibleCommands } from "./registry.js";
 
 async function help(io: Io): Promise<number> {
   const sections = await Promise.all(
     SECTIONS.map(async (s) => ({
       title: s.title,
-      rows: await Promise.all(s.commands.map(async (n) => [n, HELP_SUMMARY[n] ?? (await COMMANDS[n]!()).command.summary] as const)),
+      rows: await Promise.all(
+        s.commands.map(async (n) => [n, HELP_SUMMARY[n] ?? (await COMMANDS[n]!()).command.summary] as const),
+      ),
     })),
   );
   const { renderHelp } = await import("./help.js");
@@ -32,7 +46,9 @@ function asksHelp(name: string, rest: string[]): boolean {
 
 function unknownCommand(word: string): never {
   const near = closest(word, visibleCommands());
-  return fail(near ? `unknown command '${word}'. Did you mean 'turno ${near}'?` : `unknown command '${word}' (turno --help)`);
+  return fail(
+    near ? `unknown command '${word}'. Did you mean 'turno ${near}'?` : `unknown command '${word}' (turno --help)`,
+  );
 }
 
 /** `turno help <command> [sub]`: the same text as `turno <command> [sub] --help`; or a topic. */
@@ -89,7 +105,11 @@ export function takeNoInput(argv: string[]): { argv: string[]; noInput: boolean 
 
 function colorValue(v: string | undefined): ColorMode {
   if (isColorMode(v)) return v;
-  return fail(v === undefined || v.startsWith("-") ? "--color needs a value: auto, always or never" : `--color ${v}: use auto, always or never`);
+  return fail(
+    v === undefined || v.startsWith("-")
+      ? "--color needs a value: auto, always or never"
+      : `--color ${v}: use auto, always or never`,
+  );
 }
 
 /**
@@ -146,7 +166,12 @@ async function report(err: unknown, io: Io, json: boolean): Promise<number> {
   if (json) {
     const { jsonError } = await import("./output.js");
     const fields = (err as { fields?: unknown }).fields;
-    io.err(jsonError(e?.message ?? String(err), code, exitName(code), { ...(Array.isArray(fields) ? { fields } : {}), ...(known ? {} : { stack: e?.stack }) }));
+    io.err(
+      jsonError(e?.message ?? String(err), code, exitName(code), {
+        ...(Array.isArray(fields) ? { fields } : {}),
+        ...(known ? {} : { stack: e?.stack }),
+      }),
+    );
   } else io.err(`turno: ${known ? e.message : (e?.stack ?? e?.message ?? String(err))}`);
   return code;
 }

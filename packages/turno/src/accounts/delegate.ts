@@ -161,20 +161,29 @@ export interface IsolatedMcp {
 export function isolatedMcp(profile: string, tools: string[], env: NodeJS.ProcessEnv = process.env): IsolatedMcp {
   const wanted = [...new Set(tools.map(mcpServerOf).filter((s): s is string => s !== undefined))];
   const connector = wanted.find((s) => s.startsWith("claude_ai_"));
-  if (connector) return { strict: false, servers: {}, why: `${connector} is a claude.ai connector, which --strict-mcp-config would not load` };
+  if (connector)
+    return {
+      strict: false,
+      servers: {},
+      why: `${connector} is a claude.ai connector, which --strict-mcp-config would not load`,
+    };
   const wild = wanted.find((s) => s.includes("*"));
   if (wild) return { strict: false, servers: {}, why: `the pattern server "${wild}" is not one server` };
   let configured: Record<string, unknown> = {};
   try {
-    const cfg = JSON.parse(readFileSync(join(profileDir(profile, env), ".claude.json"), "utf8")) as { mcpServers?: unknown };
-    if (cfg.mcpServers && typeof cfg.mcpServers === "object" && !Array.isArray(cfg.mcpServers)) configured = cfg.mcpServers as Record<string, unknown>;
+    const cfg = JSON.parse(readFileSync(join(profileDir(profile, env), ".claude.json"), "utf8")) as {
+      mcpServers?: unknown;
+    };
+    if (cfg.mcpServers && typeof cfg.mcpServers === "object" && !Array.isArray(cfg.mcpServers))
+      configured = cfg.mcpServers as Record<string, unknown>;
   } catch {
     /* no config: every wanted server is missing */
   }
   const servers: Record<string, unknown> = {};
   for (const w of wanted) {
     const name = Object.keys(configured).find((k) => toolName(k) === w);
-    if (name === undefined) return { strict: false, servers: {}, why: `server "${w}" is not in the MCP config of profile ${profile}` };
+    if (name === undefined)
+      return { strict: false, servers: {}, why: `server "${w}" is not in the MCP config of profile ${profile}` };
     const entry = configured[name] as { url?: unknown } | null;
     if (!entry || typeof entry.url !== "string" || !GATEWAY_URL.test(entry.url)) {
       return { strict: false, servers: {}, why: `server "${w}" does not go through the turno gateway` };
@@ -224,7 +233,11 @@ export function prepareRun(profile: string, tools: string[], env: NodeJS.Process
  * plugins would widen the run), no built-in tools, only the decided tools allowed, the bridge
  * itself disallowed, and only the account's servers when the folder has an MCP config.
  */
-export function buildDelegation(req: DelegateRequest, run: Pick<RunFolder, "cwd" | "mcpConfig">, env: NodeJS.ProcessEnv = process.env): RunSpec {
+export function buildDelegation(
+  req: DelegateRequest,
+  run: Pick<RunFolder, "cwd" | "mcpConfig">,
+  env: NodeJS.ProcessEnv = process.env,
+): RunSpec {
   const tools = req.tools ?? req.account.tools;
   return {
     command: launcherPath(req.account.profile, env),
@@ -379,16 +392,35 @@ export async function delegate(
   const json = parseClaudeJson(out.stdout);
   const costUsd = typeof json?.total_cost_usd === "number" ? json.total_cost_usd : null;
   const numTurns = typeof json?.num_turns === "number" ? json.num_turns : null;
-  const base = { costUsd, numTurns, durationMs, denied: deniedTools(json), mcp: run.mcp.strict ? ("strict" as const) : ("profile" as const) };
+  const base = {
+    costUsd,
+    numTurns,
+    durationMs,
+    denied: deniedTools(json),
+    mcp: run.mcp.strict ? ("strict" as const) : ("profile" as const),
+  };
   if (out.cancelled || (opts.signal?.aborted && !json)) {
-    return { ok: false, cancelled: true, text: `Delegation to ${req.account.profile} was cancelled; its process was stopped.`, ...base };
+    return {
+      ok: false,
+      cancelled: true,
+      text: `Delegation to ${req.account.profile} was cancelled; its process was stopped.`,
+      ...base,
+    };
   }
   if (out.timedOut) {
-    return { ok: false, text: `Delegation to ${req.account.profile} timed out after ${Math.round(spec.timeoutMs / 1000)}s.`, ...base };
+    return {
+      ok: false,
+      text: `Delegation to ${req.account.profile} timed out after ${Math.round(spec.timeoutMs / 1000)}s.`,
+      ...base,
+    };
   }
   if (!json) {
     const why = tail(out.stderr) || tail(out.stdout) || "no output";
-    return { ok: false, text: `Delegation to ${req.account.profile} failed (exit ${out.code ?? "?"}): ${why}`, ...base };
+    return {
+      ok: false,
+      text: `Delegation to ${req.account.profile} failed (exit ${out.code ?? "?"}): ${why}`,
+      ...base,
+    };
   }
   const result = typeof json.result === "string" ? json.result : "";
   const isError = json.is_error === true || out.code !== 0;

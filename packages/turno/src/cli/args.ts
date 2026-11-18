@@ -58,7 +58,9 @@ export function parseFlags(given: string[], spec: FlagSpec, max = Number.POSITIV
     parsed = parseArgs({ args, options: spec, allowPositionals: true, strict: true }) as Parsed;
     if (json !== undefined) parsed.json = json;
   } catch (err) {
-    const msg = (err as Error).message.replace(/^Unknown option '(.+?)'.*$/s, "unknown option $1").replace(/\. To specify.*$/s, "");
+    const msg = (err as Error).message
+      .replace(/^Unknown option '(.+?)'.*$/s, "unknown option $1")
+      .replace(/\. To specify.*$/s, "");
     return fail(msg.replace(/^Option '(--[\w-]+)(?: <value>)?' argument missing$/, "$1 needs a value"));
   }
   if (parsed.positionals.length > max) fail(`unexpected argument '${parsed.positionals[max]}'`);

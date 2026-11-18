@@ -1,7 +1,16 @@
 import type { BrowserContext, Page } from "patchright-core";
 import { batchTool } from "./batch.js";
 import { type VaultAccess, loginTool } from "./login-tool.js";
-import { type ClientInfo, type McpConfig, type ToolResult, type ToolSchema, type UpstreamTool, type Zod, type ZodObject, upstream } from "./upstream.js";
+import {
+  type ClientInfo,
+  type McpConfig,
+  type ToolResult,
+  type ToolSchema,
+  type UpstreamTool,
+  type Zod,
+  type ZodObject,
+  upstream,
+} from "./upstream.js";
 
 /**
  * The turno tool registry (ADR 0043). A turno tool is listed after the stock Playwright MCP
@@ -83,14 +92,18 @@ export function checkTurnoTools(turno: readonly TurnoTool[], upstreamTools: read
 }
 
 /** Upstream's argument error, word for word, for a turno tool. */
-export function parseArguments(tool: TurnoTool, args: Record<string, unknown>): { params: Record<string, unknown> } | { error: string } {
+export function parseArguments(
+  tool: TurnoTool,
+  args: Record<string, unknown>,
+): { params: Record<string, unknown> } | { error: string } {
   const { z } = upstream().utils;
   const schema: ZodObject = tool.schema.inputSchema;
   const { _meta: _ignored, ...rest } = args;
   try {
     return { params: schema.parse(rest) };
   } catch (error) {
-    if (error instanceof z.ZodError) return { error: `Invalid arguments for tool "${tool.schema.name}":\n${z.prettifyError(error)}` };
+    if (error instanceof z.ZodError)
+      return { error: `Invalid arguments for tool "${tool.schema.name}":\n${z.prettifyError(error)}` };
     throw error;
   }
 }

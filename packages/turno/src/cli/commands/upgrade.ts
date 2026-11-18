@@ -6,7 +6,15 @@ import { Journal } from "../../core/journal.js";
 import { paths, writePrivateFile } from "../../core/paths.js";
 import { listProfiles } from "../../core/profiles.js";
 import { fetchLatest, isSemver, updateChecksOff } from "../../core/update.js";
-import { type Install, ONE_OFF_RUNNERS, compareVersions, detectInstall, isOneOff, packageInfo, upgradeCommand } from "../../core/version.js";
+import {
+  type Install,
+  ONE_OFF_RUNNERS,
+  compareVersions,
+  detectInstall,
+  isOneOff,
+  packageInfo,
+  upgradeCommand,
+} from "../../core/version.js";
 import { DRY_RUN, JSON_FLAG, bool, parseFlags, str } from "../args.js";
 import { emit, jsonOutput } from "../output.js";
 import { type Command, type Io, confirm, fail } from "../io.js";
@@ -110,7 +118,8 @@ export async function finishUpgrade(io: Io, opts: { sync?: "ask" | "yes" | "no" 
     }
     if (run) {
       const { command } = await import("./mcp.js");
-      if ((await command.run(["sync"], io)) !== 0) io.err("turno: turno mcp sync did not finish every profile; run it again once their sessions are closed");
+      if ((await command.run(["sync"], io)) !== 0)
+        io.err("turno: turno mcp sync did not finish every profile; run it again once their sessions are closed");
     } else io.out(`${tokens.text}; run: turno mcp sync`);
   }
   await refreshDaemonService(io);
@@ -134,7 +143,9 @@ async function refreshDaemonService(io: Io): Promise<void> {
   const { installedBackend } = await import("../../mcpd/service.js");
   const backend = await installedBackend(io.env);
   if (!backend) return;
-  io.out(`mcpd: rewriting the ${backend.noun} for turno ${packageInfo().version} and restarting it; open sessions reconnect on their next call`);
+  io.out(
+    `mcpd: rewriting the ${backend.noun} for turno ${packageInfo().version} and restarting it; open sessions reconnect on their next call`,
+  );
   const { installDaemonService } = await import("./mcpd.js");
   const code = await installDaemonService(io, { command: "upgrade --finish" });
   if (code) io.err("turno: mcpd was not restarted; run turno mcp daemon start");
@@ -152,14 +163,23 @@ export const command: Command = {
 export async function runUpgrade(args: string[], io: Io, deps: { install?: Install } = {}): Promise<number> {
   const p = parseFlags(
     args,
-    { check: { type: "boolean" }, finish: { type: "boolean" }, yes: { type: "boolean", short: "y" }, channel: { type: "string" }, to: { type: "string" }, ...DRY_RUN, ...JSON_FLAG },
+    {
+      check: { type: "boolean" },
+      finish: { type: "boolean" },
+      yes: { type: "boolean", short: "y" },
+      channel: { type: "string" },
+      to: { type: "string" },
+      ...DRY_RUN,
+      ...JSON_FLAG,
+    },
     0,
   );
   const yes = bool(p, "yes");
   if (bool(p, "finish")) return finishUpgrade(io, { sync: yes ? "yes" : "ask" });
   const to = str(p, "to");
   if (to !== undefined && !isSemver(to)) fail(`--to needs a version like 1.2.3 (got "${to}")`);
-  if (!/^[a-z][a-z0-9-]{0,63}$/.test(str(p, "channel") ?? "latest")) fail("--channel needs a dist-tag such as latest or next");
+  if (!/^[a-z][a-z0-9-]{0,63}$/.test(str(p, "channel") ?? "latest"))
+    fail("--channel needs a dist-tag such as latest or next");
   const pkg = packageInfo();
   const install = deps.install ?? detectInstall();
   const channel = str(p, "channel") ?? "latest";
@@ -169,15 +189,29 @@ export async function runUpgrade(args: string[], io: Io, deps: { install?: Insta
   if (bool(p, "check")) {
     if (pkg.private || !fromRegistry) {
       const why = pkg.private ? "this copy is not published to a registry" : `installed from ${install.method}`;
-      if (bool(p, "json")) emit(io, p, CHECK_JSON, { current: pkg.version, latest: null, method: install.method, note: why });
+      if (bool(p, "json"))
+        emit(io, p, CHECK_JSON, { current: pkg.version, latest: null, method: install.method, note: why });
       else io.out(`turno ${pkg.version} (${why}; turno upgrade pulls the source)`);
       return 0;
     }
     const s = await fetchLatest(io.env, channel);
     const newer = s.latest && compareVersions(s.latest, pkg.version) > 0;
-    if (bool(p, "json")) emit(io, p, CHECK_JSON, { current: pkg.version, latest: s.latest ?? null, channel, method: install.method, updateAvailable: Boolean(newer), error: s.error ?? null });
+    if (bool(p, "json"))
+      emit(io, p, CHECK_JSON, {
+        current: pkg.version,
+        latest: s.latest ?? null,
+        channel,
+        method: install.method,
+        updateAvailable: Boolean(newer),
+        error: s.error ?? null,
+      });
     else if (s.error) io.out(`could not reach the registry: ${s.error}`);
-    else io.out(newer ? `turno ${s.latest} is available (you have ${pkg.version}): turno upgrade` : `turno ${pkg.version} is the newest on ${channel}`);
+    else
+      io.out(
+        newer
+          ? `turno ${s.latest} is available (you have ${pkg.version}): turno upgrade`
+          : `turno ${pkg.version} is the newest on ${channel}`,
+      );
     return s.error ? 1 : 0;
   }
 
@@ -188,7 +222,8 @@ export async function runUpgrade(args: string[], io: Io, deps: { install?: Insta
     io.out(`To keep turno, install it: ${once.install}`);
     return 0;
   }
-  if (fromRegistry && off === "this copy is not published to a registry") fail("this copy is not published to a registry");
+  if (fromRegistry && off === "this copy is not published to a registry")
+    fail("this copy is not published to a registry");
   let spec = str(p, "to") ?? channel;
   if (fromRegistry && !str(p, "to")) {
     const s = await fetchLatest(io.env, channel);
@@ -202,7 +237,8 @@ export async function runUpgrade(args: string[], io: Io, deps: { install?: Insta
   // Whatever reaches the package manager is a plain version or a dist-tag, never a URL or range.
   if (!isSemver(spec) && !/^[a-z][a-z0-9-]{0,63}$/.test(spec)) fail(`refusing to install "${spec}": not a version`);
   const steps = upgradeCommand(install, pkg.name, spec);
-  if (!steps) return fail(`cannot tell how turno was installed (${install.root}); reinstall it with your package manager`);
+  if (!steps)
+    return fail(`cannot tell how turno was installed (${install.root}); reinstall it with your package manager`);
   for (const step of steps) {
     io.out(`$ ${step.join(" ")}`);
     if (bool(p, "dry-run")) continue;
@@ -220,6 +256,10 @@ export async function runUpgrade(args: string[], io: Io, deps: { install?: Insta
     return 0;
   }
   const finish = ["upgrade", "--finish", ...(yes ? ["--yes"] : [])];
-  const r = spawnSync(install.method === "source" ? process.execPath : self, install.method === "source" ? [self, ...finish] : finish, { stdio: "inherit", env: io.env });
+  const r = spawnSync(
+    install.method === "source" ? process.execPath : self,
+    install.method === "source" ? [self, ...finish] : finish,
+    { stdio: "inherit", env: io.env },
+  );
   return r.status ?? 1;
 }

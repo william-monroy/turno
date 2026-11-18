@@ -14,7 +14,13 @@ beforeEach(() => {
 afterEach(() => sb.cleanup());
 
 const PASS = "a long enough passphrase";
-const SUMMARY = { identity: "work", createdAt: "2026-11-18T00:00:00.000Z", expiresAt: "2026-11-25T00:00:00.000Z", cookies: 3, origins: 2 };
+const SUMMARY = {
+  identity: "work",
+  createdAt: "2026-11-18T00:00:00.000Z",
+  expiresAt: "2026-11-25T00:00:00.000Z",
+  cookies: 3,
+  origins: 2,
+};
 
 interface Calls {
   exported: { id: string; options: { passphrase: string; expiresInMs?: number } }[];
@@ -24,7 +30,8 @@ interface Calls {
 function fakeModule(calls: Calls, existing: string[] = ["work"]): BrowserApi {
   const fake = {
     assertIdentityId: (id: string) => {
-      if (!/^[a-z0-9][a-z0-9_-]*$/.test(id)) throw Object.assign(new Error(`invalid identity id "${id}"`), { name: "IdentityError" });
+      if (!/^[a-z0-9][a-z0-9_-]*$/.test(id))
+        throw Object.assign(new Error(`invalid identity id "${id}"`), { name: "IdentityError" });
     },
     identityExists: (id: string) => existing.includes(id),
     exportSession: async (id: string, options: Calls["exported"][number]["options"]) => {
@@ -32,7 +39,8 @@ function fakeModule(calls: Calls, existing: string[] = ["work"]): BrowserApi {
       return { sealed: '{"format":"turno-browser-session"}\n', summary: SUMMARY };
     },
     readSessionExport: async (_text: string, passphrase: string) => {
-      if (passphrase !== PASS) throw Object.assign(new Error("wrong passphrase, or the file was changed"), { name: "SealError" });
+      if (passphrase !== PASS)
+        throw Object.assign(new Error("wrong passphrase, or the file was changed"), { name: "SealError" });
       return { payload: {}, summary: SUMMARY };
     },
     importSession: async (_text: string, options: Calls["imported"][number]["options"]) => {
@@ -45,10 +53,20 @@ function fakeModule(calls: Calls, existing: string[] = ["work"]): BrowserApi {
 }
 
 function input(over: Partial<VaultInput> = {}): VaultInput {
-  return { isTty: () => false, hidden: async () => PASS, visible: async () => "", stdin: async () => `${PASS}\n`, ...over };
+  return {
+    isTty: () => false,
+    hidden: async () => PASS,
+    visible: async () => "",
+    stdin: async () => `${PASS}\n`,
+    ...over,
+  };
 }
 
-const deps = (answer: boolean, interactive = true): BrowserDeps => ({ load: async () => undefined, interactive: () => interactive, confirm: async () => answer });
+const deps = (answer: boolean, interactive = true): BrowserDeps => ({
+  load: async () => undefined,
+  interactive: () => interactive,
+  confirm: async () => answer,
+});
 const run = (p: Promise<number>) => p.then(String, (e: Error) => e.message);
 
 describe("turno browser export", () => {
@@ -65,7 +83,9 @@ describe("turno browser export", () => {
     expect(text).toMatch(/3 cookies, storage of 2 sites/);
     expect(text).toMatch(/holds no vault credentials/);
     expect(text).not.toContain(PASS);
-    expect(await run(exportSession(fakeModule(calls), ["work", "--out", out], fakeIo(sb.env), input()))).toMatch(/exists; pass --force/);
+    expect(await run(exportSession(fakeModule(calls), ["work", "--out", out], fakeIo(sb.env), input()))).toMatch(
+      /exists; pass --force/,
+    );
     expect(await exportSession(fakeModule(calls), ["work", "--out", out, "--force"], fakeIo(sb.env), input())).toBe(0);
   });
 
@@ -74,7 +94,11 @@ describe("turno browser export", () => {
     let n = 0;
     const tty = input({ isTty: () => true, hidden: async () => (n++ === 0 ? PASS : "something else entirely") });
     const out = join(sb.home, "x.session");
-    expect(await run(exportSession(fakeModule(calls), ["work", "--out", out], fakeIo({ ...sb.env, TURNO_NO_INPUT: "0" }), tty))).toMatch(/passphrases differ/);
+    expect(
+      await run(
+        exportSession(fakeModule(calls), ["work", "--out", out], fakeIo({ ...sb.env, TURNO_NO_INPUT: "0" }), tty),
+      ),
+    ).toMatch(/passphrases differ/);
     expect(existsSync(out)).toBe(false);
     expect(calls.exported).toEqual([]);
   });
@@ -110,9 +134,13 @@ describe("turno browser import", () => {
     const no = fakeIo(sb.env);
     expect(await importSession(fakeModule(calls), [file()], no, deps(false), input())).toBe(1);
     expect(no.lines.join("\n")).toMatch(/nothing imported/);
-    expect(await run(importSession(fakeModule(calls), [file()], fakeIo(sb.env), deps(false, false), input()))).toMatch(/--yes/);
+    expect(await run(importSession(fakeModule(calls), [file()], fakeIo(sb.env), deps(false, false), input()))).toMatch(
+      /--yes/,
+    );
     expect(calls.imported).toEqual([]);
-    expect(await importSession(fakeModule(calls), [file(), "--yes"], fakeIo(sb.env), deps(false, false), input())).toBe(0);
+    expect(await importSession(fakeModule(calls), [file(), "--yes"], fakeIo(sb.env), deps(false, false), input())).toBe(
+      0,
+    );
     expect(calls.imported).toHaveLength(1);
   });
 
@@ -123,7 +151,9 @@ describe("turno browser import", () => {
     expect(io.lines.join("\n")).toMatch(/\(dry run\) would replace the session of browser identity "work"/);
     expect(calls.imported).toEqual([]);
     const wrong = input({ stdin: async () => "not the passphrase\n" });
-    const err = await importSession(fakeModule(calls), [file()], fakeIo(sb.env), deps(true), wrong).catch((e: Error) => e);
+    const err = await importSession(fakeModule(calls), [file()], fakeIo(sb.env), deps(true), wrong).catch(
+      (e: Error) => e,
+    );
     expect((err as Error).message).toBe("wrong passphrase, or the file was changed");
   });
 });

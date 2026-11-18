@@ -73,7 +73,9 @@ const changes = [];
 const texts = textFiles(root);
 for (const file of texts) {
   const text = readFileSync(file, "utf8");
-  const unknown = [...new Set([...text.matchAll(BLOB)].map((m) => m[1]))].filter((id) => !olds.has(id) && !news.has(id)).sort();
+  const unknown = [...new Set([...text.matchAll(BLOB)].map((m) => m[1]))]
+    .filter((id) => !olds.has(id) && !news.has(id))
+    .sort();
   if (unknown.length > 0) die(`${file} cites assets that are not in the map: ${unknown.join(", ")}`);
   const next = text.replace(BLOB, (match, id) => {
     if (!olds.has(id)) return match;
@@ -89,7 +91,8 @@ if (args.values.manifest) {
   const problems = [];
   for (const a of assets) {
     if (!olds.has(a.id)) problems.push(`${a.id} has no mapping`);
-    else if (counts.get(a.id) !== a.references) problems.push(`${a.id}: ${counts.get(a.id)} replacements, the manifest expects ${a.references}`);
+    else if (counts.get(a.id) !== a.references)
+      problems.push(`${a.id}: ${counts.get(a.id)} replacements, the manifest expects ${a.references}`);
   }
   const known = new Set(assets.map((a) => a.id));
   for (const id of olds) if (!known.has(id)) problems.push(`${id} is not an asset of the manifest`);

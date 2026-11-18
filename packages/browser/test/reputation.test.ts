@@ -3,7 +3,14 @@ import { readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { addIdentity } from "../src/identities.js";
-import { readChallenges, recordChallenge, reputationPath, reputationReport, summarizeChallenges, watchChallenges } from "../src/reputation.js";
+import {
+  readChallenges,
+  recordChallenge,
+  reputationPath,
+  reputationReport,
+  summarizeChallenges,
+  watchChallenges,
+} from "../src/reputation.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
@@ -27,7 +34,12 @@ describe("reputation log", () => {
     const file = reputationPath("school", sb.env);
     expect(file).toBe(join(sb.home, ".local", "state", "turno", "browser", "identities", "school", "reputation.jsonl"));
     expect(statSync(file).mode & 0o777).toBe(0o600);
-    expect(readFileSync(file, "utf8").trim().split("\n").map((l) => JSON.parse(l))).toEqual([
+    expect(
+      readFileSync(file, "utf8")
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l)),
+    ).toEqual([
       { ts: daysAgo(1).toISOString(), site: "mail.example.com", kind: "captcha", markers: ["captcha"] },
       { ts: NOW.toISOString(), site: "mail.example.com", kind: "verify", markers: ["verify it's you"] },
     ]);
@@ -35,20 +47,68 @@ describe("reputation log", () => {
 
   it("skips lines it cannot read instead of failing", () => {
     recordChallenge("school", sb.env, { site: "a.example", kind: "block", markers: ["access denied"] }, NOW);
-    writeFileSync(reputationPath("school", sb.env), `not json\n${readFileSync(reputationPath("school", sb.env), "utf8")}{"ts":1}\n`);
-    expect(readChallenges("school", sb.env)).toEqual([{ ts: NOW.toISOString(), site: "a.example", kind: "block", markers: ["access denied"] }]);
+    writeFileSync(
+      reputationPath("school", sb.env),
+      `not json\n${readFileSync(reputationPath("school", sb.env), "utf8")}{"ts":1}\n`,
+    );
+    expect(readChallenges("school", sb.env)).toEqual([
+      { ts: NOW.toISOString(), site: "a.example", kind: "block", markers: ["access denied"] },
+    ]);
   });
 
   it("counts per site and kind, with the trend of the last 7 days against the 7 before", () => {
-    const at = (d: number, site: string, kind: "captcha" | "verify" | "block") => ({ ts: daysAgo(d).toISOString(), site, kind, markers: [] });
+    const at = (d: number, site: string, kind: "captcha" | "verify" | "block") => ({
+      ts: daysAgo(d).toISOString(),
+      site,
+      kind,
+      markers: [],
+    });
     const sites = summarizeChallenges(
-      [at(1, "a.example", "captcha"), at(2, "a.example", "captcha"), at(3, "a.example", "block"), at(9, "a.example", "captcha"), at(8, "b.example", "verify"), at(10, "b.example", "verify"), at(20, "c.example", "block")],
+      [
+        at(1, "a.example", "captcha"),
+        at(2, "a.example", "captcha"),
+        at(3, "a.example", "block"),
+        at(9, "a.example", "captcha"),
+        at(8, "b.example", "verify"),
+        at(10, "b.example", "verify"),
+        at(20, "c.example", "block"),
+      ],
       NOW,
     );
     expect(sites).toEqual([
-      { site: "a.example", total: 4, captcha: 3, verify: 0, block: 1, last7d: 3, prev7d: 1, trend: "up", lastSeen: daysAgo(1).toISOString() },
-      { site: "b.example", total: 2, captcha: 0, verify: 2, block: 0, last7d: 0, prev7d: 2, trend: "down", lastSeen: daysAgo(8).toISOString() },
-      { site: "c.example", total: 1, captcha: 0, verify: 0, block: 1, last7d: 0, prev7d: 0, trend: "flat", lastSeen: daysAgo(20).toISOString() },
+      {
+        site: "a.example",
+        total: 4,
+        captcha: 3,
+        verify: 0,
+        block: 1,
+        last7d: 3,
+        prev7d: 1,
+        trend: "up",
+        lastSeen: daysAgo(1).toISOString(),
+      },
+      {
+        site: "b.example",
+        total: 2,
+        captcha: 0,
+        verify: 2,
+        block: 0,
+        last7d: 0,
+        prev7d: 2,
+        trend: "down",
+        lastSeen: daysAgo(8).toISOString(),
+      },
+      {
+        site: "c.example",
+        total: 1,
+        captcha: 0,
+        verify: 0,
+        block: 1,
+        last7d: 0,
+        prev7d: 0,
+        trend: "flat",
+        lastSeen: daysAgo(20).toISOString(),
+      },
     ]);
   });
 
@@ -61,7 +121,11 @@ describe("reputation log", () => {
       ["bank", 0],
       ["school", 1],
     ]);
-    expect(reputationReport(sb.env, ["school"], NOW).identities[0]).toMatchObject({ id: "school", total: 1, sites: [{ site: "a.example", last7d: 1 }] });
+    expect(reputationReport(sb.env, ["school"], NOW).identities[0]).toMatchObject({
+      id: "school",
+      total: 1,
+      sites: [{ site: "a.example", last7d: 1 }],
+    });
     expect(() => reputationReport(sb.env, ["nope"], NOW)).toThrow(/identity "nope" does not exist/);
   });
 });
@@ -113,7 +177,9 @@ describe("watchChallenges", () => {
     popup.load("https://mail.example.com/", "<title>Inbox</title><body>Hello</body>");
     popup.load("data:text/html,captcha", "<title>captcha</title>");
     await settle();
-    expect(seen).toEqual([{ site: "shop.example.com", kind: "captcha", markers: ["checking your browser", "just a moment"] }]);
+    expect(seen).toEqual([
+      { site: "shop.example.com", kind: "captcha", markers: ["checking your browser", "just a moment"] },
+    ]);
 
     // The same site and kind again within a minute is one event (a reload loop).
     first.load("https://shop.example.com/", CHALLENGE);

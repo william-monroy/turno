@@ -66,7 +66,9 @@ export interface FakeAuthServer {
   close(): Promise<void>;
 }
 
-async function listen(handler: (req: IncomingMessage, res: ServerResponse) => void): Promise<{ server: HttpServer; base: string }> {
+async function listen(
+  handler: (req: IncomingMessage, res: ServerResponse) => void,
+): Promise<{ server: HttpServer; base: string }> {
   const server = createServer(handler);
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
   return { server, base: `http://127.0.0.1:${(server.address() as AddressInfo).port}` };
@@ -119,7 +121,13 @@ export async function fakeAuthServer(options: AuthServerOptions = {}): Promise<F
     const rt = token("rt");
     access.set(at, { ...g, expired: false, until: Date.now() + (options.accessTtl ?? 3600) * 1000 });
     refresh.set(rt, { ...g, valid: true });
-    return { access_token: at, token_type: "Bearer", expires_in: options.accessTtl ?? 3600, refresh_token: rt, ...(g.scope ? { scope: g.scope } : {}) };
+    return {
+      access_token: at,
+      token_type: "Bearer",
+      expires_in: options.accessTtl ?? 3600,
+      refresh_token: rt,
+      ...(g.scope ? { scope: g.scope } : {}),
+    };
   };
   const { server, base } = await listen(async (req, res) => {
     const url = new URL(req.url ?? "/", base);
@@ -151,13 +159,22 @@ export async function fakeAuthServer(options: AuthServerOptions = {}): Promise<F
       const client = clients.get(q.get("client_id") ?? "");
       const redirect = q.get("redirect_uri") ?? "";
       if (!client || !client.redirect_uris.includes(redirect)) return json(res, 400, { error: "invalid_request" });
-      if (q.get("code_challenge_method") !== "S256" || !q.get("code_challenge")) return json(res, 400, { error: "invalid_request" });
+      if (q.get("code_challenge_method") !== "S256" || !q.get("code_challenge"))
+        return json(res, 400, { error: "invalid_request" });
       const code = token("code");
-      codes.set(code, { clientId: q.get("client_id")!, redirectUri: redirect, challenge: q.get("code_challenge")!, resource: q.get("resource"), scope: q.get("scope"), sub: fake.account });
+      codes.set(code, {
+        clientId: q.get("client_id")!,
+        redirectUri: redirect,
+        challenge: q.get("code_challenge")!,
+        resource: q.get("resource"),
+        scope: q.get("scope"),
+        sub: fake.account,
+      });
       const to = new URL(redirect);
       to.searchParams.set("code", code);
       to.searchParams.set("state", options.state ?? q.get("state") ?? "");
-      if (options.iss !== "missing") to.searchParams.set("iss", options.iss === "wrong" ? "https://evil.example" : fake.issuer);
+      if (options.iss !== "missing")
+        to.searchParams.set("iss", options.iss === "wrong" ? "https://evil.example" : fake.issuer);
       res.writeHead(302, { Location: to.href }).end();
       return;
     }
@@ -169,7 +186,13 @@ export async function fakeAuthServer(options: AuthServerOptions = {}): Promise<F
         codes.delete(q.get("code") ?? "");
         const verifier = q.get("code_verifier") ?? "";
         const challenge = createHash("sha256").update(verifier).digest("base64url");
-        if (!c || c.clientId !== q.get("client_id") || c.redirectUri !== q.get("redirect_uri") || c.challenge !== challenge || c.resource !== q.get("resource")) {
+        if (
+          !c ||
+          c.clientId !== q.get("client_id") ||
+          c.redirectUri !== q.get("redirect_uri") ||
+          c.challenge !== challenge ||
+          c.resource !== q.get("resource")
+        ) {
           return json(res, 400, { error: "invalid_grant" });
         }
         return json(res, 200, issue({ sub: c.sub, clientId: c.clientId, resource: c.resource, scope: c.scope }));
@@ -177,7 +200,8 @@ export async function fakeAuthServer(options: AuthServerOptions = {}): Promise<F
       if (q.get("grant_type") === "refresh_token") {
         const old = q.get("refresh_token") ?? "";
         const r = refresh.get(old);
-        if (!r || !r.valid || r.clientId !== q.get("client_id")) return json(res, 400, { error: "invalid_grant", error_description: "refresh token is not valid" });
+        if (!r || !r.valid || r.clientId !== q.get("client_id"))
+          return json(res, 400, { error: "invalid_grant", error_description: "refresh token is not valid" });
         fake.refreshes++;
         if (options.rotate === false) {
           const at = token("at");
@@ -222,19 +246,28 @@ export async function fakeResourceServer(as: FakeAuthServer, o: { scope?: string
   const { server, base } = await listen(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     if (url.pathname === "/.well-known/oauth-protected-resource/mcp") {
-      return json(res, 200, { resource, authorization_servers: [as.issuer], scopes_supported: ["mcp:read"], bearer_methods_supported: ["header"] });
+      return json(res, 200, {
+        resource,
+        authorization_servers: [as.issuer],
+        scopes_supported: ["mcp:read"],
+        bearer_methods_supported: ["header"],
+      });
     }
     if (url.pathname !== "/mcp") return void res.writeHead(404).end();
     const auth = String(req.headers.authorization ?? "");
     seen.push(auth);
     const sub = auth.startsWith("Bearer ") ? as.validate(auth.slice(7), resource) : undefined;
     if (!sub) {
-      res.writeHead(401, { "WWW-Authenticate": `Bearer resource_metadata="${prm}", scope="${o.scope ?? "mcp:read"}"` }).end();
+      res
+        .writeHead(401, { "WWW-Authenticate": `Bearer resource_metadata="${prm}", scope="${o.scope ?? "mcp:read"}"` })
+        .end();
       return;
     }
     // Stateless: a fresh server per request, with the caller's identity.
     const s = new Server({ name: "protected", version: "1" }, { capabilities: { tools: {} } });
-    s.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [{ name: "whoami", inputSchema: { type: "object" as const, properties: {} } }] }));
+    s.setRequestHandler(ListToolsRequestSchema, async () => ({
+      tools: [{ name: "whoami", inputSchema: { type: "object" as const, properties: {} } }],
+    }));
     s.setRequestHandler(CallToolRequestSchema, async () => ({ content: [{ type: "text" as const, text: sub }] }));
     const t = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
     await s.connect(t);
@@ -249,6 +282,7 @@ export async function fakeResourceServer(as: FakeAuthServer, o: { scope?: string
 export async function approve(authorizationUrl: string): Promise<void> {
   const res = await fetch(authorizationUrl, { redirect: "manual" });
   const to = res.headers.get("location");
-  if (res.status !== 302 || !to) throw new Error(`the authorization server refused: HTTP ${res.status} ${await res.text()}`);
+  if (res.status !== 302 || !to)
+    throw new Error(`the authorization server refused: HTTP ${res.status} ${await res.text()}`);
   await (await fetch(to)).text();
 }

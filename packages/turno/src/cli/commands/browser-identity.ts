@@ -132,12 +132,20 @@ export function settingsPatch(p: Parsed, current?: IdentitySettings): SettingsPa
     if (v !== undefined) patch[key] = v;
   }
   const langs = value("languages");
-  if (langs !== undefined) patch.languages = langs === null ? null : langs.split(",").map((l) => l.trim()).filter(Boolean);
+  if (langs !== undefined)
+    patch.languages =
+      langs === null
+        ? null
+        : langs
+            .split(",")
+            .map((l) => l.trim())
+            .filter(Boolean);
   const url = value("health-url");
   const text = value("health-text");
   const selector = value("health-selector");
   if (bool(p, "no-health")) {
-    if (url !== undefined || text !== undefined || selector !== undefined) fail("--no-health does not go with the other --health flags");
+    if (url !== undefined || text !== undefined || selector !== undefined)
+      fail("--no-health does not go with the other --health flags");
     patch.health = null;
   } else if (url !== undefined || text !== undefined || selector !== undefined) {
     const base = current?.health;
@@ -147,7 +155,8 @@ export function settingsPatch(p: Parsed, current?: IdentitySettings): SettingsPa
     if (t) health.text = t;
     if (s) health.selector = s;
     if (!health.url) fail("a health check needs --health-url (a page only a signed-in user sees)");
-    if (!health.text && !health.selector) fail("a health check needs --health-text or --health-selector (what that page shows when signed in)");
+    if (!health.text && !health.selector)
+      fail("a health check needs --health-text or --health-selector (what that page shows when signed in)");
     patch.health = health;
   }
   tuningPatch(p, value, patch, current);
@@ -155,8 +164,18 @@ export function settingsPatch(p: Parsed, current?: IdentitySettings): SettingsPa
 }
 
 /** The format 2 keys of the patch: tabs, backgroundThrottling, settle, block and cache. */
-function tuningPatch(p: Parsed, value: (name: string) => string | null | undefined, patch: SettingsPatch, current?: IdentitySettings): void {
-  const tabs = { max: value("tabs-max"), popups: value("tabs-popups"), park: value("tabs-park"), close: value("tabs-close") };
+function tuningPatch(
+  p: Parsed,
+  value: (name: string) => string | null | undefined,
+  patch: SettingsPatch,
+  current?: IdentitySettings,
+): void {
+  const tabs = {
+    max: value("tabs-max"),
+    popups: value("tabs-popups"),
+    park: value("tabs-park"),
+    close: value("tabs-close"),
+  };
   if (bool(p, "no-tabs")) {
     if (Object.values(tabs).some((v) => v !== undefined)) fail("--no-tabs does not go with the other --tabs flags");
     patch.tabs = null;
@@ -170,7 +189,8 @@ function tuningPatch(p: Parsed, value: (name: string) => string | null | undefin
   }
 
   const throttling = value("background-throttling");
-  if (throttling !== undefined) patch.backgroundThrottling = throttling === null ? null : booleanValue("--background-throttling", throttling);
+  if (throttling !== undefined)
+    patch.backgroundThrottling = throttling === null ? null : booleanValue("--background-throttling", throttling);
   const settle = value("settle");
   if (settle !== undefined) patch.settle = settle;
 
@@ -178,7 +198,8 @@ function tuningPatch(p: Parsed, value: (name: string) => string | null | undefin
   const types = value("block-types");
   const patterns = value("block-patterns");
   if (bool(p, "no-block")) {
-    if (trackers !== undefined || types !== undefined || patterns !== undefined) fail("--no-block does not go with the other --block flags");
+    if (trackers !== undefined || types !== undefined || patterns !== undefined)
+      fail("--no-block does not go with the other --block flags");
     patch.block = null;
   } else if (trackers !== undefined || types !== undefined || patterns !== undefined) {
     patch.block = mergeGroup<BlockSettings>(current?.block, {
@@ -217,7 +238,9 @@ function describeTabs(t: TabSettings): string {
 
 function describeBlock(b: BlockSettings): string {
   const n = b.patterns?.length ?? 0;
-  return [b.trackers ? "trackers" : "", ...(b.types ?? []), n ? `${n} pattern${n === 1 ? "" : "s"}` : ""].filter(Boolean).join(", ");
+  return [b.trackers ? "trackers" : "", ...(b.types ?? []), n ? `${n} pattern${n === 1 ? "" : "s"}` : ""]
+    .filter(Boolean)
+    .join(", ");
 }
 
 export function show(m: BrowserApi, id: string, args: string[], io: Io): number {
@@ -242,16 +265,26 @@ export function show(m: BrowserApi, id: string, args: string[], io: Io): number 
   const s = style(io);
   const rows: [string, string][] = [
     ["profile", tildify(m.identityDir(id, io.env), io.env)],
-    ["settings", `${tildify(path, io.env)}${settings || problems.length ? "" : s.muted(" (none: Chrome's own time zone and languages)")}`],
+    [
+      "settings",
+      `${tildify(path, io.env)}${settings || problems.length ? "" : s.muted(" (none: Chrome's own time zone and languages)")}`,
+    ],
   ];
   if (settings) {
     rows.push(["time zone", settings.timezone ?? s.muted("(the system's)")]);
     if (settings.locale) rows.push(["locale", settings.locale]);
-    rows.push(["languages", settings.languages?.join(", ") ?? s.muted(settings.locale ? "(from the locale)" : "(Chrome's)")]);
+    rows.push([
+      "languages",
+      settings.languages?.join(", ") ?? s.muted(settings.locale ? "(from the locale)" : "(Chrome's)"),
+    ]);
     if (settings.region) rows.push(["region", settings.region]);
     rows.push(["health check", settings.health ? describeHealth(settings.health) : s.muted("(none)")]);
     if (settings.tabs) rows.push(["tabs", `${describeTabs(settings.tabs)}${s.muted(" (the rest as default)")}`]);
-    if (settings.backgroundThrottling !== undefined) rows.push(["throttling", settings.backgroundThrottling ? "background tabs throttled" : "every tab at full speed"]);
+    if (settings.backgroundThrottling !== undefined)
+      rows.push([
+        "throttling",
+        settings.backgroundThrottling ? "background tabs throttled" : "every tab at full speed",
+      ]);
     if (settings.settle !== undefined) rows.push(["settle", settings.settle]);
     if (settings.block) rows.push(["blocking", describeBlock(settings.block) || s.muted("(nothing)")]);
     if (settings.cache) rows.push(["cache", `on, up to ${settings.cache.maxSize ?? "100MB"}`]);
@@ -260,10 +293,18 @@ export function show(m: BrowserApi, id: string, args: string[], io: Io): number 
     rows.push(["updated", settings.updated]);
   }
   if (health) {
-    const state = health.status === "ok" ? s.ok("signed in") : health.status === "needs_auth" ? s.err("NEEDS_AUTH") : s.warn("check failed");
+    const state =
+      health.status === "ok"
+        ? s.ok("signed in")
+        : health.status === "needs_auth"
+          ? s.err("NEEDS_AUTH")
+          : s.warn("check failed");
     rows.push(["last check", `${state} ${s.muted(`${health.checkedAt}${health.detail ? `: ${health.detail}` : ""}`)}`]);
   }
-  rows.push(["state", holder ? s.warn(holder.replace(/^browser identity "[^"]+" is /, "").replace(/\. .*$/, "")) : s.ok("free")]);
+  rows.push([
+    "state",
+    holder ? s.warn(holder.replace(/^browser identity "[^"]+" is /, "").replace(/\. .*$/, "")) : s.ok("free"),
+  ]);
   io.out(s.bold(`browser:${id}`));
   const width = Math.max(...rows.map(([k]) => k.length));
   for (const [k, v] of rows) io.out(s.kv(k, v, width));
@@ -326,7 +367,8 @@ export function set(m: BrowserApi, id: string, args: string[], io: Io): number {
   const p = parseFlags(args, SET_FLAGS, 1);
   if (!m.identityExists(id, io.env)) return fail(`identity "${id}" does not exist (turno identity add browser:${id})`);
   const patch = settingsPatch(p, m.checkIdentitySettings(id, io.env).settings);
-  if (!hasSettings(patch)) return fail(`nothing to set: pass ${SETTINGS_FLAG_NAMES.join(", ")} (an empty value removes one)`);
+  if (!hasSettings(patch))
+    return fail(`nothing to set: pass ${SETTINGS_FLAG_NAMES.join(", ")} (an empty value removes one)`);
   const dryRun = bool(p, "dry-run");
   let settings: IdentitySettings;
   try {
@@ -336,7 +378,13 @@ export function set(m: BrowserApi, id: string, args: string[], io: Io): number {
     throw err;
   }
   if (bool(p, "json")) {
-    emit(io, p, SET_JSON, { id: `browser:${id}`, settingsFile: tildify(m.identitySettingsPath(id, io.env), io.env), dryRun, changes: patch, settings });
+    emit(io, p, SET_JSON, {
+      id: `browser:${id}`,
+      settingsFile: tildify(m.identitySettingsPath(id, io.env), io.env),
+      dryRun,
+      changes: patch,
+      settings,
+    });
     return Exit.ok;
   }
   if (dryRun) {
@@ -392,7 +440,8 @@ export async function doctor(m: BrowserApi, args: string[], io: Io): Promise<num
     io.out(s.header(title));
     let area = "";
     for (const c of rows) {
-      if (c.area.startsWith("identity ") && c.area !== area) io.out(`  ${s.bold(`browser:${c.area.slice("identity ".length)}`)}`);
+      if (c.area.startsWith("identity ") && c.area !== area)
+        io.out(`  ${s.bold(`browser:${c.area.slice("identity ".length)}`)}`);
       area = c.area;
       const indent = c.area.startsWith("identity ") ? 4 : 2;
       const text = c.level === "fail" ? s.err(c.text) : c.level === "info" ? s.muted(c.text) : c.text;
@@ -400,12 +449,26 @@ export async function doctor(m: BrowserApi, args: string[], io: Io): Promise<num
       if (c.level === "ok") continue;
       const under = " ".repeat(indent + 2);
       const label = c.level === "info" ? "optional:" : "fix:";
-      if (c.fix) io.out(s.wrap(`${under}${s.muted(label)} `, `${c.level === "info" ? s.muted(c.fix) : s.bold(c.fix)}${c.auto ? s.muted(" (runs with --fix)") : ""}`));
+      if (c.fix)
+        io.out(
+          s.wrap(
+            `${under}${s.muted(label)} `,
+            `${c.level === "info" ? s.muted(c.fix) : s.bold(c.fix)}${c.auto ? s.muted(" (runs with --fix)") : ""}`,
+          ),
+        );
       else if (c.manual) io.out(s.wrap(`${under}${s.muted("manual:")} `, c.manual));
     }
   }
   io.out("");
-  io.out([`${n("ok")} ok`, n("warn") ? `${n("warn")} warning${n("warn") === 1 ? "" : "s"}` : "", n("fail") ? `${n("fail")} failure${n("fail") === 1 ? "" : "s"}` : ""].filter(Boolean).join(", "));
+  io.out(
+    [
+      `${n("ok")} ok`,
+      n("warn") ? `${n("warn")} warning${n("warn") === 1 ? "" : "s"}` : "",
+      n("fail") ? `${n("fail")} failure${n("fail") === 1 ? "" : "s"}` : "",
+    ]
+      .filter(Boolean)
+      .join(", "),
+  );
   return exit;
 }
 
@@ -423,7 +486,12 @@ export function reputation(m: BrowserApi, args: string[], io: Io, checkId: (id: 
       io,
       p,
       REPUTATION_JSON,
-      report.identities.map((i) => ({ id: `browser:${i.id}`, file: tildify(i.file, io.env), total: i.total, sites: i.sites })),
+      report.identities.map((i) => ({
+        id: `browser:${i.id}`,
+        file: tildify(i.file, io.env),
+        total: i.total,
+        sites: i.sites,
+      })),
     );
     return Exit.ok;
   }
@@ -440,10 +508,25 @@ export function reputation(m: BrowserApi, args: string[], io: Io, checkId: (id: 
       io.out(`  ${s.muted("no challenges recorded")}`);
       continue;
     }
-    const head = ["site", "total", "captcha", "verify", "block", "7d", "prev 7d", "trend", "last seen"].map((h) => s.muted(h));
-    const rows = ident.sites.map((x) => [x.site, String(x.total), String(x.captcha), String(x.verify), String(x.block), String(x.last7d), String(x.prev7d), TREND[x.trend], x.lastSeen]);
+    const head = ["site", "total", "captcha", "verify", "block", "7d", "prev 7d", "trend", "last seen"].map((h) =>
+      s.muted(h),
+    );
+    const rows = ident.sites.map((x) => [
+      x.site,
+      String(x.total),
+      String(x.captcha),
+      String(x.verify),
+      String(x.block),
+      String(x.last7d),
+      String(x.prev7d),
+      TREND[x.trend],
+      x.lastSeen,
+    ]);
     const right = { align: "right" as const };
-    for (const l of s.table([head, ...rows], { columns: [{}, right, right, right, right, right, right, {}, { drop: 1 }] })) io.out(l);
+    for (const l of s.table([head, ...rows], {
+      columns: [{}, right, right, right, right, right, right, {}, { drop: 1 }],
+    }))
+      io.out(l);
   }
   return Exit.ok;
 }

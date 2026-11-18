@@ -60,8 +60,16 @@ export function sanitize(raw: unknown): StatusData {
     }),
     model: sub<{ display_name?: string }>({ display_name: str }),
     effort: sub<{ level?: string }>({ level: str }),
-    cost: sub<NonNullable<StatusData["cost"]>>({ total_cost_usd: num, total_lines_added: num, total_lines_removed: num }),
-    context_window: sub<NonNullable<StatusData["context_window"]>>({ used_percentage: num, total_input_tokens: num, context_window_size: num }),
+    cost: sub<NonNullable<StatusData["cost"]>>({
+      total_cost_usd: num,
+      total_lines_added: num,
+      total_lines_removed: num,
+    }),
+    context_window: sub<NonNullable<StatusData["context_window"]>>({
+      used_percentage: num,
+      total_input_tokens: num,
+      context_window_size: num,
+    }),
     prompt_cache: sub<NonNullable<StatusData["prompt_cache"]>>({
       caching_observed: bool,
       warm: bool,
@@ -79,6 +87,11 @@ export type Turn = [string, number, number | null];
 export function turns(v: unknown): Turn[] {
   if (!Array.isArray(v)) return [];
   return v.filter(
-    (e): e is Turn => Array.isArray(e) && e.length === 3 && typeof e[0] === "string" && num(e[1]) !== undefined && (e[2] === null || num(e[2]) !== undefined),
+    (e): e is Turn =>
+      Array.isArray(e) &&
+      e.length === 3 &&
+      typeof e[0] === "string" &&
+      num(e[1]) !== undefined &&
+      (e[2] === null || num(e[2]) !== undefined),
   );
 }

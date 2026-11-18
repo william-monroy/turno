@@ -11,8 +11,14 @@ const ENVIRONMENT: readonly { title: string; rows: readonly (readonly [string, s
     title: "Where turno keeps things",
     rows: [
       ["TURNO_CONFIG_DIR", "config.toml and mcp.toml (default: $XDG_CONFIG_HOME/turno, else ~/.config/turno)"],
-      ["TURNO_STATE_DIR", "state, logs, caches and backups (default: $XDG_STATE_HOME/turno, else ~/.local/state/turno)"],
-      ["TURNO_DATA_DIR", "installed servers and browser identities (default: $XDG_DATA_HOME/turno, else ~/.local/share/turno)"],
+      [
+        "TURNO_STATE_DIR",
+        "state, logs, caches and backups (default: $XDG_STATE_HOME/turno, else ~/.local/state/turno)",
+      ],
+      [
+        "TURNO_DATA_DIR",
+        "installed servers and browser identities (default: $XDG_DATA_HOME/turno, else ~/.local/share/turno)",
+      ],
       ["TURNO_BIN", "where the launchers go (default: ~/.local/bin)"],
       ["TURNO_HUB", "Claude Code's shared folder (default: ~/.claude)"],
       ["TURNO_HUB_CONFIG", "Claude Code's shared .claude.json (default: ~/.claude.json)"],
@@ -25,10 +31,16 @@ const ENVIRONMENT: readonly { title: string; rows: readonly (readonly [string, s
   {
     title: "How turno behaves",
     rows: [
-      ["TURNO_NO_INPUT", "1: never ask, exit 2 and name the flag instead (same as --no-input); 0: ask even inside an agent session"],
+      [
+        "TURNO_NO_INPUT",
+        "1: never ask, exit 2 and name the flag instead (same as --no-input); 0: ask even inside an agent session",
+      ],
       ["TURNO_COLOR", "always, never or auto (same as --color); see the order below"],
       ["TURNO_ALLOW_PLAIN", "1: turno auto runs the plain agent when config.toml does not parse"],
-      ["TURNO_SAFE", "1: turno run, turno <profile> and turno auto open the agent in safe mode, without the gateway and the status line (same as --no-gateway)"],
+      [
+        "TURNO_SAFE",
+        "1: turno run, turno <profile> and turno auto open the agent in safe mode, without the gateway and the status line (same as --no-gateway)",
+      ],
       ["TURNO_NO_UPDATE_CHECK", "1: no daily update check and no notice"],
       ["TURNO_NO_UPDATE_NOTIFIER", "1: same as TURNO_NO_UPDATE_CHECK (the name gh uses)"],
       ["TURNO_REGISTRY", "npm registry for update checks (default: npm_config_registry, else registry.npmjs.org)"],
@@ -58,9 +70,15 @@ const ENVIRONMENT: readonly { title: string; rows: readonly (readonly [string, s
       ["DO_NOT_TRACK", "1: no update check (turno sends nothing else anywhere)"],
       ["CI", "set: no update check"],
       ["NO_UPDATE_NOTIFIER", "1: no update check"],
-      ["XDG_CONFIG_HOME, XDG_STATE_HOME, XDG_DATA_HOME, XDG_CACHE_HOME", "base folders, when the TURNO_* ones are not set"],
+      [
+        "XDG_CONFIG_HOME, XDG_STATE_HOME, XDG_DATA_HOME, XDG_CACHE_HOME",
+        "base folders, when the TURNO_* ones are not set",
+      ],
       ["VISUAL, EDITOR", "the editor of turno config edit"],
-      ["NODE_COMPILE_CACHE, NODE_DISABLE_COMPILE_CACHE", "Node's compile cache (turno keeps it in $XDG_CACHE_HOME/turno)"],
+      [
+        "NODE_COMPILE_CACHE, NODE_DISABLE_COMPILE_CACHE",
+        "Node's compile cache (turno keeps it in $XDG_CACHE_HOME/turno)",
+      ],
     ],
   },
 ];
@@ -96,7 +114,10 @@ function exitCodes(): string[] {
     "With --json, an error is one JSON line on stderr with the same code:",
     '  {"schemaVersion":1,"error":{"code":"no_profile","exitCode":3,"message":"..."}}',
     "",
-    examplesBlock(["turno profile which --check || turno profile assign . work", "turno mcp daemon status >/dev/null; [ $? -eq 5 ] && turno mcp daemon start"]),
+    examplesBlock([
+      "turno profile which --check || turno profile assign . work",
+      "turno mcp daemon status >/dev/null; [ $? -eq 5 ] && turno mcp daemon start",
+    ]),
   ];
 }
 
@@ -109,7 +130,10 @@ function json(): string[] {
         ["--json", "every field, as one indented document"],
         ["--json=fields", "the field names, one per line, and nothing else"],
         ["--json=a,b", "only those fields; an unknown one is a usage error (exit 2) that lists the known ones"],
-        ["--watch --json", "one compact JSON record per line (NDJSON) until Ctrl-C (turno limit show, turno mcp top); turno mcp log --follow --json too"],
+        [
+          "--watch --json",
+          "one compact JSON record per line (NDJSON) until Ctrl-C (turno limit show, turno mcp top); turno mcp log --follow --json too",
+        ],
       ],
       2,
       16,
@@ -120,7 +144,11 @@ function json(): string[] {
     "says so); new fields keep it. Errors under --json are JSON on stderr (turno help",
     "exit-codes). turno config get prints a config value as it is in config.toml.",
     "",
-    examplesBlock(["turno status --json=fields", "turno profile list --json=name,email", "turno limit show --watch --json | jq -c '.fiveHour'"]),
+    examplesBlock([
+      "turno status --json=fields",
+      "turno profile list --json=name,email",
+      "turno limit show --watch --json | jq -c '.fiveHour'",
+    ]),
   ];
 }
 

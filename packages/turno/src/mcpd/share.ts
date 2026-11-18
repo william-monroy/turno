@@ -119,11 +119,19 @@ export function exportManifest(text: string, opts: { profile?: string; command?:
     for (const s of [...keychain].sort()) head.push(`#   turno secret set ${s}`);
   }
   if (envVars.size) head.push("#", `# Variables mcpd reads from its environment: ${[...envVars].sort().join(", ")}`);
-  if (redacted.length) head.push("#", `# Secrets replaced by <secret> (args and URLs cannot hold a reference): ${redacted.join(", ")}`);
+  if (redacted.length)
+    head.push("#", `# Secrets replaced by <secret> (args and URLs cannot hold a reference): ${redacted.join(", ")}`);
   const body = names.length ? `${stringify({ server: out })}\n` : "";
   const result = `${head.join("\n")}\n\n${body}`;
   parseManifest(result, "export"); // never print something import would refuse
-  return { text: result, servers: names, keychain: [...keychain].sort(), envVars: [...envVars].sort(), moved, redacted };
+  return {
+    text: result,
+    servers: names,
+    keychain: [...keychain].sort(),
+    envVars: [...envVars].sort(),
+    moved,
+    redacted,
+  };
 }
 
 /** The parts of a TOML table header: `server."a.b".env` is server, a.b, env. */
@@ -192,7 +200,10 @@ export function mergeServers(existing: string, incoming: Record<string, Table>, 
         continue;
       }
       const next = removeServer(text, name);
-      if (next === undefined) throw new Error(`cannot replace server ${name} in mcp.toml (it is not a [server.${name}] table); edit it by hand`);
+      if (next === undefined)
+        throw new Error(
+          `cannot replace server ${name} in mcp.toml (it is not a [server.${name}] table); edit it by hand`,
+        );
       text = next;
       replaced.push(name);
     } else added.push(name);

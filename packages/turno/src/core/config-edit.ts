@@ -30,7 +30,11 @@ export function readConfigText(env: NodeJS.ProcessEnv): string {
  * Apply a text edit to config.toml: comments and layout stay, the result must parse, and the
  * write goes through the journal. Returns whether anything changed.
  */
-export function editConfig(env: NodeJS.ProcessEnv, journal: Journal, edit: (text: string) => string): { changed: boolean; text: string } {
+export function editConfig(
+  env: NodeJS.ProcessEnv,
+  journal: Journal,
+  edit: (text: string) => string,
+): { changed: boolean; text: string } {
   if (migrationPending(env)) throw new MigrationPending(env);
   const file = paths(env).configFile;
   const before = readConfigText(env);

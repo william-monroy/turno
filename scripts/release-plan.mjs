@@ -57,7 +57,10 @@ function main() {
   }
 
   const plan = [];
-  const folders = readdirSync(join(root, "packages")).map((dir) => ({ dir, manifest: JSON.parse(readFileSync(join(root, "packages", dir, "package.json"), "utf8")) }));
+  const folders = readdirSync(join(root, "packages")).map((dir) => ({
+    dir,
+    manifest: JSON.parse(readFileSync(join(root, "packages", dir, "package.json"), "utf8")),
+  }));
   for (const dir of publishOrder(folders)) {
     const cwd = join(root, "packages", dir);
     const pkg = JSON.parse(readFileSync(join(cwd, "package.json"), "utf8"));

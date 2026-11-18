@@ -37,14 +37,17 @@ function writeUpdateState(env: NodeJS.ProcessEnv, s: UpdateState): void {
   writePrivateFile(file(env), `${JSON.stringify(s)}\n`, env);
 }
 
-const truthy = (v: string | undefined): boolean => v !== undefined && v !== "" && v !== "0" && v.toLowerCase() !== "false";
+const truthy = (v: string | undefined): boolean =>
+  v !== undefined && v !== "" && v !== "0" && v.toLowerCase() !== "false";
 
 /**
  * Why the environment turns update checks off: TURNO_NO_UPDATE_CHECK, TURNO_NO_UPDATE_NOTIFIER
  * (gh's GH_NO_UPDATE_NOTIFIER), NO_UPDATE_NOTIFIER, DO_NOT_TRACK, CI.
  */
 export function envOptOut(env: NodeJS.ProcessEnv): string | undefined {
-  if ([env.TURNO_NO_UPDATE_CHECK, env.TURNO_NO_UPDATE_NOTIFIER, env.NO_UPDATE_NOTIFIER, env.DO_NOT_TRACK].some(truthy)) {
+  if (
+    [env.TURNO_NO_UPDATE_CHECK, env.TURNO_NO_UPDATE_NOTIFIER, env.NO_UPDATE_NOTIFIER, env.DO_NOT_TRACK].some(truthy)
+  ) {
     return "turned off by the environment";
   }
   if (truthy(env.CI)) return "running in CI";
@@ -70,9 +73,17 @@ export function registryUrl(env: NodeJS.ProcessEnv, name: string, channel: strin
 }
 
 /** Ask the registry for the version of a dist-tag. Sends nothing but the package name. */
-export async function fetchLatest(env: NodeJS.ProcessEnv, channel = "latest", doFetch: typeof fetch = fetch): Promise<UpdateState> {
+export async function fetchLatest(
+  env: NodeJS.ProcessEnv,
+  channel = "latest",
+  doFetch: typeof fetch = fetch,
+): Promise<UpdateState> {
   const { name, version } = packageInfo();
-  const state: UpdateState = { checkedAt: Date.now(), channel, ...(readUpdateState(env)?.notifiedAt ? { notifiedAt: readUpdateState(env)!.notifiedAt! } : {}) };
+  const state: UpdateState = {
+    checkedAt: Date.now(),
+    channel,
+    ...(readUpdateState(env)?.notifiedAt ? { notifiedAt: readUpdateState(env)!.notifiedAt! } : {}),
+  };
   try {
     const res = await doFetch(registryUrl(env, name, channel), {
       headers: { accept: "application/json", "user-agent": `turno/${version}` },

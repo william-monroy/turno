@@ -40,9 +40,11 @@ export interface SafePlan {
 export function isGatewayEntry(e: unknown): boolean {
   if (typeof e !== "object" || e === null || Array.isArray(e)) return false;
   const o = e as Record<string, unknown>;
-  const table = (v: unknown) => (typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+  const table = (v: unknown) =>
+    typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
   const headers = { ...table(o.headers), ...table(o.http_headers), ...table(o.env_http_headers) };
-  if (Object.keys(headers).some((h) => h.toLowerCase() === "x-turno-profile" || h.toLowerCase() === "x-turno-pid")) return true;
+  if (Object.keys(headers).some((h) => h.toLowerCase() === "x-turno-profile" || h.toLowerCase() === "x-turno-pid"))
+    return true;
   if (o.bearer_token_env_var === "TURNO_MCPD_TOKEN") return true;
   return typeof o.url === "string" && /^http:\/\/127\.0\.0\.1:\d+\/mcp\/[^/]+\/?$/.test(o.url);
 }

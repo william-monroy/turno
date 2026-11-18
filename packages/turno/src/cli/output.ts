@@ -56,7 +56,10 @@ export function jsonArg(args: readonly string[]): string | undefined {
 
 /** The field list `--json=fields` prints, one per line after a header, like gh. */
 function fieldLines(out: JsonOutput): string[] {
-  return ["Fields for --json=<field,...> (schemaVersion is always there):", ...[...out.fields].sort().map((f) => `  ${f}`)];
+  return [
+    "Fields for --json=<field,...> (schemaVersion is always there):",
+    ...[...out.fields].sort().map((f) => `  ${f}`),
+  ];
 }
 
 /**
@@ -73,7 +76,10 @@ export function selectFields(value: string | undefined, out: JsonOutput): string
   const unknown = asked.filter((f) => f !== SCHEMA_KEY && !out.fields.includes(f));
   if (unknown.length) {
     const known = [...out.fields].sort();
-    throw new JsonFieldError(`unknown JSON field${unknown.length > 1 ? "s" : ""} ${unknown.map((f) => `"${f}"`).join(", ")}; available: ${known.join(", ")}`, known);
+    throw new JsonFieldError(
+      `unknown JSON field${unknown.length > 1 ? "s" : ""} ${unknown.map((f) => `"${f}"`).join(", ")}; available: ${known.join(", ")}`,
+      known,
+    );
   }
   return asked;
 }
@@ -113,7 +119,12 @@ const jsonValue = (p: JsonSource): string | undefined => (typeof p === "object" 
  * Print a command's JSON: indented, colored on a terminal only (never in a pipe, even with
  * FORCE_COLOR, since programs read it). `--json=fields` prints the field list instead.
  */
-export function emit(io: Pick<Io, "out" | "env" | "isTty" | "color">, p: JsonSource, out: JsonOutput, value: unknown): void {
+export function emit(
+  io: Pick<Io, "out" | "env" | "isTty" | "color">,
+  p: JsonSource,
+  out: JsonOutput,
+  value: unknown,
+): void {
   if (selectFields(jsonValue(p), out) === "list") {
     for (const l of fieldLines(out)) io.out(l);
     return;
@@ -142,6 +153,11 @@ export function emitLines(io: Pick<Io, "out">, p: JsonSource, out: JsonOutput, v
 }
 
 /** The JSON error object of the contract (`schemaVersion` 1), for stderr under --json. */
-export function jsonError(message: string, exitCode: number, code: string, extra: Record<string, unknown> = {}): string {
+export function jsonError(
+  message: string,
+  exitCode: number,
+  code: string,
+  extra: Record<string, unknown> = {},
+): string {
   return JSON.stringify({ [SCHEMA_KEY]: 1, error: { code, exitCode, message, ...extra } });
 }

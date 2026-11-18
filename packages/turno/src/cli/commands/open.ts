@@ -48,7 +48,11 @@ export interface OpenInvocation {
 }
 
 /** The Chrome profile a claude.ai link opens in, or undefined for the default browser. */
-function chromeProfile(profile: string | undefined, url: string, env: NodeJS.ProcessEnv): { name: string; dir: string } | undefined {
+function chromeProfile(
+  profile: string | undefined,
+  url: string,
+  env: NodeJS.ProcessEnv,
+): { name: string; dir: string } | undefined {
   if (!isClaudeUrl(url)) return undefined;
   const config = loadConfig(env);
   const name = profile ?? profileFromConfigDir(env.CLAUDE_CONFIG_DIR, config, env) ?? config.system;
@@ -75,12 +79,26 @@ export function openInvocation(
   if (platform === "darwin") {
     if (!chrome || !existsSync(chromeApp(env))) return { command: "open", args: [url] };
     ensurePrivateDir(chrome.dir, env);
-    return { command: "open", args: ["-na", "Google Chrome", "--args", `--user-data-dir=${chrome.dir}`, `--profile-directory=${chrome.name}`, url] };
+    return {
+      command: "open",
+      args: [
+        "-na",
+        "Google Chrome",
+        "--args",
+        `--user-data-dir=${chrome.dir}`,
+        `--profile-directory=${chrome.name}`,
+        url,
+      ],
+    };
   }
   const bin = chrome && (env.TURNO_CHROME_BIN || LINUX_CHROMES.map((c) => findOnPath(c, env)).find(Boolean));
   if (chrome && bin) {
     ensurePrivateDir(chrome.dir, env);
-    return { command: bin, args: [`--user-data-dir=${chrome.dir}`, `--profile-directory=${chrome.name}`, url], detach: true };
+    return {
+      command: bin,
+      args: [`--user-data-dir=${chrome.dir}`, `--profile-directory=${chrome.name}`, url],
+      detach: true,
+    };
   }
   if (!findOnPath("xdg-open", env)) fail("cannot open links: xdg-open is not installed (package xdg-utils)");
   return { command: "xdg-open", args: [url] };
@@ -102,7 +120,12 @@ async function chooseProfile(url: string, io: Io): Promise<string | undefined> {
   // A profile's session (its launcher sets CLAUDE_CONFIG_DIR) opens links with its own account.
   if (io.env.CLAUDE_CONFIG_DIR && profileFromConfigDir(io.env.CLAUDE_CONFIG_DIR, config, io.env)) return undefined;
   const { pickProfile } = await import("../picker.js");
-  return pickProfile(io, { command: "open", title: "Open the link with", agent: "claude", ...(config.system ? { initial: config.system } : {}) });
+  return pickProfile(io, {
+    command: "open",
+    title: "Open the link with",
+    agent: "claude",
+    ...(config.system ? { initial: config.system } : {}),
+  });
 }
 
 export const command: Command = {
@@ -119,7 +142,11 @@ export const command: Command = {
     profile ??= await chooseProfile(url, io);
     const inv = openInvocation(profile, url, io.env);
     return new Promise<number>((resolve) => {
-      const child = spawn(inv.command, inv.args, inv.detach ? { stdio: "ignore", env: io.env, detached: true } : { stdio: "inherit", env: io.env });
+      const child = spawn(
+        inv.command,
+        inv.args,
+        inv.detach ? { stdio: "ignore", env: io.env, detached: true } : { stdio: "inherit", env: io.env },
+      );
       child.on("error", (err: NodeJS.ErrnoException) => {
         io.err(`turno: open: ${err.code === "ENOENT" ? `${inv.command} not found` : err.message}`);
         resolve(1);

@@ -11,13 +11,27 @@ import { DescriptionCache } from "../src/mcpd/cache.js";
 import { DefaultConnector } from "../src/mcpd/connectors.js";
 import { Gateway } from "../src/mcpd/gateway.js";
 import { InstanceManager } from "../src/mcpd/instances.js";
-import { type OAuthRecord, OAuthSession, type SessionOptions, checkIssuerParam, oauthService, parseRecord } from "../src/mcpd/oauth.js";
+import {
+  type OAuthRecord,
+  OAuthSession,
+  type SessionOptions,
+  checkIssuerParam,
+  oauthService,
+  parseRecord,
+} from "../src/mcpd/oauth.js";
 import { ensureToken } from "../src/mcpd/state.js";
 import { profileToken } from "../src/mcpd/tokens.js";
 import { fakeIo } from "./helpers/cli.js";
 import { withFreePort } from "./helpers/net.js";
 import { type FakeSecretStore, fakeSecretStore } from "./helpers/fake-secret-store.js";
-import { type AuthServerOptions, type FakeAuthServer, type FakeResourceServer, approve, fakeAuthServer, fakeResourceServer } from "./helpers/oauth-fakes.js";
+import {
+  type AuthServerOptions,
+  type FakeAuthServer,
+  type FakeResourceServer,
+  approve,
+  fakeAuthServer,
+  fakeResourceServer,
+} from "./helpers/oauth-fakes.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 import { waitFor } from "./helpers/wait.js";
 
@@ -57,7 +71,9 @@ async function cliLogin(...args: string[]): Promise<{ code: number; lines: strin
     (err: Error) => err,
   );
   const url = await waitFor<string | undefined>(
-    async () => io.lines.find((l) => l.includes("/authorize?")) ?? ((await Promise.race([failed, Promise.resolve("pending")])) !== "pending" ? "failed" : undefined),
+    async () =>
+      io.lines.find((l) => l.includes("/authorize?")) ??
+      ((await Promise.race([failed, Promise.resolve("pending")])) !== "pending" ? "failed" : undefined),
     "the authorization link",
   );
   if (url === undefined) throw new Error("no authorization link");
@@ -67,7 +83,12 @@ async function cliLogin(...args: string[]): Promise<{ code: number; lines: strin
 }
 
 function sessionOpts(extra: Partial<SessionOptions> = {}): SessionOptions {
-  return { store: () => secretStore(sb.env), resolve: keychainResolver(sb.env), log: (l) => oauthLog.push(l), ...extra };
+  return {
+    store: () => secretStore(sb.env),
+    resolve: keychainResolver(sb.env),
+    log: (l) => oauthLog.push(l),
+    ...extra,
+  };
 }
 
 /**
@@ -90,7 +111,13 @@ async function boot(reachable = false): Promise<number> {
     home: sb.home,
   });
   const token = reachable ? ensureToken(sb.env) : TOKEN;
-  gw = new Gateway({ manager, manifest: () => manifest, token, clientRequestTimeoutMs: 5000, processCwd: async () => undefined });
+  gw = new Gateway({
+    manager,
+    manifest: () => manifest,
+    token,
+    clientRequestTimeoutMs: 5000,
+    processCwd: async () => undefined,
+  });
   const port = await gw.listen(0);
   if (reachable) {
     mkdirSync(dirname(paths(sb.env).mcpdPort), { recursive: true });
@@ -115,7 +142,9 @@ async function agent(port: number, profile = "default"): Promise<Client> {
   const client = new Client({ name: "agent", version: "1" }, { capabilities: {} });
   await client.connect(
     new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp/rem`), {
-      requestInit: { headers: { Authorization: `Bearer ${profileToken(masterToken, profile)}`, "X-Turno-Profile": profile } },
+      requestInit: {
+        headers: { Authorization: `Bearer ${profileToken(masterToken, profile)}`, "X-Turno-Profile": profile },
+      },
     }),
   );
   clients.push(client);
@@ -141,7 +170,7 @@ afterEach(async () => {
   sb.cleanup();
 });
 
-describe("mcp.toml: auth = \"oauth\" (ADR 0029)", () => {
+describe('mcp.toml: auth = "oauth" (ADR 0029)', () => {
   it("proxies the server through mcpd and keeps auth keys out of the agent entry", () => {
     const m = parseManifest(
       `[server.lin]\nurl = "https://mcp.example.com/mcp"\nauth = "oauth"\n[server.lin.oauth]\nscope = "read"\ncallback_port = 33418\n[server.lin.variant.work]\n`,
@@ -161,7 +190,9 @@ describe("mcp.toml: auth = \"oauth\" (ADR 0029)", () => {
     expect(bad(`auth = "oauth"\n[server.lin.oauth]\nclient = "x"`)).toThrow(/not an OAuth setting/);
     expect(bad(`auth = "oauth"\n[server.lin.oauth]\ncallback_port = 80`)).toThrow(/callback_port/);
     expect(bad(`[server.lin.variant.work]`)).toThrow(/variants only with auth = "oauth"/);
-    expect(bad(`auth = "oauth"\n[server.lin.oauth]\nclient_secret = "plain-secret"`)).toThrow(/keychain: or env: reference/);
+    expect(bad(`auth = "oauth"\n[server.lin.oauth]\nclient_secret = "plain-secret"`)).toThrow(
+      /keychain: or env: reference/,
+    );
   });
 
   it("the fake secret store answers as the Secret Service too (Linux CI)", async () => {
@@ -205,7 +236,9 @@ describe("turno mcp login", () => {
 
   it("refuses an authorization server that does not advertise PKCE", async () => {
     await setup({ pkce: false });
-    await expect(mcp.run(["login", "rem", "--no-browser"], fakeIo(sb.env))).rejects.toThrow(/does not advertise PKCE with S256/);
+    await expect(mcp.run(["login", "rem", "--no-browser"], fakeIo(sb.env))).rejects.toThrow(
+      /does not advertise PKCE with S256/,
+    );
     expect(keys.services()).toEqual([]);
   });
 
@@ -228,12 +261,16 @@ describe("turno mcp login", () => {
   it("checks iss by simple string comparison, and accepts a missing one only when not advertised", () => {
     const meta = { issuer: "https://as.example", authorization_response_iss_parameter_supported: false } as never;
     expect(() => checkIssuerParam(new URLSearchParams(""), "https://as.example", meta)).not.toThrow();
-    expect(() => checkIssuerParam(new URLSearchParams("iss=https://AS.example"), "https://as.example", meta)).toThrow(/RFC 9207/);
+    expect(() => checkIssuerParam(new URLSearchParams("iss=https://AS.example"), "https://as.example", meta)).toThrow(
+      /RFC 9207/,
+    );
   });
 
   it("asks for a client_id when the server offers no way to register", async () => {
     await setup({ dcr: false });
-    await expect(mcp.run(["login", "rem", "--no-browser"], fakeIo(sb.env))).rejects.toThrow(/set client_id under \[server.rem.oauth\]/);
+    await expect(mcp.run(["login", "rem", "--no-browser"], fakeIo(sb.env))).rejects.toThrow(
+      /set client_id under \[server.rem.oauth\]/,
+    );
   });
 
   it("uses a pre-registered client on its fixed callback port", async () => {
@@ -241,10 +278,15 @@ describe("turno mcp login", () => {
     rs = await fakeResourceServer(as);
     // A port the system reports free, and another one if something takes it before the login listens.
     const { port, client_id } = await withFreePort(async (port) => {
-      const reg = await fetch(`${as.issuer}/register`, { method: "POST", body: JSON.stringify({ redirect_uris: [`http://127.0.0.1:${port}/callback`] }) });
+      const reg = await fetch(`${as.issuer}/register`, {
+        method: "POST",
+        body: JSON.stringify({ redirect_uris: [`http://127.0.0.1:${port}/callback`] }),
+      });
       const { client_id } = (await reg.json()) as { client_id: string };
       as.registrations = [];
-      writeToml(`[server.rem]\nurl = ${JSON.stringify(rs.url)}\nauth = "oauth"\n[server.rem.oauth]\nclient_id = "${client_id}"\ncallback_port = ${port}\n`);
+      writeToml(
+        `[server.rem]\nurl = ${JSON.stringify(rs.url)}\nauth = "oauth"\n[server.rem.oauth]\nclient_id = "${client_id}"\ncallback_port = ${port}\n`,
+      );
       await cliLogin();
       return { port, client_id };
     });
@@ -259,7 +301,9 @@ describe("turno mcp login", () => {
     await setup();
     const io = fakeIo(sb.env);
     expect(await mcp.run(["login", "rem", "--dry-run"], io)).toBe(0);
-    expect(io.lines.join("\n")).toMatch(/would log in to rem .*\n {2}client: dynamic client registration\n {2}scope: mcp:read offline_access/);
+    expect(io.lines.join("\n")).toMatch(
+      /would log in to rem .*\n {2}client: dynamic client registration\n {2}scope: mcp:read offline_access/,
+    );
     expect(as.registrations).toEqual([]);
     expect(keys.services()).toEqual([]);
   });
@@ -339,7 +383,9 @@ describe("mcpd as the OAuth client", () => {
     expect(await whoami(a)).toBe("alice");
     as.revokeRefreshTokens();
     as.expireAccessTokens();
-    await expect(whoami(a)).rejects.toThrow(/rem needs a login \(the authorization server rejected the refresh token.*\): run turno mcp login rem/);
+    await expect(whoami(a)).rejects.toThrow(
+      /rem needs a login \(the authorization server rejected the refresh token.*\): run turno mcp login rem/,
+    );
     expect(record()!.tokens).toBeUndefined();
     expect(record()!.client.client_id).toBeTruthy();
     const io = fakeIo(sb.env);
@@ -406,7 +452,9 @@ describe("mcpd as the OAuth client", () => {
     as.expireAccessTokens();
     expect(await whoami(a)).toBe("alice");
     expect(await manager!.flushLogins()).toEqual(["rem"]);
-    expect(readFileSync(join(sb.home, "logs", "rem.log"), "utf8")).toContain("mcpd stopped before the secret store accepted the rotated OAuth tokens");
+    expect(readFileSync(join(sb.home, "logs", "rem.log"), "utf8")).toContain(
+      "mcpd stopped before the secret store accepted the rotated OAuth tokens",
+    );
   });
 
   it("lets a new login win over tokens still waiting to be saved", async () => {
@@ -433,7 +481,11 @@ describe("turno mcp logout and status", () => {
     await cliLogin();
     const list = fakeIo(sb.env);
     await mcp.run(["list", "--json"], list);
-    expect(JSON.parse(list.lines.join("\n"))[0]).toMatchObject({ name: "rem", auth: "oauth", logins: { default: "logged in" } });
+    expect(JSON.parse(list.lines.join("\n"))[0]).toMatchObject({
+      name: "rem",
+      auth: "oauth",
+      logins: { default: "logged in" },
+    });
     const refresh = record()!.tokens!.refresh_token!;
     const io = fakeIo(sb.env);
     expect(await mcp.run(["logout", "rem"], io)).toBe(0);
@@ -470,9 +522,15 @@ describe("turno mcp logout and status", () => {
     expect(io.lines.join("\n")).toContain("mcpd is not running; it reads the secret store when it starts.");
   });
 
-  it("refuses servers without auth = \"oauth\" and profiles the server does not serve", async () => {
-    writeToml(`[server.plain]\nurl = "https://mcp.example.com/mcp"\n[server.lin]\nurl = "https://mcp.example.com/x"\nauth = "oauth"\nprofiles = ["work"]\n`);
-    await expect(mcp.run(["login", "plain"], fakeIo(sb.env))).rejects.toThrow(/not a remote server with auth = "oauth"/);
-    await expect(mcp.run(["login", "lin", "--profile", "home"], fakeIo(sb.env))).rejects.toThrow(/not served to profile home/);
+  it('refuses servers without auth = "oauth" and profiles the server does not serve', async () => {
+    writeToml(
+      `[server.plain]\nurl = "https://mcp.example.com/mcp"\n[server.lin]\nurl = "https://mcp.example.com/x"\nauth = "oauth"\nprofiles = ["work"]\n`,
+    );
+    await expect(mcp.run(["login", "plain"], fakeIo(sb.env))).rejects.toThrow(
+      /not a remote server with auth = "oauth"/,
+    );
+    await expect(mcp.run(["login", "lin", "--profile", "home"], fakeIo(sb.env))).rejects.toThrow(
+      /not served to profile home/,
+    );
   });
 });

@@ -38,7 +38,13 @@ export const command: Command = {
       // Claude Code writes procStart in UTC; a reading in the future means it is local time.
       const began = start ? (start.utc <= now + 60_000 ? start.utc : start.local) : undefined;
       const status = x.status === "busy" ? s.warn(x.status) : x.status === "idle" ? s.ok(x.status) : x.status;
-      return [s.bold(displayName(x)), account, status, s.muted(began !== undefined ? age(now - began) : "?"), s.muted(tildify(x.cwd, io.env))];
+      return [
+        s.bold(displayName(x)),
+        account,
+        status,
+        s.muted(began !== undefined ? age(now - began) : "?"),
+        s.muted(tildify(x.cwd, io.env)),
+      ];
     });
     if (rows.length === 0) {
       io.out("No live sessions.");

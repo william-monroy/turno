@@ -1,6 +1,15 @@
 import { LATEST_PROTOCOL_VERSION } from "@modelcontextprotocol/sdk/types.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { ErrorCode, type Id, type Message, type Outcome, isNotification, isRequest, isResponse, rpcError } from "./jsonrpc.js";
+import {
+  ErrorCode,
+  type Id,
+  type Message,
+  type Outcome,
+  isNotification,
+  isRequest,
+  isResponse,
+  rpcError,
+} from "./jsonrpc.js";
 
 /** The client side an upstream talks back to: one MCP client session. */
 export interface ClientPort {
@@ -173,7 +182,12 @@ export class Upstream {
     }
     this.lastActivity = Date.now();
     return new Promise<Outcome>((resolve) => {
-      const p: Pending = { resolve, method, ...(origin ? { origin } : {}), ...(originId !== undefined ? { originId } : {}) };
+      const p: Pending = {
+        resolve,
+        method,
+        ...(origin ? { origin } : {}),
+        ...(originId !== undefined ? { originId } : {}),
+      };
       if (timeoutMs) {
         p.timer = setTimeout(() => {
           this.cancelUpstream(id, "timed out");
@@ -364,7 +378,10 @@ export class Upstream {
       return rpcError(target.code, target.error);
     }
     if (capability && target.origin.supports && !target.origin.supports(capability)) {
-      return rpcError(ErrorCode.MethodNotFound, `the client session behind ${this.label} does not support ${capability}`);
+      return rpcError(
+        ErrorCode.MethodNotFound,
+        `the client session behind ${this.label} does not support ${capability}`,
+      );
     }
     return target.origin.request(method, params, target.originId);
   }
@@ -372,7 +389,10 @@ export class Upstream {
   private async relayRequest(m: Message): Promise<void> {
     const id = m.id as Id;
     const outcome = await this.answer(m.method as string, m.params);
-    const reply: Message = "error" in outcome ? { jsonrpc: "2.0", id, error: outcome.error } : { jsonrpc: "2.0", id, result: outcome.result };
+    const reply: Message =
+      "error" in outcome
+        ? { jsonrpc: "2.0", id, error: outcome.error }
+        : { jsonrpc: "2.0", id, result: outcome.result };
     await this.send(reply).catch(() => {});
   }
 

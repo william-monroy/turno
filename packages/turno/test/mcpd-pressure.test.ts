@@ -11,7 +11,14 @@ import { DescriptionCache } from "../src/mcpd/cache.js";
 import { DefaultConnector } from "../src/mcpd/connectors.js";
 import { Gateway } from "../src/mcpd/gateway.js";
 import { InstanceManager } from "../src/mcpd/instances.js";
-import { type PressureLevel, darwinLevel, effectiveIdle, freeMemLevel, memoryPressureProbe, parsePsi } from "../src/mcpd/pressure.js";
+import {
+  type PressureLevel,
+  darwinLevel,
+  effectiveIdle,
+  freeMemLevel,
+  memoryPressureProbe,
+  parsePsi,
+} from "../src/mcpd/pressure.js";
 import { profileToken } from "../src/mcpd/tokens.js";
 import { fakeIo } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -33,7 +40,8 @@ describe("memory pressure signals", () => {
   it("reads Linux PSI", () => {
     const calm = "some avg10=0.00 avg60=0.00 avg300=0.00 total=12\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=3\n";
     const busy = "some avg10=12.50 avg60=3.00 avg300=1.00 total=99\nfull avg10=1.00 avg60=0.10 avg300=0.00 total=9\n";
-    const stalled = "some avg10=55.00 avg60=20.00 avg300=5.00 total=999\nfull avg10=12.00 avg60=3.00 avg300=1.00 total=99\n";
+    const stalled =
+      "some avg10=55.00 avg60=20.00 avg300=5.00 total=999\nfull avg10=12.00 avg60=3.00 avg300=1.00 total=99\n";
     expect(parsePsi(calm)).toBe("normal");
     expect(parsePsi(busy)).toBe("warn");
     expect(parsePsi(stalled)).toBe("critical");
@@ -53,12 +61,30 @@ describe("memory pressure signals", () => {
   it("prefers PSI on Linux, the sysctl on macOS, and falls back to free memory", async () => {
     const proc = join(sb.home, "proc");
     mkdirSync(join(proc, "pressure"), { recursive: true });
-    writeFileSync(join(proc, "pressure", "memory"), "some avg10=20.00 avg60=0 avg300=0 total=1\nfull avg10=0.00 avg60=0 avg300=0 total=1\n");
+    writeFileSync(
+      join(proc, "pressure", "memory"),
+      "some avg10=20.00 avg60=0 avg300=0 total=1\nfull avg10=0.00 avg60=0 avg300=0 total=1\n",
+    );
     const mem = { freemem: () => 90, totalmem: () => 100 };
     expect(await memoryPressureProbe({ platform: "linux", procRoot: proc, ...mem })()).toBe("warn");
-    expect(await memoryPressureProbe({ platform: "linux", procRoot: join(sb.home, "none"), freemem: () => 2, totalmem: () => 100 })()).toBe("critical");
+    expect(
+      await memoryPressureProbe({
+        platform: "linux",
+        procRoot: join(sb.home, "none"),
+        freemem: () => 2,
+        totalmem: () => 100,
+      })(),
+    ).toBe("critical");
     expect(await memoryPressureProbe({ platform: "darwin", sysctl: async () => "4\n", ...mem })()).toBe("critical");
-    expect(await memoryPressureProbe({ platform: "darwin", sysctl: async () => { throw new Error("no sysctl"); }, ...mem })()).toBe("normal");
+    expect(
+      await memoryPressureProbe({
+        platform: "darwin",
+        sysctl: async () => {
+          throw new Error("no sysctl");
+        },
+        ...mem,
+      })(),
+    ).toBe("normal");
   });
 
   it("shrinks the idle limit under pressure and never lengthens it", () => {
@@ -80,13 +106,20 @@ describe("reaping under memory pressure", () => {
   const lines: string[] = [];
 
   async function boot(extra: string, idleUnderPressure = 300): Promise<number> {
-    manifest = parseManifest(`[server.fx]\ncommand = ${JSON.stringify(process.execPath)}\nargs = [${JSON.stringify(FIXTURE)}]\n${extra}\n`);
+    manifest = parseManifest(
+      `[server.fx]\ncommand = ${JSON.stringify(process.execPath)}\nargs = [${JSON.stringify(FIXTURE)}]\n${extra}\n`,
+    );
     level = "normal";
     skew = 0;
     manager = new InstanceManager({
       now: () => Date.now() + skew,
       cache: new DescriptionCache(join(sb.home, "cache")),
-      connector: new DefaultConnector({ resolve: async (v) => v, serversDir: join(sb.home, "servers"), logsDir: join(sb.home, "logs"), baseEnv: { PATH: process.env.PATH ?? "" } }),
+      connector: new DefaultConnector({
+        resolve: async (v) => v,
+        serversDir: join(sb.home, "servers"),
+        logsDir: join(sb.home, "logs"),
+        baseEnv: { PATH: process.env.PATH ?? "" },
+      }),
       home: sb.home,
       pressure: async () => level,
       idleUnderPressure,

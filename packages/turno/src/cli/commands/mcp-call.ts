@@ -25,7 +25,16 @@ export const CALL_FLAGS: FlagSpec = {
  * `turno mcp call --json` (ADR 0045). A call fills `tool`, `isError`, `content` and
  * `structuredContent`; without a tool, `tools` lists the server's tools and the rest is null.
  */
-export const CALL_JSON = jsonOutput(["server", "profile", "tool", "isError", "content", "structuredContent", "tools", "ms"]);
+export const CALL_JSON = jsonOutput([
+  "server",
+  "profile",
+  "tool",
+  "isError",
+  "content",
+  "structuredContent",
+  "tools",
+  "ms",
+]);
 
 /**
  * The tool arguments: `--args` (a JSON object), then each `--arg key=value` (a string) or
@@ -40,7 +49,8 @@ export function callArguments(json: string | undefined, pairs: readonly string[]
     } catch (err) {
       throw new UsageError(`--args is not JSON: ${(err as Error).message}`);
     }
-    if (typeof v !== "object" || v === null || Array.isArray(v)) throw new UsageError("--args must be a JSON object, like '{\"query\": \"x\"}'");
+    if (typeof v !== "object" || v === null || Array.isArray(v))
+      throw new UsageError('--args must be a JSON object, like \'{"query": "x"}\'');
     out = { ...(v as Record<string, unknown>) };
   }
   for (const pair of pairs) {
@@ -107,7 +117,9 @@ export function contentText(c: ContentItem): string {
     case "audio":
       return `[${c.type} ${c.mimeType ?? "?"}, ${Math.floor(((c.data ?? "").length * 3) / 4)} bytes]`;
     case "resource":
-      return c.resource?.text !== undefined ? c.resource.text : `[resource ${c.resource?.uri ?? "?"}${c.resource?.mimeType ? `, ${c.resource.mimeType}` : ""}]`;
+      return c.resource?.text !== undefined
+        ? c.resource.text
+        : `[resource ${c.resource?.uri ?? "?"}${c.resource?.mimeType ? `, ${c.resource.mimeType}` : ""}]`;
     case "resource_link":
       return `[link ${c.uri ?? "?"}${c.name ? ` (${c.name})` : ""}]`;
     default:
@@ -118,22 +130,28 @@ export function contentText(c: ContentItem): string {
 export async function call(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, CALL_FLAGS, 2);
   const [server, tool] = p.positionals;
-  if (!server) return fail("usage: turno mcp call <server> [tool] [--args JSON] [--arg key=value ...] [--profile p] [--json]");
+  if (!server)
+    return fail("usage: turno mcp call <server> [tool] [--args JSON] [--arg key=value ...] [--profile p] [--json]");
   const pairs = (p.values.arg as string[] | undefined) ?? [];
   const toolArgs = callArguments(str(p, "args"), pairs);
-  if (!tool && (str(p, "args") !== undefined || pairs.length)) fail("--args and --arg go with a tool: turno mcp call <server> <tool> ...");
+  if (!tool && (str(p, "args") !== undefined || pairs.length))
+    fail("--args and --arg go with a tool: turno mcp call <server> <tool> ...");
   const json = bool(p, "json");
 
   const manifest = loadManifest(io.env);
   const def = manifest.servers[server];
   if (!def) return fail(`unknown server '${server}' (turno mcp list shows them)`);
   if (def.kind === "remote" && !def.proxy) {
-    throw new CliError(`${server} is a remote server that agents reach directly (no keychain: or env: header and no auth = "oauth"), so mcpd does not relay it; call it from the agent`);
+    throw new CliError(
+      `${server} is a remote server that agents reach directly (no keychain: or env: header and no auth = "oauth"), so mcpd does not relay it; call it from the agent`,
+    );
   }
   const cwd = process.cwd();
   const profile = callerProfile(str(p, "profile"), io.env, cwd);
   if (!servesProfile(def, profile)) {
-    throw new CliError(`${server} is not served to profile ${profile} (profiles = ${JSON.stringify(def.profiles)} in mcp.toml); pick another with --profile`);
+    throw new CliError(
+      `${server} is not served to profile ${profile} (profiles = ${JSON.stringify(def.profiles)} in mcp.toml); pick another with --profile`,
+    );
   }
 
   const { mcpdPort, readToken } = await import("../../mcpd/state.js");
@@ -166,18 +184,34 @@ export async function call(args: string[], io: Io): Promise<number> {
       throw new CliError(`mcpd refused the session for ${server} as profile ${profile}: ${g.message}`);
     }
     // A server the folder's set leaves out answers with no capabilities and says why (ADR 0031).
-    if (client.getServerVersion()?.version === "hidden") throw new CliError(client.getInstructions() ?? `${server} is hidden in this folder`);
+    if (client.getServerVersion()?.version === "hidden")
+      throw new CliError(client.getInstructions() ?? `${server} is hidden in this folder`);
     if (!tool) {
       const { tools } = await client.listTools();
       const ms = Date.now() - started;
       if (json) {
-        emit(io, p, CALL_JSON, { server, profile, tool: null, isError: null, content: null, structuredContent: null, tools: tools.map((t) => ({ name: t.name, description: t.description ?? null })), ms });
+        emit(io, p, CALL_JSON, {
+          server,
+          profile,
+          tool: null,
+          isError: null,
+          content: null,
+          structuredContent: null,
+          tools: tools.map((t) => ({ name: t.name, description: t.description ?? null })),
+          ms,
+        });
         return 0;
       }
       const st = style(io);
       if (!tools.length) io.out(st.muted(`${server} has no tools for profile ${profile}`));
-      for (const t of tools) io.out(st.wrap(`${st.bold(t.name)}  `, st.muted((t.description ?? "").split("\n")[0] ?? "")));
-      if (io.isTty) io.err(st.muted(`${tools.length} tools of ${server} as profile ${profile} in ${duration(ms)}; call one with: turno mcp call ${server} <tool> --arg key=value`));
+      for (const t of tools)
+        io.out(st.wrap(`${st.bold(t.name)}  `, st.muted((t.description ?? "").split("\n")[0] ?? "")));
+      if (io.isTty)
+        io.err(
+          st.muted(
+            `${tools.length} tools of ${server} as profile ${profile} in ${duration(ms)}; call one with: turno mcp call ${server} <tool> --arg key=value`,
+          ),
+        );
       return 0;
     }
     let result: Awaited<ReturnType<typeof client.callTool>>;
@@ -190,11 +224,21 @@ export async function call(args: string[], io: Io): Promise<number> {
     const content = (Array.isArray(result.content) ? result.content : []) as ContentItem[];
     const isError = result.isError === true;
     if (json) {
-      emit(io, p, CALL_JSON, { server, profile, tool, isError, content, structuredContent: result.structuredContent ?? null, tools: null, ms });
+      emit(io, p, CALL_JSON, {
+        server,
+        profile,
+        tool,
+        isError,
+        content,
+        structuredContent: result.structuredContent ?? null,
+        tools: null,
+        ms,
+      });
       return isError ? 1 : 0;
     }
     for (const c of content) io.out(contentText(c));
-    if (!content.length && result.structuredContent !== undefined) io.out(JSON.stringify(result.structuredContent, null, 2));
+    if (!content.length && result.structuredContent !== undefined)
+      io.out(JSON.stringify(result.structuredContent, null, 2));
     const st = style(io);
     if (isError) io.err(`turno: ${server}/${tool} returned an error (isError)`);
     else if (io.isTty) io.err(st.muted(`${server}/${tool} as profile ${profile} in ${duration(ms)}`));

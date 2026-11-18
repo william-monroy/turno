@@ -16,7 +16,11 @@ export interface McpConfig {
     browserName: "chromium" | "firefox" | "webkit";
     isolated?: boolean;
     userDataDir?: string;
-    launchOptions: Record<string, unknown> & { headless?: boolean; channel?: string; ignoreDefaultArgs?: boolean | string[] };
+    launchOptions: Record<string, unknown> & {
+      headless?: boolean;
+      channel?: string;
+      ignoreDefaultArgs?: boolean | string[];
+    };
     contextOptions?: Record<string, unknown>;
     cdpEndpoint?: string;
     remoteEndpoint?: string | ({ endpoint: string; headers?: Record<string, string> } & Record<string, unknown>);
@@ -233,7 +237,10 @@ export function upstream(): { tools: UpstreamTools; core: CoreBundle; utils: Uti
 /** The in-process Playwright object of the same bundle (so upstream's exit hooks see it). */
 export function playwright(): Record<McpConfig["browser"]["browserName"], typeof import("patchright-core").chromium> {
   upstream();
-  return require("patchright-core") as Record<McpConfig["browser"]["browserName"], typeof import("patchright-core").chromium>;
+  return require("patchright-core") as Record<
+    McpConfig["browser"]["browserName"],
+    typeof import("patchright-core").chromium
+  >;
 }
 
 /**

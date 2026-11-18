@@ -35,7 +35,13 @@ function bundleFunction(name: string): string {
 }
 
 async function listToolsOver(args: string[], env: NodeJS.ProcessEnv, cwd: string) {
-  const transport = new StdioClientTransport({ command: process.execPath, args, env: env as Record<string, string>, cwd, stderr: "pipe" });
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args,
+    env: env as Record<string, string>,
+    cwd,
+    stderr: "pipe",
+  });
   const client = new Client({ name: "contract", version: "0.0.0" });
   await client.connect(transport);
   try {
@@ -46,7 +52,10 @@ async function listToolsOver(args: string[], env: NodeJS.ProcessEnv, cwd: string
 }
 
 interface McpTools {
-  resolveCLIConfigForMCP(options: Record<string, unknown>, env?: NodeJS.ProcessEnv): Promise<{ timeouts: { idle?: number }; configFile?: string }>;
+  resolveCLIConfigForMCP(
+    options: Record<string, unknown>,
+    env?: NodeJS.ProcessEnv,
+  ): Promise<{ timeouts: { idle?: number }; configFile?: string }>;
   createBrowserWithInfo: (...args: unknown[]) => unknown;
   setupExitWatchdog: () => void;
 }
@@ -84,7 +93,6 @@ const TOOL_NAMES = [
   "browser_tabs",
   "browser_wait_for",
 ];
-
 
 let sb: Sandbox;
 beforeEach(() => {
@@ -124,7 +132,9 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
     expect(fromFile.timeouts.idle).toBe(2000);
     expect(fromFile.configFile).toBe(file);
     expect((await tools.resolveCLIConfigForMCP({ config: file, idleTimeout: 0 }, {})).timeouts.idle).toBe(0);
-    expect((await tools.resolveCLIConfigForMCP({ config: file }, { PLAYWRIGHT_MCP_IDLE_TIMEOUT: "5000" })).timeouts.idle).toBe(5000);
+    expect(
+      (await tools.resolveCLIConfigForMCP({ config: file }, { PLAYWRIGHT_MCP_IDLE_TIMEOUT: "5000" })).timeouts.idle,
+    ).toBe(5000);
   });
 
   it("starts the idle timer from timeouts.idle whatever the headless setting", () => {
@@ -144,7 +154,11 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
   it("serves exactly the tool definitions of the stock program (names, schemas, annotations)", async () => {
     for (const caps of [[], ["--caps", "vision,pdf,devtools"]]) {
       const host = await listToolsOver([bin, "--identity", "contract", ...caps], sb.env, sb.home);
-      const stock = await listToolsOver([mcpEntryPath(), "--browser", "chrome", "--user-data-dir", join(sb.home, "stock"), ...caps], sb.env, sb.home);
+      const stock = await listToolsOver(
+        [mcpEntryPath(), "--browser", "chrome", "--user-data-dir", join(sb.home, "stock"), ...caps],
+        sb.env,
+        sb.home,
+      );
       expect(host.length).toBeGreaterThanOrEqual(25 + TURNO_NAMES.length);
       expect(host.slice(0, host.length - TURNO_NAMES.length)).toEqual(stock);
       expect(host.slice(-TURNO_NAMES.length).map((t) => (t as { name: string }).name)).toEqual(TURNO_NAMES);
@@ -155,7 +169,11 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
     const { spawn } = await import("node:child_process");
     // A temporary profile is made under TMPDIR and removed when the server exits on SIGTERM.
     const env = { ...sb.env, TMPDIR: sb.home };
-    const child = spawn(process.execPath, [bin, "--port", "0"], { env, cwd: sb.home, stdio: ["pipe", "ignore", "pipe"] });
+    const child = spawn(process.execPath, [bin, "--port", "0"], {
+      env,
+      cwd: sb.home,
+      stdio: ["pipe", "ignore", "pipe"],
+    });
     const exited = new Promise((r) => child.once("exit", r));
     try {
       const url = await new Promise<string>((resolve, reject) => {
@@ -193,7 +211,7 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
     };
     for (const [name, n] of Object.entries(arity)) {
       expect(typeof (lib as unknown as Record<string, unknown>)[name], name).toBe("function");
-      expect(((lib as unknown as Record<string, (...a: unknown[]) => unknown>)[name]!).length, name).toBe(n);
+      expect((lib as unknown as Record<string, (...a: unknown[]) => unknown>)[name]!.length, name).toBe(n);
     }
     expect(Array.isArray(lib.browserTools)).toBe(true);
     expect(typeof lib.BrowserBackend).toBe("function");
@@ -201,7 +219,8 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
       expect(typeof (lib.BrowserBackend.prototype as Record<string, unknown>)[method], method).toBe("function");
     }
     expect(typeof utils.program.constructor).toBe("function");
-    for (const fn of ["object", "string", "toJSONSchema", "prettifyError"] as const) expect(typeof utils.z[fn], fn).toBe("function");
+    for (const fn of ["object", "string", "toJSONSchema", "prettifyError"] as const)
+      expect(typeof utils.z[fn], fn).toBe("function");
     expect(typeof upstream().core.utils.gracefullyProcessExitDoNotHang).toBe("function");
   });
 
@@ -230,12 +249,18 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
   it("launches a persistent browser the way the chrome engine copies (createPersistentBrowser)", () => {
     const src = bundleFunction("createPersistentBrowser");
     expect(src).toContain("if (await isProfileLocked5Times(userDataDir))");
-    expect(src).toMatch(/const launchOptions = \{\s*tracesDir,\s*\.\.\.config\.browser\.launchOptions,\s*\.\.\.config\.browser\.contextOptions,\s*handleSIGINT: false,\s*handleSIGTERM: false,/);
+    expect(src).toMatch(
+      /const launchOptions = \{\s*tracesDir,\s*\.\.\.config\.browser\.launchOptions,\s*\.\.\.config\.browser\.contextOptions,\s*handleSIGINT: false,\s*handleSIGTERM: false,/,
+    );
     expect(src).toMatch(/ignoreDefaultArgs: configIgnoreDefaultArgs === true \? true : \[\s*"--disable-extensions",/);
     expect(src).toContain("await browserType.launchPersistentContext(userDataDir, launchOptions)");
     expect(bundleFunction("computeTracesDir")).toContain('outputDir({ config, cwd: clientInfo.cwd }), "traces")');
-    expect(bundleFunction("createBrowser")).toContain("await browser.bind(bindOptions.title, { workspaceDir: bindOptions.workspaceDir })");
-    expect(bundleFunction("createBrowserWithInfo")).toContain('info.ownership === "own" && config.browser.launchOptions.headless ? defaultIdleTimeout : void 0');
+    expect(bundleFunction("createBrowser")).toContain(
+      "await browser.bind(bindOptions.title, { workspaceDir: bindOptions.workspaceDir })",
+    );
+    expect(bundleFunction("createBrowserWithInfo")).toContain(
+      'info.ownership === "own" && config.browser.launchOptions.headless ? defaultIdleTimeout : void 0',
+    );
   });
 
   it("serves sessions the way the host copies (program.ts, server.ts)", () => {
@@ -255,17 +280,27 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
   it("keeps each session's tabs where the tab governor reads them (ADR 0048)", () => {
     const backend = lib().BrowserBackend.toString();
     expect(backend).toMatch(/this\._context = new Context\(this\._browserContext, \{/);
-    const context = bundleSource.slice(bundleSource.indexOf("    Context = class {"), bundleSource.indexOf("// packages/playwright-core/src/tools/backend/response.ts"));
+    const context = bundleSource.slice(
+      bundleSource.indexOf("    Context = class {"),
+      bundleSource.indexOf("// packages/playwright-core/src/tools/backend/response.ts"),
+    );
     expect(context).toMatch(/\n {6}tabs\(\) \{\n {8}return this\._tabs;/);
     expect(context).toMatch(/\n {6}currentTab\(\) \{\n {8}return this\._currentTab;/);
     expect(context).toContain("const tab2 = new Tab(this, page, isolatedContext, (tab3) => this._onPageClosed(tab3));");
-    expect(bundleSource).toMatch(/Tab = class _Tab extends import_events\d+\.EventEmitter \{\n {6}constructor\(context, page, isolatedContext, onPageClose\) \{[\s\S]*?this\.page = page;/);
+    expect(bundleSource).toMatch(
+      /Tab = class _Tab extends import_events\d+\.EventEmitter \{\n {6}constructor\(context, page, isolatedContext, onPageClose\) \{[\s\S]*?this\.page = page;/,
+    );
   });
 
   it("launches Chromium with the anti-throttling switches and focus emulation that backgroundThrottling turns off", () => {
-    const switches = bundleSource.slice(bundleSource.indexOf("chromiumSwitches = (options) => ["), bundleSource.indexOf("chromiumSwitches = (options) => [") + 3000);
+    const switches = bundleSource.slice(
+      bundleSource.indexOf("chromiumSwitches = (options) => ["),
+      bundleSource.indexOf("chromiumSwitches = (options) => [") + 3000,
+    );
     for (const flag of BACKGROUND_SWITCHES) expect(switches).toContain(`"${flag}"`);
-    expect(bundleSource).toContain('if (this._isMainFrame() && !this._crPage._browserContext._options.focusControl)\n            promises2.push(this._client.send("Emulation.setFocusEmulationEnabled", { enabled: true }));');
+    expect(bundleSource).toContain(
+      'if (this._isMainFrame() && !this._crPage._browserContext._options.focusControl)\n            promises2.push(this._client.send("Emulation.setFocusEmulationEnabled", { enabled: true }));',
+    );
   });
 
   it("reads the settle and snapshot mode the host changes per session from the config, on every call (ADR 0048)", () => {
@@ -277,13 +312,19 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
   });
 
   it("reports a failed action the way the click diagnosis reads it", () => {
-    expect(bundleSource).toContain('content: [{ type: "text", text: json ? JSON.stringify({ isError: true, error: message }, null, 2) : `### Error\n${message}` }],');
-    expect(bundleSource).toContain("throw new Error(`Ref ${param.target} not found in the current page snapshot. Try capturing new snapshot.`);");
+    expect(bundleSource).toContain(
+      'content: [{ type: "text", text: json ? JSON.stringify({ isError: true, error: message }, null, 2) : `### Error\n${message}` }],',
+    );
+    expect(bundleSource).toContain(
+      "throw new Error(`Ref ${param.target} not found in the current page snapshot. Try capturing new snapshot.`);",
+    );
     expect(bundleSource).toMatch(/getByRef\(ref\) \{\n\s+return this\.locator\(`aria-ref=\$\{ref\}`\);/);
   });
 
   it("turns Chrome's HTTP cache off while a route intercepts, which is why the resource cache exists (ADR 0052)", () => {
-    expect(bundleSource).toContain('info.session.send("Network.setCacheDisabled", { cacheDisabled: this._page.needsRequestInterception() })');
+    expect(bundleSource).toContain(
+      'info.session.send("Network.setCacheDisabled", { cacheDisabled: this._page.needsRequestInterception() })',
+    );
   });
 
   it("has no option with the name of a turno flag", () => {
@@ -298,7 +339,14 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
 
   it("still accepts the flags turno passes or documents", () => {
     const help = execFileSync(process.execPath, [bin, "--help"], { env: sb.env, encoding: "utf8" });
-    for (const flag of ["--browser <browser>", "--user-data-dir <path>", "--config <path>", "--idle-timeout <timeout>", "--isolated", "--headless"]) {
+    for (const flag of [
+      "--browser <browser>",
+      "--user-data-dir <path>",
+      "--config <path>",
+      "--idle-timeout <timeout>",
+      "--isolated",
+      "--headless",
+    ]) {
       expect(help).toContain(flag);
     }
   });

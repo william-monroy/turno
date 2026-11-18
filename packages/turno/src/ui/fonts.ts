@@ -55,7 +55,12 @@ export const FALLBACK: FontSource = {
 
 export async function fontSource(): Promise<FontSource> {
   try {
-    const pkg = (await import("turno-fonts")) as { FAMILY: string; VERSION: string; FONTS: FontFile[]; fontsDir: string };
+    const pkg = (await import("turno-fonts")) as {
+      FAMILY: string;
+      VERSION: string;
+      FONTS: FontFile[];
+      fontsDir: string;
+    };
     return { family: pkg.FAMILY, version: pkg.VERSION, files: pkg.FONTS, dir: pkg.fontsDir };
   } catch {
     return FALLBACK;
@@ -106,7 +111,11 @@ export interface FontResult extends FontCheck {
   action: FontAction;
 }
 
-async function bytesOf(source: FontSource, f: FontFile, doFetch: typeof fetch): Promise<{ buf: Buffer; downloaded: boolean }> {
+async function bytesOf(
+  source: FontSource,
+  f: FontFile,
+  doFetch: typeof fetch,
+): Promise<{ buf: Buffer; downloaded: boolean }> {
   if (source.dir) return { buf: readFileSync(join(source.dir, f.file)), downloaded: false };
   const res = await doFetch(f.url, { signal: AbortSignal.timeout(60_000) });
   if (!res.ok) throw new Error(`downloading ${f.file}: HTTP ${res.status}`);

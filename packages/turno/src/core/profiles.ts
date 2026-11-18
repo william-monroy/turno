@@ -66,11 +66,17 @@ export function configFindings(config: Config, env: NodeJS.ProcessEnv): ConfigFi
   };
   const out: ConfigFinding[] = (config.warnings ?? []).map((text) => {
     const m = /^unknown key ([^\s;]+)(?: \(did you mean ([^\s?]+)\?\))?/.exec(text);
-    return { text, ...(m ? edit(m[1]!, m[2] ? `rename it to ${m[2].slice(m[2].lastIndexOf(".") + 1)}` : "remove it") : { hint: "turno config edit" }) };
+    return {
+      text,
+      ...(m
+        ? edit(m[1]!, m[2] ? `rename it to ${m[2].slice(m[2].lastIndexOf(".") + 1)}` : "remove it")
+        : { hint: "turno config edit" }),
+    };
   });
   const known = new Set(listProfiles(config, env));
   const missing = (where: string, name: string | undefined) => {
-    if (name && !known.has(name)) out.push({ text: `${where} = "${name}", but there is no profile ${name}`, hint: `turno profile add ${name}` });
+    if (name && !known.has(name))
+      out.push({ text: `${where} = "${name}", but there is no profile ${name}`, hint: `turno profile add ${name}` });
   };
   missing("system", config.system);
   missing("default", config.default);
@@ -82,7 +88,10 @@ export function configFindings(config: Config, env: NodeJS.ProcessEnv): ConfigFi
       const name = roles?.[role];
       if (name && known.has(name) && agentOf(name, config) !== id) {
         const label = adapter(id as AgentId).label;
-        out.push({ text: `agents.${id}.${role} = "${name}", but ${name} is a ${adapter(agentOf(name, config)).label} profile`, ...edit(`agents.${id}.${role}`, `name a ${label} profile`) });
+        out.push({
+          text: `agents.${id}.${role} = "${name}", but ${name} is a ${adapter(agentOf(name, config)).label} profile`,
+          ...edit(`agents.${id}.${role}`, `name a ${label} profile`),
+        });
       }
     }
   }
@@ -90,11 +99,18 @@ export function configFindings(config: Config, env: NodeJS.ProcessEnv): ConfigFi
     const name = config[role];
     if (name && known.has(name) && agentOf(name, config) !== DEFAULT_AGENT) {
       const other = agentOf(name, config);
-      out.push({ text: `${role} = "${name}" is for ${adapter(DEFAULT_AGENT).label}, but ${name} is a ${adapter(other).label} profile`, ...edit(role, `move it to [agents.${other}]`) });
+      out.push({
+        text: `${role} = "${name}" is for ${adapter(DEFAULT_AGENT).label}, but ${name} is a ${adapter(other).label} profile`,
+        ...edit(role, `move it to [agents.${other}]`),
+      });
     }
   }
   for (const [i, rule] of config.projects.entries()) {
-    if (rule.profile && !known.has(rule.profile)) out.push({ text: `the rule for ${tildify(rule.path, env)} uses profile ${rule.profile}, which does not exist`, hint: `turno profile add ${rule.profile}` });
+    if (rule.profile && !known.has(rule.profile))
+      out.push({
+        text: `the rule for ${tildify(rule.path, env)} uses profile ${rule.profile}, which does not exist`,
+        hint: `turno profile add ${rule.profile}`,
+      });
     out.push(...folderSetFindings(rule, i, env, edit));
   }
   return out;
@@ -165,7 +181,10 @@ function folderSetFindings(
   const declared = Object.keys(servers);
   const out: ConfigFinding[] = [];
   const where = `the rule for ${tildify(rule.path, env)}`;
-  for (const [key, list] of [["mcp", rule.mcp], ["mcp_deny", rule.mcpDeny]] as const) {
+  for (const [key, list] of [
+    ["mcp", rule.mcp],
+    ["mcp_deny", rule.mcpDeny],
+  ] as const) {
     for (const name of list ?? []) {
       if (servers[name]) continue;
       const near = suggestKey(name, declared);
@@ -178,7 +197,9 @@ function folderSetFindings(
   for (const [name, def] of Object.entries(servers)) {
     const hidden = (rule.mcp && !rule.mcp.includes(name)) || rule.mcpDeny?.includes(name);
     if (hidden && def.kind === "remote" && !def.proxy) {
-      const fix = rule.mcpDeny?.includes(name) ? edit(`projects[${index}].mcp_deny`, `remove ${name}`) : edit(`projects[${index}].mcp`, `add ${name}`);
+      const fix = rule.mcpDeny?.includes(name)
+        ? edit(`projects[${index}].mcp_deny`, `remove ${name}`)
+        : edit(`projects[${index}].mcp`, `add ${name}`);
       out.push({ text: `${where} cannot hide ${name}: it is a remote server that does not pass through mcpd`, ...fix });
     }
   }

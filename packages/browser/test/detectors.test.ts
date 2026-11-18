@@ -1,7 +1,14 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { formatBenchTable } from "../src/bench.js";
-import { classifyChallenge, decodeEntities, detectChallenge, parseRebrowser, parseSannysoft, textOf } from "../src/detectors.js";
+import {
+  classifyChallenge,
+  decodeEntities,
+  detectChallenge,
+  parseRebrowser,
+  parseSannysoft,
+  textOf,
+} from "../src/detectors.js";
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 
@@ -21,8 +28,12 @@ describe("parseRebrowser", () => {
   });
 
   it("keeps notes short, without the JSON blocks or leading marks", () => {
-    expect(r.tests.find((t) => t.name === "viewport")!.note).toBe("Viewport has default Playwright values. Use viewport: null in options.");
-    expect(r.tests.find((t) => t.name === "headless")!.note).toBe("HeadlessChrome is in the user agent or navigator.userAgentData.brands.");
+    expect(r.tests.find((t) => t.name === "viewport")!.note).toBe(
+      "Viewport has default Playwright values. Use viewport: null in options.",
+    );
+    expect(r.tests.find((t) => t.name === "headless")!.note).toBe(
+      "HeadlessChrome is in the user agent or navigator.userAgentData.brands.",
+    );
     expect(r.tests.find((t) => t.name === "storagePartitioning")!.note).toContain("page's localStorage");
   });
 
@@ -57,14 +68,21 @@ describe("classifyChallenge", () => {
   const page = (title: string, body: string) => `<html><head><title>${title}</title></head><body>${body}</body></html>`;
 
   it("sorts a challenge page into captcha, verify (it's you) or block", () => {
-    expect(classifyChallenge(fixture("challenge.html"))).toEqual({ kind: "captcha", markers: ["verify you are human", "unusual traffic", "just a moment"] });
-    expect(classifyChallenge(page("Sign in", "<h1>Verify it&#39;s you</h1><p>To help keep your account safe</p>"))).toEqual({ kind: "verify", markers: ["verify it's you"] });
+    expect(classifyChallenge(fixture("challenge.html"))).toEqual({
+      kind: "captcha",
+      markers: ["verify you are human", "unusual traffic", "just a moment"],
+    });
+    expect(
+      classifyChallenge(page("Sign in", "<h1>Verify it&#39;s you</h1><p>To help keep your account safe</p>")),
+    ).toEqual({ kind: "verify", markers: ["verify it's you"] });
     expect(classifyChallenge(page("Sign in", "<h1>Verify it’s you</h1>"))!.kind).toBe("verify");
     expect(classifyChallenge(page("Attention Required! | Example", "<h1>Sorry, you have been blocked</h1>"))).toEqual({
       kind: "block",
       markers: ["attention required", "you have been blocked"],
     });
-    expect(classifyChallenge(page("Access Denied", "You don't have permission to access this server.")))!.toMatchObject({ kind: "block" });
+    expect(classifyChallenge(page("Access Denied", "You don't have permission to access this server.")))!.toMatchObject(
+      { kind: "block" },
+    );
   });
 
   it("ignores a clean page, and a long article that only mentions a marker", () => {
@@ -95,7 +113,13 @@ describe("formatBenchTable", () => {
       ],
       results: [
         { engine: "chrome-headless", target: "rebrowser", url: "u", ok: false, summary: "17 pass, 1 fail (headless)" },
-        { engine: "chrome-headless", target: "url", url: "https://example.com/", ok: true, summary: '200 "Example" no challenge markers' },
+        {
+          engine: "chrome-headless",
+          target: "url",
+          url: "https://example.com/",
+          ok: true,
+          summary: '200 "Example" no challenge markers',
+        },
       ],
     });
     const lines = table.split("\n");

@@ -76,7 +76,8 @@ export function keychainResolver(env: NodeJS.ProcessEnv, platform: NodeJS.Platfo
       const store = secretStore(env, platform);
       if (!store) throw new SecretError(value, NO_SECRET_STORE);
       const v = await store.get(service);
-      if (v === undefined) throw new SecretError(value, `no ${store.label} item "${service}" (turno secret set ${service})`);
+      if (v === undefined)
+        throw new SecretError(value, `no ${store.label} item "${service}" (turno secret set ${service})`);
       return v;
     }
     return expandVars(value, env);
@@ -88,7 +89,10 @@ export async function storeKeychainSecret(service: string, secret: string, env: 
   await requireSecretStore(env).set(service, secret);
 }
 
-export async function resolveRecord(record: Record<string, string>, resolve: SecretResolver): Promise<Record<string, string>> {
+export async function resolveRecord(
+  record: Record<string, string>,
+  resolve: SecretResolver,
+): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(record)) out[k] = await resolve(v);
   return out;

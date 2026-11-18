@@ -35,7 +35,8 @@ export interface VaultAccess {
 
 type Field = "username" | "password" | "code";
 
-const TEXT = ':not([type="password"]):not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"])';
+const TEXT =
+  ':not([type="password"]):not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"])';
 const SELECTORS: Record<Field, string> = {
   password: 'input[type="password"]',
   username: [
@@ -73,7 +74,13 @@ const MIN_CODE_SECONDS = 3;
 
 function schema(): ToolSchema {
   const z = upstream().utils.z;
-  const ref = (what: string) => z.string().optional().describe(`Ref (from the page snapshot) or selector of the ${what} field, only when the tool does not find it by itself`);
+  const ref = (what: string) =>
+    z
+      .string()
+      .optional()
+      .describe(
+        `Ref (from the page snapshot) or selector of the ${what} field, only when the tool does not find it by itself`,
+      );
   return {
     name: "browser_login",
     title: "Fill a sign-in form from the vault",
@@ -97,9 +104,17 @@ function schema(): ToolSchema {
 /** The element's type and the origin of its frame, to check a field before a value goes in. */
 async function describeField(locator: Locator): Promise<{ tag: string; type: string; origin: string } | undefined> {
   return await locator
-    .evaluate((el) => ({ tag: el.tagName.toLowerCase(), type: ((el as HTMLInputElement).type || "text").toLowerCase(), origin: el.ownerDocument.location.origin }), undefined, {
-      timeout: 2_000,
-    })
+    .evaluate(
+      (el) => ({
+        tag: el.tagName.toLowerCase(),
+        type: ((el as HTMLInputElement).type || "text").toLowerCase(),
+        origin: el.ownerDocument.location.origin,
+      }),
+      undefined,
+      {
+        timeout: 2_000,
+      },
+    )
     .catch(() => undefined);
 }
 
@@ -124,8 +139,14 @@ async function namedField(page: Page, target: string, field: Field, site: VaultS
   const locator = (/^(f\d+)?e\d+$/.test(target) ? page.getByRef(target) : page.locator(target)).first();
   const d = await describeField(locator);
   if (!d) throw new VaultError(`the ${field} field ${target} is not on the page; take a new snapshot`);
-  if (!fits(field, d)) throw new VaultError(`${target} is a ${d.tag}${d.tag === "input" ? ` of type ${d.type}` : ""}, not a ${field === "password" ? "password field" : "text field"}; the ${field} goes only into one`);
-  if (!site.origins.includes(d.origin)) throw new VaultError(`${target} is in a frame of ${d.origin}, not one of the site's origins (${site.origins.join(", ")})`);
+  if (!fits(field, d))
+    throw new VaultError(
+      `${target} is a ${d.tag}${d.tag === "input" ? ` of type ${d.type}` : ""}, not a ${field === "password" ? "password field" : "text field"}; the ${field} goes only into one`,
+    );
+  if (!site.origins.includes(d.origin))
+    throw new VaultError(
+      `${target} is in a frame of ${d.origin}, not one of the site's origins (${site.origins.join(", ")})`,
+    );
   return locator;
 }
 
@@ -143,16 +164,24 @@ export function loginTool(): TurnoTool {
       const vault = ctx.vault;
       if (!vault) throw new VaultError("browser_login needs a browser identity: this server runs without --identity");
       const recording = recordingReason(ctx.config);
-      if (recording) throw new VaultError(`browser_login is off while this server records ${recording} (it would keep the filled values); start it without that option`);
+      if (recording)
+        throw new VaultError(
+          `browser_login is off while this server records ${recording} (it would keep the filled values); start it without that option`,
+        );
       const { id, env } = vault.identity;
       const siteKey = params.site as string;
       const found = vaultSite(id, siteKey, env);
-      if (!found) throw new VaultError(`identity "${id}" has no credentials for "${siteKey}" in its vault; the person adds them with: turno browser vault add ${id} ${siteKey} --url <sign-in page>`);
+      if (!found)
+        throw new VaultError(
+          `identity "${id}" has no credentials for "${siteKey}" in its vault; the person adds them with: turno browser vault add ${id} ${siteKey} --url <sign-in page>`,
+        );
       const { site, submit } = found;
       const page = ctx.stock?.currentPage();
       if (!page) throw new VaultError("no page is open; navigate to the sign-in page first");
       if (!originAllowed(site, page.url())) {
-        throw new VaultError(`this page is on ${safeOrigin(page.url())}, not on an origin "${siteKey}" was stored for (${site.origins.join(", ")}); navigate to its sign-in page first`);
+        throw new VaultError(
+          `this page is on ${safeOrigin(page.url())}, not on an origin "${siteKey}" was stored for (${site.origins.join(", ")}); navigate to its sign-in page first`,
+        );
       }
       const frames = page.frames().filter((f) => originAllowed(site, f.url()));
 
@@ -168,7 +197,10 @@ export function loginTool(): TurnoTool {
         );
       }
 
-      const credential: Credential = await readCredential(id, siteKey, { env, ...(vault.store ? { store: vault.store } : {}) });
+      const credential: Credential = await readCredential(id, siteKey, {
+        env,
+        ...(vault.store ? { store: vault.store } : {}),
+      });
       const skipped: string[] = [];
       let code: string | undefined;
       if (fields.has("code")) {
@@ -187,7 +219,11 @@ export function loginTool(): TurnoTool {
       if (code) vault.redactor.add(code, `${siteKey} one-time code`, CODE_REDACT_MS);
       vault.guard.mark(page);
 
-      const values: Record<Field, string | undefined> = { username: credential.username, password: credential.password, code };
+      const values: Record<Field, string | undefined> = {
+        username: credential.username,
+        password: credential.password,
+        code,
+      };
       const filled: Field[] = [];
       let last: Locator | undefined;
       for (const [field, locator] of fields) {
@@ -201,7 +237,9 @@ export function loginTool(): TurnoTool {
       }
 
       const names = filled.map((f) => (f === "code" ? "one-time code" : f));
-      const lines = [`Filled the ${list(names)} of "${siteKey}" from the vault of identity "${id}" on ${safeOrigin(page.url())}. The values are hidden as [vault: ...] in every result.`];
+      const lines = [
+        `Filled the ${list(names)} of "${siteKey}" from the vault of identity "${id}" on ${safeOrigin(page.url())}. The values are hidden as [vault: ...] in every result.`,
+      ];
       if (skipped.length) lines.push(`Not filled: ${skipped.join("; ")}.`);
       if (submit === "auto" && last) {
         await last.press("Enter", { timeout: 5_000 });

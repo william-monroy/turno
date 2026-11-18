@@ -19,8 +19,10 @@ export interface Message {
 export type Outcome = { result: Record<string, unknown> } | { error: RpcError };
 
 export const isRequest = (m: Message): boolean => typeof m.method === "string" && m.id !== undefined && m.id !== null;
-export const isNotification = (m: Message): boolean => typeof m.method === "string" && (m.id === undefined || m.id === null);
-export const isResponse = (m: Message): boolean => m.method === undefined && m.id !== undefined && ("result" in m || "error" in m);
+export const isNotification = (m: Message): boolean =>
+  typeof m.method === "string" && (m.id === undefined || m.id === null);
+export const isResponse = (m: Message): boolean =>
+  m.method === undefined && m.id !== undefined && ("result" in m || "error" in m);
 
 export const ErrorCode = {
   ParseError: -32700,
@@ -41,7 +43,9 @@ export const ErrorCode = {
 } as const;
 
 export function toResponse(id: Id, outcome: Outcome): Message {
-  return "error" in outcome ? { jsonrpc: "2.0", id, error: outcome.error } : { jsonrpc: "2.0", id, result: outcome.result };
+  return "error" in outcome
+    ? { jsonrpc: "2.0", id, error: outcome.error }
+    : { jsonrpc: "2.0", id, result: outcome.result };
 }
 
 export function rpcError(code: number, message: string, data?: unknown): Outcome {

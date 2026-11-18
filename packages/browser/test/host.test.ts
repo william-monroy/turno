@@ -3,7 +3,14 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventEmitter } from "node:events";
 import type { BrowserContext } from "patchright-core";
-import { type Engine, type IdentityRef, type LaunchRequest, type LaunchedBrowser, selectEngine, usesChromeEngine } from "../src/engine.js";
+import {
+  type Engine,
+  type IdentityRef,
+  type LaunchRequest,
+  type LaunchedBrowser,
+  selectEngine,
+  usesChromeEngine,
+} from "../src/engine.js";
 import { readHealth } from "../src/health.js";
 import { writeIdentitySettings } from "../src/settings.js";
 import { CallIdleTimer, SERVER_INFO, createHost, mergeTextParts, serve } from "../src/host.js";
@@ -25,7 +32,10 @@ beforeEach(() => {
 afterEach(() => sb.cleanup());
 
 async function config(options: Record<string, unknown> = {}): Promise<McpConfig> {
-  return await upstream().tools.resolveCLIConfigForMCP({ browser: "chrome", userDataDir: `${sb.home}/profile`, ...options }, {});
+  return await upstream().tools.resolveCLIConfigForMCP(
+    { browser: "chrome", userDataDir: `${sb.home}/profile`, ...options },
+    {},
+  );
 }
 
 /** A test-only turno tool: echoes its argument without the browser. */
@@ -41,7 +51,12 @@ function echoTool(): TurnoTool {
     },
     browser: false,
     async handle(ctx, params) {
-      return { content: [{ type: "text", text: `echo: ${String(params.text)}` }, { type: "text", text: `client: ${ctx.clientInfo.clientName}` }] };
+      return {
+        content: [
+          { type: "text", text: `echo: ${String(params.text)}` },
+          { type: "text", text: `client: ${ctx.clientInfo.clientName}` },
+        ],
+      };
     },
   };
 }
@@ -58,9 +73,17 @@ function failingEngine(): Engine & { launches: LaunchRequest[] } {
   };
 }
 
-async function connect(cfg: McpConfig, turnoTools: TurnoTool[], engine: Engine, identity?: IdentityRef): Promise<Client> {
+async function connect(
+  cfg: McpConfig,
+  turnoTools: TurnoTool[],
+  engine: Engine,
+  identity?: IdentityRef,
+): Promise<Client> {
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
-  await serve(createHost({ config: cfg, cliOptions: {}, turnoTools, engine, ...(identity ? { identity } : {}) }), serverSide);
+  await serve(
+    createHost({ config: cfg, cliOptions: {}, turnoTools, engine, ...(identity ? { identity } : {}) }),
+    serverSide,
+  );
   const client = new Client({ name: "host-test", version: "0.0.0" });
   await client.connect(clientSide);
   return client;
@@ -75,8 +98,17 @@ describe("host", () => {
     expect(names.at(-1)).toBe("turno_test_echo");
     expect(names.slice(0, 2)).toEqual(["browser_close", "browser_resize"]);
     const echo = tools.at(-1)!;
-    expect(echo.annotations).toEqual({ title: "Echo (test)", readOnlyHint: true, destructiveHint: false, openWorldHint: true });
-    expect(echo.inputSchema).toMatchObject({ type: "object", properties: { text: { type: "string", description: "Text to echo" } }, required: ["text"] });
+    expect(echo.annotations).toEqual({
+      title: "Echo (test)",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    });
+    expect(echo.inputSchema).toMatchObject({
+      type: "object",
+      properties: { text: { type: "string", description: "Text to echo" } },
+      required: ["text"],
+    });
     expect(client.getServerVersion()).toEqual(SERVER_INFO);
     await client.close();
   });
@@ -94,7 +126,13 @@ describe("host", () => {
     const seen: (string | undefined)[] = [];
     const z = turnoZod();
     const sessionTool: TurnoTool = {
-      schema: { name: "turno_test_session", title: "Session (test)", description: "Reports the session.", inputSchema: z.object({}), type: "readOnly" },
+      schema: {
+        name: "turno_test_session",
+        title: "Session (test)",
+        description: "Reports the session.",
+        inputSchema: z.object({}),
+        type: "readOnly",
+      },
       browser: false,
       async handle(ctx) {
         seen.push(ctx.session);
@@ -103,8 +141,11 @@ describe("host", () => {
     };
     const engine = failingEngine();
     const client = await connect(await config(), [sessionTool], engine);
-    const call = (meta?: Record<string, unknown>) => client.callTool({ name: "turno_test_session", arguments: {}, ...(meta ? { _meta: meta } : {}) });
-    expect(await call({ [SESSION_META_KEY]: "0b6f5c1e-2a43-4d4c-9b0e-5d7a1f3c2e11" })).toEqual({ content: [{ type: "text", text: "session: 0b6f5c1e-2a43-4d4c-9b0e-5d7a1f3c2e11" }] });
+    const call = (meta?: Record<string, unknown>) =>
+      client.callTool({ name: "turno_test_session", arguments: {}, ...(meta ? { _meta: meta } : {}) });
+    expect(await call({ [SESSION_META_KEY]: "0b6f5c1e-2a43-4d4c-9b0e-5d7a1f3c2e11" })).toEqual({
+      content: [{ type: "text", text: "session: 0b6f5c1e-2a43-4d4c-9b0e-5d7a1f3c2e11" }],
+    });
     await call();
     await call({ [SESSION_META_KEY]: 42 });
     await call({ [SESSION_META_KEY]: "has space" });
@@ -118,7 +159,9 @@ describe("host", () => {
     const client = await connect(await config(), [echoTool()], failingEngine());
     const res = await client.callTool({ name: "turno_test_echo", arguments: { text: 5 } });
     expect(res.isError).toBe(true);
-    expect((res.content as { text: string }[])[0]!.text).toMatch(/^### Error\nInvalid arguments for tool "turno_test_echo":\n.*expected string/s);
+    expect((res.content as { text: string }[])[0]!.text).toMatch(
+      /^### Error\nInvalid arguments for tool "turno_test_echo":\n.*expected string/s,
+    );
     await client.close();
   });
 
@@ -127,11 +170,17 @@ describe("host", () => {
     const client = await connect(await config(), [], engine);
     expect(engine.launches).toEqual([]);
     const res = await client.callTool({ name: "browser_snapshot", arguments: {} });
-    expect(res).toEqual({ content: [{ type: "text", text: "### Error\nError: no browser in this test" }], isError: true });
+    expect(res).toEqual({
+      content: [{ type: "text", text: "### Error\nError: no browser in this test" }],
+      isError: true,
+    });
     // The next call tries again instead of keeping the failure.
     await client.callTool({ name: "browser_snapshot", arguments: {} });
     expect(engine.launches).toHaveLength(2);
-    expect(engine.launches[0]).toMatchObject({ title: "host-test", clientInfo: { clientName: "host-test", cwd: process.cwd() } });
+    expect(engine.launches[0]).toMatchObject({
+      title: "host-test",
+      clientInfo: { clientName: "host-test", cwd: process.cwd() },
+    });
     expect(engine.launches[1]!.title).toBe("host-test (2)");
     await client.close();
   });
@@ -188,7 +237,9 @@ describe("identity", () => {
     const res = await client.callTool({ name: "browser_snapshot", arguments: {} });
     expect(res.isError).toBe(true);
     const text = (res.content as { text: string }[])[0]!.text;
-    expect(text).toMatch(/^### Error\nError: NEEDS_AUTH: browser identity "school" is not signed in: the page did not show "Inbox" at https:\/\/mail\.example\.com\//);
+    expect(text).toMatch(
+      /^### Error\nError: NEEDS_AUTH: browser identity "school" is not signed in: the page did not show "Inbox" at https:\/\/mail\.example\.com\//,
+    );
     expect(text).toContain("`turno browser login school`");
     expect(engine.closed).toBe(1);
     expect(readHealth("school", sb.env)).toMatchObject({ status: "needs_auth", url: "https://mail.example.com/" });
@@ -232,9 +283,23 @@ function idleEngine(idleTimer: IdleTimerLike): Engine {
   return {
     id: "chrome",
     async launch(): Promise<LaunchedBrowser> {
-      const page = Object.assign(new EventEmitter(), { url: () => "about:blank", isClosed: () => false, close: async () => {} });
-      const context = Object.assign(new EventEmitter(), { pages: () => [page], newPage: async () => page, browser: () => null });
-      return { engine: "chrome", context: context as unknown as BrowserContext, isOpen: () => true, idleTimer, async close() {} };
+      const page = Object.assign(new EventEmitter(), {
+        url: () => "about:blank",
+        isClosed: () => false,
+        close: async () => {},
+      });
+      const context = Object.assign(new EventEmitter(), {
+        pages: () => [page],
+        newPage: async () => page,
+        browser: () => null,
+      });
+      return {
+        engine: "chrome",
+        context: context as unknown as BrowserContext,
+        isOpen: () => true,
+        idleTimer,
+        async close() {},
+      };
     },
   };
 }
@@ -246,7 +311,13 @@ describe("idle limit", () => {
     const seen: boolean[] = [];
     const z = turnoZod();
     const slow: TurnoTool = {
-      schema: { name: "turno_test_slow", title: "Slow (test)", description: "Waits until the test releases it.", inputSchema: z.object({}), type: "readOnly" },
+      schema: {
+        name: "turno_test_slow",
+        title: "Slow (test)",
+        description: "Waits until the test releases it.",
+        inputSchema: z.object({}),
+        type: "readOnly",
+      },
       async handle() {
         seen.push(timer.armed);
         await new Promise<void>((r) => {
@@ -304,8 +375,16 @@ describe("turno tool registry", () => {
 
   it("ships browser_batch and browser_login, after the stock tools", () => {
     expect(TURNO_TOOLS.map((t) => t.schema.name)).toEqual(["browser_batch", "browser_login"]);
-    const host = createHost({ config: { server: {}, browser: { browserName: "chromium", launchOptions: {} } } as McpConfig, cliOptions: {} });
-    expect(host.listTools().slice(-2).map((t) => t.name)).toEqual(["browser_batch", "browser_login"]);
+    const host = createHost({
+      config: { server: {}, browser: { browserName: "chromium", launchOptions: {} } } as McpConfig,
+      cliOptions: {},
+    });
+    expect(
+      host
+        .listTools()
+        .slice(-2)
+        .map((t) => t.name),
+    ).toEqual(["browser_batch", "browser_login"]);
   });
 
   it("refuses a turno tool with the name of any upstream tool, a duplicate or a bad name", () => {
@@ -320,7 +399,9 @@ describe("turno tool registry", () => {
 
   it("is checked when the host starts", async () => {
     const clash: TurnoTool = { ...echoTool(), schema: { ...echoTool().schema, name: "browser_navigate" } };
-    expect(() => createHost({ config: { server: {} } as McpConfig, cliOptions: {}, turnoTools: [clash] })).toThrow(/name of a Playwright MCP tool/);
+    expect(() => createHost({ config: { server: {} } as McpConfig, cliOptions: {}, turnoTools: [clash] })).toThrow(
+      /name of a Playwright MCP tool/,
+    );
   });
 });
 

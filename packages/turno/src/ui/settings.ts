@@ -52,7 +52,12 @@ export function statusLineLabel(s: StatusLine | undefined, env: NodeJS.ProcessEn
 
 /** The entry to write: our command, keeping any other keys the user set (padding, ...). */
 function wantedStatusLine(command: string, existing: StatusLine | undefined): StatusLine {
-  return { ...(existing ?? {}), type: "command", command, refreshInterval: existing?.refreshInterval ?? REFRESH_SECONDS };
+  return {
+    ...(existing ?? {}),
+    type: "command",
+    command,
+    refreshInterval: existing?.refreshInterval ?? REFRESH_SECONDS,
+  };
 }
 
 export interface WriteResult {

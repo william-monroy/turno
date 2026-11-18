@@ -30,7 +30,12 @@ describe("setup", () => {
     sb.write(".claude/history.jsonl", '{"display":"hi"}\n');
     sb.write(
       ".claude.json",
-      JSON.stringify({ mcpServers: { a: {}, b: {} }, projects: { "/x": {} }, oauthAccount: { emailAddress: "alice@example.com" }, theme: "dark" }),
+      JSON.stringify({
+        mcpServers: { a: {}, b: {} },
+        projects: { "/x": {} },
+        oauthAccount: { emailAddress: "alice@example.com" },
+        theme: "dark",
+      }),
     );
     sb.write(".claude-work/skills/mine/SKILL.md", "local skill\n");
     mkdirSync(join(sb.home, ".claude-work/plans"), { recursive: true });
@@ -58,7 +63,8 @@ describe("setup", () => {
     expect(lstatSync(join(dir, "history.jsonl")).isFile()).toBe(true);
     expect(readFileSync(join(dir, "history.jsonl"), "utf8")).toContain("hi");
 
-    for (const f of ["claude-work", "turno-auto", "turno-open"]) expect(existsSync(join(sb.home, ".local/bin", f))).toBe(true);
+    for (const f of ["claude-work", "turno-auto", "turno-open"])
+      expect(existsSync(join(sb.home, ".local/bin", f))).toBe(true);
   });
 
   it("is idempotent", () => {

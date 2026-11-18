@@ -10,7 +10,15 @@ import { CallToolRequestSchema, type CallToolResult, ListToolsRequestSchema } fr
 import { explainFailure } from "./diagnose.js";
 import { type Engine, type IdentityRef, type LaunchedBrowser, createUpstreamEngine, selectEngine } from "./engine.js";
 import { TabGovernor } from "./governor.js";
-import { type HealthContext, NEEDS_AUTH_HOLD_MS, healthDue, needsAuthMessage, readHealth, runHealthCheck, writeHealth } from "./health.js";
+import {
+  type HealthContext,
+  NEEDS_AUTH_HOLD_MS,
+  healthDue,
+  needsAuthMessage,
+  readHealth,
+  runHealthCheck,
+  writeHealth,
+} from "./health.js";
 import { identityStateDir } from "./ids.js";
 import { Redactor, SCRIPT_TOOLS, VaultGuard } from "./redact.js";
 import { recordChallenge, watchChallenges } from "./reputation.js";
@@ -62,7 +70,9 @@ import {
  * same session backends.
  */
 
-const PACKAGE_VERSION = (JSON.parse(readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8")) as { version: string }).version;
+const PACKAGE_VERSION = (
+  JSON.parse(readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8")) as { version: string }
+).version;
 
 /** The name and version the server reports in `initialize`. */
 export const SERVER_INFO = { name: "turno-browser", version: PACKAGE_VERSION };
@@ -134,7 +144,12 @@ function withGovernor(result: ToolResult, governor: TabGovernor, json: boolean):
 
 function errorResult(message: string, json: boolean): ToolResult {
   return {
-    content: [{ type: "text", text: json ? JSON.stringify({ isError: true, error: message }, null, 2) : `### Error\n${message}` }],
+    content: [
+      {
+        type: "text",
+        text: json ? JSON.stringify({ isError: true, error: message }, null, 2) : `### Error\n${message}`,
+      },
+    ],
     isError: true,
   };
 }
@@ -248,8 +263,18 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     const { config, cliOptions, stock, engine, identity } = this.host;
     const promise = (async (): Promise<Running> => {
       if (identity) refuseWhileNeedsAuth(identity);
-      const tuning = resolveTuning(identity ? readIdentitySettings(identity.id, identity.env) : undefined, this.host.tuning);
-      const launched = await engine.launch({ config, clientInfo, cliOptions, title: this.title(clientInfo), tuning, ...(identity ? { identity } : {}) });
+      const tuning = resolveTuning(
+        identity ? readIdentitySettings(identity.id, identity.env) : undefined,
+        this.host.tuning,
+      );
+      const launched = await engine.launch({
+        config,
+        clientInfo,
+        cliOptions,
+        title: this.title(clientInfo),
+        tuning,
+        ...(identity ? { identity } : {}),
+      });
       if (identity) {
         try {
           await afterIdentityLaunch(identity, launched);
@@ -282,14 +307,22 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         await backend.initialize(clientInfo);
         // After upstream's own routes (--allowed-origins, --blocked-origins), so this one runs
         // first and hands every request it does not block or serve on to them.
-        if (identity) await installResources(launched.context, tuning.resources, join(identityStateDir(identity.id, identity.env), "resource-cache"));
+        if (identity)
+          await installResources(
+            launched.context,
+            tuning.resources,
+            join(identityStateDir(identity.id, identity.env), "resource-cache"),
+          );
       } catch (error) {
         await launched.close();
         throw error;
       }
       governor = new TabGovernor(launched.context, tuning.tabs, {
         current: () => backendContext(backend)?.currentTab()?.page,
-        tabs: () => backendContext(backend)?.tabs().map((t) => t.page) ?? [],
+        tabs: () =>
+          backendContext(backend)
+            ?.tabs()
+            .map((t) => t.page) ?? [],
       });
       governor.start();
       backend.on("dynamictoolschange", () => this.emit("dynamictoolschange"));
@@ -314,12 +347,22 @@ class SessionBackend extends EventEmitter implements ServerBackend {
    * `session` is the client session mcpd put in the call's `_meta` (ADR 0047). Only turno tools
    * see it; stock tools run exactly as before. Upstream's HTTP server (`--port`) never passes it.
    */
-  async callTool(name: string, args: Record<string, unknown>, signal?: AbortSignal, session?: string): Promise<ToolResult> {
+  async callTool(
+    name: string,
+    args: Record<string, unknown>,
+    signal?: AbortSignal,
+    session?: string,
+  ): Promise<ToolResult> {
     // Every result and error of this server leaves through the redactor (ADR 0054).
     return this.host.redactor.result(await this.callAny(name, args, signal, session));
   }
 
-  private async callAny(name: string, args: Record<string, unknown>, signal?: AbortSignal, session?: string): Promise<ToolResult> {
+  private async callAny(
+    name: string,
+    args: Record<string, unknown>,
+    signal?: AbortSignal,
+    session?: string,
+  ): Promise<ToolResult> {
     const tool = this.host.turno.get(name);
     if (!tool) return await this.callStock(name, args, signal);
     const json = !!(args._meta as { json?: boolean } | undefined)?.json;
@@ -343,7 +386,16 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         ...(stock ? { stock } : {}),
         ...(signal ? { signal } : {}),
         ...(session ? { session } : {}),
-        ...(this.host.identity ? { vault: { identity: this.host.identity, redactor: this.host.redactor, guard: this.host.guard, ...(this.host.vaultStore ? { store: this.host.vaultStore } : {}) } } : {}),
+        ...(this.host.identity
+          ? {
+              vault: {
+                identity: this.host.identity,
+                redactor: this.host.redactor,
+                guard: this.host.guard,
+                ...(this.host.vaultStore ? { store: this.host.vaultStore } : {}),
+              },
+            }
+          : {}),
       };
       return await tool.handle(context, parsed.params);
     } catch (error) {
@@ -359,7 +411,12 @@ class SessionBackend extends EventEmitter implements ServerBackend {
    * comes to the front (a tab in the background would not render, and an action on it would
    * wait for its timeout).
    */
-  private async callStock(name: string, args: Record<string, unknown>, signal?: AbortSignal, options: { snapshot?: boolean } = {}): Promise<ToolResult> {
+  private async callStock(
+    name: string,
+    args: Record<string, unknown>,
+    signal?: AbortSignal,
+    options: { snapshot?: boolean } = {},
+  ): Promise<ToolResult> {
     const { backend, config, governor, tuning, idle } = await this.browser();
     const endCall = idle?.begin();
     const json = !!(args._meta as { json?: boolean } | undefined)?.json;
@@ -372,9 +429,14 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     let result: ToolResult;
     try {
       await governor.prepare(name, args);
-      if (tuning.backgroundThrottling && name !== "browser_tabs") await backendContext(backend)?.currentTab()?.page.bringToFront().catch(() => {});
+      if (tuning.backgroundThrottling && name !== "browser_tabs")
+        await backendContext(backend)
+          ?.currentTab()
+          ?.page.bringToFront()
+          .catch(() => {});
       result = await backend.callTool(name, args, signal);
-      if (result.isError) result = await explainFailure(backendContext(backend)?.currentTab()?.page, name, args, result, json);
+      if (result.isError)
+        result = await explainFailure(backendContext(backend)?.currentTab()?.page, name, args, result, json);
       await governor.afterCall();
     } finally {
       endCall?.();
@@ -455,7 +517,12 @@ function userSetSettle(config: McpConfig, cliOptions: Record<string, unknown>): 
 function refuseWhileNeedsAuth(identity: IdentityRef): void {
   const health = readIdentitySettings(identity.id, identity.env)?.health;
   const last = readHealth(identity.id, identity.env);
-  if (health && last?.status === "needs_auth" && last.url === health.url && Date.now() - Date.parse(last.checkedAt) < NEEDS_AUTH_HOLD_MS) {
+  if (
+    health &&
+    last?.status === "needs_auth" &&
+    last.url === health.url &&
+    Date.now() - Date.parse(last.checkedAt) < NEEDS_AUTH_HOLD_MS
+  ) {
     throw new Error(needsAuthMessage(identity.id, last));
   }
 }
@@ -600,7 +667,10 @@ export async function serve(host: Host, transport?: Transport): Promise<Server |
  * Parses the Playwright MCP flags with upstream's definitions and serves them with turno's
  * host. Mirrors the action of upstream's program: exit watchdog, `--vision`, `tracing`, config.
  */
-export async function runHost(args: string[], options: { identity?: IdentityRef; tuning?: TuningFlags } = {}): Promise<void> {
+export async function runHost(
+  args: string[],
+  options: { identity?: IdentityRef; tuning?: TuningFlags } = {},
+): Promise<void> {
   const { utils, core, version } = upstream();
   const { identity, tuning } = options;
   const Command = utils.program.constructor;
@@ -615,7 +685,9 @@ export async function runHost(args: string[], options: { identity?: IdentityRef;
     }
     if ((options.caps as string[] | undefined)?.includes("tracing")) (options.caps as string[]).push("devtools");
     const config = await upstream().tools.resolveCLIConfigForMCP(options);
-    await serve(createHost({ config, cliOptions: options, ...(identity ? { identity } : {}), ...(tuning ? { tuning } : {}) }));
+    await serve(
+      createHost({ config, cliOptions: options, ...(identity ? { identity } : {}), ...(tuning ? { tuning } : {}) }),
+    );
   });
   try {
     await program.parseAsync(args, { from: "user" });

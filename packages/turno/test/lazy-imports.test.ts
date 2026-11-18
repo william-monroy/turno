@@ -39,10 +39,22 @@ describe.skipIf(!READY)("commands that only read state load neither mcpd nor the
   it("doctor --summary, doctor --security, uninstall --help and --dry-run, mcp log", () => {
     sb.write(".config/turno/config.toml", "[profiles.work]\n");
     sb.write(".config/turno/mcp.toml", '[server.gh]\ncommand = "gh-mcp"\n');
-    for (const args of [["doctor", "--summary"], ["doctor", "--security", "--summary"], ["uninstall", "--help"], ["uninstall", "--dry-run"], ["mcp", "log", "--tail", "1"]]) {
+    for (const args of [
+      ["doctor", "--summary"],
+      ["doctor", "--security", "--summary"],
+      ["uninstall", "--help"],
+      ["uninstall", "--dry-run"],
+      ["mcp", "log", "--tail", "1"],
+    ]) {
       const files = loaded(args);
-      expect(files.some((f) => f.endsWith("/dist/cli/main.js")), args.join(" ")).toBe(true);
-      expect(files.filter((f) => f.endsWith("/mcpd/daemon.js") || f.includes("@modelcontextprotocol")), args.join(" ")).toEqual([]);
+      expect(
+        files.some((f) => f.endsWith("/dist/cli/main.js")),
+        args.join(" "),
+      ).toBe(true);
+      expect(
+        files.filter((f) => f.endsWith("/mcpd/daemon.js") || f.includes("@modelcontextprotocol")),
+        args.join(" "),
+      ).toEqual([]);
     }
   });
 });

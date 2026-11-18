@@ -37,7 +37,9 @@ export type Diagnosis =
 /** True for the failures a look at the element can explain: actionability timeouts. */
 export function isActionabilityFailure(text: string): boolean {
   if (/Ref \S+ not found in the current page snapshot/.test(text)) return false;
-  return /Timeout \d+ms exceeded|intercepts pointer events|element is not (visible|enabled|editable|stable)|outside of the viewport/.test(text);
+  return /Timeout \d+ms exceeded|intercepts pointer events|element is not (visible|enabled|editable|stable)|outside of the viewport/.test(
+    text,
+  );
 }
 
 /**
@@ -66,7 +68,14 @@ function inspect(el: Element): Diagnosis {
       if (type === "checkbox" || type === "radio") return type;
       return "textbox";
     }
-    const landmarks: Record<string, string> = { nav: "navigation", header: "banner", footer: "contentinfo", main: "main", aside: "complementary", form: "form" };
+    const landmarks: Record<string, string> = {
+      nav: "navigation",
+      header: "banner",
+      footer: "contentinfo",
+      main: "main",
+      aside: "complementary",
+      form: "form",
+    };
     return landmarks[tag] ?? "generic";
   };
   const nameOf = (e: Element): string => {
@@ -83,7 +92,8 @@ function inspect(el: Element): Diagnosis {
     if (e instanceof HTMLInputElement || e instanceof HTMLTextAreaElement || e instanceof HTMLSelectElement) {
       const labelText = e.labels?.[0]?.textContent;
       if (clean(labelText)) return clean(labelText);
-      if (e instanceof HTMLInputElement && ["button", "submit", "reset"].includes(e.type) && e.value) return clean(e.value);
+      if (e instanceof HTMLInputElement && ["button", "submit", "reset"].includes(e.type) && e.value)
+        return clean(e.value);
       const placeholder = e.getAttribute("placeholder");
       if (placeholder) return clean(placeholder);
     }
@@ -93,7 +103,8 @@ function inspect(el: Element): Diagnosis {
   };
   const selectorOf = (e: Element): string => {
     const tag = e.tagName.toLowerCase();
-    if (e.id && /^[A-Za-z][\w-]*$/.test(e.id) && document.querySelectorAll(`#${e.id}`).length === 1) return `${tag}#${e.id}`;
+    if (e.id && /^[A-Za-z][\w-]*$/.test(e.id) && document.querySelectorAll(`#${e.id}`).length === 1)
+      return `${tag}#${e.id}`;
     for (const attr of ["data-testid", "data-test", "data-qa", "name"]) {
       const v = e.getAttribute(attr);
       if (v && v.length <= 40 && !/["\\\]]/.test(v)) return `${tag}[${attr}="${v}"]`;
@@ -105,22 +116,30 @@ function inspect(el: Element): Diagnosis {
   const target = describe(el);
 
   const disabled =
-    (el as HTMLButtonElement).disabled === true || el.getAttribute("aria-disabled") === "true" || !!el.closest("fieldset[disabled]");
+    (el as HTMLButtonElement).disabled === true ||
+    el.getAttribute("aria-disabled") === "true" ||
+    !!el.closest("fieldset[disabled]");
   if (disabled) return { state: "disabled", target };
 
   const box = el.getBoundingClientRect();
   const style = getComputedStyle(el);
-  const visible = box.width > 0 && box.height > 0 && style.visibility !== "hidden" && (el.checkVisibility ? el.checkVisibility({ opacityProperty: false }) : true);
+  const visible =
+    box.width > 0 &&
+    box.height > 0 &&
+    style.visibility !== "hidden" &&
+    (el.checkVisibility ? el.checkVisibility({ opacityProperty: false }) : true);
   if (!visible) {
     // The ancestor that hides it, when it is not the element itself.
     for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
       const s = getComputedStyle(a);
-      if (s.display === "none" || s.visibility === "hidden" || s.contentVisibility === "hidden") return { state: "hidden", target, because: describe(a) };
+      if (s.display === "none" || s.visibility === "hidden" || s.contentVisibility === "hidden")
+        return { state: "hidden", target, because: describe(a) };
     }
     return { state: "hidden", target };
   }
 
-  if ((el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) && el.readOnly) return { state: "readonly", target };
+  if ((el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) && el.readOnly)
+    return { state: "readonly", target };
 
   el.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
   const r = el.getBoundingClientRect();
@@ -141,10 +160,17 @@ function inspect(el: Element): Diagnosis {
   // The covering element: the outermost ancestor of what was hit that does not hold the target
   // (the cookie banner, not the paragraph inside it).
   let cover: Element = hit;
-  while (cover.parentElement && cover.parentElement !== document.body && cover.parentElement !== document.documentElement && !cover.parentElement.contains(el)) {
+  while (
+    cover.parentElement &&
+    cover.parentElement !== document.body &&
+    cover.parentElement !== document.documentElement &&
+    !cover.parentElement.contains(el)
+  ) {
     cover = cover.parentElement;
   }
-  const buttons = [...cover.querySelectorAll('button, [role="button"], a[href], input[type="button"], input[type="submit"]')]
+  const buttons = [
+    ...cover.querySelectorAll('button, [role="button"], a[href], input[type="button"], input[type="submit"]'),
+  ]
     .filter((b) => (b as HTMLElement).offsetParent !== null || getComputedStyle(b).position === "fixed")
     .map(nameOf)
     .filter((n) => n)
@@ -205,7 +231,11 @@ export function failureMessage(tool: string, target: string, d: Diagnosis | unde
         detail,
       ].join("\n");
     case "readonly":
-      return [`Could not ${verb} ${what}: it is read-only.`, "Next: look for the control that sets this value (a picker, a select, an edit button).", detail].join("\n");
+      return [
+        `Could not ${verb} ${what}: it is read-only.`,
+        "Next: look for the control that sets this value (a picker, a select, an edit button).",
+        detail,
+      ].join("\n");
     case "ok":
       return [
         `Could not ${verb} ${what} in time, although it is visible, enabled and not covered now: it was probably moving or covered for a moment.`,
@@ -219,7 +249,13 @@ export function failureMessage(tool: string, target: string, d: Diagnosis | unde
  * Rewrites the error of a failed stock call when it is an actionability failure of a diagnosed
  * tool; returns the result as it was otherwise.
  */
-export async function explainFailure(page: Page | undefined, tool: string, args: Record<string, unknown>, result: ToolResult, json: boolean): Promise<ToolResult> {
+export async function explainFailure(
+  page: Page | undefined,
+  tool: string,
+  args: Record<string, unknown>,
+  result: ToolResult,
+  json: boolean,
+): Promise<ToolResult> {
   if (!result.isError || !page || !(tool in DIAGNOSED_TOOLS)) return result;
   const first = result.content[0];
   if (!first || first.type !== "text") return result;
@@ -238,6 +274,12 @@ export async function explainFailure(page: Page | undefined, tool: string, args:
   const message = failureMessage(tool, target, await diagnoseTarget(page, target), original);
   return {
     ...result,
-    content: [{ type: "text", text: json ? JSON.stringify({ isError: true, error: message }, null, 2) : `### Error\n${message}` }, ...result.content.slice(1)],
+    content: [
+      {
+        type: "text",
+        text: json ? JSON.stringify({ isError: true, error: message }, null, 2) : `### Error\n${message}`,
+      },
+      ...result.content.slice(1),
+    ],
   };
 }

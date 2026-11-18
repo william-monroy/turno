@@ -5,7 +5,16 @@ import { readAudit, verifyAudit } from "../src/accounts/audit.js";
 import { main } from "../src/cli/main.js";
 import { listJournals } from "../src/core/journal.js";
 import { paths } from "../src/core/paths.js";
-import { StateError, hasFields, isStringArray, parseState, readState, readStateResult, recordOf, requireState } from "../src/core/state-file.js";
+import {
+  StateError,
+  hasFields,
+  isStringArray,
+  parseState,
+  readState,
+  readStateResult,
+  recordOf,
+  requireState,
+} from "../src/core/state-file.js";
 import { availableUpdate } from "../src/core/update.js";
 import { DescriptionCache } from "../src/mcpd/cache.js";
 import { readLock, readStartError } from "../src/mcpd/state.js";
@@ -58,7 +67,11 @@ describe("readState (ADR 0045)", () => {
     expect(isStringArray(["a", 1])).toBe(false);
     expect(recordOf(isStringArray)({ f: ["a"] })).toBe(true);
     expect(recordOf(isStringArray)({ f: "a" })).toBe(false);
-    expect(parseState("{}", isNamed, 1, "line")).toMatchObject({ ok: false, problem: "shape", message: "line does not hold what turno expects" });
+    expect(parseState("{}", isNamed, 1, "line")).toMatchObject({
+      ok: false,
+      problem: "shape",
+      message: "line does not hold what turno expects",
+    });
   });
 
   it.skipIf(process.getuid?.() === 0)("an unreadable file is not a missing one", () => {
@@ -108,7 +121,9 @@ describe("turno's state files, corrupt or of another shape", () => {
     sb.write(".config/turno/mcp.toml", '[server.calc]\ncommand = "calc"\n');
     const io = fakeIo(sb.env);
     expect(await main(["mcp", "sync", "--dry-run"], io)).toBe(1);
-    expect(io.errors.join("\n")).toMatch(/^turno: .*mcp-managed\.json does not hold what turno expects; fix it by hand or remove it$/);
+    expect(io.errors.join("\n")).toMatch(
+      /^turno: .*mcp-managed\.json does not hold what turno expects; fix it by hand or remove it$/,
+    );
     expect(io.errors.join("\n")).not.toContain("    at ");
   });
 
@@ -123,8 +138,14 @@ describe("turno's state files, corrupt or of another shape", () => {
 
   it("a journal manifest of another shape lists the backup as restore-by-hand", () => {
     state("backups/20261117-100000/journal.json", '{"version":1,"stamp":"x"}');
-    state("backups/20261117-110000/journal.json", '{"version":1,"stamp":"20261117-110000","command":"init","created":"t","entries":[{"path":"/x"}]}');
-    state("backups/20261117-120000/journal.json", '{"version":2,"stamp":"20261117-120000","command":"init","created":"t","entries":[]}');
+    state(
+      "backups/20261117-110000/journal.json",
+      '{"version":1,"stamp":"20261117-110000","command":"init","created":"t","entries":[{"path":"/x"}]}',
+    );
+    state(
+      "backups/20261117-120000/journal.json",
+      '{"version":2,"stamp":"20261117-120000","command":"init","created":"t","entries":[]}',
+    );
     const all = listJournals(sb.env);
     expect(all.map((j) => [j.stamp, Boolean(j.manifest)])).toEqual([
       ["20261117-120000", false],
@@ -134,7 +155,8 @@ describe("turno's state files, corrupt or of another shape", () => {
   });
 
   it("audit lines of another shape are skipped by log and reported by --verify", () => {
-    const good = '{"ts":"t","caller":{"profile":null,"pid":null},"account":"a","owner":null,"write":false,"task":"x","outcome":"ok","detail":"","durationMs":1,"costUsd":null}';
+    const good =
+      '{"ts":"t","caller":{"profile":null,"pid":null},"account":"a","owner":null,"write":false,"task":"x","outcome":"ok","detail":"","durationMs":1,"costUsd":null}';
     const file = paths(sb.env).auditLog;
     sb.write(file.slice(sb.home.length + 1), `${good}\n{"ts":"t"}\n`);
     expect(readAudit(0, sb.env)).toHaveLength(1);

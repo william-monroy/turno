@@ -5,7 +5,19 @@ import { summarize } from "../src/cli/commands/undo.js";
 import { writeLauncher } from "../src/cli/launchers.js";
 import { main } from "../src/cli/main.js";
 import { groupNotes } from "../src/cli/commands/init.js";
-import { ICONS, duration, level, padEnd, profileColor, spinner, stripAnsi, style, termWidth, visibleWidth, wrapAnsi } from "../src/cli/style.js";
+import {
+  ICONS,
+  duration,
+  level,
+  padEnd,
+  profileColor,
+  spinner,
+  stripAnsi,
+  style,
+  termWidth,
+  visibleWidth,
+  wrapAnsi,
+} from "../src/cli/style.js";
 import { tildify } from "../src/core/paths.js";
 import { fakeCommand, fakeIo } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -75,7 +87,10 @@ describe("style: widths, tables and bars", () => {
       ["a", "1", "first long note"],
       ["bbb", "22", "x"],
     ];
-    expect(style(pipe()).table(rows, { columns: [{}, { align: "right" }, {}] })).toEqual(["  a     1  first long note", "  bbb  22  x"]);
+    expect(style(pipe()).table(rows, { columns: [{}, { align: "right" }, {}] })).toEqual([
+      "  a     1  first long note",
+      "  bbb  22  x",
+    ]);
     const narrow = style(tty({ COLUMNS: "40" }));
     const wide = [["name", "x".repeat(30), "y".repeat(10)]];
     expect(stripAnsi(narrow.table(wide, { columns: [{}, { drop: 1 }, {}] })[0]!)).toBe(`  name  ${"y".repeat(10)}`);
@@ -120,7 +135,9 @@ describe("style: nothing runs past the terminal width", () => {
 
   it("wraps the last cell of a table under its own column", () => {
     const rows = [["~/.claude-work", "23 links removed, settings.json moved back, aside folder removed"]];
-    const lines = style(tty({ COLUMNS: "50" })).table(rows).map(stripAnsi);
+    const lines = style(tty({ COLUMNS: "50" }))
+      .table(rows)
+      .map(stripAnsi);
     expect(lines.length).toBeGreaterThan(1);
     for (const l of lines) expect(l.length, l).toBeLessThanOrEqual(50);
     for (const l of lines.slice(1)) expect(l).toMatch(/^ {18}\S/);
@@ -130,9 +147,17 @@ describe("style: nothing runs past the terminal width", () => {
 
 describe("init notes", () => {
   it("groups a note repeated across servers and keeps specific ones", () => {
-    const unknown = 'scope project: unknown server, one process per project folder; set scope = "shared" if it ignores its folder';
+    const unknown =
+      'scope project: unknown server, one process per project folder; set scope = "shared" if it ignores its folder';
     expect(
-      groupNotes([`github: ${unknown}`, "memory: runs @x/memory; turno mcp install pins it", `memory: ${unknown}`, "linear: remote, written directly into profiles", `postgres: ${unknown}`, "db: remote, written directly into profiles"]),
+      groupNotes([
+        `github: ${unknown}`,
+        "memory: runs @x/memory; turno mcp install pins it",
+        `memory: ${unknown}`,
+        "linear: remote, written directly into profiles",
+        `postgres: ${unknown}`,
+        "db: remote, written directly into profiles",
+      ]),
     ).toEqual([
       'scope project for github, memory, postgres (unknown servers: one process per project folder; set scope = "shared" for those that ignore their folder)',
       "memory: runs @x/memory; turno mcp install pins it",
@@ -161,7 +186,9 @@ describe("style: spinner", () => {
       t += 250;
       expect(spin.stop()).toBe(250);
     }
-    expect(spinner(tty({ NO_COLOR: "1" }), "x", { tty: true, write: (s) => written.push(s) }).stop()).toBeGreaterThanOrEqual(0);
+    expect(
+      spinner(tty({ NO_COLOR: "1" }), "x", { tty: true, write: (s) => written.push(s) }).stop(),
+    ).toBeGreaterThanOrEqual(0);
     expect(written).toEqual([]);
   });
 });
@@ -183,7 +210,11 @@ describe("undo summary", () => {
     const env = { HOME: "/h" };
     const steps = [
       ...["skills", "agents", "hooks"].map((d) => ({ path: `/h/.claude-work/${d}`, action: "unlink" as const })),
-      { path: "/h/.claude-work/settings.json", action: "move" as const, from: "/h/.claude-work/.aside-1/settings.json" },
+      {
+        path: "/h/.claude-work/settings.json",
+        action: "move" as const,
+        from: "/h/.claude-work/.aside-1/settings.json",
+      },
       { path: "/h/.claude-work/.aside-1", action: "rmdir" as const },
       { path: "/h/.config/turno/config.toml", action: "restore" as const },
       { path: "/h/.local/bin/claude-work", action: "delete" as const },
@@ -191,7 +222,11 @@ describe("undo summary", () => {
       { path: "/h/.claude-work", action: "chmod" as const, mode: 0o755 },
     ];
     expect(summarize(steps, env)).toEqual([
-      { folder: "~/.claude-work", skipped: false, text: ["3 links removed", "settings.json moved back", "aside folder removed", "folder mode put back"] },
+      {
+        folder: "~/.claude-work",
+        skipped: false,
+        text: ["3 links removed", "settings.json moved back", "aside folder removed", "folder mode put back"],
+      },
       { folder: "~/.config/turno", skipped: false, text: ["config.toml restored"] },
       { folder: "~/.local/bin", skipped: false, text: ["claude-work removed"] },
       { folder: "~", skipped: false, text: [".claude.json restored"] },
@@ -212,7 +247,10 @@ describe("screens on a terminal and in a pipe", () => {
       writeLauncher(name, sb.env);
     }
     sb.write(".config/turno/config.toml", '[profiles.work]\ncolor = "violet"\n\n[profiles.home]\n');
-    sb.write(".local/state/turno/usage/work.json", JSON.stringify({ rate_limits: { five_hour: { used_percentage: 90 }, seven_day: { used_percentage: 30 } } }));
+    sb.write(
+      ".local/state/turno/usage/work.json",
+      JSON.stringify({ rate_limits: { five_hour: { used_percentage: 90 }, seven_day: { used_percentage: 30 } } }),
+    );
   });
   afterEach(() => sb.cleanup());
 

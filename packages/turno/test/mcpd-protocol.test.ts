@@ -15,7 +15,14 @@ import { Gateway, type GatewayOptions } from "../src/mcpd/gateway.js";
 import { InstanceManager } from "../src/mcpd/instances.js";
 import { ErrorCode } from "../src/mcpd/jsonrpc.js";
 import { type CallStage, SESSION_META } from "../src/mcpd/middleware.js";
-import { MODERN_PROTOCOL_VERSION, StatelessClient, decodeHeaderValue, modernErrorCode, paramHeaderProblem, readJsonBody } from "../src/mcpd/modern.js";
+import {
+  MODERN_PROTOCOL_VERSION,
+  StatelessClient,
+  decodeHeaderValue,
+  modernErrorCode,
+  paramHeaderProblem,
+  readJsonBody,
+} from "../src/mcpd/modern.js";
 import { profileToken } from "../src/mcpd/tokens.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
@@ -54,7 +61,14 @@ async function boot(toml: string, extra: Partial<GatewayOptions> = {}): Promise<
     }),
     home: sb.home,
   });
-  gw = new Gateway({ manager, manifest: () => manifest, token: TOKEN, clientRequestTimeoutMs: 5000, processCwd: async () => undefined, ...extra });
+  gw = new Gateway({
+    manager,
+    manifest: () => manifest,
+    token: TOKEN,
+    clientRequestTimeoutMs: 5000,
+    processCwd: async () => undefined,
+    ...extra,
+  });
   port = await gw.listen(0);
 }
 
@@ -79,7 +93,10 @@ interface PostOpts {
   signal?: AbortSignal;
 }
 
-function defaultHeaders(msg: { method: string; params?: Record<string, unknown> }, o: PostOpts): Record<string, string> {
+function defaultHeaders(
+  msg: { method: string; params?: Record<string, unknown> },
+  o: PostOpts,
+): Record<string, string> {
   const h: Record<string, string> = {
     Authorization: `Bearer ${profileToken(TOKEN, o.profile ?? "default")}`,
     "Content-Type": "application/json",
@@ -88,13 +105,20 @@ function defaultHeaders(msg: { method: string; params?: Record<string, unknown> 
     "Mcp-Method": msg.method,
   };
   const name = msg.params?.name ?? msg.params?.uri;
-  if (typeof name === "string" && ["tools/call", "prompts/get", "resources/read"].includes(msg.method)) h["Mcp-Name"] = name;
+  if (typeof name === "string" && ["tools/call", "prompts/get", "resources/read"].includes(msg.method))
+    h["Mcp-Name"] = name;
   for (const k of o.omit ?? []) delete h[k];
   return { ...h, ...(o.headers ?? {}) };
 }
 
 /** POST one modern (2026-07-28) request, with the headers and _meta a conforming client sends. */
-function post(server: string, method: string, params: Record<string, unknown> = {}, o: PostOpts = {}, id: number | string = 1): Promise<Response> {
+function post(
+  server: string,
+  method: string,
+  params: Record<string, unknown> = {},
+  o: PostOpts = {},
+  id: number | string = 1,
+): Promise<Response> {
   const meta = o.rawMeta ?? {
     [`${META}protocolVersion`]: o.version ?? V,
     [`${META}clientInfo`]: { name: "modern-test", version: "1" },
@@ -142,7 +166,10 @@ async function listen(id: string | number, notifications: Record<string, unknown
       buf += dec.decode(value, { stream: true });
       let i = buf.indexOf("\n\n");
       while (i >= 0) {
-        const data = buf.slice(0, i).split("\n").find((l) => l.startsWith("data:"));
+        const data = buf
+          .slice(0, i)
+          .split("\n")
+          .find((l) => l.startsWith("data:"));
         if (data) got.push(JSON.parse(data.slice(5)));
         buf = buf.slice(i + 2);
         i = buf.indexOf("\n\n");
@@ -251,7 +278,12 @@ describe("MCP 2026-07-28 (stateless) requests", () => {
   it("relays tools/call without a session, next to a 2025-11-25 session on the same server", async () => {
     await boot(fixtureToml("fx"));
     const old = await connectLegacy("fx");
-    const r = await rpc("fx", "tools/call", { name: "counter", arguments: {} }, { headers: { "X-Turno-Pid": String(process.pid) } });
+    const r = await rpc(
+      "fx",
+      "tools/call",
+      { name: "counter", arguments: {} },
+      { headers: { "X-Turno-Pid": String(process.pid) } },
+    );
     expect(r.status).toBe(200);
     expect(r.res.headers.get("mcp-session-id")).toBeNull();
     expect(r.last.result.resultType).toBe("complete");
@@ -262,7 +294,9 @@ describe("MCP 2026-07-28 (stateless) requests", () => {
     expect(gw?.sessionCount()).toBe(1);
     // The stateless agent shows up in /status like a session does.
     const status = gw?.status() as { agents: { pid: number | null; agent: string | null }[] };
-    expect(status.agents).toEqual(expect.arrayContaining([expect.objectContaining({ pid: process.pid, agent: "modern-test" })]));
+    expect(status.agents).toEqual(
+      expect.arrayContaining([expect.objectContaining({ pid: process.pid, agent: "modern-test" })]),
+    );
   });
 
   it("still serves initialize as a 2025-11-25 session when a client sends a newer version header", async () => {
@@ -286,7 +320,12 @@ describe("MCP 2026-07-28 (stateless) requests", () => {
 
   it("ignores an Mcp-Session-Id on a 2026-07-28 request", async () => {
     await boot(fixtureToml("fx"));
-    const r = await rpc("fx", "tools/list", {}, { headers: { "Mcp-Session-Id": "00000000-0000-0000-0000-000000000000" } });
+    const r = await rpc(
+      "fx",
+      "tools/list",
+      {},
+      { headers: { "Mcp-Session-Id": "00000000-0000-0000-0000-000000000000" } },
+    );
     expect(r.status).toBe(200);
     expect(r.last.result.tools.length).toBeGreaterThan(0);
     expect(gw?.sessionCount()).toBe(0);
@@ -306,7 +345,12 @@ describe("MCP 2026-07-28 (stateless) requests", () => {
     expect(noName.status).toBe(400);
     expect(noName.last.error.code).toBe(-32020);
 
-    const wrongName = await rpc("fx", "tools/call", { name: "echo", arguments: { text: "a" } }, { headers: { "Mcp-Name": "counter" } });
+    const wrongName = await rpc(
+      "fx",
+      "tools/call",
+      { name: "echo", arguments: { text: "a" } },
+      { headers: { "Mcp-Name": "counter" } },
+    );
     expect(wrongName.status).toBe(400);
     expect(wrongName.last.error.message).toMatch(/Mcp-Name/);
 
@@ -319,7 +363,12 @@ describe("MCP 2026-07-28 (stateless) requests", () => {
   it("accepts a Base64-encoded Mcp-Name", async () => {
     await boot(fixtureToml("fx"));
     const encoded = `=?base64?${Buffer.from("echo").toString("base64")}?=`;
-    const r = await rpc("fx", "tools/call", { name: "echo", arguments: { text: "b64" } }, { headers: { "Mcp-Name": encoded } });
+    const r = await rpc(
+      "fx",
+      "tools/call",
+      { name: "echo", arguments: { text: "b64" } },
+      { headers: { "Mcp-Name": encoded } },
+    );
     expect(r.status).toBe(200);
     expect(r.last.result.content[0].text).toBe("b64");
   });
@@ -353,14 +402,23 @@ describe("MCP 2026-07-28 (stateless) requests", () => {
   it("accepts a notification with 202 and no body", async () => {
     await boot(fixtureToml("fx"));
     const msg = { jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: 9 } };
-    const res = await fetch(`http://127.0.0.1:${port}/mcp/fx`, { method: "POST", headers: defaultHeaders(msg, {}), body: JSON.stringify(msg) });
+    const res = await fetch(`http://127.0.0.1:${port}/mcp/fx`, {
+      method: "POST",
+      headers: defaultHeaders(msg, {}),
+      body: JSON.stringify(msg),
+    });
     expect(res.status).toBe(202);
     expect(await res.text()).toBe("");
   });
 
   it("streams progress on the request's own SSE response", async () => {
     await boot(fixtureToml("fx"));
-    const r = await rpc("fx", "tools/call", { name: "slow", arguments: { steps: 3 } }, { meta: { progressToken: "tok-1" } });
+    const r = await rpc(
+      "fx",
+      "tools/call",
+      { name: "slow", arguments: { steps: 3 } },
+      { meta: { progressToken: "tok-1" } },
+    );
     expect(r.res.headers.get("content-type")).toContain("text/event-stream");
     const progress = r.all.filter((m) => m.method === "notifications/progress");
     expect(progress.map((m) => m.params.progress)).toEqual([1, 2, 3]);
@@ -373,7 +431,12 @@ describe("MCP 2026-07-28 (stateless) requests", () => {
     await boot(fixtureToml("fx"));
     await rpc("fx", "tools/call", { name: "echo", arguments: { text: "warm" } });
     const abort = new AbortController();
-    const pending = post("fx", "tools/call", { name: "hang", arguments: { ms: 10_000 } }, { signal: abort.signal }).catch(() => undefined);
+    const pending = post(
+      "fx",
+      "tools/call",
+      { name: "hang", arguments: { ms: 10_000 } },
+      { signal: abort.signal },
+    ).catch(() => undefined);
     await waitFor(() => inflight() === 1, "the call to reach the server");
     abort.abort();
     await pending;
@@ -385,7 +448,12 @@ describe("MCP 2026-07-28 (stateless) requests", () => {
     await boot(fixtureToml("fx"));
     const started = Date.now();
     // Even a client that declares sampling cannot be asked mid-call: mcpd does not bridge to MRTR yet.
-    const r = await rpc("fx", "tools/call", { name: "sample", arguments: {} }, { meta: { [`${META}clientCapabilities`]: { sampling: {} } } });
+    const r = await rpc(
+      "fx",
+      "tools/call",
+      { name: "sample", arguments: {} },
+      { meta: { [`${META}clientCapabilities`]: { sampling: {} } } },
+    );
     expect(Date.now() - started).toBeLessThan(4000);
     expect(r.last.result.content[0].text).toMatch(/error/);
   });
@@ -394,7 +462,12 @@ describe("MCP 2026-07-28 (stateless) requests", () => {
     await boot(fixtureToml("fx", 'scope = "project"'));
     const dir = join(sb.home, "proj");
     mkdirSync(dir, { recursive: true });
-    const r = await rpc("fx", "tools/call", { name: "roots", arguments: {} }, { headers: { "X-Turno-Cwd-B64": Buffer.from(dir).toString("base64url") } });
+    const r = await rpc(
+      "fx",
+      "tools/call",
+      { name: "roots", arguments: {} },
+      { headers: { "X-Turno-Cwd-B64": Buffer.from(dir).toString("base64url") } },
+    );
     expect(r.last.result.content[0].text).toContain("proj");
   });
 
@@ -403,11 +476,18 @@ describe("MCP 2026-07-28 (stateless) requests", () => {
     await rpc("fx", "tools/call", { name: "echo", arguments: { text: "start" } });
     await manager?.list()[0]?.described;
 
-    const sub = await listen("sub-1", { toolsListChanged: true, resourceSubscriptions: ["file:///watched"], unknownThing: true });
+    const sub = await listen("sub-1", {
+      toolsListChanged: true,
+      resourceSubscriptions: ["file:///watched"],
+      unknownThing: true,
+    });
     await waitFor(() => sub.got.length >= 1, "the acknowledgment");
     expect(sub.got[0]?.method).toBe("notifications/subscriptions/acknowledged");
     expect(sub.got[0]?.params._meta[`${META}subscriptionId`]).toBe("sub-1");
-    expect(sub.got[0]?.params.notifications).toEqual({ toolsListChanged: true, resourceSubscriptions: ["file:///watched"] });
+    expect(sub.got[0]?.params.notifications).toEqual({
+      toolsListChanged: true,
+      resourceSubscriptions: ["file:///watched"],
+    });
     await waitFor(() => events().includes("subscribe file:///watched"), "the upstream subscription");
 
     await rpc("fx", "tools/call", { name: "touch", arguments: { uri: "file:///watched" } });
@@ -434,7 +514,9 @@ describe("MCP 2026-07-28 (stateless) requests", () => {
     await manager?.stopAll();
     await rpc("fx", "tools/call", { name: "echo", arguments: { text: "restart" } });
     await waitFor(() => sub.got.some((m) => m.method === "notifications/tools/list_changed"), "the list change");
-    expect(sub.got.find((m) => m.method === "notifications/tools/list_changed")?.params._meta[`${META}subscriptionId`]).toBe(7);
+    expect(
+      sub.got.find((m) => m.method === "notifications/tools/list_changed")?.params._meta[`${META}subscriptionId`],
+    ).toBe(7);
     await sub.close();
   });
 
@@ -454,35 +536,62 @@ describe("MCP 2026-07-28 (stateless) requests", () => {
     const other = spawn("sleep", ["30"]);
     children.push(other);
     const mine = { headers: { "X-Turno-Pid": String(process.pid) } };
-    expect((await rpc("fx", "tools/call", { name: "counter", arguments: {} }, mine)).last.result.content[0].text).toBe("1");
-    expect((await rpc("fx", "tools/call", { name: "counter", arguments: {} }, mine)).last.result.content[0].text).toBe("2");
-    const theirs = await rpc("fx", "tools/call", { name: "counter", arguments: {} }, { headers: { "X-Turno-Pid": String(other.pid) } });
+    expect((await rpc("fx", "tools/call", { name: "counter", arguments: {} }, mine)).last.result.content[0].text).toBe(
+      "1",
+    );
+    expect((await rpc("fx", "tools/call", { name: "counter", arguments: {} }, mine)).last.result.content[0].text).toBe(
+      "2",
+    );
+    const theirs = await rpc(
+      "fx",
+      "tools/call",
+      { name: "counter", arguments: {} },
+      { headers: { "X-Turno-Pid": String(other.pid) } },
+    );
     expect(theirs.last.error.message).toMatch(/in use by another session/);
 
     // The holder's process exits: pruning drops its client and the lease with it.
     gw?.pruneSessions((pid) => pid !== process.pid);
-    const after = await rpc("fx", "tools/call", { name: "counter", arguments: {} }, { headers: { "X-Turno-Pid": String(other.pid) } });
+    const after = await rpc(
+      "fx",
+      "tools/call",
+      { name: "counter", arguments: {} },
+      { headers: { "X-Turno-Pid": String(other.pid) } },
+    );
     expect(after.last.result.content[0].text).toBe("3");
   });
 });
 
 describe("the call middleware on both protocol paths (ADR 0047)", () => {
   /** A test-only stage: records the tool of every call that reaches it. */
-  const probe = (seen: string[]): CallStage => ({ name: "test-probe", run: (call, next) => (seen.push(call.tool), next(call)) });
+  const probe = (seen: string[]): CallStage => ({
+    name: "test-probe",
+    run: (call, next) => (seen.push(call.tool), next(call)),
+  });
   const metaOf = (text: string) => JSON.parse(text) as Record<string, unknown> | null;
 
   it("sends every tools/call through one pipeline: filter first, then the opt-in stages, the call log and the session id", async () => {
     const seen: string[] = [];
     const logged: CallEvent[] = [];
-    await boot(fixtureToml("fx", 'tools = { deny = ["hang"] }'), { callStages: [probe(seen)], callLog: () => (e) => logged.push(e) });
+    await boot(fixtureToml("fx", 'tools = { deny = ["hang"] }'), {
+      callStages: [probe(seen)],
+      callLog: () => (e) => logged.push(e),
+    });
     expect(gw?.calls.names()).toEqual(["filter", "test-probe", "calllog", "session"]);
 
     const old = await connectLegacy("fx");
     await old.callTool({ name: "echo", arguments: { text: "a" } });
-    await expect(old.callTool({ name: "hang", arguments: {} })).rejects.toThrow(/tool hang of fx is not available to profile default \(tools.allow \/ tools.deny in mcp.toml\)/);
-    expect((await rpc("fx", "tools/call", { name: "echo", arguments: { text: "b" } })).last.result.content[0].text).toBe("b");
+    await expect(old.callTool({ name: "hang", arguments: {} })).rejects.toThrow(
+      /tool hang of fx is not available to profile default \(tools.allow \/ tools.deny in mcp.toml\)/,
+    );
+    expect(
+      (await rpc("fx", "tools/call", { name: "echo", arguments: { text: "b" } })).last.result.content[0].text,
+    ).toBe("b");
     const refused = await rpc("fx", "tools/call", { name: "hang", arguments: {} });
-    expect(refused.last.error).toMatchObject({ code: ErrorCode.InvalidParams, message: expect.stringMatching(/not available to profile default/) });
+    expect(refused.last.error).toMatchObject({
+      code: ErrorCode.InvalidParams,
+      message: expect.stringMatching(/not available to profile default/),
+    });
 
     expect(seen).toEqual(["echo", "echo"]);
     expect(logged.map((e) => [e.method, e.params?.name, e.variant])).toEqual([
@@ -502,7 +611,13 @@ describe("the call middleware on both protocol paths (ADR 0047)", () => {
     const a = await connectLegacy("fx");
     const b = await connectLegacy("fx");
     const callMeta = async (c: Client, meta?: Record<string, unknown>) =>
-      metaOf(((await c.callTool({ name: "meta", arguments: {}, ...(meta ? { _meta: meta } : {}) })) as { content: { text: string }[] }).content[0]!.text);
+      metaOf(
+        (
+          (await c.callTool({ name: "meta", arguments: {}, ...(meta ? { _meta: meta } : {}) })) as {
+            content: { text: string }[];
+          }
+        ).content[0]!.text,
+      );
     const a1 = await callMeta(a);
     const a2 = await callMeta(a, { [SESSION_META]: "forged", progressToken: "p1" });
     const b1 = await callMeta(b);
@@ -512,10 +627,17 @@ describe("the call middleware on both protocol paths (ADR 0047)", () => {
     expect(a2).toHaveProperty("progressToken");
     expect(b1?.[SESSION_META]).not.toBe(id);
     // Not the Mcp-Session-Id of either session.
-    const sessionIds = [(a as unknown as { transport: { sessionId?: string } }).transport.sessionId, (b as unknown as { transport: { sessionId?: string } }).transport.sessionId];
+    const sessionIds = [
+      (a as unknown as { transport: { sessionId?: string } }).transport.sessionId,
+      (b as unknown as { transport: { sessionId?: string } }).transport.sessionId,
+    ];
     expect(sessionIds).not.toContain(id);
 
-    const modern = async (pid: number) => metaOf((await rpc("fx", "tools/call", { name: "meta", arguments: {} }, { headers: { "X-Turno-Pid": String(pid) } })).last.result.content[0].text);
+    const modern = async (pid: number) =>
+      metaOf(
+        (await rpc("fx", "tools/call", { name: "meta", arguments: {} }, { headers: { "X-Turno-Pid": String(pid) } }))
+          .last.result.content[0].text,
+      );
     const m1 = await modern(process.pid);
     const m2 = await modern(process.pid);
     const other = spawn("sleep", ["30"]);
@@ -546,24 +668,53 @@ describe("2026-07-28 helpers", () => {
           region: { type: "string", "x-mcp-header": "Region" },
           limit: { type: "integer", "x-mcp-header": "Limit" },
           opts: { type: "object", properties: { dry: { type: "boolean", "x-mcp-header": "Dry" } } },
-          list: { type: "array", items: { type: "object", properties: { x: { type: "string", "x-mcp-header": "Ignored" } } } },
+          list: {
+            type: "array",
+            items: { type: "object", properties: { x: { type: "string", "x-mcp-header": "Ignored" } } },
+          },
           query: { type: "string" },
         },
       },
     };
     const ok = { "mcp-param-region": "us-west1", "mcp-param-limit": "42", "mcp-param-dry": "true" };
-    expect(paramHeaderProblem(tool, { region: "us-west1", limit: 42, opts: { dry: true }, query: "q" }, ok)).toBeUndefined();
-    expect(paramHeaderProblem(tool, { region: "us-west1", limit: 42, opts: { dry: true } }, { ...ok, "mcp-param-limit": "42.0" })).toBeUndefined();
+    expect(
+      paramHeaderProblem(tool, { region: "us-west1", limit: 42, opts: { dry: true }, query: "q" }, ok),
+    ).toBeUndefined();
+    expect(
+      paramHeaderProblem(
+        tool,
+        { region: "us-west1", limit: 42, opts: { dry: true } },
+        { ...ok, "mcp-param-limit": "42.0" },
+      ),
+    ).toBeUndefined();
     expect(paramHeaderProblem(tool, { region: "eu", limit: 42, opts: { dry: true } }, ok)).toMatch(/Mcp-Param-Region/);
-    expect(paramHeaderProblem(tool, { region: "us-west1", opts: { dry: true } }, { "mcp-param-region": "us-west1", "mcp-param-dry": "true" })).toBeUndefined();
-    expect(paramHeaderProblem(tool, { region: "us-west1", limit: 1 }, { "mcp-param-region": "us-west1" })).toMatch(/missing Mcp-Param-Limit/);
-    expect(paramHeaderProblem(tool, { region: "Hello, 世界" }, { "mcp-param-region": `=?base64?${Buffer.from("Hello, 世界").toString("base64")}?=` })).toBeUndefined();
+    expect(
+      paramHeaderProblem(
+        tool,
+        { region: "us-west1", opts: { dry: true } },
+        { "mcp-param-region": "us-west1", "mcp-param-dry": "true" },
+      ),
+    ).toBeUndefined();
+    expect(paramHeaderProblem(tool, { region: "us-west1", limit: 1 }, { "mcp-param-region": "us-west1" })).toMatch(
+      /missing Mcp-Param-Limit/,
+    );
+    expect(
+      paramHeaderProblem(
+        tool,
+        { region: "Hello, 世界" },
+        { "mcp-param-region": `=?base64?${Buffer.from("Hello, 世界").toString("base64")}?=` },
+      ),
+    ).toBeUndefined();
     expect(paramHeaderProblem({ name: "plain", inputSchema: { type: "object" } }, { a: 1 }, {})).toBeUndefined();
   });
 
   it("sends log messages only to a request that asked for a level, at or above it", () => {
     const written: string[] = [];
-    const res = { writableEnded: false, destroyed: false, write: (t: string) => written.push(t) } as unknown as ServerResponse;
+    const res = {
+      writableEnded: false,
+      destroyed: false,
+      write: (t: string) => written.push(t),
+    } as unknown as ServerResponse;
     const c = new StatelessClient({ serverName: "fx", sessionId: "stateless-1" });
     c.calls.set("h1", { res, stream: true, logLevel: "warning" });
     c.calls.set("h2", { res, stream: true });
@@ -582,7 +733,8 @@ describe("2026-07-28 helpers", () => {
   it("refuses a body over the limit and one that is not JSON", async () => {
     const body = (text: string, length?: number) => {
       const s = new PassThrough() as unknown as IncomingMessage & PassThrough;
-      (s as unknown as { headers: Record<string, string> }).headers = length !== undefined ? { "content-length": String(length) } : {};
+      (s as unknown as { headers: Record<string, string> }).headers =
+        length !== undefined ? { "content-length": String(length) } : {};
       queueMicrotask(() => s.end(text));
       return s;
     };

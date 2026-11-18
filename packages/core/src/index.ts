@@ -17,5 +17,21 @@ export {
   turnoRoots,
   writePrivateFile,
 } from "./paths.js";
-export { NO_SECRET_STORE, SecretError, type SecretStore, keychainAddLine, requireSecretStore, secretStore, securityQuote } from "./secrets.js";
-export { type ProcInfo, type ProcTable, parentIsInit, parseProcTable, pidAlive, readProcTable, signalProcess } from "./process.js";
+export {
+  NO_SECRET_STORE,
+  SecretError,
+  type SecretStore,
+  keychainAddLine,
+  requireSecretStore,
+  secretStore,
+  securityQuote,
+} from "./secrets.js";
+export {
+  type ProcInfo,
+  type ProcTable,
+  parentIsInit,
+  parseProcTable,
+  pidAlive,
+  readProcTable,
+  signalProcess,
+} from "./process.js";

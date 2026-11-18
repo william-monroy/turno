@@ -131,7 +131,8 @@ export const TUNING_FLAGS = {
 
 function tuningValue(flag: keyof typeof TUNING_FLAGS, value: string, out: TuningFlags): void {
   if (flag === "--max-tabs") {
-    if (!/^\d+$/.test(value) || Number(value) > 100) throw new Error(`--max-tabs must be a whole number from 0 (no cap) to 100, not "${value}"`);
+    if (!/^\d+$/.test(value) || Number(value) > 100)
+      throw new Error(`--max-tabs must be a whole number from 0 (no cap) to 100, not "${value}"`);
     out.maxTabs = Number(value);
   } else if (flag === "--popups") {
     if (value !== "close" && value !== "keep") throw new Error(`--popups must be "close" or "keep", not "${value}"`);
@@ -229,7 +230,10 @@ export function buildArgv(rawArgs: string[], options: BuildOptions = {}): BuiltA
 
   if (!external && !hasFlag(args, "--config") && !env.PLAYWRIGHT_MCP_CONFIG) {
     const idle = env.TURNO_BROWSER_IDLE !== undefined ? parseIdle(env.TURNO_BROWSER_IDLE) : DEFAULT_BROWSER_IDLE_MS;
-    const path = identity !== undefined ? join(paths(env).identityStateDir, identity, "mcp-config.json") : join(makeTemp(), "mcp-config.json");
+    const path =
+      identity !== undefined
+        ? join(paths(env).identityStateDir, identity, "mcp-config.json")
+        : join(makeTemp(), "mcp-config.json");
     out.config = { path, data: { timeouts: { idle } } };
     args.push("--config", path);
   }

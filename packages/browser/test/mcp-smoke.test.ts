@@ -16,7 +16,6 @@ import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 const pkg = fileURLToPath(new URL("..", import.meta.url));
 const bin = join(pkg, "dist", "bin", "mcp.js");
 
-
 let sb: Sandbox;
 beforeEach(() => {
   sb = sandbox();
@@ -46,7 +45,9 @@ async function listTools(args: string[]): Promise<string[]> {
 describe("turno-browser-mcp", () => {
   it("serves the Playwright MCP tools for an identity without launching Chrome", async () => {
     const names = await listTools(["--identity", "school"]);
-    expect(names).toEqual(expect.arrayContaining(["browser_navigate", "browser_snapshot", "browser_click", "browser_console_messages"]));
+    expect(names).toEqual(
+      expect.arrayContaining(["browser_navigate", "browser_snapshot", "browser_click", "browser_console_messages"]),
+    );
     const dir = join(sb.home, ".local", "share", "turno", "browser", "identities", "school");
     expect(existsSync(dir)).toBe(true);
     expect(readdirSync(dir)).toEqual([]);

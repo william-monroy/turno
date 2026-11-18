@@ -54,7 +54,15 @@ const TRACKER_HOSTS: readonly string[] = Object.freeze([
 const CACHED_TYPES = new Set(["image", "font", "stylesheet", "script"]);
 
 /** Response headers never replayed from the cache: the body is stored decoded, and no cookie. */
-const DROPPED_HEADERS = new Set(["content-encoding", "content-length", "transfer-encoding", "connection", "keep-alive", "set-cookie", "age"]);
+const DROPPED_HEADERS = new Set([
+  "content-encoding",
+  "content-length",
+  "transfer-encoding",
+  "connection",
+  "keep-alive",
+  "set-cookie",
+  "age",
+]);
 
 export interface BlockPolicy {
   trackers: boolean;
@@ -78,7 +86,12 @@ function matcher(pattern: string): Matcher {
   const p = pattern.trim().toLowerCase();
   if (!p.includes("/") && !p.includes("*")) return (url) => url.hostname === p || url.hostname.endsWith(`.${p}`);
   const glob = p.includes("://") || p.startsWith("*") ? p : `*://${p}`;
-  const re = new RegExp(`^${glob.split("*").map((s) => s.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`);
+  const re = new RegExp(
+    `^${glob
+      .split("*")
+      .map((s) => s.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
+      .join(".*")}$`,
+  );
   return (url) => re.test(url.href.toLowerCase());
 }
 
@@ -86,7 +99,9 @@ function matcher(pattern: string): Matcher {
  * The block check of a policy: why a request is blocked, or undefined. The page itself (a main
  * frame navigation) never is.
  */
-export function blocker(policy: BlockPolicy): (url: URL, type: string, mainFrameNavigation: boolean) => string | undefined {
+export function blocker(
+  policy: BlockPolicy,
+): (url: URL, type: string, mainFrameNavigation: boolean) => string | undefined {
   const patterns = policy.patterns.map(matcher);
   const trackers = policy.trackers ? TRACKER_HOSTS.map((h) => matcher(h)) : [];
   return (url, type, mainFrameNavigation) => {
@@ -136,7 +151,13 @@ export function freshness(headers: Record<string, string>, now: number = Date.no
  * for with Authorization, and a Vary only on Accept-Encoding (the body is stored decoded) or
  * Origin (kept with the entry).
  */
-export function storable(method: string, type: string, status: number, request: Record<string, string>, response: Record<string, string>): boolean {
+export function storable(
+  method: string,
+  type: string,
+  status: number,
+  request: Record<string, string>,
+  response: Record<string, string>,
+): boolean {
   if (method !== "GET" || status !== 200 || !CACHED_TYPES.has(type)) return false;
   if (request.authorization !== undefined || response["set-cookie"] !== undefined) return false;
   const vary = (response.vary ?? "")
@@ -284,10 +305,15 @@ export interface ResourceStats {
  * Routes the context's requests through the policy. Does nothing (and leaves Chrome's HTTP cache
  * on) when the policy blocks nothing and has no cache, or the cache has no directory.
  */
-export async function installResources(context: BrowserContext, policy: ResourcePolicy, cacheDir: string | undefined): Promise<ResourceStats | undefined> {
+export async function installResources(
+  context: BrowserContext,
+  policy: ResourcePolicy,
+  cacheDir: string | undefined,
+): Promise<ResourceStats | undefined> {
   const block = policy.block;
   const blocking = !!block && (block.trackers || block.types.length > 0 || block.patterns.length > 0);
-  const cache = policy.cacheBytes !== undefined && cacheDir ? new ResourceCache(cacheDir, policy.cacheBytes) : undefined;
+  const cache =
+    policy.cacheBytes !== undefined && cacheDir ? new ResourceCache(cacheDir, policy.cacheBytes) : undefined;
   if (!blocking && !cache) return undefined;
   const blocked = block ? blocker(block) : undefined;
   const stats: ResourceStats = { blocked: 0, hits: 0, stored: 0 };

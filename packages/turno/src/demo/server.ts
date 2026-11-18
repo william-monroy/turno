@@ -13,11 +13,22 @@ const startedAt = new Date().toISOString();
 let calls = 0;
 
 const tools = [
-  { name: "whoami", description: `Which ${name} process answered: account, pid, start time and calls served`, inputSchema: { type: "object", properties: {} } },
-  { name: "echo", description: "Return the text it is given", inputSchema: { type: "object", properties: { text: { type: "string" } } } },
+  {
+    name: "whoami",
+    description: `Which ${name} process answered: account, pid, start time and calls served`,
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "echo",
+    description: "Return the text it is given",
+    inputSchema: { type: "object", properties: { text: { type: "string" } } },
+  },
 ];
 
-const server = new Server({ name: `turno-demo-${name}`, version: "1.0.0" }, { capabilities: { tools: {} }, instructions: `A demo server of turno (${name}).` });
+const server = new Server(
+  { name: `turno-demo-${name}`, version: "1.0.0" },
+  { capabilities: { tools: {} }, instructions: `A demo server of turno (${name}).` },
+);
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   calls++;

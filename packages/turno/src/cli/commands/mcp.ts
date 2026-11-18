@@ -92,7 +92,9 @@ const DOCTOR_JSON = jsonOutput(["ok", "plugins", "direct", "logins"]);
 /** "allow get_*, list_*, deny *_delete": a tool filter (ADR 0023) as text, or "" when it filters nothing. */
 function filterText(f: ToolFilter | undefined): string {
   if (!f) return "";
-  return [f.allow ? `allow ${f.allow.join(", ")}` : "", f.deny ? `deny ${f.deny.join(", ")}` : ""].filter(Boolean).join(", ");
+  return [f.allow ? `allow ${f.allow.join(", ")}` : "", f.deny ? `deny ${f.deny.join(", ")}` : ""]
+    .filter(Boolean)
+    .join(", ");
 }
 
 async function list(args: string[], io: Io): Promise<number> {
@@ -102,7 +104,10 @@ async function list(args: string[], io: Io): Promise<number> {
   const logins = await oauthLogins(io.env);
   const loginsOf = (name: string) => logins.filter((l) => l.server === name);
   if (bool(flags, "json")) {
-    emit(io, flags, LIST_JSON,
+    emit(
+      io,
+      flags,
+      LIST_JSON,
       names.map((n) => {
         const s = m.servers[n]!;
         const tools = s.tools ?? null;
@@ -114,7 +119,9 @@ async function list(args: string[], io: Io): Promise<number> {
               proxy: Boolean(s.proxy),
               profiles: s.profiles,
               tools,
-              ...(s.oauth ? { auth: "oauth", logins: Object.fromEntries(loginsOf(n).map((l) => [l.variant, l.state])) } : {}),
+              ...(s.oauth
+                ? { auth: "oauth", logins: Object.fromEntries(loginsOf(n).map((l) => [l.variant, l.state])) }
+                : {}),
             }
           : {
               name: n,
@@ -127,14 +134,18 @@ async function list(args: string[], io: Io): Promise<number> {
               package: s.package ?? null,
               variants: Object.keys(s.variants),
               tools,
-              variantTools: Object.fromEntries(Object.entries(s.variants).flatMap(([v, d]) => (d.tools ? [[v, d.tools]] : []))),
+              variantTools: Object.fromEntries(
+                Object.entries(s.variants).flatMap(([v, d]) => (d.tools ? [[v, d.tools]] : [])),
+              ),
             };
       }),
     );
     return 0;
   }
   if (!names.length) {
-    io.out(`no servers in ${tildify(paths(io.env).mcpFile, io.env)} yet; draft it from your agent configs with: turno mcp import`);
+    io.out(
+      `no servers in ${tildify(paths(io.env).mcpFile, io.env)} yet; draft it from your agent configs with: turno mcp import`,
+    );
     return 0;
   }
   const st = style(io);
@@ -156,15 +167,25 @@ async function list(args: string[], io: Io): Promise<number> {
       const good = rows.every((l) => l.state === "logged in" || l.state === "expired");
       return good ? st.lead("ok", "oauth") : st.lead("warn", st.warn("oauth"));
     }
-    const refs = Object.values(s.kind === "remote" ? s.headers : { ...s.env, ...Object.assign({}, ...Object.values(s.variants).map((v) => v.env)) });
+    const refs = Object.values(
+      s.kind === "remote"
+        ? s.headers
+        : { ...s.env, ...Object.assign({}, ...Object.values(s.variants).map((v) => v.env)) },
+    );
     return refs.some((v) => typeof v === "string" && /^(keychain|env):/.test(v)) ? "secret" : st.muted("-");
   };
   // Column titles: muted lowercase on a terminal, as in turno status; uppercase in plain text.
-  const rows: string[][] = [["SERVER", "KIND", "SCOPE", "IDLE", "PROFILES", "STATE", "AUTH", "DETAILS"].map((h) => st.muted(st.color ? h.toLowerCase() : h))];
+  const rows: string[][] = [
+    ["SERVER", "KIND", "SCOPE", "IDLE", "PROFILES", "STATE", "AUTH", "DETAILS"].map((h) =>
+      st.muted(st.color ? h.toLowerCase() : h),
+    ),
+  ];
   const sep = st.muted("; ");
   for (const name of names) {
     const s = m.servers[name]!;
-    const where = s.profiles.includes("*") ? "all" : s.profiles.map((p) => st.profile(p, profileColor(profileColors, p))).join(st.color ? " " : ", ");
+    const where = s.profiles.includes("*")
+      ? "all"
+      : s.profiles.map((p) => st.profile(p, profileColor(profileColors, p))).join(st.color ? " " : ", ");
     const tools = filterText(s.tools) ? `tools: ${filterText(s.tools)}` : "";
     if (s.kind === "remote") {
       const logins = loginsOf(name).map((l: LoginRow) => {
@@ -172,26 +193,52 @@ async function list(args: string[], io: Io): Promise<number> {
         return l.state === "logged in" || l.state === "expired" ? text : st.warn(text);
       });
       const details = [st.accent(s.url), tools, ...logins].filter(Boolean).join(sep);
-      rows.push([st.bold(name), "remote", s.proxy ? "via mcpd" : "direct", s.proxy ? `${Math.round(s.idle / 60)}m` : st.muted("-"), where, state(s), auth(s), details]);
+      rows.push([
+        st.bold(name),
+        "remote",
+        s.proxy ? "via mcpd" : "direct",
+        s.proxy ? `${Math.round(s.idle / 60)}m` : st.muted("-"),
+        where,
+        state(s),
+        auth(s),
+        details,
+      ]);
       continue;
     }
     const variants = Object.keys(s.variants);
     const installed = s.package && existsSync(join(paths(io.env).serversDir, s.name, "node_modules"));
     const details = [
-        st.accent(s.builtin ? `builtin ${s.builtin}` : tildify(s.command, io.env)),
-        variants.length ? `variants: ${variants.join(", ")}` : "",
-        s.package ? (installed ? `package ${s.package}` : st.warn(`package ${s.package} (not installed)`)) : "",
-        tools,
-        ...Object.entries(s.variants).map(([v, d]) => (filterText(d.tools) ? `${v} tools: ${filterText(d.tools)}` : "")),
-      ]
-        .filter(Boolean)
-        .join(sep);
-    rows.push([st.bold(name), s.builtin ? "builtin" : "stdio", `${s.scope}${s.exclusive ? ", exclusive" : ""}`, `${Math.round(s.idle / 60)}m`, where, state(s), auth(s), details]);
+      st.accent(s.builtin ? `builtin ${s.builtin}` : tildify(s.command, io.env)),
+      variants.length ? `variants: ${variants.join(", ")}` : "",
+      s.package ? (installed ? `package ${s.package}` : st.warn(`package ${s.package} (not installed)`)) : "",
+      tools,
+      ...Object.entries(s.variants).map(([v, d]) => (filterText(d.tools) ? `${v} tools: ${filterText(d.tools)}` : "")),
+    ]
+      .filter(Boolean)
+      .join(sep);
+    rows.push([
+      st.bold(name),
+      s.builtin ? "builtin" : "stdio",
+      `${s.scope}${s.exclusive ? ", exclusive" : ""}`,
+      `${Math.round(s.idle / 60)}m`,
+      where,
+      state(s),
+      auth(s),
+      details,
+    ]);
   }
   io.out(st.header("MCP servers"));
   // A narrow terminal drops idle times, then auth and scope; the details wrap under their column.
   for (const l of st.table(rows, { columns: [{}, {}, { drop: 1 }, { drop: 3 }, {}, {}, { drop: 2 }, {}] })) io.out(l);
-  if (!live) io.out(st.wrap("  ", st.muted("mcpd is not running, so nothing is: servers start on first use once it runs (turno mcp daemon start)")));
+  if (!live)
+    io.out(
+      st.wrap(
+        "  ",
+        st.muted(
+          "mcpd is not running, so nothing is: servers start on first use once it runs (turno mcp daemon start)",
+        ),
+      ),
+    );
   return 0;
 }
 
@@ -200,7 +247,9 @@ async function runningServers(env: NodeJS.ProcessEnv): Promise<Set<string> | und
   const r = await mcpdRequest(env, "GET", "/status", 1000);
   if (r === "down" || r.status !== 200 || typeof r.body !== "object" || r.body === null) return undefined;
   const instances = (r.body as { instances?: { server?: unknown }[] }).instances;
-  return new Set((Array.isArray(instances) ? instances : []).flatMap((i) => (typeof i?.server === "string" ? [i.server] : [])));
+  return new Set(
+    (Array.isArray(instances) ? instances : []).flatMap((i) => (typeof i?.server === "string" ? [i.server] : [])),
+  );
 }
 
 // sync ---------------------------------------------------------------------------------------
@@ -259,7 +308,12 @@ const SYNC_FLAGS: FlagSpec = { ...DRY_RUN, ...FORCE };
 
 async function sync(args: string[], io: Io): Promise<number> {
   const flags = parseFlags(args, SYNC_FLAGS);
-  const r = await syncProfiles(io, { dryRun: bool(flags, "dry-run"), force: bool(flags, "force"), only: flags.positionals, command: `mcp sync ${args.join(" ")}`.trim() });
+  const r = await syncProfiles(io, {
+    dryRun: bool(flags, "dry-run"),
+    force: bool(flags, "force"),
+    only: flags.positionals,
+    command: `mcp sync ${args.join(" ")}`.trim(),
+  });
   return r.skipped ? 1 : 0;
 }
 
@@ -309,14 +363,22 @@ export async function syncProfiles(io: Io, opts: SyncOptions = {}): Promise<{ ch
       : t.profile
         ? st.profile(t.profile, profileColor(config.profiles, t.profile))
         : st.bold(`${a.label} profiles`);
-    const isBusy = t.plain ? busy.plain || busy.profiles.has(t.profile) : Boolean(t.profile) && busy.profiles.has(t.profile);
+    const isBusy = t.plain
+      ? busy.plain || busy.profiles.has(t.profile)
+      : Boolean(t.profile) && busy.profiles.has(t.profile);
     if (isBusy && !force) {
-      rows.push([st.icon("warn"), label, st.muted(where), st.warn(`${dryRun ? "would skip" : "skipped"}: has open sessions; close them or use --force`)]);
+      rows.push([
+        st.icon("warn"),
+        label,
+        st.muted(where),
+        st.warn(`${dryRun ? "would skip" : "skipped"}: has open sessions; close them or use --force`),
+      ]);
       skipped++;
       continue;
     }
     const wanted = profileServers(manifest, t.profile, port, token, t.agent);
-    if (Object.values(manifest.servers).some((s) => servesProfile(s, t.profile) && !(s.kind === "remote" && !s.proxy))) gatewayTargets++;
+    if (Object.values(manifest.servers).some((s) => servesProfile(s, t.profile) && !(s.kind === "remote" && !s.proxy)))
+      gatewayTargets++;
     const prev = managed[t.file] ?? [];
     const apply = (dry: boolean) => syncServers(t.file, a.mcp.store, wanted, prev, { dryRun: dry });
     // Plan first, so a file that would not change is neither backed up nor rewritten.
@@ -328,8 +390,12 @@ export async function syncProfiles(io: Io, opts: SyncOptions = {}): Promise<{ ch
     }
     if (res.changed) changed++;
     if (!dryRun) managed[t.file] = Object.keys(wanted);
-    const verbs = dryRun ? ["would add", "would update", "would remove", "would leave alone"] : ["added", "updated", "removed", "left alone"];
-    const parts = [res.added, res.updated, res.removed, res.foreign].map((names, i) => (names.length ? `${verbs[i]} ${names.join(", ")}` : "")).filter(Boolean);
+    const verbs = dryRun
+      ? ["would add", "would update", "would remove", "would leave alone"]
+      : ["added", "updated", "removed", "left alone"];
+    const parts = [res.added, res.updated, res.removed, res.foreign]
+      .map((names, i) => (names.length ? `${verbs[i]} ${names.join(", ")}` : ""))
+      .filter(Boolean);
     const detail = parts.length ? parts.join("; ") : res.changed ? "" : st.muted("no changes");
     rows.push([st.icon(!res.changed ? "skip" : dryRun ? "info" : "ok"), label, st.muted(where), detail]);
     const after = res.added.length && !dryRun ? a.mcp.afterSync?.(res.added) : undefined;
@@ -339,12 +405,21 @@ export async function syncProfiles(io: Io, opts: SyncOptions = {}): Promise<{ ch
   for (const n of notes) io.out(n);
   if (!dryRun && JSON.stringify(managed) !== managedBefore) writeManaged(p.mcpdManaged, managed);
   await syncTokenFiles(io, config, only, token, dryRun);
-  if (!dryRun && changed) io.out(st.wrap("  ", st.muted("New sessions pick this up; open sessions keep their old servers until restarted.")));
-  if (!opts.journal) io.out(`  ${st.muted(`${dryRun ? "Planned" : "Synced"} ${plural(rows.length, "config")} in ${duration(Date.now() - started)}.`)}`);
+  if (!dryRun && changed)
+    io.out(st.wrap("  ", st.muted("New sessions pick this up; open sessions keep their old servers until restarted.")));
+  if (!opts.journal)
+    io.out(
+      `  ${st.muted(`${dryRun ? "Planned" : "Synced"} ${plural(rows.length, "config")} in ${duration(Date.now() - started)}.`)}`,
+    );
   const hint = changed && !dryRun && !opts.journal ? journal.hint() : undefined;
   if (hint) io.out(hint);
   if (gatewayTargets && !(await mcpdAnswers(io.env))) {
-    io.err(st.wrap("", `${paint(io, "warning", "33")}: mcpd is not running, so these profiles have no local MCP servers until you run: turno mcp daemon start`));
+    io.err(
+      st.wrap(
+        "",
+        `${paint(io, "warning", "33")}: mcpd is not running, so these profiles have no local MCP servers until you run: turno mcp daemon start`,
+      ),
+    );
   }
   return { changed, skipped };
 }
@@ -368,23 +443,45 @@ async function syncTokenFiles(io: Io, config: Config, only: string[], master: st
     const agent = agentOf(name, config);
     if (!adapter(agent).tokenFromEnv) continue;
     synced.add(name);
-    if (dryRun ? readProfileTokenFile(name, io.env) !== profileToken(master, name) : writeProfileTokenFile(name, master, io.env)) changed.push(name);
+    if (
+      dryRun
+        ? readProfileTokenFile(name, io.env) !== profileToken(master, name)
+        : writeProfileTokenFile(name, master, io.env)
+    )
+      changed.push(name);
     const launcher = join(paths(io.env).bin, launcherName(name, agent));
     if (isGenerated(launcher) && !readFileSync(launcher, "utf8").includes("mcpd-tokens/")) oldLaunchers.push(name);
   }
   const st = style(io);
-  if (changed.length) io.out(st.note(dryRun ? "info" : "ok", `${dryRun ? "would write" : "wrote"} the gateway token of ${changed.join(", ")} for their launchers`));
+  if (changed.length)
+    io.out(
+      st.note(
+        dryRun ? "info" : "ok",
+        `${dryRun ? "would write" : "wrote"} the gateway token of ${changed.join(", ")} for their launchers`,
+      ),
+    );
   // A full sync removes the token files it wrote for profiles that are gone. The token itself
   // stays valid until a rotation (ADR 0023); the file is just no longer needed.
   const gone = only.length ? [] : [...synced].filter((n) => !profiles.includes(n)).sort();
   for (const name of gone) {
     synced.delete(name);
     if (dryRun ? !readProfileTokenFile(name, io.env) : !tokens.removeProfileTokenFile(name, io.env)) continue;
-    io.out(st.note(dryRun ? "info" : "ok", `${dryRun ? "would remove" : "removed"} the gateway token file of ${name} (no longer a profile)`));
+    io.out(
+      st.note(
+        dryRun ? "info" : "ok",
+        `${dryRun ? "would remove" : "removed"} the gateway token file of ${name} (no longer a profile)`,
+      ),
+    );
   }
-  if (!dryRun && (synced.size !== before || gone.length || changed.length)) tokens.writeSyncedTokenProfiles([...synced], io.env);
+  if (!dryRun && (synced.size !== before || gone.length || changed.length))
+    tokens.writeSyncedTokenProfiles([...synced], io.env);
   for (const name of oldLaunchers) {
-    io.err(st.wrap("", `${paint(io, "warning", "33")}: the launcher of ${name} still reads the old shared token; rewrite it with: turno profile repair ${name}`));
+    io.err(
+      st.wrap(
+        "",
+        `${paint(io, "warning", "33")}: the launcher of ${name} still reads the old shared token; rewrite it with: turno profile repair ${name}`,
+      ),
+    );
   }
 }
 
@@ -396,7 +493,9 @@ async function config(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, CONFIG_FLAGS, 0);
   const agent = str(p, "agent");
   if (!agent || !isSnippetAgent(agent)) {
-    return fail(`usage: turno mcp config --agent <${SNIPPET_AGENTS.join("|")}> [--profile <p>]\n(Claude Code, Codex, Copilot and Cursor profiles get their entries from turno mcp sync)`);
+    return fail(
+      `usage: turno mcp config --agent <${SNIPPET_AGENTS.join("|")}> [--profile <p>]\n(Claude Code, Codex, Copilot and Cursor profiles get their entries from turno mcp sync)`,
+    );
   }
   const cfg = loadConfig(io.env);
   const profile = str(p, "profile") ?? cfg.default ?? "default";
@@ -409,7 +508,13 @@ async function config(args: string[], io: Io): Promise<number> {
   const { profileTokenFile, writeProfileTokenFile } = await import("../../mcpd/tokens.js");
   // The snippet reads the profile's own token from a private file; it is never printed.
   if (isValidProfileName(profile)) writeProfileTokenFile(profile, ensureToken(io.env), io.env);
-  const s = gatewaySnippet(agent, servers, mcpdPort(io.env), profile, tildify(profileTokenFile(profile, io.env), io.env));
+  const s = gatewaySnippet(
+    agent,
+    servers,
+    mcpdPort(io.env),
+    profile,
+    tildify(profileTokenFile(profile, io.env), io.env),
+  );
   if (bool(p, "json")) {
     emit(io, p, CONFIG_JSON, { agent, profile, servers, file: s.file, notes: s.notes, text: s.text });
     return 0;
@@ -446,7 +551,12 @@ export async function binOf(io: Io, pkg: string): Promise<string | undefined> {
   }
 }
 
-const IMPORT_FLAGS: FlagSpec = { write: { type: "boolean" }, "move-secrets": { type: "boolean" }, ...FORCE, ...DRY_RUN };
+const IMPORT_FLAGS: FlagSpec = {
+  write: { type: "boolean" },
+  "move-secrets": { type: "boolean" },
+  ...FORCE,
+  ...DRY_RUN,
+};
 
 async function importCmd(args: string[], io: Io): Promise<number> {
   const file = parseFlags(args, IMPORT_FILE_FLAGS, 1).positionals[0];
@@ -454,7 +564,8 @@ async function importCmd(args: string[], io: Io): Promise<number> {
   const flags = parseFlags(args, IMPORT_FLAGS, 0);
   const write = bool(flags, "write");
   const moveSecrets = bool(flags, "move-secrets");
-  if (write && bool(flags, "dry-run")) fail("--dry-run and --write do not go together (without --write it is a preview)");
+  if (write && bool(flags, "dry-run"))
+    fail("--dry-run and --write do not go together (without --write it is a preview)");
   const { collectSources, foundSummary, importServers, mergeSources } = await import("../../mcpd/importer.js");
   const p = paths(io.env);
   const config = loadConfig(io.env);
@@ -464,27 +575,41 @@ async function importCmd(args: string[], io: Io): Promise<number> {
   const merged = mergeSources(sources);
   const names = Object.keys(merged.servers);
   if (!names.length) {
-    io.out("No MCP servers found in Claude Code (~/.claude.json, .mcp.json), Codex, Cursor or Copilot CLI configs, or in turno profile folders.");
+    io.out(
+      "No MCP servers found in Claude Code (~/.claude.json, .mcp.json), Codex, Cursor or Copilot CLI configs, or in turno profile folders.",
+    );
     io.out("Nothing written. Add servers to mcp.toml by hand: see docs/mcp.md in the turno repository.");
     return write ? 1 : 0;
   }
   io.err(foundSummary(names, merged.from));
   // A preview stays offline; only --write asks npm for the command names of npx servers.
-  const report = await importServers(merged.servers, write ? { moveSecrets, binOf: (pkg) => binOf(io, pkg) } : { moveSecrets });
+  const report = await importServers(
+    merged.servers,
+    write ? { moveSecrets, binOf: (pkg) => binOf(io, pkg) } : { moveSecrets },
+  );
   parseManifest(report.toml); // never write something we cannot read back
   for (const n of [...merged.notes, ...report.notes]) io.err(`  ${n}`);
   if (report.literalSecrets.length) {
-    io.err(`  ${paint(io, "warning", "33")}: literal secrets kept (${report.literalSecrets.join(", ")}); add --move-secrets to store them in the Keychain`);
+    io.err(
+      `  ${paint(io, "warning", "33")}: literal secrets kept (${report.literalSecrets.join(", ")}); add --move-secrets to store them in the Keychain`,
+    );
   }
   const exists = existsSync(p.mcpFile);
   if (!write) {
     for (const s of report.secrets) io.err(`  would move ${s.where} to keychain:${s.service}`);
     io.out(colors(io) ? highlightToml(report.preview.trimEnd()) : report.preview.trimEnd());
-    const again = ["turno mcp import --write", moveSecrets || report.literalSecrets.length ? "--move-secrets" : "", exists ? "--force" : ""].filter(Boolean).join(" ");
+    const again = [
+      "turno mcp import --write",
+      moveSecrets || report.literalSecrets.length ? "--move-secrets" : "",
+      exists ? "--force" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
     io.err(`Nothing written. Write it with: ${again}`);
     return 0;
   }
-  if (exists && !bool(flags, "force")) return fail(`${tildify(p.mcpFile, io.env)} exists; use --force (it is backed up)`);
+  if (exists && !bool(flags, "force"))
+    return fail(`${tildify(p.mcpFile, io.env)} exists; use --force (it is backed up)`);
   const { storeKeychainSecret } = await import("../../core/secrets.js");
   for (const s of report.secrets) {
     if (s.value.includes("${")) continue; // never store a placeholder
@@ -587,28 +712,40 @@ async function install(args: string[], io: Io): Promise<number> {
     const lock = join(dir, "package-lock.json");
     let deps: Record<string, string> = {};
     try {
-      deps = (JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as { dependencies?: Record<string, string> }).dependencies ?? {};
+      deps =
+        (JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as { dependencies?: Record<string, string> })
+          .dependencies ?? {};
     } catch {
       /* first install */
     }
     // Same version and a lockfile: reinstall exactly what was installed before.
     const fromLock = existsSync(lock) && deps[name] === version;
     if (dryRun) {
-      io.out(`would install ${pinned} for ${s.name}${fromLock ? " from its lockfile" : ""}${allowScripts ? "" : " without install scripts"}`);
+      io.out(
+        `would install ${pinned} for ${s.name}${fromLock ? " from its lockfile" : ""}${allowScripts ? "" : " without install scripts"}`,
+      );
       if (pinned !== s.package) io.out(`would pin package = "${pinned}" in ${tildify(p.mcpFile, io.env)}`);
       continue;
     }
     // Private like the rest of turno's data: a server folder holds code mcpd runs.
     ensurePrivateDir(dir, io.env);
-    for (const d of [p.serversDir, dir]) if ((statSync(d).mode & 0o777) !== PRIVATE_DIR_MODE) chmodSync(d, PRIVATE_DIR_MODE);
-    if (!existsSync(join(dir, "package.json"))) writeFileSync(join(dir, "package.json"), `{ "private": true }\n`, { mode: PRIVATE_FILE_MODE });
+    for (const d of [p.serversDir, dir])
+      if ((statSync(d).mode & 0o777) !== PRIVATE_DIR_MODE) chmodSync(d, PRIVATE_DIR_MODE);
+    if (!existsSync(join(dir, "package.json")))
+      writeFileSync(join(dir, "package.json"), `{ "private": true }\n`, { mode: PRIVATE_FILE_MODE });
     const common = ["--no-audit", "--no-fund", "--prefix", dir, ...(allowScripts ? [] : ["--ignore-scripts"])];
-    const npmArgs = fromLock ? ["ci", ...common] : ["install", "--save-exact", "--package-lock=true", ...common, pinned];
+    const npmArgs = fromLock
+      ? ["ci", ...common]
+      : ["install", "--save-exact", "--package-lock=true", ...common, pinned];
     io.out(`installing ${pinned} for ${s.name}${fromLock ? " from its lockfile" : ""}...`);
     try {
       await npm(io, npmArgs, 300_000);
       const bin = join(dir, "node_modules", ".bin", s.command);
-      io.out(existsSync(bin) ? `  ok: ${tildify(bin, io.env)}` : `  ${paint(io, "warning", "33")}: installed but no bin named ${s.command}`);
+      io.out(
+        existsSync(bin)
+          ? `  ok: ${tildify(bin, io.env)}`
+          : `  ${paint(io, "warning", "33")}: installed but no bin named ${s.command}`,
+      );
     } catch (err) {
       failed++;
       io.err(`  failed: ${(err as Error).message.split("\n")[0]}`);
@@ -655,7 +792,10 @@ async function refreshInDaemon(
     return { failed };
   }
   if (r.status === 404) return "unsupported";
-  const msg = typeof r.body === "object" && r.body && "error" in r.body ? String((r.body as { error: unknown }).error) : `HTTP ${r.status}`;
+  const msg =
+    typeof r.body === "object" && r.body && "error" in r.body
+      ? String((r.body as { error: unknown }).error)
+      : `HTTP ${r.status}`;
   return msg;
 }
 
@@ -667,12 +807,15 @@ async function refresh(args: string[], io: Io): Promise<number> {
   const cached = existsSync(dir) ? readdirSync(dir) : [];
   const manifest = loadManifest(io.env);
   for (const n of only) {
-    if (!manifest.servers[n] && !cached.some((f) => f.startsWith(`${n}@`))) fail(`unknown server '${n}' (turno mcp list shows them)`);
+    if (!manifest.servers[n] && !cached.some((f) => f.startsWith(`${n}@`)))
+      fail(`unknown server '${n}' (turno mcp list shows them)`);
   }
   const files = cached.filter((f) => !only.length || only.some((a) => f.startsWith(`${a}@`)));
   const servers = only.length ? only : Object.keys(manifest.servers).sort();
   if (dryRun) {
-    io.out(`would forget ${plural(files.length, "cached description")}${servers.length ? ` and ask mcpd to relearn ${servers.join(", ")}` : ""}`);
+    io.out(
+      `would forget ${plural(files.length, "cached description")}${servers.length ? ` and ask mcpd to relearn ${servers.join(", ")}` : ""}`,
+    );
     return 0;
   }
   for (const f of files) rmSync(join(dir, f), { force: true });
@@ -697,7 +840,8 @@ async function refresh(args: string[], io: Io): Promise<number> {
       continue;
     }
     const errors = Object.entries(r.failed);
-    for (const [instance, message] of errors) io.err(`${instance}: mcpd could not refresh it: ${message.split("\n")[0]}`);
+    for (const [instance, message] of errors)
+      io.err(`${instance}: mcpd could not refresh it: ${message.split("\n")[0]}`);
     if (errors.length) failed++;
     else done.push(s);
   }
@@ -747,7 +891,8 @@ async function doctor(args: string[], io: Io): Promise<number> {
   }
   if (missing.length) {
     io.out(paint(io, "Remote OAuth servers that need a login (ADR 0029):", "1"));
-    for (const l of missing) io.out(`  ${l.server}${l.variant === "default" ? "" : `@${l.variant}`}: ${describeLogin(l)}`);
+    for (const l of missing)
+      io.out(`  ${l.server}${l.variant === "default" ? "" : `@${l.variant}`}: ${describeLogin(l)}`);
   }
   if (plugins.length) {
     io.out(paint(io, "Plugin servers that start in every session (they bypass mcpd):", "1"));
@@ -757,16 +902,26 @@ async function doctor(args: string[], io: Io): Promise<number> {
   }
   if (direct.length) {
     io.out(paint(io, "Stdio servers still configured directly in plain claude (~/.claude.json):", "1"));
-    for (const d of direct) io.out(`  ${d.name}${d.inManifest ? ": in mcp.toml, run turno mcp sync" : ": not in mcp.toml, run turno mcp import"}`);
+    for (const d of direct)
+      io.out(
+        `  ${d.name}${d.inManifest ? ": in mcp.toml, run turno mcp sync" : ": not in mcp.toml, run turno mcp import"}`,
+      );
   }
-  if (!code) io.out(`Every local server goes through mcpd${logins.length ? " and every OAuth server is logged in" : ""}.`);
+  if (!code)
+    io.out(`Every local server goes through mcpd${logins.length ? " and every OAuth server is logged in" : ""}.`);
   return code;
 }
 
 // command ------------------------------------------------------------------------------------
 
 const SUBS: Record<string, Sub> = {
-  list: { synopsis: "[--json]", summary: "servers in mcp.toml and where they run", flags: flagsOf(LIST_FLAGS), json: LIST_JSON, run: list },
+  list: {
+    synopsis: "[--json]",
+    summary: "servers in mcp.toml and where they run",
+    flags: flagsOf(LIST_FLAGS),
+    json: LIST_JSON,
+    run: list,
+  },
   sync: {
     synopsis: "[profile...] [--dry-run] [--force]",
     summary: "write gateway entries into every profile config",
@@ -786,7 +941,7 @@ const SUBS: Record<string, Sub> = {
     summary: "draft mcp.toml from your agent configs, or merge a file",
     flags: flagsOf(IMPORT_FLAGS),
     details:
-      "Without a file it drafts mcp.toml from every agent config on this machine (a\npreview until --write; --force replaces an existing mcp.toml). With a file it\nmerges that file's servers into mcp.toml: an export (turno mcp export), a JSON\nfile with mcpServers, or a Codex config.toml. Servers already in mcp.toml are\nkept unless --force replaces them. With --write, remote servers that answer\nwith an OAuth challenge get auth = \"oauth\".",
+      'Without a file it drafts mcp.toml from every agent config on this machine (a\npreview until --write; --force replaces an existing mcp.toml). With a file it\nmerges that file\'s servers into mcp.toml: an export (turno mcp export), a JSON\nfile with mcpServers, or a Codex config.toml. Servers already in mcp.toml are\nkept unless --force replaces them. With --write, remote servers that answer\nwith an OAuth challenge get auth = "oauth".',
     run: importCmd,
   },
   export: {
@@ -805,8 +960,20 @@ const SUBS: Record<string, Sub> = {
     flags: flagsOf(INSTALL_FLAGS),
     run: install,
   },
-  refresh: { synopsis: "[server...] [--dry-run]", summary: "make mcpd relearn tool lists", args: ["server"], flags: flagsOf(REFRESH_FLAGS), run: refresh },
-  doctor: { synopsis: "[--json]", summary: "find servers that bypass the gateway", flags: flagsOf(DOCTOR_FLAGS), json: DOCTOR_JSON, run: doctor },
+  refresh: {
+    synopsis: "[server...] [--dry-run]",
+    summary: "make mcpd relearn tool lists",
+    args: ["server"],
+    flags: flagsOf(REFRESH_FLAGS),
+    run: refresh,
+  },
+  doctor: {
+    synopsis: "[--json]",
+    summary: "find servers that bypass the gateway",
+    flags: flagsOf(DOCTOR_FLAGS),
+    json: DOCTOR_JSON,
+    run: doctor,
+  },
   login: {
     synopsis: "<server> [--profile <p>] [--scope <s>] [--no-browser] [--dry-run] [--json]",
     summary: "log mcpd in to a remote OAuth server, once per variant",
@@ -829,7 +996,8 @@ const SUBS: Record<string, Sub> = {
     summary: "tool calls mcpd relayed (no arguments or results)",
     flags: flagsOf(LOG_FLAGS),
     json: LOG_JSON,
-    details: "One line per tool call: time, outcome, duration, server, tool, profile, agent and sizes.\n-f keeps printing new calls; --json prints one JSON record per line.\nTurn the log off with call_log = false under [mcpd] in config.toml.",
+    details:
+      "One line per tool call: time, outcome, duration, server, tool, profile, agent and sizes.\n-f keeps printing new calls; --json prints one JSON record per line.\nTurn the log off with call_log = false under [mcpd] in config.toml.",
     run: async (rest, io) => (await import("./mcp-observe.js")).log(rest, io),
   },
   top: {
@@ -846,7 +1014,8 @@ const SUBS: Record<string, Sub> = {
     summary: "memory mcpd saves compared with no gateway",
     flags: flagsOf(SAVINGS_FLAGS),
     json: SAVINGS_JSON,
-    details: "Compares mcpd plus its servers now with an estimate where each live agent session\nstarts its own copy of every stdio server its profile uses.",
+    details:
+      "Compares mcpd plus its servers now with an estimate where each live agent session\nstarts its own copy of every stdio server its profile uses.",
     run: async (rest, io) => (await import("./mcp-observe.js")).savings(rest, io),
   },
   call: {
@@ -899,7 +1068,7 @@ Docs: docs/mcp.md in the turno repository.`,
     "turno mcp savings",
     "turno mcp call github",
     "turno mcp call github search_issues --arg query=bug --arg limit:=5",
-    "turno mcp call fs read_file --args '{\"path\": \"README.md\"}' --profile work --json",
+    'turno mcp call fs read_file --args \'{"path": "README.md"}\' --profile work --json',
     "turno mcp daemon status",
     "turno mcp token rotate",
   ],

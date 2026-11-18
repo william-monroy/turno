@@ -31,13 +31,23 @@ beforeEach(() => {
 });
 afterEach(() => sb.cleanup());
 
-const PASSWORD = "c0rrect horse \"battery\" staple";
+const PASSWORD = 'c0rrect horse "battery" staple';
 const TOTP_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
 const opts = () => ({ env: sb.env, store: secretStore(sb.env, "darwin")! });
 
 describe("the credential vault", () => {
   it("keeps the values in the secret store and only names and origins in the index", async () => {
-    const site = await vaultAdd("work", "github", { urls: ["https://github.com/login", "https://github.com/session"], username: "alice@example.com", password: PASSWORD, totp: TOTP_SECRET }, opts());
+    const site = await vaultAdd(
+      "work",
+      "github",
+      {
+        urls: ["https://github.com/login", "https://github.com/session"],
+        username: "alice@example.com",
+        password: PASSWORD,
+        totp: TOTP_SECRET,
+      },
+      opts(),
+    );
     expect(site).toMatchObject({ site: "github", origins: ["https://github.com"], totp: true });
     const index = readFileSync(vaultPath("work", sb.env), "utf8");
     expect(index).not.toContain("alice");
@@ -53,8 +63,18 @@ describe("the credential vault", () => {
   });
 
   it("lists sites without reading a value, and says when an item went missing", async () => {
-    await vaultAdd("work", "github", { urls: ["https://github.com/login"], username: "alice", password: PASSWORD }, opts());
-    await vaultAdd("work", "mail", { urls: ["https://mail.example.com"], username: "alice", password: PASSWORD }, opts());
+    await vaultAdd(
+      "work",
+      "github",
+      { urls: ["https://github.com/login"], username: "alice", password: PASSWORD },
+      opts(),
+    );
+    await vaultAdd(
+      "work",
+      "mail",
+      { urls: ["https://mail.example.com"], username: "alice", password: PASSWORD },
+      opts(),
+    );
     let info = await vaultList("work", opts());
     expect(info.submit).toBe("confirm");
     expect(info.sites.map((s) => [s.site, s.stored, s.totp])).toEqual([
@@ -68,8 +88,18 @@ describe("the credential vault", () => {
   });
 
   it("replaces a site's credentials by deleting the item first, keeping its creation date", async () => {
-    const first = await vaultAdd("work", "github", { urls: ["https://github.com"], username: "alice", password: "first-pass" }, { ...opts(), now: new Date("2026-01-01T00:00:00Z") });
-    const second = await vaultAdd("work", "github", { urls: ["https://github.com"], username: "alice", password: "second-pass" }, { ...opts(), now: new Date("2026-02-01T00:00:00Z") });
+    const first = await vaultAdd(
+      "work",
+      "github",
+      { urls: ["https://github.com"], username: "alice", password: "first-pass" },
+      { ...opts(), now: new Date("2026-01-01T00:00:00Z") },
+    );
+    const second = await vaultAdd(
+      "work",
+      "github",
+      { urls: ["https://github.com"], username: "alice", password: "second-pass" },
+      { ...opts(), now: new Date("2026-02-01T00:00:00Z") },
+    );
     expect(second.created).toBe(first.created);
     expect(second.updated).toBe("2026-02-01T00:00:00.000Z");
     expect((await readCredential("work", "github", opts())).password === "second-pass").toBe(true);
@@ -77,7 +107,12 @@ describe("the credential vault", () => {
 
   it("removes one site, then everything, and refuses to remove an identity that still has credentials", async () => {
     await vaultAdd("work", "github", { urls: ["https://github.com"], username: "alice", password: PASSWORD }, opts());
-    await vaultAdd("work", "mail", { urls: ["https://mail.example.com"], username: "alice", password: PASSWORD }, opts());
+    await vaultAdd(
+      "work",
+      "mail",
+      { urls: ["https://mail.example.com"], username: "alice", password: PASSWORD },
+      opts(),
+    );
     expect(await vaultRemove("work", "github", opts())).toBe(true);
     expect(await vaultRemove("work", "github", opts())).toBe(false);
     expect(vaultHasSites("work", sb.env)).toBe(true);
@@ -101,13 +136,23 @@ describe("the credential vault", () => {
   });
 
   it("validates input without echoing a value", async () => {
-    const add = (over: object) => vaultAdd("work", "github", { urls: ["https://github.com"], username: "alice", password: PASSWORD, ...over }, opts());
+    const add = (over: object) =>
+      vaultAdd(
+        "work",
+        "github",
+        { urls: ["https://github.com"], username: "alice", password: PASSWORD, ...over },
+        opts(),
+      );
     await expect(add({ password: "" })).rejects.toThrow(/password is empty/);
     await expect(add({ urls: [] })).rejects.toThrow(/--url/);
     const err = await add({ totp: "not-a-secret!" }).catch((e: unknown) => e);
     expect(String(err)).not.toContain("not-a-secret");
-    await expect(vaultAdd("work", "Bad Site", { urls: ["https://x.example"], username: "a", password: "b" }, opts())).rejects.toThrow(/invalid site key/);
-    await expect(vaultAdd("nobody", "github", { urls: ["https://github.com"], username: "a", password: "b" }, opts())).rejects.toThrow(/does not exist/);
+    await expect(
+      vaultAdd("work", "Bad Site", { urls: ["https://x.example"], username: "a", password: "b" }, opts()),
+    ).rejects.toThrow(/invalid site key/);
+    await expect(
+      vaultAdd("nobody", "github", { urls: ["https://github.com"], username: "a", password: "b" }, opts()),
+    ).rejects.toThrow(/does not exist/);
     expect(fake.services()).toEqual([]);
   });
 
@@ -119,7 +164,10 @@ describe("the credential vault", () => {
   });
 
   it("refuses an index written by a newer turno-browser", async () => {
-    sb.write(".local/share/turno/browser/identities/work.vault.json", JSON.stringify({ version: 2, submit: "confirm", sites: {} }));
+    sb.write(
+      ".local/share/turno/browser/identities/work.vault.json",
+      JSON.stringify({ version: 2, submit: "confirm", sites: {} }),
+    );
     await expect(vaultList("work", opts())).rejects.toThrow(/newer turno-browser/);
   });
 });

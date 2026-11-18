@@ -54,7 +54,13 @@ describe("profileServers", () => {
 
 describe("syncConfigFile", () => {
   it("adds, updates and removes only what turno manages", () => {
-    const file = sb.write(".claude-work/.claude.json", JSON.stringify({ oauthAccount: { x: 1 }, mcpServers: { mine: { type: "http", url: "u" }, old: { command: "x" } } }));
+    const file = sb.write(
+      ".claude-work/.claude.json",
+      JSON.stringify({
+        oauthAccount: { x: 1 },
+        mcpServers: { mine: { type: "http", url: "u" }, old: { command: "x" } },
+      }),
+    );
     const first = syncConfigFile(file, { calc: { type: "http", url: "a" } }, []);
     expect(first.added).toEqual(["calc"]);
     expect(first.foreign.sort()).toEqual(["mine", "old"]);
@@ -71,7 +77,10 @@ describe("syncConfigFile", () => {
   it("backs up a foreign entry it replaces and supports dry runs", () => {
     const file = sb.write("cfg.json", JSON.stringify({ mcpServers: { calc: { command: "npx" } } }));
     const backups: string[] = [];
-    const dry = syncConfigFile(file, { calc: { type: "http", url: "a" } }, [], { dryRun: true, backup: (n) => backups.push(n) });
+    const dry = syncConfigFile(file, { calc: { type: "http", url: "a" } }, [], {
+      dryRun: true,
+      backup: (n) => backups.push(n),
+    });
     expect(dry.replaced).toEqual(["calc"]);
     expect(JSON.parse(readFileSync(file, "utf8")).mcpServers.calc).toEqual({ command: "npx" });
   });
@@ -79,7 +88,10 @@ describe("syncConfigFile", () => {
 
 describe("importer", () => {
   it("parses npx invocations and guesses scopes", () => {
-    expect(parseNpx(["-y", "chrome-devtools-mcp@latest", "--headless"])).toEqual({ pkg: "chrome-devtools-mcp@latest", rest: ["--headless"] });
+    expect(parseNpx(["-y", "chrome-devtools-mcp@latest", "--headless"])).toEqual({
+      pkg: "chrome-devtools-mcp@latest",
+      rest: ["--headless"],
+    });
     expect(guessScope("npx -y chrome-devtools-mcp@latest").scope).toBe("session");
     expect(guessScope("npx trigger.dev@latest mcp").scope).toBe("project");
     expect(guessScope("something-else").scope).toBe("project");
@@ -88,7 +100,12 @@ describe("importer", () => {
   it("drafts a manifest, planning secret moves without storing anything", async () => {
     const report = await importServers(
       {
-        calcom: { type: "stdio", command: "npx", args: ["-y", "@calcom/cal-mcp@latest"], env: { CAL_API_KEY: "cal_live_x", REGION: "eu" } },
+        calcom: {
+          type: "stdio",
+          command: "npx",
+          args: ["-y", "@calcom/cal-mcp@latest"],
+          env: { CAL_API_KEY: "cal_live_x", REGION: "eu" },
+        },
         neon: { type: "http", url: "https://mcp.neon.example/mcp", headers: { Authorization: "Bearer secret" } },
         granola: { type: "http", url: "https://mcp.granola.example/mcp" },
         local: { command: "/usr/local/bin/thing", args: [] },
@@ -117,7 +134,9 @@ describe("importer", () => {
   });
 
   it("keeps literal secrets and reports them without --move-secrets", async () => {
-    const report = await importServers({ s: { command: "x", env: { API_TOKEN: "abc", PATH: "/usr/bin", PWD: "/tmp" } } });
+    const report = await importServers({
+      s: { command: "x", env: { API_TOKEN: "abc", PATH: "/usr/bin", PWD: "/tmp" } },
+    });
     expect(report.literalSecrets).toEqual(["s.API_TOKEN"]);
     expect(report.secrets).toEqual([]);
   });
@@ -126,7 +145,9 @@ describe("importer", () => {
 describe("pickBin", () => {
   it("follows the npx rule", async () => {
     const { pickBin } = await import("../src/cli/commands/mcp.js");
-    expect(pickBin("chrome-devtools-mcp", { "chrome-devtools": "a", "chrome-devtools-mcp": "b" })).toBe("chrome-devtools-mcp");
+    expect(pickBin("chrome-devtools-mcp", { "chrome-devtools": "a", "chrome-devtools-mcp": "b" })).toBe(
+      "chrome-devtools-mcp",
+    );
     expect(pickBin("@calcom/cal-mcp", { "cal-mcp-demo": "a" })).toBe("cal-mcp-demo");
     expect(pickBin("@scope/thing", "bin.js")).toBe("thing");
   });

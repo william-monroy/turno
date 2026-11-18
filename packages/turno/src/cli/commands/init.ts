@@ -1,6 +1,15 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, resolve as resolvePath } from "node:path";
-import { type AgentId, AGENT_IDS, DEFAULT_AGENT, adapter, agentHub, agentProfileDir, isAgentId, mcpFileFor } from "../../agents/index.js";
+import {
+  type AgentId,
+  AGENT_IDS,
+  DEFAULT_AGENT,
+  adapter,
+  agentHub,
+  agentProfileDir,
+  isAgentId,
+  mcpFileFor,
+} from "../../agents/index.js";
 import { editConfig, migrationPending, MigrationPending, readConfigText } from "../../core/config-edit.js";
 import { type Config, loadConfig, parseConfig } from "../../core/config.js";
 import { Journal } from "../../core/journal.js";
@@ -42,7 +51,14 @@ type McpPlan =
   | { kind: "keep"; servers: number }
   | { kind: "skip" }
   | { kind: "none" }
-  | { kind: "import"; summary: string; notes: string[]; report: ImportReport; servers: string[]; merged: Record<string, Record<string, unknown>> };
+  | {
+      kind: "import";
+      summary: string;
+      notes: string[];
+      report: ImportReport;
+      servers: string[];
+      merged: Record<string, Record<string, unknown>>;
+    };
 
 interface Plan {
   agents: { id: AgentId; installed: boolean }[];
@@ -84,12 +100,16 @@ function foundFolders(env: NodeJS.ProcessEnv, known: Set<string>, notes: string[
       if (!isDir(dir) || !adapter(agent).homeMarkers.some((m) => existsSync(join(dir, m)))) continue;
       if (known.has(name)) continue;
       if (!/^[a-z0-9][a-z0-9_-]*$/.test(name) || RESERVED.has(name)) {
-        notes.push(`${tildify(dir, env)} looks like a ${adapter(agent).label} home, but "${name}" cannot be a profile name; left alone`);
+        notes.push(
+          `${tildify(dir, env)} looks like a ${adapter(agent).label} home, but "${name}" cannot be a profile name; left alone`,
+        );
         continue;
       }
       const other = taken.get(name);
       if (other) {
-        notes.push(`${tildify(dir, env)}: a ${adapter(other).label} profile named ${name} is already proposed; add this one by hand with another name`);
+        notes.push(
+          `${tildify(dir, env)}: a ${adapter(other).label} profile named ${name} is already proposed; add this one by hand with another name`,
+        );
         continue;
       }
       taken.set(name, agent);
@@ -124,7 +144,12 @@ const within = (dir: string, root: string) => dir === root || dir.startsWith(`${
  * no folder of anyone else, become one rule for the parent (never HOME itself). Folders an
  * existing rule already covers get nothing.
  */
-export function inferRules(owners: Map<string, Set<string>>, home: string, ruled: string[], dirExists: (d: string) => boolean = isDir): Rule[] {
+export function inferRules(
+  owners: Map<string, Set<string>>,
+  home: string,
+  ruled: string[],
+  dirExists: (d: string) => boolean = isDir,
+): Rule[] {
   const covered = (d: string) => ruled.some((r) => within(d, r));
   const only = (d: string) => {
     const s = owners.get(d);
@@ -162,7 +187,9 @@ export function lineDiff(before: string, after: string): [" " | "+" | "-", strin
   const n = a.length;
   const m = b.length;
   const lcs: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
-  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) lcs[i]![j] = a[i] === b[j] ? lcs[i + 1]![j + 1]! + 1 : Math.max(lcs[i + 1]![j]!, lcs[i]![j + 1]!);
+  for (let i = n - 1; i >= 0; i--)
+    for (let j = m - 1; j >= 0; j--)
+      lcs[i]![j] = a[i] === b[j] ? lcs[i + 1]![j + 1]! + 1 : Math.max(lcs[i + 1]![j]!, lcs[i]![j + 1]!);
   const out: [" " | "+" | "-", string][] = [];
   let i = 0;
   let j = 0;
@@ -193,7 +220,13 @@ function printDiff(io: Io, before: string, after: string): void {
       continue;
     }
     gap = false;
-    io.out(op === "+" ? st.wrap(`    ${paint(io, "+", "32")}`, shown) : op === "-" ? st.wrap("    ", paint(io, `-${line}`, "31")) : st.wrap("     ", shown));
+    io.out(
+      op === "+"
+        ? st.wrap(`    ${paint(io, "+", "32")}`, shown)
+        : op === "-"
+          ? st.wrap("    ", paint(io, `-${line}`, "31"))
+          : st.wrap("     ", shown),
+    );
   }
 }
 
@@ -201,7 +234,8 @@ function printDiff(io: Io, before: string, after: string): void {
 function printAdded(io: Io, text: string): void {
   const toml = tomlState();
   const st = style(io);
-  for (const line of text.replace(/\n$/, "").split("\n")) io.out(st.wrap(`    ${paint(io, "+", "32")}`, colors(io) ? highlightTomlLine(line, toml) : line));
+  for (const line of text.replace(/\n$/, "").split("\n"))
+    io.out(st.wrap(`    ${paint(io, "+", "32")}`, colors(io) ? highlightTomlLine(line, toml) : line));
 }
 
 // Plan ----------------------------------------------------------------------------------------
@@ -225,7 +259,8 @@ function list(p: { values: Record<string, unknown> }, name: string): string[] {
 /** `work`, `cx:codex`. */
 function parseProfileArg(arg: string): NewProfile {
   const [name = "", agent = DEFAULT_AGENT, ...rest] = arg.split(":");
-  if (rest.length || !isAgentId(agent)) fail(`--profile ${arg}: use <name> or <name>:<agent> (${AGENT_IDS.join(", ")})`);
+  if (rest.length || !isAgentId(agent))
+    fail(`--profile ${arg}: use <name> or <name>:<agent> (${AGENT_IDS.join(", ")})`);
   checkName(name);
   return { name, agent, adopted: false };
 }
@@ -260,11 +295,21 @@ async function mcpPlan(io: Io, skip: boolean, profiles: readonly ProfileSource[]
   if (!names.length) return { kind: "none" };
   const report = await importServers(merged.servers);
   parseManifest(report.toml); // never write something that cannot be read back
-  return { kind: "import", summary: foundSummary(names, merged.from), notes: [...merged.notes, ...report.notes], report, servers: names, merged: merged.servers };
+  return {
+    kind: "import",
+    summary: foundSummary(names, merged.from),
+    notes: [...merged.notes, ...report.notes],
+    report,
+    servers: names,
+    merged: merged.servers,
+  };
 }
 
 /** The manifest to write, with command names from npm (the only network call of init). */
-async function resolveMcp(io: Io, plan: Extract<McpPlan, { kind: "import" }>): Promise<{ toml: string; notes: string[] }> {
+async function resolveMcp(
+  io: Io,
+  plan: Extract<McpPlan, { kind: "import" }>,
+): Promise<{ toml: string; notes: string[] }> {
   const { importServers } = await import("../../mcpd/importer.js");
   const { binOf } = await import("./mcp.js");
   const report = await importServers(plan.merged, { binOf: (pkg) => binOf(io, pkg) });
@@ -281,7 +326,8 @@ async function makePlan(args: string[], io: Io, ask: boolean): Promise<{ plan: P
   const notes: string[] = [];
   for (const n of existing) {
     const agent = agentOf(n, config);
-    if (!existsSync(agentProfileDir(n, agent, env)) || !launcherPath(n, env, agent)) notes.push(`profile ${n} is not set up yet: turno profile repair ${n}`);
+    if (!existsSync(agentProfileDir(n, agent, env)) || !launcherPath(n, env, agent))
+      notes.push(`profile ${n} is not set up yet: turno profile repair ${n}`);
   }
   const agents = AGENT_IDS.map((id) => ({ id, installed: Boolean(findOnPath(adapter(id).command, env)) }));
 
@@ -300,7 +346,9 @@ async function makePlan(args: string[], io: Io, ask: boolean): Promise<{ plan: P
     const claudeHere = agents[0]!.installed || existsSync(paths(env).hub);
     const fallbackAgent = claudeHere ? undefined : agents.find((a) => a.installed)?.id;
     const suggestion = fallbackAgent ? `work:${fallbackAgent} personal:${fallbackAgent}` : "work personal";
-    const answer = (await io.ask!(`Profiles to create (names; name:codex for another agent) [${suggestion}]: `)).trim() || suggestion;
+    const answer =
+      (await io.ask!(`Profiles to create (names; name:codex for another agent) [${suggestion}]: `)).trim() ||
+      suggestion;
     if (!/^none$/i.test(answer)) {
       for (const word of answer.split(/[\s,]+/).filter(Boolean)) {
         const np = parseProfileArg(word);
@@ -311,22 +359,31 @@ async function makePlan(args: string[], io: Io, ask: boolean): Promise<{ plan: P
   }
 
   // Folder rules for profiles of the default agent, from the projects each account was used in.
-  const claude = [...existing.filter((n) => agentOf(n, config) === DEFAULT_AGENT), ...profiles.filter((n) => n.agent === DEFAULT_AGENT).map((n) => n.name)];
+  const claude = [
+    ...existing.filter((n) => agentOf(n, config) === DEFAULT_AGENT),
+    ...profiles.filter((n) => n.agent === DEFAULT_AGENT).map((n) => n.name),
+  ];
   const ruled = config.projects.map((r) => resolvePath(expandHome(r.path, env)));
   const rules = inferRules(folderOwners(env, claude), paths(env).home, ruled);
 
   let def = str(p, "default");
-  if (def !== undefined && !claude.includes(def)) fail(`--default ${def}: name a Claude Code profile (${claude.join(", ") || "none yet"})`);
+  if (def !== undefined && !claude.includes(def))
+    fail(`--default ${def}: name a Claude Code profile (${claude.join(", ") || "none yet"})`);
   if (def === undefined && !config.default && ask && claude.length) {
     const suggestion = claude.includes("personal") ? "personal" : "none";
-    const answer = (await io.ask!(`Default profile for folders without a rule (none: plain claude) [${suggestion}]: `)).trim() || suggestion;
+    const answer =
+      (await io.ask!(`Default profile for folders without a rule (none: plain claude) [${suggestion}]: `)).trim() ||
+      suggestion;
     if (answer !== "none") {
       if (!claude.includes(answer)) fail(`${answer} is not a Claude Code profile here (${claude.join(", ")})`);
       def = answer;
     }
   }
 
-  const folders: ProfileSource[] = [...existing.map((name) => ({ name, agent: agentOf(name, config) })), ...profiles.filter((np) => np.adopted)];
+  const folders: ProfileSource[] = [
+    ...existing.map((name) => ({ name, agent: agentOf(name, config) })),
+    ...profiles.filter((np) => np.adopted),
+  ];
   const mcp = await mcpPlan(io, bool(p, "no-mcp"), folders);
   const plan: Plan = { agents, existing, profiles, rules, ...(def ? { default: def } : {}), mcp, notes };
   const before = readConfigText(env);
@@ -368,9 +425,23 @@ function printFound(io: Io, plan: Plan, st: Style): void {
   if (missing.length) field(io, st, "skip", "not installed", missing.join(", "));
   if (plan.existing.length) field(io, st, "ok", "profiles", plan.existing.join(", "));
   const adopted = plan.profiles.filter((np) => np.adopted);
-  if (adopted.length) field(io, st, "ok", "folders", `${adopted.map((np) => tildify(agentProfileDir(np.name, np.agent, env), env)).join(", ")} (made by hand)`);
+  if (adopted.length)
+    field(
+      io,
+      st,
+      "ok",
+      "folders",
+      `${adopted.map((np) => tildify(agentProfileDir(np.name, np.agent, env), env)).join(", ")} (made by hand)`,
+    );
   const m = plan.mcp;
-  if (m.kind === "keep") field(io, st, "ok", "mcp.toml", `${tildify(paths(env).mcpFile, env)} with ${plural(m.servers, "server")} (kept as it is)`);
+  if (m.kind === "keep")
+    field(
+      io,
+      st,
+      "ok",
+      "mcp.toml",
+      `${tildify(paths(env).mcpFile, env)} with ${plural(m.servers, "server")} (kept as it is)`,
+    );
   else if (m.kind === "import") field(io, st, "ok", "MCP", m.summary.replace(/^found /, ""));
   else if (m.kind === "none") field(io, st, "skip", "MCP", "none in Claude Code, Codex, Cursor or Copilot CLI configs");
   for (const n of plan.notes) io.err(st.note("info", st.muted(`note: ${n}`)));
@@ -380,7 +451,13 @@ function printFound(io: Io, plan: Plan, st: Style): void {
 function printProfiles(io: Io, plan: Plan, config: Config, st: Style): void {
   const env = io.env;
   if (!plan.profiles.length) return;
-  const own = new Map(localCopies(plan.profiles.map((np) => np.name), env, config).map((x) => [x.name, x.items]));
+  const own = new Map(
+    localCopies(
+      plan.profiles.map((np) => np.name),
+      env,
+      config,
+    ).map((x) => [x.name, x.items]),
+  );
   const rows: string[][] = [];
   const asides = new Map<number, string>();
   for (const np of plan.profiles) {
@@ -395,7 +472,11 @@ function printProfiles(io: Io, plan: Plan, config: Config, st: Style): void {
       st.muted(`shares ${hub}`),
     ]);
     const items = own.get(np.name) ?? [];
-    if (items.length) asides.set(rows.length - 1, `moves your own ${items.join(", ")} to ${dir}/.aside-<time>/ (turno undo puts ${items.length === 1 ? "it" : "them"} back)`);
+    if (items.length)
+      asides.set(
+        rows.length - 1,
+        `moves your own ${items.join(", ")} to ${dir}/.aside-<time>/ (turno undo puts ${items.length === 1 ? "it" : "them"} back)`,
+      );
   }
   for (const [i, lines] of st.tableRows(rows, { columns: [{}, {}, { drop: 2 }, {}, {}, { drop: 3 }] }).entries()) {
     for (const line of lines) io.out(line);
@@ -422,16 +503,27 @@ function printPlan(io: Io, plan: Plan, before: string, after: string, st: Style)
     printAdded(io, m.report.preview);
     for (const n of groupNotes(m.notes)) io.err(st.note("info", st.muted(n)));
     if (m.report.literalSecrets.length) {
-      io.err(st.note("warn", `${st.warn("warning")}: mcp.toml keeps literal secrets (${m.report.literalSecrets.join(", ")}); move them to the Keychain afterwards with: turno mcp import --write --move-secrets --force`));
+      io.err(
+        st.note(
+          "warn",
+          `${st.warn("warning")}: mcp.toml keeps literal secrets (${m.report.literalSecrets.join(", ")}); move them to the Keychain afterwards with: turno mcp import --write --move-secrets --force`,
+        ),
+      );
     }
   }
   if (!plan.default && !loadConfig(env).default && plan.profiles.some((np) => np.agent === DEFAULT_AGENT)) {
     io.out("");
-    io.out(st.wrap("  ", st.muted("No default profile: folders without a rule open plain claude (set one with --default <profile>).")));
+    io.out(
+      st.wrap(
+        "  ",
+        st.muted("No default profile: folders without a rule open plain claude (set one with --default <profile>)."),
+      ),
+    );
   }
 }
 
-const SCOPE_UNKNOWN = 'scope project: unknown server, one process per project folder; set scope = "shared" if it ignores its folder';
+const SCOPE_UNKNOWN =
+  'scope project: unknown server, one process per project folder; set scope = "shared" if it ignores its folder';
 
 /**
  * Importer notes with the same text for several servers, as one note: `name: text` for one
@@ -486,7 +578,11 @@ function tryLauncher(io: Io, plan: Plan): string | undefined {
 
 function printNext(io: Io, plan: Plan, started: boolean, st: Style): void {
   const steps: [string, string][] = [];
-  if (plan.profiles.length) steps.push([`sign in once per profile where needed: ${plan.profiles.map((np) => loginHint(np.agent, launcherName(np.name, np.agent))).join(", ")}`, ""]);
+  if (plan.profiles.length)
+    steps.push([
+      `sign in once per profile where needed: ${plan.profiles.map((np) => loginHint(np.agent, launcherName(np.name, np.agent))).join(", ")}`,
+      "",
+    ]);
   if (hasServers(plan) && !started) {
     steps.push(["turno mcp daemon start", "the gateway, as a login service"]);
     steps.push(["turno mcp sync", "point every profile at it"]);
@@ -496,7 +592,9 @@ function printNext(io: Io, plan: Plan, started: boolean, st: Style): void {
   const w = Math.max(...steps.filter(([, why]) => why).map(([c]) => c.length));
   for (const [i, [cmd, why]] of steps.entries()) {
     if (why) io.out(`  ${st.muted(`${i + 1}.`)} ${st.bold(cmd.padEnd(w))}   ${st.muted(`(${why})`)}`);
-    else for (const [k, l] of (st.color ? wrap(cmd, st.width - 5) : [cmd]).entries()) io.out(`  ${k ? "  " : st.muted(`${i + 1}.`)} ${l}`);
+    else
+      for (const [k, l] of (st.color ? wrap(cmd, st.width - 5) : [cmd]).entries())
+        io.out(`  ${k ? "  " : st.muted(`${i + 1}.`)} ${l}`);
   }
   const launcher = tryLauncher(io, plan);
   if (launcher) io.out(`\n${st.lead("next", `${st.bold("Try it:")} ${st.accent(launcher)}`)}`);
@@ -526,11 +624,25 @@ async function run(args: string[], io: Io): Promise<number> {
   // default), --start with --yes, never with --no-start. Both steps go in init's journal.
   let start = hasServers(plan) && bool(p, "start");
   if (hasServers(plan) && !bool(p, "no-start") && !bool(p, "start") && ask) {
-    start = await askYes(io, "Also start the gateway and connect the profiles to it (turno mcp daemon start, turno mcp sync)?");
+    start = await askYes(
+      io,
+      "Also start the gateway and connect the profiles to it (turno mcp daemon start, turno mcp sync)?",
+    );
   }
   if (dry) {
-    if (start) io.out(st.wrap("", "Then: start the gateway as a login service and point every profile at it (turno mcp daemon start, turno mcp sync)."));
-    io.out(st.wrap("", `${st.lead("info", "Nothing written (dry run).")} ${st.bold(`turno init --yes${hasServers(plan) ? " --start" : ""}`)} writes all of it; one turno undo reverts it.`));
+    if (start)
+      io.out(
+        st.wrap(
+          "",
+          "Then: start the gateway as a login service and point every profile at it (turno mcp daemon start, turno mcp sync).",
+        ),
+      );
+    io.out(
+      st.wrap(
+        "",
+        `${st.lead("info", "Nothing written (dry run).")} ${st.bold(`turno init --yes${hasServers(plan) ? " --start" : ""}`)} writes all of it; one turno undo reverts it.`,
+      ),
+    );
     return 0;
   }
   // Launchers keep the path of this turno; a path into npx's cache disappears.
@@ -559,13 +671,24 @@ async function run(args: string[], io: Io): Promise<number> {
       spin.stop();
     }
     journal.write(paths(env).mcpFile, resolved.toml, 0o600);
-    io.out(`  ${st.check("ok", `wrote ${tildify(paths(env).mcpFile, env)} ${st.muted(`(${plural(plan.mcp.servers.length, "server")}, mode 600)`)}`)}`);
+    io.out(
+      `  ${st.check("ok", `wrote ${tildify(paths(env).mcpFile, env)} ${st.muted(`(${plural(plan.mcp.servers.length, "server")}, mode 600)`)}`)}`,
+    );
     for (const n of resolved.notes) io.err(st.note("warn", st.muted(n), 4));
   }
   // Setup lines sit under the Write header.
   // Two columns narrower, so what setup wraps still fits after the indent.
-  const indented: Io = { ...io, env: { ...io.env, COLUMNS: String(st.width - 2) }, out: (line = "") => io.out(line ? line.replace(/^/gm, "  ") : line) };
-  if (plan.profiles.length) setupProfiles(plan.profiles.map((np) => np.name), indented, { journal, brief: true });
+  const indented: Io = {
+    ...io,
+    env: { ...io.env, COLUMNS: String(st.width - 2) },
+    out: (line = "") => io.out(line ? line.replace(/^/gm, "  ") : line),
+  };
+  if (plan.profiles.length)
+    setupProfiles(
+      plan.profiles.map((np) => np.name),
+      indented,
+      { journal, brief: true },
+    );
   let gatewayUp = false;
   if (start) {
     io.out("");
@@ -578,7 +701,12 @@ async function run(args: string[], io: Io): Promise<number> {
     await syncProfiles(io, { journal });
   }
   io.out("");
-  io.out(st.wrap(st.color ? `${st.icon("ok")} ` : "ok ", `${st.bold("Done")} in ${duration(Date.now() - started)}. ${st.muted("Undo all of it with:")} ${st.bold(`turno undo ${journal.stamp}`)}`));
+  io.out(
+    st.wrap(
+      st.color ? `${st.icon("ok")} ` : "ok ",
+      `${st.bold("Done")} in ${duration(Date.now() - started)}. ${st.muted("Undo all of it with:")} ${st.bold(`turno undo ${journal.stamp}`)}`,
+    ),
+  );
   if (start) io.out(st.muted("  (the gateway keeps running until turno mcp daemon stop)"));
   const first = plan.profiles[0];
   if (first) warnPath(io, launcherName(first.name, first.agent));
@@ -619,7 +747,8 @@ Examples:
   $ turno init --yes --no-mcp`;
 
 export const command: Command = {
-  summary: "set turno up in one step: find agents, profiles, folders and MCP servers, show the diff, write it (one undo)",
+  summary:
+    "set turno up in one step: find agents, profiles, folders and MCP servers, show the diff, write it (one undo)",
   usage: USAGE,
   flags: flagsOf(SPEC),
   run,

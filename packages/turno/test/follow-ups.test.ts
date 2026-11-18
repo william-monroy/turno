@@ -30,7 +30,8 @@ describe("definition fingerprint", () => {
     const base = '[server.fx]\ncommand = "node"\nargs = ["x.js"]\n';
     const variant = '[server.fx.variant.work]\nenv = { ACCOUNT = "work" }\n';
     const a = parseManifest(base + variant).servers.fx!;
-    const b = parseManifest(`${base}tools = { deny = ["drop_*"] }\n${variant}tools = { allow = ["get_*"] }\n`).servers.fx!;
+    const b = parseManifest(`${base}tools = { deny = ["drop_*"] }\n${variant}tools = { allow = ["get_*"] }\n`).servers
+      .fx!;
     expect(definitionFingerprint(b)).toBe(definitionFingerprint(a));
     const c = parseManifest(base.replace("x.js", "y.js")).servers.fx!;
     expect(definitionFingerprint(c)).not.toBe(definitionFingerprint(a));
@@ -48,8 +49,15 @@ describe("turno mcp list", () => {
     expect(fx).toContain("tools: allow get_*, list_*, deny *_delete");
     expect(fx).toContain("work tools: deny *");
     expect(r.out.split("\n").find((l) => l.startsWith("  plain "))).not.toContain("tools");
-    const j = JSON.parse((await run(["mcp", "list", "--json"])).out) as { name: string; tools: unknown; variantTools?: unknown }[];
-    expect(j.find((s) => s.name === "fx")).toMatchObject({ tools: { allow: ["get_*", "list_*"], deny: ["*_delete"] }, variantTools: { work: { deny: ["*"] } } });
+    const j = JSON.parse((await run(["mcp", "list", "--json"])).out) as {
+      name: string;
+      tools: unknown;
+      variantTools?: unknown;
+    }[];
+    expect(j.find((s) => s.name === "fx")).toMatchObject({
+      tools: { allow: ["get_*", "list_*"], deny: ["*_delete"] },
+      variantTools: { work: { deny: ["*"] } },
+    });
     expect(j.find((s) => s.name === "plain")).toMatchObject({ tools: null, variantTools: {} });
   });
 });
@@ -203,7 +211,11 @@ describe("mcpd and call_log", () => {
     try {
       const token = readFileSync(join(sb.home, ".local/state/turno/mcpd.token"), "utf8").trim();
       const enabled = async () =>
-        ((await (await fetch(`http://127.0.0.1:${d.port}/status`, { headers: { authorization: `Bearer ${token}` } })).json()) as { callLog: { enabled: boolean } }).callLog.enabled;
+        (
+          (await (
+            await fetch(`http://127.0.0.1:${d.port}/status`, { headers: { authorization: `Bearer ${token}` } })
+          ).json()) as { callLog: { enabled: boolean } }
+        ).callLog.enabled;
       expect(await enabled()).toBe(false);
       sb.write(".config/turno/config.toml", "[mcpd]\ncall_log = true\n");
       process.emit("SIGHUP", "SIGHUP");
@@ -256,12 +268,16 @@ describe("turno doctor --security and profile tokens", () => {
     const master = masterToken(sb.env, "ensure")!;
     sb.write(".local/state/turno/mcpd-tokens/fresh.token", `${profileToken(master, "fresh")}\n`, 0o600);
     let checks = await securityChecks(sb.env);
-    expect(checks.find((c) => c.text.startsWith("the mcpd token"))?.text).toBe("the mcpd token is 0 days old (1 profile token derived from it)");
+    expect(checks.find((c) => c.text.startsWith("the mcpd token"))?.text).toBe(
+      "the mcpd token is 0 days old (1 profile token derived from it)",
+    );
     sb.write(".local/state/turno/mcpd-tokens/old.token", `${profileToken("x".repeat(64), "old")}\n`, 0o600);
     checks = await securityChecks(sb.env);
     const stale = checks.find((c) => c.text.includes("predate"));
     expect(stale).toMatchObject({ level: "warn" });
-    expect(stale!.text).toBe("1 profile token file predates the mcpd token, so its agent cannot reach mcpd (~/.local/state/turno/mcpd-tokens/old.token)");
+    expect(stale!.text).toBe(
+      "1 profile token file predates the mcpd token, so its agent cannot reach mcpd (~/.local/state/turno/mcpd-tokens/old.token)",
+    );
     expect(stale!.hint).toBe("turno mcp sync");
   });
 });
@@ -277,24 +293,51 @@ describe("client name of rebuilt sessions", () => {
     const { profileToken } = await import("../src/mcpd/tokens.js");
     const master = "c".repeat(64);
     const fixture = fileURLToPath(new URL("./fixtures/fixture-server.mjs", import.meta.url));
-    const manifest = parse(`[server.fx]\ncommand = ${JSON.stringify(process.execPath)}\nargs = [${JSON.stringify(fixture)}]\n`);
+    const manifest = parse(
+      `[server.fx]\ncommand = ${JSON.stringify(process.execPath)}\nargs = [${JSON.stringify(fixture)}]\n`,
+    );
     const store = join(sb.home, "clients.json");
     const managers: { stopAll(): Promise<void> }[] = [];
     const boot = async (port = 0) => {
       const manager = new InstanceManager({
         cache: new DescriptionCache(join(sb.home, "cache")),
-        connector: new DefaultConnector({ resolve: async (v) => v, serversDir: join(sb.home, "s"), logsDir: join(sb.home, "l"), baseEnv: {} }),
+        connector: new DefaultConnector({
+          resolve: async (v) => v,
+          serversDir: join(sb.home, "s"),
+          logsDir: join(sb.home, "l"),
+          baseEnv: {},
+        }),
         home: sb.home,
       });
       managers.push(manager);
-      const gw = new Gateway({ manager, manifest: () => manifest, token: master, processCwd: async () => undefined, clientNames: new ClientNames(store, () => true) });
+      const gw = new Gateway({
+        manager,
+        manifest: () => manifest,
+        token: master,
+        processCwd: async () => undefined,
+        clientNames: new ClientNames(store, () => true),
+      });
       return { gw, port: await gw.listen(port) };
     };
-    const headers = { authorization: `Bearer ${profileToken(master, "work")}`, "x-turno-pid": String(process.pid), "content-type": "application/json", accept: "application/json, text/event-stream" };
+    const headers = {
+      authorization: `Bearer ${profileToken(master, "work")}`,
+      "x-turno-pid": String(process.pid),
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+    };
     const post = (port: number, body: unknown, sid?: string) =>
-      fetch(`http://127.0.0.1:${port}/mcp/fx`, { method: "POST", headers: { ...headers, ...(sid ? { "mcp-session-id": sid } : {}) }, body: JSON.stringify(body) });
+      fetch(`http://127.0.0.1:${port}/mcp/fx`, {
+        method: "POST",
+        headers: { ...headers, ...(sid ? { "mcp-session-id": sid } : {}) },
+        body: JSON.stringify(body),
+      });
     const first = await boot();
-    const init = await post(first.port, { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "claude-code", version: "1" } } });
+    const init = await post(first.port, {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "claude-code", version: "1" } },
+    });
     const sid = init.headers.get("mcp-session-id")!;
     await init.text();
     expect(first.gw.agents()[0]?.agent).toBe("claude-code");

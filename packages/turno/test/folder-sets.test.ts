@@ -3,7 +3,11 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { PromptListChangedNotificationSchema, ResourceListChangedNotificationSchema, ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
+import {
+  PromptListChangedNotificationSchema,
+  ResourceListChangedNotificationSchema,
+  ToolListChangedNotificationSchema,
+} from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type ProjectRule, parseConfig } from "../src/core/config.js";
 import { type Manifest, parseManifest } from "../src/core/manifest.js";
@@ -67,10 +71,22 @@ async function boot(toml: string, rules: () => ProjectRule[]): Promise<number> {
   const manifest: Manifest = parseManifest(toml);
   manager = new InstanceManager({
     cache: new DescriptionCache(join(sb.home, "cache")),
-    connector: new DefaultConnector({ resolve: async (v) => v, serversDir: join(sb.home, "servers"), logsDir: join(sb.home, "logs"), baseEnv: { PATH: process.env.PATH ?? "" } }),
+    connector: new DefaultConnector({
+      resolve: async (v) => v,
+      serversDir: join(sb.home, "servers"),
+      logsDir: join(sb.home, "logs"),
+      baseEnv: { PATH: process.env.PATH ?? "" },
+    }),
     home: sb.home,
   });
-  gw = new Gateway({ manager, manifest: () => manifest, token: MASTER, clientRequestTimeoutMs: 5000, processCwd: async () => undefined, folderRules: rules });
+  gw = new Gateway({
+    manager,
+    manifest: () => manifest,
+    token: MASTER,
+    clientRequestTimeoutMs: 5000,
+    processCwd: async () => undefined,
+    folderRules: rules,
+  });
   return gw.listen(0);
 }
 
@@ -78,7 +94,9 @@ async function connect(port: number, server: string, folder?: string, profile = 
   const client = new Client({ name: "test", version: "1" });
   const headers: Record<string, string> = { Authorization: `Bearer ${profileToken(MASTER, profile)}` };
   if (folder) headers["X-Turno-Cwd-B64"] = b64(folder);
-  await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp/${server}`), { requestInit: { headers } }));
+  await client.connect(
+    new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp/${server}`), { requestInit: { headers } }),
+  );
   clients.push(client);
   return client;
 }
@@ -104,9 +122,15 @@ describe("[[projects]] mcp in config.toml", () => {
   });
 
   it("refuses a rule with neither a profile nor a server set, and sets that are not lists of names", () => {
-    expect(() => parseConfig(`[[projects]]\npath = "~/a"\n`, "x", sb.env)).toThrow(/needs path and profile, mcp or mcp_deny/);
-    expect(() => parseConfig(`[[projects]]\npath = "~/a"\nmcp = "docs"\n`, "x", sb.env)).toThrow(/projects\[0\]\.mcp must be an array of server names/);
-    expect(() => parseConfig(`[[projects]]\npath = "~/a"\nmcp_deny = [1]\n`, "x", sb.env)).toThrow(/mcp_deny must be an array/);
+    expect(() => parseConfig(`[[projects]]\npath = "~/a"\n`, "x", sb.env)).toThrow(
+      /needs path and profile, mcp or mcp_deny/,
+    );
+    expect(() => parseConfig(`[[projects]]\npath = "~/a"\nmcp = "docs"\n`, "x", sb.env)).toThrow(
+      /projects\[0\]\.mcp must be an array of server names/,
+    );
+    expect(() => parseConfig(`[[projects]]\npath = "~/a"\nmcp_deny = [1]\n`, "x", sb.env)).toThrow(
+      /mcp_deny must be an array/,
+    );
   });
 });
 
@@ -122,8 +146,14 @@ describe("which set applies to a folder", () => {
 
   it("takes the longest rule that has a set, preferring the session's profile on a tie", () => {
     expect(folderMcpSet([`${home}/code/lib`], rules, "work")?.path).toBe("/h/code");
-    expect(folderMcpSet([`${home}/code/app/sub`], rules, "work")).toMatchObject({ path: "/h/code/app", profile: "work" });
-    expect(folderMcpSet([`${home}/code/app`], rules, "personal")).toMatchObject({ path: "/h/code/app", profile: "personal" });
+    expect(folderMcpSet([`${home}/code/app/sub`], rules, "work")).toMatchObject({
+      path: "/h/code/app",
+      profile: "work",
+    });
+    expect(folderMcpSet([`${home}/code/app`], rules, "personal")).toMatchObject({
+      path: "/h/code/app",
+      profile: "personal",
+    });
     // No rule for this profile at that depth: the first one in the file.
     expect(folderMcpSet([`${home}/code/app`], rules, "other")).toMatchObject({ profile: "work" });
     expect(folderMcpSet([`${home}/codex`], rules, "work")).toBeUndefined();
@@ -177,7 +207,11 @@ describe("mcpd enforces folder sets", () => {
     const app = folder("code/app");
     const rules: ProjectRule[] = [{ path: app, mcp: ["docs"] }];
     const port = await boot(fixture("docs") + fixture("issues"), () => rules);
-    const meta = { "io.modelcontextprotocol/protocolVersion": MODERN_PROTOCOL_VERSION, "io.modelcontextprotocol/clientInfo": { name: "modern", version: "1" }, "io.modelcontextprotocol/clientCapabilities": {} };
+    const meta = {
+      "io.modelcontextprotocol/protocolVersion": MODERN_PROTOCOL_VERSION,
+      "io.modelcontextprotocol/clientInfo": { name: "modern", version: "1" },
+      "io.modelcontextprotocol/clientCapabilities": {},
+    };
     const modern = async (server: string, method: string, params: Record<string, unknown> = {}, where?: string) => {
       const headers: Record<string, string> = {
         Authorization: `Bearer ${profileToken(MASTER, "work")}`,
@@ -188,7 +222,11 @@ describe("mcpd enforces folder sets", () => {
       };
       if (method === "tools/call") headers["Mcp-Name"] = String(params.name);
       if (where) headers["X-Turno-Cwd-B64"] = b64(where);
-      const res = await fetch(`http://127.0.0.1:${port}/mcp/${server}`, { method: "POST", headers, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params: { ...params, _meta: meta } }) });
+      const res = await fetch(`http://127.0.0.1:${port}/mcp/${server}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params: { ...params, _meta: meta } }),
+      });
       return (await res.json()) as { result?: Record<string, any>; error?: { message: string } };
     };
 
@@ -196,7 +234,9 @@ describe("mcpd enforces folder sets", () => {
     expect(discover.result?.capabilities).toEqual({});
     expect(discover.result?.instructions).toMatch(/issues is not in the MCP set of .*code\/app/);
     expect((await modern("issues", "tools/list", {}, app)).result?.tools).toEqual([]);
-    expect((await modern("issues", "tools/call", { name: "echo", arguments: { text: "x" } }, app)).error?.message).toMatch(/not in the MCP set/);
+    expect(
+      (await modern("issues", "tools/call", { name: "echo", arguments: { text: "x" } }, app)).error?.message,
+    ).toMatch(/not in the MCP set/);
     expect(spawned()).toBe(0);
 
     expect(((await modern("docs", "tools/list", {}, app)).result?.tools ?? []).length).toBeGreaterThan(0);
@@ -219,7 +259,11 @@ describe("mcpd enforces folder sets", () => {
     const port = await boot(fixture("issues"), () => rules);
     const c = await connect(port, "issues", app);
     const seen: string[] = [];
-    for (const schema of [ToolListChangedNotificationSchema, PromptListChangedNotificationSchema, ResourceListChangedNotificationSchema]) {
+    for (const schema of [
+      ToolListChangedNotificationSchema,
+      PromptListChangedNotificationSchema,
+      ResourceListChangedNotificationSchema,
+    ]) {
       c.setNotificationHandler(schema, async (n) => void seen.push(n.method));
     }
     expect((await c.listTools()).tools.length).toBeGreaterThan(0);
@@ -227,26 +271,41 @@ describe("mcpd enforces folder sets", () => {
     rules = [{ path: app, mcpDeny: ["issues"] }];
     expect(tell()).toBe(1);
     await waitFor(() => seen.length === 3, "the three list_changed notifications");
-    expect(seen.sort()).toEqual(["notifications/prompts/list_changed", "notifications/resources/list_changed", "notifications/tools/list_changed"]);
+    expect(seen.sort()).toEqual([
+      "notifications/prompts/list_changed",
+      "notifications/resources/list_changed",
+      "notifications/tools/list_changed",
+    ]);
     expect((await c.listTools()).tools).toEqual([]);
   });
 });
 
 describe("config check and profile commands", () => {
   it("warns about set names missing from mcp.toml and direct remotes a set cannot hide", async () => {
-    sb.write(".config/turno/mcp.toml", `${fixture("docs")}${fixture("issues")}[server.web]\nurl = "https://example.com/mcp"\n`);
+    sb.write(
+      ".config/turno/mcp.toml",
+      `${fixture("docs")}${fixture("issues")}[server.web]\nurl = "https://example.com/mcp"\n`,
+    );
     sb.write(".config/turno/config.toml", `[[projects]]\npath = "~/code"\nmcp = ["docs", "isues"]\n`);
     const r = await run(["config", "check"]);
     expect(r.code).toBe(0);
-    expect(r.out).toContain('the rule for ~/code lists "isues" in mcp, which is not in mcp.toml (did you mean issues?)');
-    expect(r.out).toContain("the rule for ~/code cannot hide web: it is a remote server that does not pass through mcpd");
+    expect(r.out).toContain(
+      'the rule for ~/code lists "isues" in mcp, which is not in mcp.toml (did you mean issues?)',
+    );
+    expect(r.out).toContain(
+      "the rule for ~/code cannot hide web: it is a remote server that does not pass through mcpd",
+    );
   });
 
   it("profile assign and unassign keep a folder's server set", async () => {
     folder("code/app");
-    sb.write(".config/turno/config.toml", `[profiles.work]\n[profiles.home]\n\n[[projects]]\npath = "~/code/app"\nprofile = "work"\nmcp = ["docs"]\n`);
+    sb.write(
+      ".config/turno/config.toml",
+      `[profiles.work]\n[profiles.home]\n\n[[projects]]\npath = "~/code/app"\nprofile = "work"\nmcp = ["docs"]\n`,
+    );
     expect((await run(["profile", "assign", join(sb.home, "code/app"), "home"])).code).toBe(0);
-    const cfg = () => parseConfig(readFileSync(join(sb.home, ".config/turno/config.toml"), "utf8"), "x", sb.env).projects;
+    const cfg = () =>
+      parseConfig(readFileSync(join(sb.home, ".config/turno/config.toml"), "utf8"), "x", sb.env).projects;
     expect(cfg()).toEqual([{ path: join(sb.home, "code/app"), profile: "home", mcp: ["docs"] }]);
     expect((await run(["profile", "unassign", join(sb.home, "code/app")])).code).toBe(0);
     expect(cfg()).toEqual([{ path: join(sb.home, "code/app"), mcp: ["docs"] }]);
@@ -257,7 +316,10 @@ describe("config check and profile commands", () => {
 
   it("profile which shows the server set of the folder", async () => {
     const app = folder("code/app");
-    sb.write(".config/turno/config.toml", `[profiles.work]\n\n[[projects]]\npath = "~/code"\nmcp = ["docs"]\nmcp_deny = ["mail"]\n`);
+    sb.write(
+      ".config/turno/config.toml",
+      `[profiles.work]\n\n[[projects]]\npath = "~/code"\nmcp = ["docs"]\nmcp_deny = ["mail"]\n`,
+    );
     const r = await run(["profile", "which", app]);
     expect(r.out).toContain("mcp: only docs, not mail (rule ~/code)");
     const j = JSON.parse((await run(["profile", "which", app, "--json"])).out);
@@ -273,9 +335,16 @@ describe("mcpd reads folder sets from config.toml", () => {
     try {
       const token = readFileSync(join(sb.home, ".local/state/turno/mcpd.token"), "utf8").trim();
       const status = async () =>
-        ((await (await fetch(`http://127.0.0.1:${d.port}/status`, { headers: { authorization: `Bearer ${token}` } })).json()) as { config: Record<string, unknown> }).config;
+        (
+          (await (
+            await fetch(`http://127.0.0.1:${d.port}/status`, { headers: { authorization: `Bearer ${token}` } })
+          ).json()) as { config: Record<string, unknown> }
+        ).config;
       expect(await status()).toEqual({ error: null, folderSets: 1 });
-      sb.write(".config/turno/config.toml", `[[projects]]\npath = "~/a"\nmcp = ["docs"]\n[[projects]]\npath = "~/b"\nmcp_deny = ["mail"]\n`);
+      sb.write(
+        ".config/turno/config.toml",
+        `[[projects]]\npath = "~/a"\nmcp = ["docs"]\n[[projects]]\npath = "~/b"\nmcp_deny = ["mail"]\n`,
+      );
       process.emit("SIGHUP", "SIGHUP");
       await waitFor(async () => (await status()).folderSets === 2, "the reloaded sets");
       sb.write(".config/turno/config.toml", `[[projects]]\npath = 1\n`);

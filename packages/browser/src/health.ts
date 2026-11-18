@@ -37,7 +37,12 @@ export function healthPath(id: string, env: NodeJS.ProcessEnv = process.env): st
 export function readHealth(id: string, env: NodeJS.ProcessEnv = process.env): HealthRecord | undefined {
   try {
     const v = JSON.parse(readFileSync(healthPath(id, env), "utf8")) as Partial<HealthRecord>;
-    if ((v.status === "ok" || v.status === "needs_auth" || v.status === "error") && typeof v.url === "string" && typeof v.checkedAt === "string") return v as HealthRecord;
+    if (
+      (v.status === "ok" || v.status === "needs_auth" || v.status === "error") &&
+      typeof v.url === "string" &&
+      typeof v.checkedAt === "string"
+    )
+      return v as HealthRecord;
   } catch {
     /* none, or not a record */
   }
@@ -98,9 +103,18 @@ export interface HealthOptions {
 const firstLine = (e: unknown) => String((e as Error).message ?? e).split("\n")[0]!;
 
 /** Runs the check in a new tab of the identity's browser and closes the tab. */
-export async function runHealthCheck(context: HealthContext, check: HealthCheck, opts: HealthOptions = {}): Promise<HealthRecord> {
+export async function runHealthCheck(
+  context: HealthContext,
+  check: HealthCheck,
+  opts: HealthOptions = {},
+): Promise<HealthRecord> {
   const now = opts.now ?? (() => new Date());
-  const done = (status: HealthStatus, detail?: string): HealthRecord => ({ status, url: check.url, checkedAt: now().toISOString(), ...(detail ? { detail } : {}) });
+  const done = (status: HealthStatus, detail?: string): HealthRecord => ({
+    status,
+    url: check.url,
+    checkedAt: now().toISOString(),
+    ...(detail ? { detail } : {}),
+  });
   const page = await context.newPage();
   try {
     try {

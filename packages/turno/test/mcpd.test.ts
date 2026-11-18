@@ -29,7 +29,8 @@ import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 const FIXTURE = fileURLToPath(new URL("./fixtures/fixture-server.mjs", import.meta.url));
 const TOKEN = "test-token";
 /** Sessions authenticate with a profile token (ADR 0023); "default" unless a test names one. */
-const sessionAuth = (headers: Record<string, string> = {}) => `Bearer ${profileToken(TOKEN, headers["X-Turno-Profile"] ?? "default")}`;
+const sessionAuth = (headers: Record<string, string> = {}) =>
+  `Bearer ${profileToken(TOKEN, headers["X-Turno-Profile"] ?? "default")}`;
 
 let sb: Sandbox;
 let gw: Gateway;
@@ -72,7 +73,13 @@ async function boot(toml: string, o: BootOpts = {}): Promise<void> {
     cache: new DescriptionCache(join(sb.home, "cache")),
     connector: new DefaultConnector({
       resolve: async (v) =>
-        v === "keychain:default-account" ? "personal" : v === "keychain:work-account" ? "work" : v === "keychain:rem-token" ? "Bearer remote-secret" : v,
+        v === "keychain:default-account"
+          ? "personal"
+          : v === "keychain:work-account"
+            ? "work"
+            : v === "keychain:rem-token"
+              ? "Bearer remote-secret"
+              : v,
       serversDir: join(sb.home, "servers"),
       logsDir: join(sb.home, "logs"),
       baseEnv: { PATH: process.env.PATH ?? "" },
@@ -216,7 +223,12 @@ describe("mcpd gateway", () => {
     const work = await connect("fx", { "X-Turno-Profile": "work" });
     expect(JSON.parse(await callText(personal, "whoami")).account).toBe("personal");
     expect(JSON.parse(await callText(work, "whoami")).account).toBe("work");
-    expect(manager.list().map((i) => i.variant).sort()).toEqual(["default", "work"]);
+    expect(
+      manager
+        .list()
+        .map((i) => i.variant)
+        .sort(),
+    ).toEqual(["default", "work"]);
   });
 
   it("starts project servers in the session's project root (legacy plain header)", async () => {
@@ -252,14 +264,20 @@ describe("mcpd gateway", () => {
     const a = await connect("fx", {}, () => ({ action: "accept", content: { name: "Ada" } }));
     expect(JSON.parse(await callText(a, "ask"))).toEqual({ action: "accept", content: { name: "Ada" } });
     const seen: number[] = [];
-    await a.callTool({ name: "slow", arguments: { steps: 3 } }, undefined, { onprogress: (p) => seen.push(p.progress) });
+    await a.callTool({ name: "slow", arguments: { steps: 3 } }, undefined, {
+      onprogress: (p) => seen.push(p.progress),
+    });
     expect(seen).toEqual([1, 2, 3]);
   });
 
   it("rejects requests without the token or from a browser origin", async () => {
     await boot(fixtureToml("fx"));
     const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" });
-    const noToken = await fetch(`http://127.0.0.1:${port}/mcp/fx`, { method: "POST", body, headers: { "content-type": "application/json" } });
+    const noToken = await fetch(`http://127.0.0.1:${port}/mcp/fx`, {
+      method: "POST",
+      body,
+      headers: { "content-type": "application/json" },
+    });
     expect(noToken.status).toBe(401);
     const origin = await fetch(`http://127.0.0.1:${port}/mcp/fx`, {
       method: "POST",
@@ -267,7 +285,11 @@ describe("mcpd gateway", () => {
       headers: { "content-type": "application/json", authorization: `Bearer ${TOKEN}`, origin: "https://evil.example" },
     });
     expect(origin.status).toBe(403);
-    const unknown = await fetch(`http://127.0.0.1:${port}/mcp/nope`, { method: "POST", body, headers: { authorization: sessionAuth() } });
+    const unknown = await fetch(`http://127.0.0.1:${port}/mcp/nope`, {
+      method: "POST",
+      body,
+      headers: { authorization: sessionAuth() },
+    });
     expect(unknown.status).toBe(404);
   });
 });
@@ -342,7 +364,12 @@ describe("call lifecycle (ADR 0016)", () => {
     // Settings outside the launch line count too: a new idle limit means a new instance.
     manifest = parseManifest(fixtureToml("fx", 'idle = "45m"', "keychain:work-account"));
     await callText(a, "counter");
-    expect(manager.list().map((i) => i.server.idle).sort()).toEqual([1800, 2700]);
+    expect(
+      manager
+        .list()
+        .map((i) => i.server.idle)
+        .sort(),
+    ).toEqual([1800, 2700]);
 
     manifest = parseManifest("");
     await expect(a.callTool({ name: "counter", arguments: {} })).rejects.toThrow(/no longer served by mcpd/);
@@ -376,11 +403,18 @@ describe("call lifecycle (ADR 0016)", () => {
   });
 
   it("opens a circuit breaker after repeated start failures and shows the server log", async () => {
-    await boot(`[server.bad]\ncommand = ${JSON.stringify(process.execPath)}\nargs = ["-e", "console.error('boom from bad'); process.exit(1)"]\n`, {
-      breakerBaseMs: 60_000,
-    });
-    for (let i = 0; i < 3; i++) await expect(connect("bad")).rejects.toThrow(/could not start|initialize failed|exited/);
-    await waitFor(() => lines(join(sb.home, "logs", "bad.log")).some((l) => l.includes("boom from bad")), "the server log");
+    await boot(
+      `[server.bad]\ncommand = ${JSON.stringify(process.execPath)}\nargs = ["-e", "console.error('boom from bad'); process.exit(1)"]\n`,
+      {
+        breakerBaseMs: 60_000,
+      },
+    );
+    for (let i = 0; i < 3; i++)
+      await expect(connect("bad")).rejects.toThrow(/could not start|initialize failed|exited/);
+    await waitFor(
+      () => lines(join(sb.home, "logs", "bad.log")).some((l) => l.includes("boom from bad")),
+      "the server log",
+    );
     const started = Date.now();
     const err = (await connect("bad").catch((e: Error) => e)) as Error;
     expect(err.message).toMatch(/failed to start 3 times in a row/);
@@ -398,7 +432,8 @@ describe("call lifecycle (ADR 0016)", () => {
     await boot(fixtureToml("fx"), { port: samePort });
     // The first try may land on a keep-alive socket of the old server; a 404 would fail every try.
     let echoed = "";
-    for (let i = 0; i < 20 && echoed !== "back"; i++) echoed = await callText(a, "echo", { text: "back" }).catch(() => "");
+    for (let i = 0; i < 20 && echoed !== "back"; i++)
+      echoed = await callText(a, "echo", { text: "back" }).catch(() => "");
     expect(echoed).toBe("back");
     expect(gw.sessionCount()).toBe(1);
   });
@@ -425,7 +460,9 @@ describe("server-to-client routing (ADR 0016)", () => {
 
   it("passes sampling through to the calling session", async () => {
     await boot(fixtureToml("fx"));
-    const a = await connectWith("fx", { sample: () => ({ model: "test-model", role: "assistant", content: { type: "text", text: "pong" } }) });
+    const a = await connectWith("fx", {
+      sample: () => ({ model: "test-model", role: "assistant", content: { type: "text", text: "pong" } }),
+    });
     expect(JSON.parse(await callText(a, "sample"))).toEqual({ model: "test-model", text: "pong" });
   });
 
@@ -554,10 +591,18 @@ describe("descriptions (ADR 0016)", () => {
   it("refreshes through POST /refresh/<server> without a restart", async () => {
     await boot(fixtureToml("fx"));
     const post = (path: string, auth = true) =>
-      fetch(`http://127.0.0.1:${port}${path}`, { method: "POST", headers: auth ? { authorization: `Bearer ${TOKEN}` } : {} });
+      fetch(`http://127.0.0.1:${port}${path}`, {
+        method: "POST",
+        headers: auth ? { authorization: `Bearer ${TOKEN}` } : {},
+      });
     const a = await connect("fx");
     await manager.stopAll();
-    expect(await (await post("/refresh/fx")).json()).toEqual({ server: "fx", refreshed: [], forgotten: ["fx@default"], errors: {} });
+    expect(await (await post("/refresh/fx")).json()).toEqual({
+      server: "fx",
+      refreshed: [],
+      forgotten: ["fx@default"],
+      errors: {},
+    });
     expect(existsSync(join(sb.home, "cache", "fx@default.json"))).toBe(false);
 
     await callText(a, "counter"); // running again
@@ -572,11 +617,15 @@ describe("descriptions (ADR 0016)", () => {
 });
 
 /** A remote MCP server that can forget its sessions, over Streamable HTTP or legacy SSE. */
-async function remote(kind: "http" | "sse"): Promise<{ url: string; forget(): void; auth: string[]; close(): Promise<void> }> {
+async function remote(
+  kind: "http" | "sse",
+): Promise<{ url: string; forget(): void; auth: string[]; close(): Promise<void> }> {
   const auth: string[] = [];
   const make = () => {
     const s = new Server({ name: "remote", version: "1" }, { capabilities: { tools: {} } });
-    s.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [{ name: "ping2", inputSchema: { type: "object" as const, properties: {} } }] }));
+    s.setRequestHandler(ListToolsRequestSchema, async () => ({
+      tools: [{ name: "ping2", inputSchema: { type: "object" as const, properties: {} } }],
+    }));
     s.setRequestHandler(CallToolRequestSchema, async () => ({ content: [{ type: "text" as const, text: "pong" }] }));
     return s;
   };
@@ -611,7 +660,9 @@ async function remote(kind: "http" | "sse"): Promise<{ url: string; forget(): vo
     await make().connect(t);
     await t.handleRequest(req, res);
   });
-  const p = await new Promise<number>((r) => server.listen(0, "127.0.0.1", () => r((server.address() as { port: number }).port)));
+  const p = await new Promise<number>((r) =>
+    server.listen(0, "127.0.0.1", () => r((server.address() as { port: number }).port)),
+  );
   const handle = {
     url: `http://127.0.0.1:${p}/${kind === "sse" ? "sse" : "mcp"}`,
     auth,
@@ -636,9 +687,11 @@ describe("remote proxies (ADR 0016)", () => {
     expect(r.auth.every((h) => h === "Bearer remote-secret")).toBe(true);
   });
 
-  it("speaks legacy SSE when the entry says type = \"sse\"", async () => {
+  it('speaks legacy SSE when the entry says type = "sse"', async () => {
     const r = await remote("sse");
-    await boot(`[server.rem]\nurl = ${JSON.stringify(r.url)}\ntype = "sse"\nheaders = { Authorization = "keychain:rem-token" }\n`);
+    await boot(
+      `[server.rem]\nurl = ${JSON.stringify(r.url)}\ntype = "sse"\nheaders = { Authorization = "keychain:rem-token" }\n`,
+    );
     const a = await connect("rem");
     expect(await callText(a, "ping2")).toBe("pong");
     expect(r.auth.every((h) => h === "Bearer remote-secret")).toBe(true);

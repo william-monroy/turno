@@ -65,7 +65,10 @@ const MAX_ORIGINS = 10;
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 function assertSiteKey(site: string): void {
-  if (!SITE.test(site)) throw new VaultError(`invalid site key "${site}": use lowercase letters, digits, ".", "-" and "_" (for example "github")`);
+  if (!SITE.test(site))
+    throw new VaultError(
+      `invalid site key "${site}": use lowercase letters, digits, ".", "-" and "_" (for example "github")`,
+    );
 }
 
 /**
@@ -97,7 +100,8 @@ export function vaultPath(id: string, env: NodeJS.ProcessEnv = process.env): str
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 function isIndex(v: unknown): v is VaultIndex {
-  if (!isObject(v) || v.version !== 1 || (v.submit !== "confirm" && v.submit !== "auto") || !isObject(v.sites)) return false;
+  if (!isObject(v) || v.version !== 1 || (v.submit !== "confirm" && v.submit !== "auto") || !isObject(v.sites))
+    return false;
   return Object.entries(v.sites).every(
     ([k, s]) =>
       SITE.test(k) &&
@@ -125,14 +129,22 @@ function readIndex(id: string, env: NodeJS.ProcessEnv): VaultIndex {
   } catch {
     v = undefined;
   }
-  if (isObject(v) && typeof v.version === "number" && v.version > 1) throw new VaultError(`${file} is from a newer turno-browser; update turno-browser`);
-  if (!isIndex(v)) throw new VaultError(`${file} is not a valid vault index; fix or remove it (the credentials stay in the secret store)`);
+  if (isObject(v) && typeof v.version === "number" && v.version > 1)
+    throw new VaultError(`${file} is from a newer turno-browser; update turno-browser`);
+  if (!isIndex(v))
+    throw new VaultError(
+      `${file} is not a valid vault index; fix or remove it (the credentials stay in the secret store)`,
+    );
   return v;
 }
 
 function writeIndex(id: string, index: VaultIndex, env: NodeJS.ProcessEnv): void {
   const file = vaultPath(id, env);
-  const sites = Object.fromEntries(Object.keys(index.sites).sort().map((k) => [k, index.sites[k]!]));
+  const sites = Object.fromEntries(
+    Object.keys(index.sites)
+      .sort()
+      .map((k) => [k, index.sites[k]!]),
+  );
   const tmp = `${file}.${process.pid}.tmp`;
   writePrivateFile(tmp, `${JSON.stringify({ version: 1, submit: index.submit, sites }, null, 2)}\n`, env);
   renameSync(tmp, file);
@@ -190,12 +202,19 @@ export interface VaultAddInput {
  * deleted before it is written again: replacing a Keychain item in place makes macOS ask for
  * keychain access in a dialog, which a server or a script cannot answer.
  */
-export async function vaultAdd(id: string, site: string, input: VaultAddInput, options: VaultOptions = {}): Promise<VaultSite> {
+export async function vaultAdd(
+  id: string,
+  site: string,
+  input: VaultAddInput,
+  options: VaultOptions = {},
+): Promise<VaultSite> {
   const env = options.env ?? process.env;
   assertIdentityId(id);
   assertSiteKey(site);
-  if (!existsDir(identityDir(id, env))) throw new VaultError(`identity "${id}" does not exist (turno browser add ${id})`);
-  if (!input.urls.length) throw new VaultError("give the sign-in page with --url (for example --url https://github.com/login)");
+  if (!existsDir(identityDir(id, env)))
+    throw new VaultError(`identity "${id}" does not exist (turno browser add ${id})`);
+  if (!input.urls.length)
+    throw new VaultError("give the sign-in page with --url (for example --url https://github.com/login)");
   const origins = [...new Set(input.urls.map(vaultOrigin))];
   if (origins.length > MAX_ORIGINS) throw new VaultError(`at most ${MAX_ORIGINS} origins per site`);
   if (!input.username) throw new VaultError("the username is empty");
@@ -245,10 +264,15 @@ export async function vaultClear(id: string, options: VaultOptions = {}): Promis
 }
 
 /** Choose whether browser_login submits the form itself (`auto`) or leaves that to the model. */
-export function vaultSetSubmit(id: string, submit: SubmitPolicy, options: Pick<VaultOptions, "env"> = {}): SubmitPolicy {
+export function vaultSetSubmit(
+  id: string,
+  submit: SubmitPolicy,
+  options: Pick<VaultOptions, "env"> = {},
+): SubmitPolicy {
   const env = options.env ?? process.env;
   if (submit !== "confirm" && submit !== "auto") throw new VaultError(`submit must be "confirm" or "auto"`);
-  if (!existsDir(identityDir(id, env))) throw new VaultError(`identity "${id}" does not exist (turno browser add ${id})`);
+  if (!existsDir(identityDir(id, env)))
+    throw new VaultError(`identity "${id}" does not exist (turno browser add ${id})`);
   const index = readIndex(id, env);
   index.submit = submit;
   writeIndex(id, index, env);
@@ -256,7 +280,11 @@ export function vaultSetSubmit(id: string, submit: SubmitPolicy, options: Pick<V
 }
 
 /** One site's entry and the identity's submit policy, for browser_login; undefined when the site is not in the vault. */
-export function vaultSite(id: string, site: string, env: NodeJS.ProcessEnv = process.env): { site: VaultSite; submit: SubmitPolicy } | undefined {
+export function vaultSite(
+  id: string,
+  site: string,
+  env: NodeJS.ProcessEnv = process.env,
+): { site: VaultSite; submit: SubmitPolicy } | undefined {
   assertSiteKey(site);
   const index = readIndex(id, env);
   const s = index.sites[site];
@@ -267,20 +295,32 @@ function isCredential(v: unknown): v is Credential & { v: 1 } {
   if (!isObject(v) || v.v !== 1 || typeof v.username !== "string" || typeof v.password !== "string") return false;
   if (v.totp === undefined) return true;
   const t = v.totp;
-  return isObject(t) && typeof t.secret === "string" && typeof t.digits === "number" && typeof t.period === "number" && ["SHA1", "SHA256", "SHA512"].includes(t.algorithm as string);
+  return (
+    isObject(t) &&
+    typeof t.secret === "string" &&
+    typeof t.digits === "number" &&
+    typeof t.period === "number" &&
+    ["SHA1", "SHA256", "SHA512"].includes(t.algorithm as string)
+  );
 }
 
 /** A site's credentials from the store, for browser_login only. Errors never include the item's content. */
 export async function readCredential(id: string, site: string, options: VaultOptions = {}): Promise<Credential> {
   const raw = await guarded(`reading ${site}`, () => storeOf(options).get(vaultItem(id, site)));
-  if (raw === undefined) throw new VaultError(`the credentials of "${site}" are missing from the secret store; add them again with turno browser vault add ${id} ${site}`);
+  if (raw === undefined)
+    throw new VaultError(
+      `the credentials of "${site}" are missing from the secret store; add them again with turno browser vault add ${id} ${site}`,
+    );
   let v: unknown;
   try {
     v = JSON.parse(raw);
   } catch {
     v = undefined;
   }
-  if (!isCredential(v)) throw new VaultError(`the secret store item of "${site}" is not a turno-browser credential; add it again with turno browser vault add ${id} ${site}`);
+  if (!isCredential(v))
+    throw new VaultError(
+      `the secret store item of "${site}" is not a turno-browser credential; add it again with turno browser vault add ${id} ${site}`,
+    );
   return { username: v.username, password: v.password, ...(v.totp ? { totp: v.totp } : {}) };
 }
 

@@ -43,7 +43,12 @@ export function safePlan(agent: AgentId, file: string, cwd: string, env: NodeJS.
  * The environment a launcher gives `profile` (ADR 0032), without the gateway variables, and with
  * TURNO_SAFE=1 so a turno the agent runs stays in safe mode. Without a profile: the plain agent.
  */
-export function safeEnv(agent: AgentId, profile: string | undefined, env: NodeJS.ProcessEnv, platform: NodeJS.Platform = process.platform): NodeJS.ProcessEnv {
+export function safeEnv(
+  agent: AgentId,
+  profile: string | undefined,
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform = process.platform,
+): NodeJS.ProcessEnv {
   const a = adapter(agent);
   const out: NodeJS.ProcessEnv = { ...env, TURNO_SAFE: "1" };
   for (const v of GATEWAY_VARS) delete out[v];
@@ -62,16 +67,26 @@ export function safeEnv(agent: AgentId, profile: string | undefined, env: NodeJS
  * environment, never the launcher, which would export the gateway token. The run record is
  * written as the launcher writes it, so turno sessions still knows the account.
  */
-export async function launchSafe(agent: AgentId, profile: string | undefined, args: string[], io: Io, cwd = process.cwd()): Promise<number> {
+export async function launchSafe(
+  agent: AgentId,
+  profile: string | undefined,
+  args: string[],
+  io: Io,
+  cwd = process.cwd(),
+): Promise<number> {
   const a = adapter(agent);
   const bin = findOnPath(a.command, io.env);
   if (!bin) throw new CliError(`${a.command} is not installed (${a.install})`, Exit.notInstalled);
   if (profile && !existsSync(agentProfileDir(profile, agent, io.env))) {
-    throw new CliError(`profile ${profile} has no folder (${tildify(agentProfileDir(profile, agent, io.env), io.env)}). Run: turno profile repair ${profile}`);
+    throw new CliError(
+      `profile ${profile} has no folder (${tildify(agentProfileDir(profile, agent, io.env), io.env)}). Run: turno profile repair ${profile}`,
+    );
   }
   const configFile = profile ? a.mcp.file(agentProfileDir(profile, agent, io.env), io.env) : a.mcp.hubFile(io.env);
   const plan = safePlan(agent, configFile, cwd, io.env, profile ?? `plain-${agent}`);
-  io.err(`turno: safe mode, ${profile ? `profile ${profile}` : `plain ${a.command}`} without the gateway (${SAFE_FLAG} or TURNO_SAFE=1)`);
+  io.err(
+    `turno: safe mode, ${profile ? `profile ${profile}` : `plain ${a.command}`} without the gateway (${SAFE_FLAG} or TURNO_SAFE=1)`,
+  );
   for (const n of plan.notes) io.err(`  ${n}`);
   // execve keeps this PID, as the launcher's exec does; a child process would have another.
   if (profile && typeof process.execve === "function") {

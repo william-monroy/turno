@@ -112,26 +112,37 @@ async function profileLocked5Times(userDataDir: string): Promise<boolean> {
 function launchError(error: Error, config: McpConfig, userDataDir: string, channel: string | undefined): Error {
   const message = error.message;
   if (message.includes("Executable doesn't exist")) {
-    const target = message.includes("ffmpeg") ? "ffmpeg" : (config.browser.launchOptions.channel ?? config.browser.browserName);
+    const target = message.includes("ffmpeg")
+      ? "ffmpeg"
+      : (config.browser.launchOptions.channel ?? config.browser.browserName);
     const label = target === "ffmpeg" ? "FFmpeg" : `Browser "${target}"`;
-    const command = config.skillMode ? `playwright-cli install-browser ${target}` : `npx @playwright/mcp install-browser ${target}`;
+    const command = config.skillMode
+      ? `playwright-cli install-browser ${target}`
+      : `npx @playwright/mcp install-browser ${target}`;
     const match = message.match(/Executable doesn't exist at ([^\r\n]+)/);
     const location = match ? `; expected executable at ${match[1]!.trim()}` : "";
     return new Error(`${label} is not installed${location}. Run \`${command}\` to install`);
   }
   if (message.includes("cannot open shared object file: No such file or directory")) {
     const name = channel ?? config.browser.browserName;
-    return new Error(`Missing system dependencies required to run browser ${name}. Install them with: sudo npx playwright install-deps ${name}`);
+    return new Error(
+      `Missing system dependencies required to run browser ${name}. Install them with: sudo npx playwright install-deps ${name}`,
+    );
   }
   if (message.includes("ProcessSingleton") || message.includes("exitCode=21")) {
-    return new Error(`Browser is already in use for ${userDataDir}, use --isolated to run multiple instances of the same browser`);
+    return new Error(
+      `Browser is already in use for ${userDataDir}, use --isolated to run multiple instances of the same browser`,
+    );
   }
   return error;
 }
 
 /** For an identity, who holds the profile instead of upstream's generic "already in use". */
 function profileInUse(identity: IdentityRef | undefined, userDataDir: string): Error {
-  if (!identity) return new Error(`Browser is already in use for ${userDataDir}, use --isolated to run multiple instances of the same browser`);
+  if (!identity)
+    return new Error(
+      `Browser is already in use for ${userDataDir}, use --isolated to run multiple instances of the same browser`,
+    );
   const chrome = findProfileChrome(userDataDir);
   const who = chrome ? `a Chrome that turno-browser-mcp did not start (pid ${chrome.pid})` : "another Chrome";
   return new Error(
@@ -179,7 +190,14 @@ const chromeEngine: Engine = {
         handleSIGINT: false,
         handleSIGTERM: false,
         ignoreDefaultArgs:
-          ignore === true ? true : ["--disable-extensions", ...tuned.ignoreDefaultArgs, ...(keychainArgs(settings).ignoreDefaultArgs ?? []), ...(Array.isArray(ignore) ? ignore : [])],
+          ignore === true
+            ? true
+            : [
+                "--disable-extensions",
+                ...tuned.ignoreDefaultArgs,
+                ...(keychainArgs(settings).ignoreDefaultArgs ?? []),
+                ...(Array.isArray(ignore) ? ignore : []),
+              ],
       };
       try {
         context = await playwright()[config.browser.browserName].launchPersistentContext(userDataDir, launchOptions);

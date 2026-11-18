@@ -38,7 +38,13 @@ export const NOT_INSTALLED = notInstalled(OPTIONAL.browser);
 /** A turno-browser this command can drive: its API object has the calls every subcommand needs. */
 function isBrowserPackage(mod: unknown): mod is BrowserPackage {
   const api = (mod as Partial<BrowserPackage> | undefined)?.api as Partial<BrowserApi> | undefined;
-  return typeof api === "object" && api !== null && Array.isArray(api.ENGINES) && typeof api.listIdentities === "function" && typeof api.runBench === "function";
+  return (
+    typeof api === "object" &&
+    api !== null &&
+    Array.isArray(api.ENGINES) &&
+    typeof api.listIdentities === "function" &&
+    typeof api.runBench === "function"
+  );
 }
 
 /**
@@ -46,7 +52,9 @@ function isBrowserPackage(mod: unknown): mod is BrowserPackage {
  * npm folder, which a Homebrew or npx install of turno cannot see on its own (loadOptional). A
  * package whose API_VERSION does not fit is refused with one message that says what to update.
  */
-export async function loadBrowser(options: Pick<LoadOptions<BrowserPackage>, "global" | "env" | "importer" | "globalRoot"> = {}): Promise<BrowserApi | undefined> {
+export async function loadBrowser(
+  options: Pick<LoadOptions<BrowserPackage>, "global" | "env" | "importer" | "globalRoot"> = {},
+): Promise<BrowserApi | undefined> {
   const mod = await loadOptional(OPTIONAL.browser, { ...options, api: BROWSER_API, guard: isBrowserPackage });
   return mod?.api;
 }
@@ -100,7 +108,11 @@ const URLS_PROMPT = "This opens Chrome and visits the URLs you gave. Continue? [
 
 async function bench(mod: BrowserApi, args: string[], io: Io, deps: BrowserDeps): Promise<number> {
   const p = parseFlags(args, BENCH_FLAGS, 0);
-  const list = (name: string) => ((p.values[name] as string[] | undefined) ?? []).flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean);
+  const list = (name: string) =>
+    ((p.values[name] as string[] | undefined) ?? [])
+      .flatMap((v) => v.split(","))
+      .map((v) => v.trim())
+      .filter(Boolean);
   const given = list("engine");
   const urls = (p.values.url as string[] | undefined) ?? [];
   const onlyUrls = bool(p, "only-urls") || bool(p, "no-detectors");
@@ -192,7 +204,8 @@ async function remove(mod: BrowserApi, args: string[], io: Io): Promise<number> 
   if (mod.isInUse(id, io.env)) return fail(`identity "${id}" is in use by a running Chrome; close it first`);
   // The vault's secret store items first: removeIdentity refuses while they exist.
   const cleared = await mod.vaultClear(id, { env: io.env });
-  if (cleared) io.out(`deleted ${cleared} vault credential${cleared === 1 ? "" : "s"} of "${id}" from the secret store`);
+  if (cleared)
+    io.out(`deleted ${cleared} vault credential${cleared === 1 ? "" : "s"} of "${id}" from the secret store`);
   mod.removeIdentity(id, io.env);
   io.out(`removed identity "${id}" and its saved browser data`);
   io.out(`Remove its [server.browser-${id}] block from ${tildify(paths(io.env).mcpFile, io.env)} if you added one.`);
@@ -207,7 +220,9 @@ async function login(mod: BrowserApi, args: string[], io: Io): Promise<number> {
   const holder = mod.inUseBy(id, io.env);
   if (holder) return fail(holder);
   if (mod.isInUse(id, io.env)) {
-    return fail(`identity "${id}" is in use by a running Chrome (probably an MCP session through mcpd). Close that session or wait for its lease to end, then retry.`);
+    return fail(
+      `identity "${id}" is in use by a running Chrome (probably an MCP session through mcpd). Close that session or wait for its lease to end, then retry.`,
+    );
   }
   io.out(`Opening Chrome for identity "${id}". Sign in to your sites, then close the window to save the session.`);
   const options: { env: NodeJS.ProcessEnv; url?: string } = { env: io.env };
@@ -218,7 +233,13 @@ async function login(mod: BrowserApi, args: string[], io: Io): Promise<number> {
 }
 
 /** Run one browser subcommand with a loaded module. `identity` uses it for browser:<id>. */
-export async function dispatch(mod: BrowserApi, sub: string, rest: string[], io: Io, deps: BrowserDeps = defaultDeps): Promise<number> {
+export async function dispatch(
+  mod: BrowserApi,
+  sub: string,
+  rest: string[],
+  io: Io,
+  deps: BrowserDeps = defaultDeps,
+): Promise<number> {
   try {
     switch (sub) {
       case "identities":
@@ -238,9 +259,27 @@ export async function dispatch(mod: BrowserApi, sub: string, rest: string[], io:
       case "import":
         return await session.importSession(mod, rest, io, deps);
       case "show":
-        return ident.show(mod, checkId(mod, rest.find((a) => !a.startsWith("-")), "show"), rest, io);
+        return ident.show(
+          mod,
+          checkId(
+            mod,
+            rest.find((a) => !a.startsWith("-")),
+            "show",
+          ),
+          rest,
+          io,
+        );
       case "set":
-        return ident.set(mod, checkId(mod, rest.find((a) => !a.startsWith("-")), "set"), rest, io);
+        return ident.set(
+          mod,
+          checkId(
+            mod,
+            rest.find((a) => !a.startsWith("-")),
+            "set",
+          ),
+          rest,
+          io,
+        );
       case "doctor":
         return await ident.doctor(mod, rest, io);
       case "reputation":
@@ -274,15 +313,28 @@ export function browserCommand(deps: BrowserDeps = defaultDeps): Command {
       return dispatch(mod, sub, args, io, deps);
     };
   const subs: Record<string, Sub> = {
-    identities: { summary: "list browser identities and whether they are in use", synopsis: "[--json]", flags: ["--json"], json: IDENTITIES_JSON, run: withModule("identities") },
+    identities: {
+      summary: "list browser identities and whether they are in use",
+      synopsis: "[--json]",
+      flags: ["--json"],
+      json: IDENTITIES_JSON,
+      run: withModule("identities"),
+    },
     list: { summary: "same as identities", hidden: true, run: withModule("identities") },
     add: {
       summary: "create an identity (pinned to this time zone) and print its mcp.toml block",
-      synopsis: "<id> [--timezone <zone>] [--locale <tag>] [--languages <tag,...>] [--region <CC>] [--health-url <url> --health-text <text>] [--dry-run]",
+      synopsis:
+        "<id> [--timezone <zone>] [--locale <tag>] [--languages <tag,...>] [--region <CC>] [--health-url <url> --health-text <text>] [--dry-run]",
       flags: ["--dry-run", ...ident.SETTINGS_FLAG_NAMES],
       run: withModule("add"),
     },
-    show: { summary: "an identity's settings, session health and who holds it", synopsis: "<id> [--json]", flags: ["--json"], json: ident.SHOW_JSON, run: withModule("show") },
+    show: {
+      summary: "an identity's settings, session health and who holds it",
+      synopsis: "<id> [--json]",
+      flags: ["--json"],
+      json: ident.SHOW_JSON,
+      run: withModule("show"),
+    },
     set: {
       summary: "change an identity's identity.json (an empty value removes a setting)",
       synopsis: `<id> ${ident.SET_SYNOPSIS}`,
@@ -323,9 +375,19 @@ export function browserCommand(deps: BrowserDeps = defaultDeps): Command {
       flags: ["--as", "--yes", "--dry-run"],
       run: withModule("import"),
     },
-    remove: { summary: "delete an identity, its saved logins and its vault", synopsis: "<id> [--dry-run]", flags: ["--dry-run"], run: withModule("remove") },
+    remove: {
+      summary: "delete an identity, its saved logins and its vault",
+      synopsis: "<id> [--dry-run]",
+      flags: ["--dry-run"],
+      run: withModule("remove"),
+    },
     rm: { summary: "same as remove", hidden: true, run: withModule("remove") },
-    login: { summary: "open the identity's Chrome to sign in by hand once", synopsis: "<id> [--url <url>]", flags: ["--url"], run: withModule("login") },
+    login: {
+      summary: "open the identity's Chrome to sign in by hand once",
+      synopsis: "<id> [--url <url>]",
+      flags: ["--url"],
+      run: withModule("login"),
+    },
     bench: {
       summary: "check how each browser engine loads reference test pages and your URLs (asks first)",
       synopsis: "[--engine <name>]... [--url <url>]... [--only-urls] [--yes] [--json]",

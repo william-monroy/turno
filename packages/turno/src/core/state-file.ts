@@ -39,7 +39,12 @@ function formatVersion(v: unknown): number {
 /** Check parsed JSON against a guard and a version; `label` names it in the message. */
 function checkState<T>(v: unknown, guard: Guard<T>, version: number, label: string): StateResult<T> {
   const found = formatVersion(v);
-  if (found > version) return { ok: false, problem: "newer", message: `${label} is format ${found}, from a newer turno (this one reads up to ${version})` };
+  if (found > version)
+    return {
+      ok: false,
+      problem: "newer",
+      message: `${label} is format ${found}, from a newer turno (this one reads up to ${version})`,
+    };
   if (!guard(v)) return { ok: false, problem: "shape", message: `${label} does not hold what turno expects` };
   return { ok: true, value: v };
 }
@@ -62,7 +67,8 @@ export function readStateResult<T>(file: string, guard: Guard<T>, version = 1): 
     text = readFileSync(file, "utf8");
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
-    if (code === "ENOENT" || code === "ENOTDIR") return { ok: false, problem: "missing", message: `${file} does not exist` };
+    if (code === "ENOENT" || code === "ENOTDIR")
+      return { ok: false, problem: "missing", message: `${file} does not exist` };
     return { ok: false, problem: "unreadable", message: `${file} cannot be read (${code ?? (err as Error).message})` };
   }
   return parseState(text, guard, version, file);
@@ -92,7 +98,8 @@ export function requireState<T>(file: string, guard: Guard<T>, version = 1): T |
 
 // Small guards shared by the readers ------------------------------------------------------------
 
-export const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+export const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
 
 export const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string");
 
@@ -102,7 +109,10 @@ export function recordOf<T>(each: Guard<T>): Guard<Record<string, T>> {
 }
 
 /** An object with these fields of these types (others are allowed, as newer files add fields). */
-export function hasFields(v: unknown, fields: Record<string, "string" | "number" | "boolean" | "object" | "array">): v is Record<string, unknown> {
+export function hasFields(
+  v: unknown,
+  fields: Record<string, "string" | "number" | "boolean" | "object" | "array">,
+): v is Record<string, unknown> {
   if (!isRecord(v)) return false;
   return Object.entries(fields).every(([k, t]) => {
     const x = v[k];

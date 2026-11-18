@@ -11,7 +11,15 @@ import { profileColor, style } from "../style.js";
 import * as accounts from "./accounts.js";
 import { policyLine } from "./accounts.js";
 import { type BrowserDeps, type BrowserApi, NOT_INSTALLED, defaultDeps, dispatch } from "./browser.js";
-import { SETTINGS_FLAGS, SETTINGS_FLAG_NAMES, SET_DETAILS, SET_FLAG_NAMES, SET_JSON, SET_SYNOPSIS, SHOW_JSON } from "./browser-identity.js";
+import {
+  SETTINGS_FLAGS,
+  SETTINGS_FLAG_NAMES,
+  SET_DETAILS,
+  SET_FLAG_NAMES,
+  SET_JSON,
+  SET_SYNOPSIS,
+  SHOW_JSON,
+} from "./browser-identity.js";
 
 /**
  * Who acts on an outside service for a session: a service account (`linear:work`, run by a
@@ -72,7 +80,8 @@ async function list(args: string[], io: Io): Promise<number> {
   const pill = (name: string) => st.profile(name, profileColor(colors, name));
   io.out(st.header("Service accounts"));
   const services = Object.values(reg.accounts).sort((a, b) => a.id.localeCompare(b.id));
-  if (!services.length) io.out(`  none yet ${st.muted("(turno identity add linear:work --profile work --tools 'mcp__linear__*')")}`);
+  if (!services.length)
+    io.out(`  none yet ${st.muted("(turno identity add linear:work --profile work --tools 'mcp__linear__*')")}`);
   // Each account: id, profile, tools; under them its confirm policy and description.
   const rows = st.tableRows(
     services.map((a) => [
@@ -91,14 +100,26 @@ async function list(args: string[], io: Io): Promise<number> {
   if (reg.prefer.length) {
     io.out("");
     io.out(st.header("Folder preferences"));
-    for (const l of st.table(reg.prefer.map((r) => [tildify(r.path, io.env), Object.entries(r.accounts).map(([sv, id]) => `${sv}=${id}`).join("  ") || st.muted("(none)")]))) io.out(l);
+    for (const l of st.table(
+      reg.prefer.map((r) => [
+        tildify(r.path, io.env),
+        Object.entries(r.accounts)
+          .map(([sv, id]) => `${sv}=${id}`)
+          .join("  ") || st.muted("(none)"),
+      ]),
+    ))
+      io.out(l);
   }
   io.out("");
   io.out(st.header("Browser identities"));
   if (!mod) io.out(st.note("warn", NOT_INSTALLED));
   else if (!browsers.length) io.out(`  none yet ${st.muted("(turno identity add browser:<id>)")}`);
   else {
-    const rows = browsers.map((b) => [st.bold(`${BROWSER}${b.id}`), b.inUse ? st.lead("on", st.warn("in use")) : st.lead("off", st.ok("free")), st.muted(tildify(b.dir, io.env))]);
+    const rows = browsers.map((b) => [
+      st.bold(`${BROWSER}${b.id}`),
+      b.inUse ? st.lead("on", st.warn("in use")) : st.lead("off", st.ok("free")),
+      st.muted(tildify(b.dir, io.env)),
+    ]);
     for (const l of st.table(rows)) io.out(l);
   }
   return 0;
@@ -124,7 +145,10 @@ async function add(args: string[], io: Io): Promise<number> {
 /** `show` and `set` exist for browser identities only. */
 async function browserOnly(sub: "show" | "set", args: string[], io: Io): Promise<number> {
   const id = firstId(args);
-  if (!id?.startsWith(BROWSER)) return fail(`identity ${sub} works on browser identities (browser:<id>); service accounts are listed by \`turno identity list\``);
+  if (!id?.startsWith(BROWSER))
+    return fail(
+      `identity ${sub} works on browser identities (browser:<id>); service accounts are listed by \`turno identity list\``,
+    );
   return dispatch(await browserModule(io), sub, bareId(args), io, deps);
 }
 
@@ -143,9 +167,18 @@ async function login(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, { url: { type: "string" } }, 1);
   const id = p.positionals[0];
   if (!id) return fail("usage: turno identity login browser:<id> [--url <url>]");
-  if (!id.startsWith(BROWSER)) return fail("only browser identities sign in by hand; service accounts sign in through their profile (claude-<profile>)");
+  if (!id.startsWith(BROWSER))
+    return fail(
+      "only browser identities sign in by hand; service accounts sign in through their profile (claude-<profile>)",
+    );
   const url = str(p, "url");
-  return dispatch(await browserModule(io), "login", [id.slice(BROWSER.length), ...(url !== undefined ? ["--url", url] : [])], io, deps);
+  return dispatch(
+    await browserModule(io),
+    "login",
+    [id.slice(BROWSER.length), ...(url !== undefined ? ["--url", url] : [])],
+    io,
+    deps,
+  );
 }
 
 /** Swap the turno-browser loader and prompt, for tests. Returns the previous ones. */
@@ -159,16 +192,38 @@ export const command = group(
   "identity",
   "who acts on outside services: service accounts (linear:work) and browser identities (browser:school)",
   {
-    list: { summary: "service accounts, browser identities and folder preferences", synopsis: "[--json]", flags: ["--json"], json: LIST_JSON, run: list },
+    list: {
+      summary: "service accounts, browser identities and folder preferences",
+      synopsis: "[--json]",
+      flags: ["--json"],
+      json: LIST_JSON,
+      run: list,
+    },
     add: {
       summary: "add a service account, or create a browser identity (browser:<id>)",
       synopsis:
         "<service:label> --profile <p> --tools <pattern>[,...] [--read-tools <pattern>[,...]] [--confirm always|writes|never] | browser:<id> [--timezone <zone>] [--languages <tag,...>] [--health-url <url> --health-text <text>]  [--dry-run]",
       args: ["any"],
-      flags: ["--profile", "--tools", "--read-tools", "--confirm", "--service", "--description", "--dry-run", ...SETTINGS_FLAG_NAMES],
+      flags: [
+        "--profile",
+        "--tools",
+        "--read-tools",
+        "--confirm",
+        "--service",
+        "--description",
+        "--dry-run",
+        ...SETTINGS_FLAG_NAMES,
+      ],
       run: add,
     },
-    show: { summary: "a browser identity's settings, session health and who holds it", synopsis: "browser:<id> [--json]", args: ["identity"], flags: ["--json"], json: SHOW_JSON, run: (a, io) => browserOnly("show", a, io) },
+    show: {
+      summary: "a browser identity's settings, session health and who holds it",
+      synopsis: "browser:<id> [--json]",
+      args: ["identity"],
+      flags: ["--json"],
+      json: SHOW_JSON,
+      run: (a, io) => browserOnly("show", a, io),
+    },
     set: {
       summary: "change a browser identity's identity.json: place, languages, health check, tabs, blocking, cache",
       synopsis: `browser:<id> ${SET_SYNOPSIS}`,
@@ -178,8 +233,20 @@ export const command = group(
       json: SET_JSON,
       run: (a, io) => browserOnly("set", a, io),
     },
-    remove: { summary: "remove a service account, or delete a browser identity and its logins", synopsis: "<id> [--dry-run]", args: ["identity"], flags: ["--dry-run"], run: remove },
-    login: { summary: "open a browser identity's Chrome to sign in by hand once", synopsis: "browser:<id> [--url <url>]", args: ["identity"], flags: ["--url"], run: login },
+    remove: {
+      summary: "remove a service account, or delete a browser identity and its logins",
+      synopsis: "<id> [--dry-run]",
+      args: ["identity"],
+      flags: ["--dry-run"],
+      run: remove,
+    },
+    login: {
+      summary: "open a browser identity's Chrome to sign in by hand once",
+      synopsis: "browser:<id> [--url <url>]",
+      args: ["identity"],
+      flags: ["--url"],
+      run: login,
+    },
     prefer: {
       summary: "pick the account of a service for a folder (empty account removes it)",
       synopsis: "<dir> <service>=<account> [--dry-run]",

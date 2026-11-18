@@ -83,7 +83,10 @@ describe("compile cache", () => {
   });
 
   it.skipIf(!BUILT)("is off for turno demo, which leaves HOME as it found it", () => {
-    for (const args of [["demo", "--help"], ["--no-input", "demo", "--help"]]) {
+    for (const args of [
+      ["demo", "--help"],
+      ["--no-input", "demo", "--help"],
+    ]) {
       const r = spawnSync(process.execPath, [DIST_MAIN, ...args], { env: sb.env, encoding: "utf8" });
       expect(r.status).toBe(0);
       expect(readdirSync(sb.home)).toEqual([]);

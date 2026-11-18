@@ -65,7 +65,8 @@ function optStr(v: unknown, file: string, key: string): string | undefined {
 }
 
 function toolList(v: unknown, file: string, key: string): string[] {
-  if (!Array.isArray(v) || v.length === 0) throw new ConfigError(file, `${key} must be a non-empty array of tool patterns`);
+  if (!Array.isArray(v) || v.length === 0)
+    throw new ConfigError(file, `${key} must be a non-empty array of tool patterns`);
   for (const t of v) {
     if (typeof t !== "string" || !t.trim() || /\s/.test(t)) {
       throw new ConfigError(file, `${key}: invalid tool pattern ${JSON.stringify(t)}`);
@@ -77,7 +78,14 @@ function toolList(v: unknown, file: string, key: string): string[] {
 /** Validate one account definition; shared by the parser and `turno accounts add`. */
 export function makeAccount(
   id: string,
-  fields: { service?: string; profile?: string; tools?: unknown; readTools?: unknown; confirm?: unknown; description?: string },
+  fields: {
+    service?: string;
+    profile?: string;
+    tools?: unknown;
+    readTools?: unknown;
+    confirm?: unknown;
+    description?: string;
+  },
   file = "accounts.toml",
 ): Account {
   const key = `account."${id}"`;
@@ -88,19 +96,28 @@ export function makeAccount(
     throw new ConfigError(file, `${key}.service is "${service}" but the id starts with "${parsed.service}"`);
   }
   if (!fields.profile) throw new ConfigError(file, `${key} needs profile`);
-  if (!isValidProfileName(fields.profile)) throw new ConfigError(file, `${key}.profile: invalid profile name "${fields.profile}"`);
+  if (!isValidProfileName(fields.profile))
+    throw new ConfigError(file, `${key}.profile: invalid profile name "${fields.profile}"`);
   const tools = toolList(fields.tools, file, `${key}.tools`);
   let readTools: string[] | undefined;
   if (fields.readTools !== undefined) {
     readTools = toolList(fields.readTools, file, `${key}.read_tools`);
     for (const r of readTools) {
       if (!tools.some((t) => patternCovers(t, r))) {
-        throw new ConfigError(file, `${key}.read_tools: "${r}" is not covered by the account's tools (${tools.join(", ")})`);
+        throw new ConfigError(
+          file,
+          `${key}.read_tools: "${r}" is not covered by the account's tools (${tools.join(", ")})`,
+        );
       }
     }
   }
   if (fields.confirm !== undefined && !isConfirmPolicy(fields.confirm)) {
-    throw new ConfigError(file, `${key}.confirm must be ${CONFIRM_POLICIES.map((c) => `"${c}"`).join(", ").replace(/, ([^,]*)$/, " or $1")}`);
+    throw new ConfigError(
+      file,
+      `${key}.confirm must be ${CONFIRM_POLICIES.map((c) => `"${c}"`)
+        .join(", ")
+        .replace(/, ([^,]*)$/, " or $1")}`,
+    );
   }
   return {
     id,
@@ -154,7 +171,10 @@ export function parseRegistry(text: string, file = "accounts.toml", env: NodeJS.
       const acct = reg.accounts[target];
       if (!acct) throw new ConfigError(file, `prefer[${i}].${service}: unknown account "${target}"`);
       if (acct.service !== service) {
-        throw new ConfigError(file, `prefer[${i}].${service}: account "${target}" belongs to service "${acct.service}"`);
+        throw new ConfigError(
+          file,
+          `prefer[${i}].${service}: account "${target}" belongs to service "${acct.service}"`,
+        );
       }
       accounts[service] = target;
     }

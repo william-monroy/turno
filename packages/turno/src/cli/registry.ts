@@ -12,7 +12,10 @@ export const SECTIONS: { title: string; commands: string[] }[] = [
   { title: "Accounts", commands: ["profile", "limit", "session", "open"] },
   { title: "MCP servers and outside services", commands: ["mcp", "identity", "secret"] },
   { title: "Look", commands: ["ui"] },
-  { title: "Maintenance", commands: ["status", "doctor", "config", "undo", "upgrade", "uninstall", "version", "completion"] },
+  {
+    title: "Maintenance",
+    commands: ["status", "doctor", "config", "undo", "upgrade", "uninstall", "version", "completion"],
+  },
   { title: "Developer tools", commands: ["browser"] },
 ];
 
@@ -110,7 +113,20 @@ const ALIAS_FLAGS: Record<string, Record<string, string>> = {
 };
 
 /** Commands that run on every prompt or launch: no update notice, no extra work. */
-export const QUIET = new Set(["run", "auto", "open", "statusline", "hook", "resolve", "mcpd", "__complete", "__update-check", "completion", "upgrade", "version"]);
+export const QUIET = new Set([
+  "run",
+  "auto",
+  "open",
+  "statusline",
+  "hook",
+  "resolve",
+  "mcpd",
+  "__complete",
+  "__update-check",
+  "completion",
+  "upgrade",
+  "version",
+]);
 
 /** Expand an alias: the command name and the arguments it stands for. */
 export function expand(first: string, rest: string[]): [string, string[]] {

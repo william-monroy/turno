@@ -26,7 +26,12 @@ export interface VaultInput {
   stdin(): Promise<string>;
 }
 
-export const terminalInput: VaultInput = { isTty: stdinIsTty, hidden: readHidden, visible: readVisible, stdin: readStdinText };
+export const terminalInput: VaultInput = {
+  isTty: stdinIsTty,
+  hidden: readHidden,
+  visible: readVisible,
+  stdin: readStdinText,
+};
 
 const ADD_FLAGS = {
   url: { type: "string", multiple: true },
@@ -43,18 +48,27 @@ function ids(mod: BrowserApi, io: Io, args: string[], count: number, usage: stri
   } catch (err) {
     return fail((err as Error).message);
   }
-  if (!mod.identityExists(words[0]!, io.env)) return fail(`browser identity "${words[0]}" does not exist (turno browser add ${words[0]})`);
+  if (!mod.identityExists(words[0]!, io.env))
+    return fail(`browser identity "${words[0]}" does not exist (turno browser add ${words[0]})`);
   return words;
 }
 
 async function add(mod: BrowserApi, args: string[], io: Io, input: VaultInput): Promise<number> {
   const p = parseFlags(args, ADD_FLAGS, 2);
-  const [id, site] = ids(mod, io, p.positionals, 2, "add <identity> <site> --url <sign-in page> [--username <name>] [--totp]");
+  const [id, site] = ids(
+    mod,
+    io,
+    p.positionals,
+    2,
+    "add <identity> <site> --url <sign-in page> [--username <name>] [--totp]",
+  );
   const urls = (p.values.url as string[] | undefined) ?? [];
   if (!urls.length) return fail("give the sign-in page with --url (for example --url https://github.com/login)");
   const withTotp = bool(p, "totp");
   if (bool(p, "dry-run")) {
-    io.out(`(dry run) would store a username, a password${withTotp ? " and a TOTP secret" : ""} for ${site} in browser identity "${id}"`);
+    io.out(
+      `(dry run) would store a username, a password${withTotp ? " and a TOTP secret" : ""} for ${site} in browser identity "${id}"`,
+    );
     return 0;
   }
   let username = str(p, "username");
@@ -74,10 +88,20 @@ async function add(mod: BrowserApi, args: string[], io: Io, input: VaultInput): 
     if (withTotp && !totp) return fail("--totp reads the TOTP secret from the second line of stdin, and it is empty");
   }
   if (!password) return fail("the password is empty; nothing was stored");
-  const entry = await mod.vaultAdd(id!, site!, { urls, username: username ?? "", password, ...(totp ? { totp } : {}) }, { env: io.env });
-  io.out(`stored the credentials of ${entry.site} for browser identity "${id}" (username, password${entry.totp ? ", TOTP secret" : ""}) in the secret store`);
+  const entry = await mod.vaultAdd(
+    id!,
+    site!,
+    { urls, username: username ?? "", password, ...(totp ? { totp } : {}) },
+    { env: io.env },
+  );
+  io.out(
+    `stored the credentials of ${entry.site} for browser identity "${id}" (username, password${entry.totp ? ", TOTP secret" : ""}) in the secret store`,
+  );
   io.out(`origins: ${entry.origins.join(", ")}`);
-  nextStep(io, `an agent on browser-${id} signs in with the browser_login tool (site "${entry.site}") on that sign-in page`);
+  nextStep(
+    io,
+    `an agent on browser-${id} signs in with the browser_login tool (site "${entry.site}") on that sign-in page`,
+  );
   return 0;
 }
 
@@ -89,7 +113,9 @@ async function list(mod: BrowserApi, args: string[], io: Io): Promise<number> {
     emit(io, p, VAULT_JSON, info);
     return 0;
   }
-  io.out(`browser identity "${id}": ${info.submit === "auto" ? "browser_login submits the form itself" : "browser_login fills, the agent clicks sign in"} (turno browser vault submit ${id} auto|confirm)`);
+  io.out(
+    `browser identity "${id}": ${info.submit === "auto" ? "browser_login submits the form itself" : "browser_login fills, the agent clicks sign in"} (turno browser vault submit ${id} auto|confirm)`,
+  );
   if (!info.sites.length) {
     io.out(`No credentials yet. Add some with \`turno browser vault add ${id} <site> --url <sign-in page>\`.`);
     return 0;
@@ -120,13 +146,18 @@ async function remove(mod: BrowserApi, args: string[], io: Io): Promise<number> 
 function submit(mod: BrowserApi, args: string[], io: Io): number {
   const p = parseFlags(args, DRY_RUN, 2);
   const [id, mode] = ids(mod, io, p.positionals, 2, "submit <identity> <confirm|auto>");
-  if (mode !== "confirm" && mode !== "auto") return fail(`submit takes "confirm" (the agent clicks sign in) or "auto" (browser_login submits), not "${mode}"`);
+  if (mode !== "confirm" && mode !== "auto")
+    return fail(`submit takes "confirm" (the agent clicks sign in) or "auto" (browser_login submits), not "${mode}"`);
   if (bool(p, "dry-run")) {
     io.out(`(dry run) would set browser_login of "${id}" to ${mode}`);
     return 0;
   }
   mod.vaultSetSubmit(id!, mode, { env: io.env });
-  io.out(mode === "auto" ? `browser_login now submits the sign-in form itself for "${id}"` : `browser_login now only fills the form for "${id}"; the agent clicks sign in`);
+  io.out(
+    mode === "auto"
+      ? `browser_login now submits the sign-in form itself for "${id}"`
+      : `browser_login now only fills the form for "${id}"; the agent clicks sign in`,
+  );
   return 0;
 }
 
@@ -148,7 +179,8 @@ export function vaultCommand(deps: BrowserDeps, input: VaultInput = terminalInpu
         return await run(mod, args, io);
       } catch (err) {
         const name = (err as Error).name;
-        if (name === "VaultError" || name === "IdentityError" || name === "TotpError") return fail((err as Error).message);
+        if (name === "VaultError" || name === "IdentityError" || name === "TotpError")
+          return fail((err as Error).message);
         throw err;
       }
     };
@@ -156,17 +188,28 @@ export function vaultCommand(deps: BrowserDeps, input: VaultInput = terminalInpu
     add: {
       summary: "store a site's username, password and optional TOTP secret (asked hidden, or on stdin)",
       synopsis: "<identity> <site> --url <sign-in page> [--url <url>]... [--username <name>] [--totp] [--dry-run]",
-     
+
       flags: flagsOf(ADD_FLAGS),
       run: withModule((mod, args, io) => add(mod, args, io, input)),
     },
-    list: { summary: "the sites in an identity's vault (never the values)", synopsis: "<identity> [--json]", flags: ["--json"], json: VAULT_JSON, run: withModule(list) },
-    remove: { summary: "delete a site's credentials", synopsis: "<identity> <site> [--dry-run]", flags: ["--dry-run"], run: withModule(remove) },
+    list: {
+      summary: "the sites in an identity's vault (never the values)",
+      synopsis: "<identity> [--json]",
+      flags: ["--json"],
+      json: VAULT_JSON,
+      run: withModule(list),
+    },
+    remove: {
+      summary: "delete a site's credentials",
+      synopsis: "<identity> <site> [--dry-run]",
+      flags: ["--dry-run"],
+      run: withModule(remove),
+    },
     rm: { summary: "same as remove", hidden: true, run: withModule(remove) },
     submit: {
       summary: "let browser_login submit the form (auto) or leave the click to the agent (confirm, default)",
       synopsis: "<identity> <confirm|auto> [--dry-run]",
-     
+
       flags: ["--dry-run"],
       run: withModule(submit),
     },

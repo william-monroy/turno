@@ -9,7 +9,14 @@ import { statusData } from "../src/cli/commands/status.js";
 import { statusLineInfo } from "../src/cli/commands/ui.js";
 import { CliError, type Io, UsageError, closest, columns } from "../src/cli/io.js";
 import { launchProfile } from "../src/cli/launch.js";
-import { NPX_MESSAGE, launcherText, refuseNpx, resolveTurnoCommand, runningFromNpx, writeLauncher } from "../src/cli/launchers.js";
+import {
+  NPX_MESSAGE,
+  launcherText,
+  refuseNpx,
+  resolveTurnoCommand,
+  runningFromNpx,
+  writeLauncher,
+} from "../src/cli/launchers.js";
 import { main } from "../src/cli/main.js";
 import { COMMANDS, SECTIONS } from "../src/cli/registry.js";
 import { ConfigError, loadConfig, parseConfig } from "../src/core/config.js";
@@ -35,7 +42,10 @@ beforeEach(() => {
   }
   acme = join(sb.home, "code/acme");
   mkdirSync(acme, { recursive: true });
-  sb.write(".config/turno/config.toml", '[profiles.work]\n[profiles.personal]\n\n[[projects]]\npath = "~/code/acme"\nprofile = "work"\n');
+  sb.write(
+    ".config/turno/config.toml",
+    '[profiles.work]\n[profiles.personal]\n\n[[projects]]\npath = "~/code/acme"\nprofile = "work"\n',
+  );
 });
 afterEach(() => sb.cleanup());
 
@@ -72,7 +82,9 @@ describe("turno auto never falls back in silence (02-H1)", () => {
 
   it("refuses when the rule names a profile that does not exist", () => {
     writeFileSync(cfgFile(), 'default = "nobody"\n');
-    expect(() => planAuto([], fakeIo(sb.env), sb.home)).toThrow(/uses the nobody profile \(folder without a rule\), but there is no such profile/);
+    expect(() => planAuto([], fakeIo(sb.env), sb.home)).toThrow(
+      /uses the nobody profile \(folder without a rule\), but there is no such profile/,
+    );
   });
 
   it("refuses with the TOML error when config.toml is broken, unless TURNO_ALLOW_PLAIN=1", () => {
@@ -98,15 +110,21 @@ describe("turno auto never falls back in silence (02-H1)", () => {
     const plan = planAuto(["--agent", "codex"], fakeIo(sb.env), acme);
     expect(plan.file).toBe(join(sb.home, "fakebin/codex"));
     expect(plan.always).toBe(true);
-    expect(plan.notice).toBe("turno: no Codex CLI profile yet, so this runs plain codex with ~/.codex (turno profile add <name> --agent codex)");
+    expect(plan.notice).toBe(
+      "turno: no Codex CLI profile yet, so this runs plain codex with ~/.codex (turno profile add <name> --agent codex)",
+    );
     expect(() => planAuto(["--agent", "copilot"], fakeIo(sb.env), acme)).toThrow(/copilot is not installed/);
   });
 
   it('runs plain claude outside a rule, but not with system = ""', () => {
-    expect(planAuto([], fakeIo(sb.env), sb.home).notice).toBe("turno: no rule or default for ~; running plain claude with ~/.claude");
+    expect(planAuto([], fakeIo(sb.env), sb.home).notice).toBe(
+      "turno: no rule or default for ~; running plain claude with ~/.claude",
+    );
     writeFileSync(cfgFile(), `system = ""\n${readFileSync(cfgFile(), "utf8")}`);
     expect(loadConfig(sb.env).system).toBe("");
-    expect(() => planAuto([], fakeIo(sb.env), sb.home)).toThrow(/no default account\. Assign one: turno profile assign ~ <profile>/);
+    expect(() => planAuto([], fakeIo(sb.env), sb.home)).toThrow(
+      /no default account\. Assign one: turno profile assign ~ <profile>/,
+    );
     expect(planAuto([], fakeIo(sb.env), acme).file).toBe(join(bin(), "claude-work"));
   });
 
@@ -123,9 +141,17 @@ describe("turno auto never falls back in silence (02-H1)", () => {
 describe("profile which and status show every agent", () => {
   it("adds a line per agent with profiles", async () => {
     fakeCommand(sb, "codex", "exit 0");
-    writeFileSync(cfgFile(), `${readFileSync(cfgFile(), "utf8")}\n[profiles.cx]\nagent = "codex"\n\n[[projects]]\npath = "~/code/acme"\nprofile = "cx"\n`);
+    writeFileSync(
+      cfgFile(),
+      `${readFileSync(cfgFile(), "utf8")}\n[profiles.cx]\nagent = "codex"\n\n[[projects]]\npath = "~/code/acme"\nprofile = "cx"\n`,
+    );
     const w = await run(["profile", "which", acme]);
-    expect(w.io.lines).toEqual(["~/code/acme", "  assigned: work (project ~/code/acme)", "  using now: work", "  codex: cx (project ~/code/acme)"]);
+    expect(w.io.lines).toEqual([
+      "~/code/acme",
+      "  assigned: work (project ~/code/acme)",
+      "  using now: work",
+      "  codex: cx (project ~/code/acme)",
+    ]);
     const j = await run(["profile", "which", acme, "--json"]);
     expect(JSON.parse(j.io.lines.join("\n")).agents.codex).toMatchObject({ chosen: "cx", assigned: "cx" });
     const s = await statusData(sb.env, acme);
@@ -140,12 +166,18 @@ describe("config set and config.toml checks (02-H20, 04-H8)", () => {
       [["config", "set", "default", "nobody"], "turno: no profile 'nobody' (turno profile list)"],
       [["config", "set", "fallback", "ghost"], "turno: no profile 'ghost' (turno profile list)"],
       [["config", "set", "icons", "fancy"], "turno: icons must be auto, nerd or unicode"],
-      [["config", "set", "profiles.work.color", "banana"], "turno: profiles.work.color banana: use a number (0-255) or one of"],
+      [
+        ["config", "set", "profiles.work.color", "banana"],
+        "turno: profiles.work.color banana: use a number (0-255) or one of",
+      ],
       [["config", "set", "profiles.ghost.color", "red"], "turno: no profile 'ghost' (turno profile list)"],
       [["config", "set", "profiles.work.browser", "firefox"], "turno: profiles.work.browser must be chrome or default"],
       [["config", "set", "mcpd.port", "80"], "turno: mcpd.port must be an integer between 1024 and 65535"],
       [["config", "set", "update_check", "maybe"], "turno: update_check must be true or false"],
-      [["config", "set", "agents.codex.default", "work"], "turno: work is a Claude Code profile, but agents.codex.default is for Codex CLI"],
+      [
+        ["config", "set", "agents.codex.default", "work"],
+        "turno: work is a Claude Code profile, but agents.codex.default is for Codex CLI",
+      ],
       [["config", "set", "nokey", "x"], "turno: unknown key 'nokey' (turno config --help lists them)"],
     ];
     const before = readFileSync(cfgFile(), "utf8");
@@ -161,7 +193,9 @@ describe("config set and config.toml checks (02-H20, 04-H8)", () => {
     expect((await run(["config", "set", "default", "personal"])).code).toBe(0);
     const f = await run(["config", "set", "fallback", "personal"]);
     expect(f.io.lines).toContain('fallback is opt-in: read "Vendor terms" in the README before relying on it.');
-    expect((await run(["config", "set", "profiles.work.color", "Violet"])).io.lines[0]).toBe('profiles.work.color = "violet"');
+    expect((await run(["config", "set", "profiles.work.color", "Violet"])).io.lines[0]).toBe(
+      'profiles.work.color = "violet"',
+    );
     expect((await run(["config", "set", "system", ""])).code).toBe(0);
     expect(loadConfig(sb.env)).toMatchObject({ default: "personal", fallback: "personal", system: "" });
   });
@@ -173,14 +207,22 @@ describe("config set and config.toml checks (02-H20, 04-H8)", () => {
       "unknown key defualt (did you mean default?); turno ignores it",
       "unknown key profiles.work.colour (did you mean profiles.work.color?); turno ignores it",
     ]);
-    expect(configProblems(c, sb.env)).toContain("the rule for ~/x uses profile ghost, which does not exist (turno profile add ghost)");
-    expect(configProblems(parseConfig('fallback = "nope"\n', "x", sb.env), sb.env)).toEqual(['fallback = "nope", but there is no profile nope (turno profile add nope)']);
+    expect(configProblems(c, sb.env)).toContain(
+      "the rule for ~/x uses profile ghost, which does not exist (turno profile add ghost)",
+    );
+    expect(configProblems(parseConfig('fallback = "nope"\n', "x", sb.env), sb.env)).toEqual([
+      'fallback = "nope", but there is no profile nope (turno profile add nope)',
+    ]);
   });
 
   it("shows TOML errors with ~ and explains an unclosed string", () => {
     expect(() => parseConfig('default = "work\n', cfgFile(), sb.env)).toThrow(ConfigError);
-    expect(() => parseConfig('default = "work\n', cfgFile(), sb.env)).toThrow('~/.config/turno/config.toml: line 1: a string is not closed (a " is missing at the end of the value)');
-    expect(() => parseConfig("[open]\nchrome_dir = 1\n", cfgFile(), sb.env)).toThrow("~/.config/turno/config.toml: open.chrome_dir must be a string");
+    expect(() => parseConfig('default = "work\n', cfgFile(), sb.env)).toThrow(
+      '~/.config/turno/config.toml: line 1: a string is not closed (a " is missing at the end of the value)',
+    );
+    expect(() => parseConfig("[open]\nchrome_dir = 1\n", cfgFile(), sb.env)).toThrow(
+      "~/.config/turno/config.toml: open.chrome_dir must be a string",
+    );
     expect(() => parseConfig('open = "x"\n', cfgFile(), sb.env)).toThrow("[open] must be a table");
   });
 
@@ -188,10 +230,17 @@ describe("config set and config.toml checks (02-H20, 04-H8)", () => {
     writeFileSync(cfgFile(), 'icon = "nerd"\n[[projects]]\npath = "~/x"\nprofile = "ghost"\n');
     const checks = await collectChecks(sb.env);
     const warns = checks.filter((c) => c.area === "config" && c.level === "warn").map((c) => c.text);
-    expect(warns).toEqual(["unknown key icon (did you mean icons?); turno ignores it", "the rule for ~/x uses profile ghost, which does not exist"]);
+    expect(warns).toEqual([
+      "unknown key icon (did you mean icons?); turno ignores it",
+      "the rule for ~/x uses profile ghost, which does not exist",
+    ]);
     const r = await run(["config", "check"]);
-    expect(r.io.lines).toContain("warn  unknown key icon (did you mean icons?); turno ignores it; edit ~/.config/turno/config.toml line 1: rename it to icons");
-    expect(r.io.lines).toContain("warn  the rule for ~/x uses profile ghost, which does not exist (turno profile add ghost)");
+    expect(r.io.lines).toContain(
+      "warn  unknown key icon (did you mean icons?); turno ignores it; edit ~/.config/turno/config.toml line 1: rename it to icons",
+    );
+    expect(r.io.lines).toContain(
+      "warn  the rule for ~/x uses profile ghost, which does not exist (turno profile add ghost)",
+    );
   });
 });
 
@@ -205,16 +254,37 @@ describe("typos (02-H7)", () => {
   });
 
   it("suggests the command a typo is close to, and profile add only otherwise", async () => {
-    expect((await run(["stauts"])).io.errors).toEqual(["turno: unknown command 'stauts'. Did you mean 'turno status'?"]);
-    expect((await run(["profle", "list"])).io.errors).toEqual(["turno: unknown command 'profle'. Did you mean 'turno profile'?"]);
-    expect((await run(["profile", "lst"])).io.errors).toEqual(["turno: unknown profile command 'lst'. Did you mean 'turno profile list'?"]);
-    expect((await run(["zebra"])).io.errors).toEqual(["turno: no profile 'zebra' (turno profile list shows them; turno profile add zebra creates it)"]);
+    expect((await run(["stauts"])).io.errors).toEqual([
+      "turno: unknown command 'stauts'. Did you mean 'turno status'?",
+    ]);
+    expect((await run(["profle", "list"])).io.errors).toEqual([
+      "turno: unknown command 'profle'. Did you mean 'turno profile'?",
+    ]);
+    expect((await run(["profile", "lst"])).io.errors).toEqual([
+      "turno: unknown profile command 'lst'. Did you mean 'turno profile list'?",
+    ]);
+    expect((await run(["zebra"])).io.errors).toEqual([
+      "turno: no profile 'zebra' (turno profile list shows them; turno profile add zebra creates it)",
+    ]);
     expect(closest("ui", ["run", "ui"])).toBe("ui");
   });
 });
 
 /** Commands whose files this change owns; the others are rewritten elsewhere. */
-const MINE = ["run", "auto", "profile", "limit", "session", "ui", "status", "doctor", "config", "undo", "version", "completion"];
+const MINE = [
+  "run",
+  "auto",
+  "profile",
+  "limit",
+  "session",
+  "ui",
+  "status",
+  "doctor",
+  "config",
+  "undo",
+  "version",
+  "completion",
+];
 
 describe("one help path (02-H8, 02-H9)", () => {
   it("prints the main help within 80 columns, with the new first line and sections", async () => {
@@ -223,7 +293,9 @@ describe("one help path (02-H8, 02-H9)", () => {
     expect(r.io.lines[0]).toBe("turno: one MCP gateway and per-folder accounts for Claude Code, Codex, Copilot");
     expect(out).toContain("Start here: turno init, or turno demo to try turno in a throwaway HOME.");
     expect(out).toContain("Get started\n  init        set turno up in one step");
-    expect(out).toContain("Developer tools\n  browser     developer tool: compare browser engines (needs turno-browser)");
+    expect(out).toContain(
+      "Developer tools\n  browser     developer tool: compare browser engines (needs turno-browser)",
+    );
     expect(out).toContain("Examples\n  $ turno init ");
     expect(out).not.toMatch(/migrate|Older names|claudio|Orca/);
     for (const l of r.io.lines) expect(l.length, l).toBeLessThanOrEqual(80);
@@ -249,7 +321,9 @@ describe("one help path (02-H8, 02-H9)", () => {
       }
     }
     expect(long).toEqual([]);
-    expect((await run(["ui", "install", "--help"])).io.lines.join("\n")).toContain("--no-statusline    leave Claude Code's settings.json alone");
+    expect((await run(["ui", "install", "--help"])).io.lines.join("\n")).toContain(
+      "--no-statusline    leave Claude Code's settings.json alone",
+    );
     expect((await run(["help", "nothing"])).code).toBe(2);
   });
 
@@ -311,15 +385,26 @@ describe("strict flags on write commands (04-H7)", () => {
   it("completes flags from the same spec", async () => {
     expect(await complete(["profile", "add", "lab", "--y"], sb.env)).toEqual(["--yes"]);
     expect(await complete(["ui", "install", "--no-"], sb.env)).toEqual(["--no-font", "--no-statusline"]);
-    expect(await complete(["config", "set", "agents.c"], sb.env)).toEqual(["agents.codex.default", "agents.copilot.default", "agents.cursor.default", "agents.codex.fallback", "agents.copilot.fallback", "agents.cursor.fallback"]);
+    expect(await complete(["config", "set", "agents.c"], sb.env)).toEqual([
+      "agents.codex.default",
+      "agents.copilot.default",
+      "agents.cursor.default",
+      "agents.codex.fallback",
+      "agents.copilot.fallback",
+      "agents.cursor.fallback",
+    ]);
   });
 });
 
 describe("first-run paths (02-H12, 02-H13, 02-H14)", () => {
   it("launchers stop with a clear message when the agent is missing", () => {
     const text = launcherText("work", sb.env, "claude", "darwin");
-    expect(text).toContain('command -v claude >/dev/null 2>&1 || { echo "turno: claude is not installed (https://docs.claude.com/claude-code)" >&2; exit 127; }\nexec claude "$@"');
-    expect(launcherText("cx", sb.env, "codex", "darwin")).toContain('echo "turno: codex is not installed (npm install --global @openai/codex)" >&2; exit 127;');
+    expect(text).toContain(
+      'command -v claude >/dev/null 2>&1 || { echo "turno: claude is not installed (https://docs.claude.com/claude-code)" >&2; exit 127; }\nexec claude "$@"',
+    );
+    expect(launcherText("cx", sb.env, "codex", "darwin")).toContain(
+      'echo "turno: codex is not installed (npm install --global @openai/codex)" >&2; exit 127;',
+    );
   });
 
   it("exports BROWSER only where turno-open can work", () => {
@@ -341,9 +426,13 @@ describe("first-run paths (02-H12, 02-H13, 02-H14)", () => {
     mkdirSync(nvm, { recursive: true });
     writeFileSync(join(nvm, "turno"), "#!/bin/sh\n", { mode: 0o755 });
     const r = resolveTurnoCommand({ ...sb.env, PATH: `${nvm}:/usr/bin` });
-    expect(r.warning).toBe("wrote an absolute path (~/.nvm/versions/node/v24.0.0/bin/turno); it breaks if you switch Node versions");
+    expect(r.warning).toBe(
+      "wrote an absolute path (~/.nvm/versions/node/v24.0.0/bin/turno); it breaks if you switch Node versions",
+    );
     const self = sb.write("repo/dist/cli/main.js", "");
-    expect(statusLineInfo({ ...sb.env, PATH: "/usr/bin" }, self).warning).toMatch(/^wrote an absolute path \(~\/repo\/dist\/cli\/main\.js\) because turno is not on your PATH/);
+    expect(statusLineInfo({ ...sb.env, PATH: "/usr/bin" }, self).warning).toMatch(
+      /^wrote an absolute path \(~\/repo\/dist\/cli\/main\.js\) because turno is not on your PATH/,
+    );
   });
 
   it("refuses writes that keep a path into npx's cache", () => {
@@ -357,10 +446,14 @@ describe("first-run paths (02-H12, 02-H13, 02-H14)", () => {
     sb.env.PATH = "/usr/bin:/bin";
     fakeCommand(sb, "claude", "exit 0");
     expect(pathAdvice(sb.env)).toBe('Add to ~/.zshrc: export PATH="$HOME/.local/bin:$PATH"');
-    expect(pathAdvice({ ...sb.env, SHELL: "/usr/local/bin/fish" })).toBe("Add to ~/.config/fish/config.fish: fish_add_path ~/.local/bin");
+    expect(pathAdvice({ ...sb.env, SHELL: "/usr/local/bin/fish" })).toBe(
+      "Add to ~/.config/fish/config.fish: fish_add_path ~/.local/bin",
+    );
     const r = await run(["profile", "add", "lab"]);
     expect(r.code).toBe(0);
-    expect(r.io.errors).toContain('warning: ~/.local/bin is not on your PATH, so claude-lab will not be found. Add to ~/.zshrc: export PATH="$HOME/.local/bin:$PATH"');
+    expect(r.io.errors).toContain(
+      'warning: ~/.local/bin is not on your PATH, so claude-lab will not be found. Add to ~/.zshrc: export PATH="$HOME/.local/bin:$PATH"',
+    );
     expect(r.io.lines).toContain("Next: run turno lab and sign in with /login. turno profile list shows the profile.");
     const checks = await collectChecks(sb.env);
     expect(checks.find((c) => c.text.includes("is not on your PATH"))?.level).toBe("warn");
@@ -370,18 +463,28 @@ describe("first-run paths (02-H12, 02-H13, 02-H14)", () => {
     const checks = (await collectChecks(sb.env)).filter((c) => c.area === "system");
     const by = (cmd: string) => checks.find((c) => c.text.startsWith(`${cmd} `));
     expect(by("claude")?.level).toBe("ok");
-    expect(by("codex")).toMatchObject({ level: "info", text: "codex not installed", hint: "npm install --global @openai/codex" });
+    expect(by("codex")).toMatchObject({
+      level: "info",
+      text: "codex not installed",
+      hint: "npm install --global @openai/codex",
+    });
     expect(by("copilot")?.level).toBe("info");
     expect(by("cursor-agent")?.level).toBe("info");
     writeFileSync(cfgFile(), `${readFileSync(cfgFile(), "utf8")}\n[profiles.cx]\nagent = "codex"\n`);
     const after = (await collectChecks(sb.env)).find((c) => c.text.startsWith("codex "));
-    expect(after).toMatchObject({ level: "fail", text: "codex not found on PATH, and profiles use it", hint: "npm install --global @openai/codex" });
+    expect(after).toMatchObject({
+      level: "fail",
+      text: "codex not found on PATH, and profiles use it",
+      hint: "npm install --global @openai/codex",
+    });
   });
 
   it("profile add --agent warns when the agent is not installed", async () => {
     const r = await run(["profile", "add", "gh", "--agent", "copilot"]);
     expect(r.code).toBe(0);
-    expect(r.io.errors).toContain("warning: copilot is not installed yet (npm install --global @github/copilot); the profile works once it is");
+    expect(r.io.errors).toContain(
+      "warning: copilot is not installed yet (npm install --global @github/copilot); the profile works once it is",
+    );
   });
 });
 
@@ -433,7 +536,9 @@ describe("profile add output and own files (02-H18)", () => {
     expect((await run(["profile", "add", "old"], yes)).code).toBe(0);
     const aside = readdirSync(join(sb.home, ".claude-old")).find((e) => e.startsWith(".aside-"))!;
     expect(readFileSync(join(sb.home, ".claude-old", aside, "settings.json"), "utf8")).toBe('{"mine":true}\n');
-    expect(yes.lines).toContain(`  ! moved your own skills, settings.json to ~/.claude-old/${aside}/ (merge by hand if useful; turno undo puts them back)`);
+    expect(yes.lines).toContain(
+      `  ! moved your own skills, settings.json to ~/.claude-old/${aside}/ (merge by hand if useful; turno undo puts them back)`,
+    );
   });
 
   it("prints one line for the shared items, every item with -v", async () => {

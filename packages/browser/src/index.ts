@@ -29,10 +29,29 @@ export {
   systemTimezone,
   writeIdentitySettings,
 } from "./settings.js";
-export { IdentityInUseError, type RuntimeLock, readRuntimeLock, runtimeLockAlive, runtimeLockPath } from "./runtime-lock.js";
+export {
+  IdentityInUseError,
+  type RuntimeLock,
+  readRuntimeLock,
+  runtimeLockAlive,
+  runtimeLockPath,
+} from "./runtime-lock.js";
 export { type HealthRecord, readHealth } from "./health.js";
-export { type ChallengeEvent, type IdentityReputation, type SiteSummary, readChallenges, reputationReport } from "./reputation.js";
-export { type ChromeInfo, type DoctorCheck, type DoctorOptions, type DoctorReport, findChrome, runDoctor } from "./doctor.js";
+export {
+  type ChallengeEvent,
+  type IdentityReputation,
+  type SiteSummary,
+  readChallenges,
+  reputationReport,
+} from "./reputation.js";
+export {
+  type ChromeInfo,
+  type DoctorCheck,
+  type DoctorOptions,
+  type DoctorReport,
+  findChrome,
+  runDoctor,
+} from "./doctor.js";
 export { type BuiltArgv, type PlaywrightMcpConfig, buildArgv, extractIdentity } from "./argv.js";
 export {
   type BenchOptions,
@@ -49,11 +68,25 @@ export {
   runBench,
   unavailableReason,
 } from "./bench.js";
-export { CHALLENGE_MARKERS, type ChallengeKind, classifyChallenge, detectChallenge, parseRebrowser, parseSannysoft } from "./detectors.js";
+export {
+  CHALLENGE_MARKERS,
+  type ChallengeKind,
+  classifyChallenge,
+  detectChallenge,
+  parseRebrowser,
+  parseSannysoft,
+} from "./detectors.js";
 export { type LoginOptions, loginIdentity } from "./login.js";
 export { type TotpParams, TotpError, parseTotpSecret, totp } from "./totp.js";
 export { SealError } from "./sealed.js";
-export { type ExportOptions, type ImportOptions, type SessionSummary, exportSession, importSession, readSessionExport } from "./session-export.js";
+export {
+  type ExportOptions,
+  type ImportOptions,
+  type SessionSummary,
+  exportSession,
+  importSession,
+  readSessionExport,
+} from "./session-export.js";
 export {
   type SubmitPolicy,
   type VaultAddInput,
@@ -74,4 +107,3 @@ export { browserPaths as paths } from "turno-core/paths";
 export function mcpBinPath(): string {
   return fileURLToPath(new URL("./bin/mcp.js", import.meta.url));
 }
-

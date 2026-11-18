@@ -29,7 +29,13 @@ describe("usage", () => {
     const now = Math.floor(Date.now() / 1000);
     sb.write(
       ".local/state/turno/usage/work.json",
-      JSON.stringify({ updated_at: now - 120, rate_limits: { five_hour: { used_percentage: 62, resets_at: now + 3700 }, seven_day: { used_percentage: 10, resets_at: now + 3 * 86400 } } }),
+      JSON.stringify({
+        updated_at: now - 120,
+        rate_limits: {
+          five_hour: { used_percentage: 62, resets_at: now + 3700 },
+          seven_day: { used_percentage: 10, resets_at: now + 3 * 86400 },
+        },
+      }),
     );
     const io = fakeIo(sb.env);
     expect(await usage.run([], io)).toBe(0);
@@ -44,8 +50,14 @@ describe("usage", () => {
   });
 
   it("prefers the newer of the state and legacy snapshots", () => {
-    sb.write(".local/state/turno/usage/work.json", JSON.stringify({ updated_at: 100, rate_limits: { five_hour: { used_percentage: 1 } } }));
-    sb.write(".config/claudio/uso/work.json", JSON.stringify({ updated_at: 200, rate_limits: { five_hour: { used_percentage: 2 } } }));
+    sb.write(
+      ".local/state/turno/usage/work.json",
+      JSON.stringify({ updated_at: 100, rate_limits: { five_hour: { used_percentage: 1 } } }),
+    );
+    sb.write(
+      ".config/claudio/uso/work.json",
+      JSON.stringify({ updated_at: 200, rate_limits: { five_hour: { used_percentage: 2 } } }),
+    );
     expect(usageSnapshot("work", sb.env).updated_at).toBe(200);
     sb.write(".local/state/turno/usage/work.json", JSON.stringify({ updated_at: 300 }));
     expect(usageSnapshot("work", sb.env).updated_at).toBe(300);
@@ -54,7 +66,10 @@ describe("usage", () => {
 
 describe("status", () => {
   it("shows this folder, each profile with its usage, sessions, mcpd and the look", async () => {
-    sb.write(".local/state/turno/usage/work.json", JSON.stringify({ updated_at: 100, rate_limits: { five_hour: { used_percentage: 42 } } }));
+    sb.write(
+      ".local/state/turno/usage/work.json",
+      JSON.stringify({ updated_at: 100, rate_limits: { five_hour: { used_percentage: 42 } } }),
+    );
     const io = fakeIo(sb.env);
     expect(await status.run([], io)).toBe(0);
     const out = io.lines.join("\n");

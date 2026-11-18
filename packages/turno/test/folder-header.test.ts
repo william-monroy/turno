@@ -4,7 +4,12 @@ import { decodeCwdHeaders } from "../src/mcpd/gateway.js";
 
 /** The launcher's environment for a session started in `cwd` (cli/launchers.ts). */
 function launcherEnv(cwd: string): Record<string, string> {
-  return { TURNO_SESSION_CWD_B64: Buffer.from(cwd, "utf8").toString("base64url").replace(/=+$/, ""), TURNO_SESSION_PID: "4242", TURNO_PROFILE: "work", TURNO_MCPD_TOKEN: "t" };
+  return {
+    TURNO_SESSION_CWD_B64: Buffer.from(cwd, "utf8").toString("base64url").replace(/=+$/, ""),
+    TURNO_SESSION_PID: "4242",
+    TURNO_PROFILE: "work",
+    TURNO_MCPD_TOKEN: "t",
+  };
 }
 
 /** Headers as each agent sends them: its own variable syntax expanded from the environment. */
@@ -18,7 +23,8 @@ function sentHeaders(agent: AgentId, env: Record<string, string>): Record<string
   for (const [k, v] of Object.entries((e.headers as Record<string, string>) ?? {})) out[k.toLowerCase()] = expand(v);
   for (const [k, v] of Object.entries((e.http_headers as Record<string, string>) ?? {})) out[k.toLowerCase()] = v;
   // Codex: env_http_headers maps a header to the name of a variable.
-  for (const [k, v] of Object.entries((e.env_http_headers as Record<string, string>) ?? {})) out[k.toLowerCase()] = env[v] ?? "";
+  for (const [k, v] of Object.entries((e.env_http_headers as Record<string, string>) ?? {}))
+    out[k.toLowerCase()] = env[v] ?? "";
   return out;
 }
 
@@ -37,7 +43,11 @@ describe("the session folder header", () => {
   });
 
   it("Copilot uses ${VAR} and Cursor ${env:VAR}, as each documents for headers", () => {
-    expect((adapter("copilot").mcp.gatewayEntry("fx", 1, "t", "w").headers as Record<string, string>)["X-Turno-Cwd-B64"]).toBe("${TURNO_SESSION_CWD_B64}");
-    expect((adapter("cursor").mcp.gatewayEntry("fx", 1, "t", "w").headers as Record<string, string>)["X-Turno-Cwd-B64"]).toBe("${env:TURNO_SESSION_CWD_B64}");
+    expect(
+      (adapter("copilot").mcp.gatewayEntry("fx", 1, "t", "w").headers as Record<string, string>)["X-Turno-Cwd-B64"],
+    ).toBe("${TURNO_SESSION_CWD_B64}");
+    expect(
+      (adapter("cursor").mcp.gatewayEntry("fx", 1, "t", "w").headers as Record<string, string>)["X-Turno-Cwd-B64"],
+    ).toBe("${env:TURNO_SESSION_CWD_B64}");
   });
 });
