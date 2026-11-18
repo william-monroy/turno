@@ -1,7 +1,10 @@
 # Social preview and avatar
 
 `docs/assets/social-preview.png` is the repository's social preview (Settings > Social preview);
-`docs/assets/social-preview.html` is its source, rendered at 1280x640 with a device scale of 2.
+`docs/assets/social-preview.html` is its source, rendered at 1280x640 with a device scale of 2
+(a 2560x1280 PNG) with the Chromium of `patchright-core`, the engine `packages/browser` already
+depends on: open the HTML in a 1280x640 page with `deviceScaleFactor: 2`, wait for the fonts and
+take a screenshot.
 `docs/assets/avatar.svg` and `avatar.png` are the avatar of the `wimo-dev` organization: the
 mark on a full-bleed square, because GitHub rounds organization avatars itself.
 
@@ -22,6 +25,12 @@ The card is mostly seen small: about 500 px wide on X, 360 px in Slack and Disco
 At 360 px, text set under about 44 px in the 1280 px image cannot be read. Five layouts were
 rendered and compared at those sizes (name only, headline with diagram, benchmark number,
 install command, name with a stat line). The headline with a diagram won: the name and the
-headline stay readable at 360 px, and the diagram (four agent sessions joining one `mcpd`)
-explains the product without words and is the logo's own shape. The memory numbers stay out of
-the image: unfurls show the repository description next to it, and that already has them.
+headline stay readable at 360 px, and the diagram explains the product without words.
+
+The card now carries the narrative the README opens with: the headline "Switch accounts. Keep
+everything else." and the hook "Switching accounts? Keep talking." The diagram is one
+conversation (the bubbles) above a switch that has moved from one account to the other, drawn in
+the logo's blues with the cobalt `#2457F5` on the switch. The first version showed four agent
+sessions joining one `mcpd`; the gateway is now part of how turno works, not what the card says.
+Memory numbers stay out of the image; they live in the README's Benchmark section and
+BENCHMARKS.md.

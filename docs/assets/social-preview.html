@@ -1,25 +1,30 @@
 <!doctype html>
-<!-- Social preview (Settings > Social preview). Render at 1280x640 with a device scale of 2:
-     every agent session (the four circles) shares one MCP gateway (mcpd), as in the logo. -->
+<!-- Social preview (Settings > Social preview). Render at 1280x640 with a device scale of 2
+     (docs/social-preview.md): one conversation that keeps going while the switch below it
+     moves from one account to the other. -->
 <html><head><meta charset="utf-8">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@600&display=block">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&display=block">
 <style>
   :root{--bg:#0F0F17;--fg:#F4F4F7;--muted:#A6A9BF;--accent2:#8FAEFF}
   html,body{margin:0;width:1280px;height:640px;overflow:hidden;background:var(--bg);color:var(--fg);font-family:Geist,sans-serif;-webkit-font-smoothing:antialiased}
   .dots{position:absolute;inset:0;background-image:radial-gradient(circle,#1C1F30 1.6px,transparent 1.7px);background-size:32px 32px;-webkit-mask-image:radial-gradient(ellipse 70% 80% at 50% 50%,#000 30%,transparent 80%)}
-  .l{position:absolute;left:88px;top:76px;bottom:76px;width:780px;display:flex;flex-direction:column;justify-content:space-between}
+  .l{position:absolute;left:88px;top:76px;bottom:76px;width:760px;display:flex;flex-direction:column;justify-content:space-between}
   .l img{height:96px;align-self:flex-start;margin-left:-6px}
-  h1{margin:0;font-size:64px;line-height:1.08;font-weight:650;letter-spacing:-1.8px}
+  h1{margin:0;font-size:72px;line-height:1.06;font-weight:650;letter-spacing:-2px}
   h1 em{font-style:normal;color:var(--accent2)}
-  .sub{font-size:32px;color:var(--muted);letter-spacing:-.2px}
-  svg.d{position:absolute;right:78px;top:80px;width:330px;height:480px}
+  .sub{font-size:36px;color:var(--muted);letter-spacing:-.3px}
+  svg.d{position:absolute;right:78px;top:96px;width:340px;height:448px}
 </style></head><body><div class="dots"></div>
-<div class="l"><img src="logo-dark.svg" alt="turno"><h1>One MCP gateway<br>for <em>every coding agent</em></h1><div class="sub">Claude Code · Codex · Copilot CLI · Cursor CLI</div></div>
-<svg class="d" viewBox="0 0 330 480" aria-hidden="true">
-  <g stroke="#3A4370" stroke-width="5" fill="none" stroke-linecap="round">
-    <path d="M64 60 C 150 60, 150 240, 214 240"/><path d="M64 180 C 140 180, 150 240, 214 240"/><path d="M64 300 C 140 300, 150 240, 214 240"/><path d="M64 420 C 150 420, 150 240, 214 240"/>
-  </g>
-  <circle cx="44" cy="60" r="32" fill="#26396F"/><circle cx="44" cy="180" r="32" fill="#2C4487"/><circle cx="44" cy="300" r="32" fill="#324F9E"/><circle cx="44" cy="420" r="32" fill="#4067D1"/>
-  <rect x="170" y="196" width="160" height="88" rx="44" fill="#4C7DFF"/>
-  <text x="250" y="251" text-anchor="middle" font-family="Geist Mono" font-weight="600" font-size="34" fill="#0F0F17">mcpd</text>
+<div class="l"><img src="logo-dark.svg" alt="turno"><h1>Switch accounts.<br>Keep <em>everything else.</em></h1><div class="sub">Switching accounts? Keep talking.</div></div>
+<svg class="d" viewBox="0 0 340 448" aria-hidden="true">
+  <!-- the conversation -->
+  <rect x="2" y="2" width="336" height="300" rx="32" fill="#161A2B" stroke="#2A3150" stroke-width="4"/>
+  <rect x="34" y="40" width="200" height="44" rx="22" fill="#26396F"/>
+  <rect x="122" y="102" width="184" height="44" rx="22" fill="#2457F5"/>
+  <rect x="34" y="164" width="232" height="44" rx="22" fill="#324F9E"/>
+  <rect x="146" y="226" width="160" height="44" rx="22" fill="#4C7DFF"/>
+  <!-- the account switch: off on the left (one account), on the right (the other) -->
+  <rect x="58" y="344" width="224" height="104" rx="52" fill="#2457F5"/>
+  <circle cx="110" cy="396" r="30" fill="#26396F"/>
+  <circle cx="230" cy="396" r="40" fill="#F4F4F7"/>
 </svg></body></html>
