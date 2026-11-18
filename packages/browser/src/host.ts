@@ -5,18 +5,21 @@ import { fileURLToPath } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import type { SecretStore } from "turno-core/secrets";
 import { CallToolRequestSchema, type CallToolResult, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { explainFailure } from "./diagnose.js";
 import { type Engine, type IdentityRef, type LaunchedBrowser, createUpstreamEngine, selectEngine } from "./engine.js";
 import { TabGovernor } from "./governor.js";
 import { type HealthContext, NEEDS_AUTH_HOLD_MS, healthDue, needsAuthMessage, readHealth, runHealthCheck, writeHealth } from "./health.js";
 import { identityStateDir } from "./ids.js";
+import { Redactor, SCRIPT_TOOLS, VaultGuard } from "./redact.js";
 import { recordChallenge, watchChallenges } from "./reputation.js";
 import { installResources } from "./resources.js";
 import { sessionFromMeta } from "./session.js";
 import { readIdentitySettings } from "./settings.js";
 import { type StockAccess, TURNO_TOOLS, type TurnoTool, checkTurnoTools, parseArguments } from "./tools.js";
 import { type Tuning, type TuningFlags, resolveTuning } from "./tuning.js";
+import { vaultHasSites } from "./vault.js";
 import {
   type BrowserBackendInstance,
   type ClientInfo,
@@ -75,6 +78,8 @@ export interface HostOptions {
   identity?: IdentityRef;
   /** The `turno-browser-mcp` flags of ADR 0048; they win over identity.json. */
   tuning?: TuningFlags;
+  /** The secret store the vault reads (tests inject a fake); default: this machine's. */
+  vaultStore?: SecretStore;
 }
 
 export interface Host {
@@ -82,6 +87,8 @@ export interface Host {
   /** Stock tools first, in upstream's order, then turno's. */
   listTools(): ToolSchemaJson[];
   factory: ServerBackendFactory;
+  /** Hides vault values in a text this server is about to send (ADR 0054). */
+  redact(text: string): string;
 }
 
 /** Upstream joins the text parts of a result into one (`mergeTextParts`). */
@@ -203,6 +210,9 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       engine: Engine;
       identity?: IdentityRef;
       tuning: TuningFlags;
+      redactor: Redactor;
+      guard: VaultGuard;
+      vaultStore?: SecretStore;
     },
     private readonly title: (clientInfo: ClientInfo) => string,
   ) {
@@ -305,6 +315,11 @@ class SessionBackend extends EventEmitter implements ServerBackend {
    * see it; stock tools run exactly as before. Upstream's HTTP server (`--port`) never passes it.
    */
   async callTool(name: string, args: Record<string, unknown>, signal?: AbortSignal, session?: string): Promise<ToolResult> {
+    // Every result and error of this server leaves through the redactor (ADR 0054).
+    return this.host.redactor.result(await this.callAny(name, args, signal, session));
+  }
+
+  private async callAny(name: string, args: Record<string, unknown>, signal?: AbortSignal, session?: string): Promise<ToolResult> {
     const tool = this.host.turno.get(name);
     if (!tool) return await this.callStock(name, args, signal);
     const json = !!(args._meta as { json?: boolean } | undefined)?.json;
@@ -328,6 +343,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         ...(stock ? { stock } : {}),
         ...(signal ? { signal } : {}),
         ...(session ? { session } : {}),
+        ...(this.host.identity ? { vault: { identity: this.host.identity, redactor: this.host.redactor, guard: this.host.guard, ...(this.host.vaultStore ? { store: this.host.vaultStore } : {}) } } : {}),
       };
       return await tool.handle(context, parsed.params);
     } catch (error) {
@@ -347,6 +363,8 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     const { backend, config, governor, tuning, idle } = await this.browser();
     const endCall = idle?.begin();
     const json = !!(args._meta as { json?: boolean } | undefined)?.json;
+    const refused = this.refuseScript(name, backend);
+    if (refused) return errorResult(refused, json);
     const snapshot = config.snapshot ?? {};
     const mode = snapshot.mode;
     if (options.snapshot === false) config.snapshot = { ...snapshot, mode: "none" };
@@ -366,6 +384,24 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     return withGovernor(result, governor, json);
   }
 
+  /**
+   * The script tools near the vault (ADR 0054): `browser_evaluate` and `browser_run_code_unsafe`
+   * are refused on a page browser_login filled, until it navigates; `browser_run_code_unsafe`
+   * runs code in this process, which can read the secret store, so it is refused for an
+   * identity that has vault credentials at all.
+   */
+  private refuseScript(name: string, backend: BrowserBackendInstance): string | undefined {
+    if (!SCRIPT_TOOLS.has(name)) return undefined;
+    const identity = this.host.identity;
+    if (name === "browser_run_code_unsafe" && identity && vaultHasSites(identity.id, identity.env)) {
+      return `${name} is refused for browser identity "${identity.id}" because it has vault credentials: it runs code in the server process, which can read the secret store. Use the other browser tools, or an identity without a vault.`;
+    }
+    if (this.host.guard.holds(backendContext(backend)?.currentTab()?.page)) {
+      return `${name} is refused on this page: it holds values browser_login filled from the vault. Submit the form or navigate away first.`;
+    }
+    return undefined;
+  }
+
   /** The stock tools of this session, for a turno tool that runs them (`browser_batch`). */
   private stockAccess(running: Running, signal?: AbortSignal): StockAccess {
     return {
@@ -377,6 +413,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         if (!page) return undefined;
         return { url: page.url(), title: await page.title().catch(() => "") };
       },
+      currentPage: () => backendContext(running.backend)?.currentTab()?.page,
     };
   }
 
@@ -464,9 +501,23 @@ export function createHost(options: HostOptions): Host {
     sessionsByName.set(clientInfo.clientName, count);
     return count > 1 ? `${clientInfo.clientName} (${count})` : clientInfo.clientName;
   };
-  const shared = { config, cliOptions, stock, stockSchemas, turno, engine, tuning: options.tuning ?? {}, ...(options.identity ? { identity: options.identity } : {}) };
+  const redactor = new Redactor();
+  const shared = {
+    config,
+    cliOptions,
+    stock,
+    stockSchemas,
+    turno,
+    engine,
+    tuning: options.tuning ?? {},
+    redactor,
+    guard: new VaultGuard(),
+    ...(options.identity ? { identity: options.identity } : {}),
+    ...(options.vaultStore ? { vaultStore: options.vaultStore } : {}),
+  };
   return {
     config,
+    redact: (text) => redactor.text(text),
     listTools: () => schemas.map(toMcpTool),
     factory: {
       name: SERVER_INFO.name,
@@ -523,7 +574,7 @@ function createServer(host: Host): Server {
       const result = await b.callTool(request.params.name, args, extra.signal, sessionFromMeta(request.params._meta));
       return mergeTextParts(result) as CallToolResult;
     } catch (error) {
-      return { content: [{ type: "text", text: `### Error\n${String(error)}` }], isError: true };
+      return { content: [{ type: "text", text: `### Error\n${host.redact(String(error))}` }], isError: true };
     }
   });
   const previous = server.onclose;

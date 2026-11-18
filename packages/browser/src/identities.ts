@@ -5,6 +5,7 @@ import { pidAlive } from "turno-core/process";
 import { IdentityError, assertIdentityId, identityDir, identityStateDir, isValidIdentityId } from "./ids.js";
 import { inUseMessage, readRuntimeLock, runtimeLockAlive } from "./runtime-lock.js";
 import { type SettingsPatch, identitySettingsPath, systemTimezone, writeIdentitySettings } from "./settings.js";
+import { vaultHasSites, vaultPath } from "./vault.js";
 
 export { IdentityError, assertIdentityId, identityDir, identityStateDir, isValidIdentityId };
 
@@ -62,7 +63,8 @@ export function addIdentity(id: string, env: NodeJS.ProcessEnv = process.env, se
 
 /**
  * Delete the identity: its profile, its identity.json and what turno wrote for it (runtime
- * state, health, reputation log). Refuses while Chrome holds it.
+ * state, health, reputation log). Refuses while Chrome holds it, and while its vault still has
+ * credentials (their secret store items would be left behind; `vaultClear` removes them first).
  */
 export function removeIdentity(id: string, env: NodeJS.ProcessEnv = process.env): void {
   const dir = identityDir(id, env);
@@ -70,7 +72,9 @@ export function removeIdentity(id: string, env: NodeJS.ProcessEnv = process.env)
   const holder = inUseBy(id, env);
   if (holder) throw new IdentityError(`${holder} Remove it after that.`);
   if (isInUse(id, env)) throw new IdentityError(`identity "${id}" is in use by a running Chrome; close it first`);
+  if (vaultHasSites(id, env)) throw new IdentityError(`identity "${id}" still has vault credentials; remove them first (turno browser remove does)`);
   rmSync(dir, { recursive: true, force: true });
+  rmSync(vaultPath(id, env), { force: true });
   rmSync(identitySettingsPath(id, env), { force: true });
   rmSync(identityStateDir(id, env), { recursive: true, force: true });
 }

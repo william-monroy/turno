@@ -70,6 +70,30 @@ turno identity show browser:school
 
 Details: [ADR 0044](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0044-browser-identity-module.md).
 
+## Credential vault
+
+An identity can keep a username, a password and a TOTP secret per site in the OS secret store
+(macOS Keychain, Linux Secret Service), never in a file. The `browser_login` tool fills them
+into that site's sign-in page without the agent seeing them:
+
+```sh
+turno browser vault add school mail --url https://mail.example.com/login --username alice --totp
+turno browser vault list school
+turno browser vault submit school auto      # browser_login also submits (default: it only fills)
+```
+
+- **Bound to origins.** The tool fills only when the current page is on an origin given with
+  `--url` (https, or http on localhost), and only into frames of those origins.
+- **Never in a result.** Every result and error of the server passes through a redactor once a
+  value was filled: snapshots, network requests and console messages show `[vault: ...]`.
+  `browser_evaluate` and `browser_run_code_unsafe` are refused on a filled page until it
+  navigates, and `browser_run_code_unsafe` is refused for identities with a vault.
+- **TOTP** follows RFC 6238 (SHA1, SHA256, SHA512, 6 to 8 digits), from a base32 secret or the
+  `otpauth://` URI of the QR code.
+
+Threat model: [SECURITY.md](https://github.com/wimo-dev/turno/blob/main/SECURITY.md#the-credential-vault).
+Details: [ADR 0054](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0054-browser-credential-vault.md).
+
 ## Acceptable use
 
 Use it with your own accounts, on sites whose terms allow automated access by you, and at a

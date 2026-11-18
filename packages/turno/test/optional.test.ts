@@ -120,7 +120,7 @@ describe("loadOptional (ADR 0045)", () => {
   it("loadBrowser refuses a turno-browser without API_VERSION (0.2) with the update command", async () => {
     const root = globalPackage("turno-browser", "export const ENGINES = ['chrome-headed'];\nexport function listIdentities() { return []; }\nexport async function runBench() { return {}; }\n");
     await expect(loadBrowser({ global: true, importer: async (s: string) => (s.startsWith("file:") ? import(s) : Promise.reject(missing())), globalRoot: () => root })).rejects.toThrow(
-      "turno-browser is too old for this turno (it has no API_VERSION, this turno needs 1.0 or a later 1.x); update it: npm install --global turno-browser@latest",
+      "turno-browser is too old for this turno (it has no API_VERSION, this turno needs 1.1 or a later 1.x); update it: npm install --global turno-browser@latest",
     );
   });
 });

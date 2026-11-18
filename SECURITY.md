@@ -53,6 +53,7 @@ is what it stores, what it trusts, and what it does not protect against.
 | Master gateway token | `~/.local/state/turno/mcpd.token` | file mode 600; used by turno only, for mcpd's own endpoints; never written into an agent config |
 | Per-profile gateway tokens | each profile's agent config (`.claude.json` for Claude Code), and `~/.local/state/turno/mcpd-tokens/<profile>.token` for the launchers of Codex, Copilot and Cursor | file mode 600; each one holds that profile's own token, derived from the master token |
 | Browser identities | `~/.local/share/turno/browser/<identity>` | live cookies of the sites you signed into: treat as credentials |
+| Browser vault credentials (username, password, TOTP secret per site) | the same secret store, items `turno-browser/vault/<identity>/<site>` | never in a file, a log, a tool result or a snapshot; the index `<identity>.vault.json` (mode 600) holds only site names, origins and the submit policy |
 | Chrome profiles for `turno open` | `~/.local/share/turno/chrome/<profile>` | the claude.ai session of each profile |
 | Installed MCP servers | `~/.local/share/turno/servers/<name>/` | folders mode 700; exact versions, no install scripts unless `--allow-scripts` |
 | Usage, run records, exhausted marks, logs, caches, `mcpd-clients.json` | `~/.local/state/turno/` | folders 0700, files 0600; no secrets |
@@ -107,6 +108,49 @@ tools), is written to the audit log (`turno identity log`). Details:
 `turno-browser-mcp` serves over stdio, through mcpd. It refuses `--port` or `--host` together with
 `--identity`, which would serve a signed-in browser over HTTP, unless you pass
 `--allow-http-identity`; it then listens on 127.0.0.1 only.
+
+### The credential vault
+
+`turno browser vault add <identity> <site>` stores a username, a password and optionally a
+TOTP secret for one site of one browser identity, and the `browser_login` tool fills them into
+that site's sign-in form ([ADR 0054](docs/decisions/0054-browser-credential-vault.md)). The
+values come from a hidden prompt or stdin, go straight to the secret store, and are read back
+only inside `turno-browser-mcp` when the tool runs. The model names the site; it never sends
+or receives a value.
+
+What it guards against:
+
+- **Leaking into the conversation.** Before anything is filled, the values join a redactor
+  that every result and error of that server passes through, so a snapshot of the filled
+  form, a network request body, a console message or an error shows `[vault: <site> ...]`
+  instead. It matches the value as typed and URL-, form-, JSON- and HTML-encoded. One-time
+  codes stay redacted for 10 minutes.
+- **Being spent on the wrong site.** Each site is stored with the origins given by `--url`
+  (https only; http only on localhost). `browser_login` refuses unless the current page is on
+  one of them, and fills only frames of those origins, so a page that tricks the model into
+  calling it gets nothing.
+- **Being read back by script.** On a page `browser_login` filled, `browser_evaluate` and
+  `browser_run_code_unsafe` are refused until the page navigates; `browser_run_code_unsafe`,
+  which runs code in the server process, is refused for any identity that has vault
+  credentials. A password goes only into `<input type="password">`, a username and a code only
+  into text inputs, also when the model names the field.
+- **Being recorded.** `browser_login` refuses to run while the server saves traces, sessions
+  or video, or has the devtools capability.
+- **Being submitted without a visible step.** By default the tool only fills; the model clicks
+  the sign-in button as a separate tool call. `turno browser vault submit <identity> auto`
+  lets the tool submit too.
+
+What it does not guard against:
+
+- A screenshot shows what the page shows, usually the username (passwords are masked by the
+  page, not by turno).
+- The page itself, once filled, can do anything with the values: that is the site you chose
+  to sign into.
+- Redaction matches text. A value the page transforms some other way (base64, hashing,
+  splitting) before it reaches a result is not caught; it is a guard against accidents and
+  an honest model, not against a model or a page set on extracting a secret.
+- Anything running as your user can ask the secret store for the items, as it can for every
+  other secret turno keeps (see out of scope).
 
 ### Checking your setup
 

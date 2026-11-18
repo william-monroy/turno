@@ -28,17 +28,24 @@ const MEMBERS = [
   "runBench",
   "runDoctor",
   "writeIdentitySettings",
+  // 1.1: the credential vault (ADR 0054).
+  "parseTotpSecret",
+  "vaultAdd",
+  "vaultClear",
+  "vaultList",
+  "vaultRemove",
+  "vaultSetSubmit",
 ];
 
 describe("the public API object", () => {
-  it("is version 1.0, frozen, with integer parts", () => {
-    expect(API_VERSION).toEqual({ major: 1, minor: 0 });
+  it("is version 1.1, frozen, with integer parts", () => {
+    expect(API_VERSION).toEqual({ major: 1, minor: 1 });
     expect(Object.isFrozen(API_VERSION)).toBe(true);
     expect(Number.isInteger(API_VERSION.major) && Number.isInteger(API_VERSION.minor)).toBe(true);
   });
 
   it("has exactly the members of this API version, each the package's own export", () => {
-    expect(Object.keys(api).sort()).toEqual(MEMBERS);
+    expect(Object.keys(api).sort()).toEqual([...MEMBERS].sort());
     expect(Object.isFrozen(api)).toBe(true);
     const named = pkg as unknown as Record<string, unknown>;
     for (const key of MEMBERS) expect(api[key as keyof typeof api], key).toBe(named[key]);

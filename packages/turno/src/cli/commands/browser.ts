@@ -6,6 +6,7 @@ import type { API_VERSION, BrowserApi } from "turno-browser";
 import { type LoadOptions, OPTIONAL, loadOptional, notInstalled } from "../optional.js";
 import { emit, jsonOutput } from "../output.js";
 import * as ident from "./browser-identity.js";
+import { vaultCommand } from "./browser-vault.js";
 
 /** `turno browser bench --json`: turno-browser's report (ADR 0045). */
 const BENCH_JSON = jsonOutput(["version", "startedAt", "finishedAt", "engines", "results", "file"]);
@@ -22,7 +23,7 @@ export type { BrowserApi };
  * The API version this turno was built against. Typed by the package's own constant, so a
  * change of its API_VERSION in the workspace fails the typecheck until this line follows.
  */
-export const BROWSER_API: typeof API_VERSION = { major: 1, minor: 0 };
+export const BROWSER_API: typeof API_VERSION = { major: 1, minor: 1 };
 
 /** What the package exports that the loader looks at. */
 interface BrowserPackage {
@@ -180,13 +181,17 @@ function add(mod: BrowserApi, args: string[], io: Io): number {
   return 0;
 }
 
-function remove(mod: BrowserApi, args: string[], io: Io): number {
+async function remove(mod: BrowserApi, args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, DRY_RUN, 1);
   const id = checkId(mod, p.positionals[0], "remove");
   if (bool(p, "dry-run")) {
-    io.out(`(dry run) would delete browser identity "${id}" and its saved logins`);
+    io.out(`(dry run) would delete browser identity "${id}", its saved logins and its vault credentials`);
     return 0;
   }
+  if (mod.isInUse(id, io.env)) return fail(`identity "${id}" is in use by a running Chrome; close it first`);
+  // The vault's secret store items first: removeIdentity refuses while they exist.
+  const cleared = await mod.vaultClear(id, { env: io.env });
+  if (cleared) io.out(`deleted ${cleared} vault credential${cleared === 1 ? "" : "s"} of "${id}" from the secret store`);
   mod.removeIdentity(id, io.env);
   io.out(`removed identity "${id}" and its saved browser data`);
   io.out(`Remove its [server.browser-${id}] block from ${tildify(paths(io.env).mcpFile, io.env)} if you added one.`);
@@ -222,7 +227,7 @@ export async function dispatch(mod: BrowserApi, sub: string, rest: string[], io:
         return add(mod, rest, io);
       case "remove":
       case "rm":
-        return remove(mod, rest, io);
+        return await remove(mod, rest, io);
       case "login":
         return await login(mod, rest, io);
       case "bench":
@@ -239,7 +244,8 @@ export async function dispatch(mod: BrowserApi, sub: string, rest: string[], io:
         return fail(`unknown browser command "${sub}"`);
     }
   } catch (err) {
-    if ((err as Error).name === "IdentityError") return fail((err as Error).message);
+    const name = (err as Error).name;
+    if (name === "IdentityError" || name === "VaultError") return fail((err as Error).message);
     throw err;
   }
 }
@@ -294,7 +300,13 @@ export function browserCommand(deps: BrowserDeps = defaultDeps): Command {
       json: ident.REPUTATION_JSON,
       run: withModule("reputation"),
     },
-    remove: { summary: "delete an identity and its saved logins", synopsis: "<id> [--dry-run]", flags: ["--dry-run"], run: withModule("remove") },
+    vault: {
+      summary: "credentials browser_login fills without showing them to the agent",
+      synopsis: "add|list|remove|submit <id> ...",
+      ownHelp: true,
+      run: (args, io) => vaultCommand(deps).run(args, io),
+    },
+    remove: { summary: "delete an identity, its saved logins and its vault", synopsis: "<id> [--dry-run]", flags: ["--dry-run"], run: withModule("remove") },
     rm: { summary: "same as remove", hidden: true, run: withModule("remove") },
     login: { summary: "open the identity's Chrome to sign in by hand once", synopsis: "<id> [--url <url>]", flags: ["--url"], run: withModule("login") },
     bench: {
@@ -317,6 +329,7 @@ export function browserCommand(deps: BrowserDeps = defaultDeps): Command {
       "turno browser login school --url https://example.com",
       "turno browser doctor --fix",
       "turno browser reputation school --json",
+      "turno browser vault add school mail --url https://mail.example.com --username alice",
       "turno browser remove school --dry-run",
       "turno browser bench --only-urls --url https://example.com --yes",
     ],
