@@ -40,10 +40,13 @@ export function GatewayDiagram({ lang = "en" }: { lang?: string }) {
   const sessions = Array.from({ length: 8 }, (_, i) => i);
   const servers = Array.from({ length: 6 }, (_, i) => i);
   const colX = (i: number) => 34 + i * 38;
+  const svg = "mx-auto h-auto w-full max-w-[440px] font-sans";
   return (
-    <figure className="not-prose my-6 overflow-x-auto rounded-xl border bg-fd-card p-4">
-      <svg viewBox="0 0 760 330" role="img" aria-label={t.label} className="mx-auto h-auto w-full min-w-[640px] max-w-[860px] font-sans">
-        {/* Without turno */}
+    // Two panels: side by side when the figure is wide enough, one under the other otherwise
+    // (a phone, or the docs column on a tablet).
+    <figure role="img" aria-label={t.label} className="@container not-prose my-6 rounded-xl border bg-fd-card p-4">
+      <div className="grid gap-x-6 gap-y-2 @xl:grid-cols-2 @xl:divide-x @xl:divide-dashed">
+      <svg viewBox="0 0 380 300" aria-hidden className={svg}>
         <text x="20" y="26" fontSize="15" fontWeight="600" fill={fg}>
           {t.before}
         </text>
@@ -65,45 +68,45 @@ export function GatewayDiagram({ lang = "en" }: { lang?: string }) {
         <text x="20" y="288" fontSize="16" fontWeight="600" fill={fg}>
           {t.beforeTotal}
         </text>
+      </svg>
 
-        <line x1="372" y1="16" x2="372" y2="314" stroke={border} strokeDasharray="4 5" />
-
-        {/* With turno */}
-        <text x="400" y="26" fontSize="15" fontWeight="600" fill={fg}>
+      <svg viewBox="0 0 380 320" aria-hidden className={`${svg} border-t border-dashed pt-2 @xl:border-t-0 @xl:pt-0 @xl:pl-6`}>
+        <text x="20" y="26" fontSize="15" fontWeight="600" fill={fg}>
           {t.after}
         </text>
-        <text x="400" y="45" fontSize="11.5" fill={muted}>
+        <text x="20" y="45" fontSize="11.5" fill={muted}>
           {t.afterNote}
         </text>
         {sessions.map((s) => (
           <g key={s}>
-            <rect x={colX(s) + 380 - 14} y="62" width="28" height="18" rx="5" fill={card} stroke={fg} strokeOpacity="0.55" />
-            <path d={`M ${colX(s) + 380} 80 C ${colX(s) + 380} 112, 566 104, 566 134`} fill="none" stroke="var(--turno-3)" strokeWidth="1.3" className="turno-flow" />
+            <rect x={colX(s) - 14} y="62" width="28" height="18" rx="5" fill={card} stroke={fg} strokeOpacity="0.55" />
+            <path d={`M ${colX(s)} 80 C ${colX(s)} 112, 186 104, 186 134`} fill="none" stroke="var(--turno-3)" strokeWidth="1.3" className="turno-flow" />
           </g>
         ))}
-        <rect x="446" y="134" width="240" height="36" rx="18" fill="var(--turno-4)" />
-        <text x="566" y="157" fontSize="13" fontWeight="600" textAnchor="middle" fill="#fff" className="font-mono">
+        <rect x="66" y="134" width="240" height="36" rx="18" fill="var(--turno-4)" />
+        <text x="186" y="157" fontSize="13" fontWeight="600" textAnchor="middle" fill="#fff" className="font-mono">
           mcpd · 127.0.0.1
         </text>
         {servers.map((v) => {
-          const x = 466 + v * 40;
+          const x = 86 + v * 40;
           return (
             <g key={v}>
-              <path d={`M 566 170 C 566 190, ${x} 186, ${x} 208`} fill="none" stroke={border} strokeWidth="1.3" />
+              <path d={`M 186 170 C 186 190, ${x} 186, ${x} 208`} fill="none" stroke={border} strokeWidth="1.3" />
               <circle cx={x} cy="216" r="8" fill={SHADES[v % 3]} />
             </g>
           );
         })}
-        <text x="400" y="262" fontSize="11.5" fill={muted}>
+        <text x="20" y="262" fontSize="11.5" fill={muted}>
           {t.sessions} · mcpd · {t.servers}
         </text>
-        <text x="400" y="288" fontSize="16" fontWeight="600" fill={fg}>
+        <text x="20" y="288" fontSize="16" fontWeight="600" fill={fg}>
           {t.afterTotal}
         </text>
-        <text x="400" y="308" fontSize="11.5" fill={muted}>
+        <text x="20" y="308" fontSize="11.5" fill={muted}>
           {t.afterIdle}
         </text>
       </svg>
+      </div>
     </figure>
   );
 }

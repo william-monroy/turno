@@ -137,8 +137,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-export default async function HomePage({ params }: PageProps<"/[lang]">) {
-  const { lang } = await params;
+export function HomePage({ lang }: { lang: string }) {
   const t = COPY[lang] ?? COPY.en!;
   const to = (path: string) => localePath(lang, path);
   return (
@@ -217,11 +216,11 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
       <Section title={t.agentsTitle}>
         <p className="mb-6 max-w-2xl text-sm text-fd-muted-foreground">{t.agentsLead}</p>
         <div className="overflow-x-auto rounded-xl border">
-          <table className="w-full min-w-[560px] text-left text-sm">
+          <table className="w-full text-left text-sm">
             <thead className="bg-fd-card font-mono text-xs uppercase tracking-wider text-fd-muted-foreground">
               <tr>
                 {t.agentsHead.map((h) => (
-                  <th key={h} className="px-5 py-3 font-medium">
+                  <th key={h} className="px-3 py-3 font-medium sm:px-5">
                     {h}
                   </th>
                 ))}
@@ -230,9 +229,9 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
             <tbody className="divide-y">
               {AGENTS.map(([agent, profile, example]) => (
                 <tr key={agent}>
-                  <td className="px-5 py-3 font-medium">{agent}</td>
-                  <td className="px-5 py-3 font-mono text-xs text-fd-muted-foreground">{profile}</td>
-                  <td className="px-5 py-3 font-mono text-xs">{example}</td>
+                  <td className="px-3 py-3 font-medium sm:px-5">{agent}</td>
+                  <td className="break-words px-3 py-3 font-mono text-xs text-fd-muted-foreground sm:px-5">{profile}</td>
+                  <td className="break-words px-3 py-3 font-mono text-xs sm:px-5">{example}</td>
                 </tr>
               ))}
             </tbody>

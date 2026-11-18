@@ -9,3 +9,6 @@ public/icon.svg
 public/demo.gif
 public/statusline.png
 public/social-preview.png
+# Written by `next dev` for coding agents; the repository's rules are in the root AGENTS.md
+AGENTS.md
+CLAUDE.md

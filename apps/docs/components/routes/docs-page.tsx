@@ -8,8 +8,7 @@ import { source } from "@/lib/source";
 
 const SOURCE_LABEL: Record<string, string> = { en: "View source", es: "Ver el código fuente" };
 
-export default async function Page(props: PageProps<"/[lang]/docs/[[...slug]]">) {
-  const { lang, slug } = await props.params;
+export function DocsPageView({ lang, slug }: { lang: string; slug?: string[] }) {
   const page = source.getPage(slug, lang);
   if (!page) notFound();
 
@@ -36,12 +35,15 @@ export default async function Page(props: PageProps<"/[lang]/docs/[[...slug]]">)
   );
 }
 
-export function generateStaticParams() {
-  return source.generateParams();
+/** The slugs of one language, for generateStaticParams. */
+export function docsParams(lang: string) {
+  return source
+    .generateParams()
+    .filter((p) => p.lang === lang)
+    .map((p) => ({ slug: p.slug }));
 }
 
-export async function generateMetadata(props: PageProps<"/[lang]/docs/[[...slug]]">): Promise<Metadata> {
-  const { lang, slug } = await props.params;
+export function docsMetadata(lang: string, slug?: string[]): Metadata {
   const page = source.getPage(slug, lang);
   if (!page) notFound();
   return {

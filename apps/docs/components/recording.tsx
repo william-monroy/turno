@@ -9,7 +9,7 @@ import { CodeBlock, Pre } from "fumadocs-ui/components/codeblock";
 export function Recording({ name, title }: { name: string; title?: string }) {
   const text = readFileSync(join(process.cwd(), "content/recordings", `${name}.txt`), "utf8").replace(/\n+$/, "");
   return (
-    <CodeBlock title={title ?? "Terminal"} className="recording">
+    <CodeBlock title={title ?? "Terminal"} className="recording" viewportProps={{ className: "max-h-none" }}>
       <Pre>
         <code>
           {text.split("\n").map((line, i) => (

@@ -43,9 +43,15 @@ a stable id (the page slug), a title and why it happens, matched by a fragment o
 generator fails when a finding in the code has no entry, an entry matches nothing, or two
 match, so a new check cannot ship without its page.
 
+**One route tree per language, no middleware.** English lives in `app/(en)` and Spanish in
+`app/es`, each with its own root layout, and both render the same components
+(`components/routes`). Hiding the default language with a middleware rewrite made the server
+render `/en/docs/...` while the browser was at `/docs/...`, so the sidebar's active link and the
+page's table of contents failed to hydrate.
+
 **CI.** `.github/workflows/docs.yml` runs only when the site, `docs/`, or `packages/*/src`
 change: it regenerates the pages and fails on a difference, builds the site, and checks every
-internal link and anchor of the built site (`scripts/check-links.mjs`). The main `ci` workflow
+internal link, anchor and image of the built site (`scripts/check-links.mjs`). The main `ci` workflow
 is unchanged.
 
 **Terminal recordings as text.** The tapes in `apps/docs/tapes` start in the clean shell of

@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Checks every internal link of the built site: starts `next start`, crawls from the home pages
-// of each language, and fails on a link or image that does not answer 200, or on an anchor
-// (#section) that is not on the page it points to. External links are not fetched.
+// of each language, and fails on a link that does not answer 200, on an anchor (#section) that
+// is not on the page it points to, and on an image that does not come back as an image (every
+// <img>, fetched the way the page asks for it, optimizer included). External links are not
+// fetched.
 //
 //   pnpm build && pnpm links
 import { spawn } from "node:child_process";
@@ -39,6 +41,8 @@ async function waitForServer() {
 const seen = new Map();
 /** Every link found: [from, path, hash]. */
 const links = [];
+/** Every image a page shows: the URL as the page asks for it -> the first page that does. */
+const images = new Map();
 
 async function visit(path, from) {
   if (seen.has(path)) return;
@@ -56,6 +60,10 @@ async function visit(path, from) {
   if (!res.ok || !(res.headers.get("content-type") ?? "").includes("text/html")) return;
   const html = await res.text();
   for (const m of html.matchAll(/\sid="([^"]+)"/g)) entry.ids.add(m[1]);
+  for (const m of html.matchAll(/<img\b[^>]*?\ssrc="([^"]+)"/g)) {
+    const src = m[1].replace(/&amp;/g, "&");
+    if (!/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(src) && !images.has(src)) images.set(src, path);
+  }
   const next = [];
   for (const m of html.matchAll(/\s(?:href|src)="([^"]+)"/g)) {
     const raw = m[1].replace(/&amp;/g, "&");
@@ -87,13 +95,19 @@ try {
     const target = resolve(path);
     if (target?.status === 200 && target.ids.size && !target.ids.has(hash)) problems.push(`no #${hash} on ${path}  (linked from ${from})`);
   }
+  for (const [src, from] of images) {
+    const res = await fetch(new URL(src, ORIGIN));
+    const type = res.headers.get("content-type") ?? "";
+    const bytes = (await res.arrayBuffer()).byteLength;
+    if (!res.ok || !type.startsWith("image/") || bytes === 0) problems.push(`image ${res.status} ${type || "no type"}  ${src}  (shown on ${from})`);
+  }
   const unique = [...new Set(problems)].sort();
   if (unique.length) {
     console.error(`check-links: ${unique.length} broken link${unique.length === 1 ? "" : "s"}:`);
     for (const p of unique) console.error(`  ${p}`);
     process.exitCode = 1;
   } else {
-    console.log(`check-links: ${seen.size} pages and files, ${links.length} links, all good`);
+    console.log(`check-links: ${seen.size} pages and files, ${links.length} links, ${images.size} images, all good`);
   }
 } catch (err) {
   console.error(`check-links: ${err.message}`);
