@@ -5,21 +5,44 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { buildArgv } from "../src/argv.js";
 import { mcpEntryPath } from "../src/patchright.js";
+import { TURNO_TOOLS, checkTurnoTools } from "../src/tools.js";
+import { upstream } from "../src/upstream.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
  * What turno-browser relies on in the Playwright MCP program bundled in patchright-core
- * (ADR 0003, ADR 0042). An upgrade that changes any of it fails here, not in a user's session:
- * the tool names agents see, the config keys and precedence of the generated `--config`, the
- * idle timer that honors `timeouts.idle` even when headed, and the exit watchdog.
+ * (ADR 0003, ADR 0042, ADR 0043). An upgrade that changes any of it fails here, not in a user's
+ * session: the tool names agents see, the config keys and precedence of the generated
+ * `--config`, the idle timer that honors `timeouts.idle` even when headed, the exit watchdog,
+ * and the library entry points the host uses in place of the stock program.
  */
 
 const pkg = fileURLToPath(new URL("..", import.meta.url));
 const bin = join(pkg, "dist", "bin", "mcp.js");
 const bundlePath = join(dirname(mcpEntryPath()), "..", "coreBundle.js");
+const bundleSource = readFileSync(bundlePath, "utf8");
+
+/** The source of one top-level function of the bundle (its body ends at the next "}" alone on a line). */
+function bundleFunction(name: string): string {
+  const start = bundleSource.search(new RegExp(`^(async )?function ${name}\\(`, "m"));
+  expect(start, `function ${name} in the bundle`).toBeGreaterThanOrEqual(0);
+  return bundleSource.slice(start, bundleSource.indexOf("\n}\n", start) + 2);
+}
+
+async function listToolsOver(args: string[], env: NodeJS.ProcessEnv, cwd: string) {
+  const transport = new StdioClientTransport({ command: process.execPath, args, env: env as Record<string, string>, cwd, stderr: "pipe" });
+  const client = new Client({ name: "contract", version: "0.0.0" });
+  await client.connect(transport);
+  try {
+    return (await client.listTools()).tools;
+  } finally {
+    await client.close();
+  }
+}
 
 interface McpTools {
   resolveCLIConfigForMCP(options: Record<string, unknown>, env?: NodeJS.ProcessEnv): Promise<{ timeouts: { idle?: number }; configFile?: string }>;
@@ -27,6 +50,7 @@ interface McpTools {
   setupExitWatchdog: () => void;
 }
 const tools = (createRequire(import.meta.url)(bundlePath) as { tools: McpTools }).tools;
+const lib = () => upstream().tools;
 
 /** The tools a default `turno-browser-mcp` serves, in the order it lists them. */
 const TOOL_NAMES = [
@@ -113,6 +137,120 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
     expect(src).toMatch(/process\.stdin\.on\("close"/);
     expect(src).toMatch(/process\.on\("SIGTERM"/);
     expect(src).toMatch(/setTimeout\(\(\) => \(0, import_bootstrap\d*\.processExit\)\(0\), 15e3\)/);
+  });
+
+  it("serves exactly the tool definitions of the stock program (names, schemas, annotations)", async () => {
+    for (const caps of [[], ["--caps", "vision,pdf,devtools"]]) {
+      const host = await listToolsOver([bin, "--identity", "contract", ...caps], sb.env, sb.home);
+      const stock = await listToolsOver([mcpEntryPath(), "--browser", "chrome", "--user-data-dir", join(sb.home, "stock"), ...caps], sb.env, sb.home);
+      expect(host.length).toBeGreaterThanOrEqual(25);
+      expect(host).toEqual(stock);
+    }
+  });
+
+  it("serves the same tools over HTTP with --port, through upstream's HTTP server", async () => {
+    const { spawn } = await import("node:child_process");
+    // A temporary profile is made under TMPDIR and removed when the server exits on SIGTERM.
+    const env = { ...sb.env, TMPDIR: sb.home };
+    const child = spawn(process.execPath, [bin, "--port", "0"], { env, cwd: sb.home, stdio: ["pipe", "ignore", "pipe"] });
+    const exited = new Promise((r) => child.once("exit", r));
+    try {
+      const url = await new Promise<string>((resolve, reject) => {
+        let err = "";
+        child.stderr.on("data", (d: Buffer) => {
+          err += d.toString();
+          const m = /Listening on (http:\/\/\S+)/.exec(err);
+          if (m) resolve(m[1]!);
+        });
+        child.once("exit", () => reject(new Error(`exited: ${err}`)));
+      });
+      const client = new Client({ name: "contract", version: "0.0.0" });
+      await client.connect(new StreamableHTTPClientTransport(new URL(`${url}/mcp`)));
+      const { tools: listed } = await client.listTools();
+      expect(listed.map((t) => t.name)).toEqual(TOOL_NAMES);
+      expect(client.getServerVersion()?.name).toBe("turno-browser");
+      await client.close();
+    } finally {
+      child.kill("SIGTERM");
+      await exited;
+    }
+  });
+
+  it("exports the library entry points the host uses, with these arities", () => {
+    const { tools: lib, utils } = upstream();
+    const arity: Record<string, number> = {
+      decorateMCPCommand: 1,
+      resolveCLIConfigForMCP: 2,
+      filteredTools: 1,
+      createBrowserWithInfo: 4,
+      setupExitWatchdog: 0,
+      start: 1,
+      isProfileLocked: 1,
+      outputDir: 1,
+    };
+    for (const [name, n] of Object.entries(arity)) {
+      expect(typeof (lib as unknown as Record<string, unknown>)[name], name).toBe("function");
+      expect(((lib as unknown as Record<string, (...a: unknown[]) => unknown>)[name]!).length, name).toBe(n);
+    }
+    expect(Array.isArray(lib.browserTools)).toBe(true);
+    expect(typeof lib.BrowserBackend).toBe("function");
+    for (const method of ["initialize", "callTool", "dynamicTools", "dispose"]) {
+      expect(typeof (lib.BrowserBackend.prototype as Record<string, unknown>)[method], method).toBe("function");
+    }
+    expect(typeof utils.program.constructor).toBe("function");
+    for (const fn of ["object", "string", "toJSONSchema", "prettifyError"] as const) expect(typeof utils.z[fn], fn).toBe("function");
+    expect(typeof upstream().core.utils.gracefullyProcessExitDoNotHang).toBe("function");
+  });
+
+  it("lets the host replace the action of upstream's program and keep its options", async () => {
+    const { tools: lib, utils } = upstream();
+    const program = new utils.program.constructor().name("Playwright MCP");
+    lib.decorateMCPCommand(program);
+    let seen: Record<string, unknown> | undefined;
+    program.action((options) => {
+      seen = options;
+    });
+    await program.parseAsync(["--headless", "--caps", "vision,pdf", "--idle-timeout", "5"], { from: "user" });
+    expect(seen).toMatchObject({ headless: true, caps: ["vision", "pdf"], idleTimeout: 5 });
+  });
+
+  it("runs stock tools through BrowserBackend with the idle timer and dispose callback the host passes", () => {
+    const src = lib().BrowserBackend.toString();
+    expect(src).toMatch(/constructor\(config, browserContext, tools, options = \{\}\)/);
+    expect(src).toMatch(/this\._disposeCallback = options\.dispose;/);
+    expect(src).toMatch(/this\._idleTimer = options\.idleTimer;/);
+    expect(src).toMatch(/async callTool\(name, rawArguments = \{\}, signal\) \{\n\s*this\._idleTimer\?\.poke\(\);/);
+    expect(src).toMatch(/this\.emit\("disconnected"\)/);
+    expect(src).toMatch(/onWebMCPToolsChanged: \(\) => this\.emit\("dynamictoolschange"\)/);
+  });
+
+  it("launches a persistent browser the way the chrome engine copies (createPersistentBrowser)", () => {
+    const src = bundleFunction("createPersistentBrowser");
+    expect(src).toContain("if (await isProfileLocked5Times(userDataDir))");
+    expect(src).toMatch(/const launchOptions = \{\s*tracesDir,\s*\.\.\.config\.browser\.launchOptions,\s*\.\.\.config\.browser\.contextOptions,\s*handleSIGINT: false,\s*handleSIGTERM: false,/);
+    expect(src).toMatch(/ignoreDefaultArgs: configIgnoreDefaultArgs === true \? true : \[\s*"--disable-extensions",/);
+    expect(src).toContain("await browserType.launchPersistentContext(userDataDir, launchOptions)");
+    expect(bundleFunction("computeTracesDir")).toContain('outputDir({ config, cwd: clientInfo.cwd }), "traces")');
+    expect(bundleFunction("createBrowser")).toContain("await browser.bind(bindOptions.title, { workspaceDir: bindOptions.workspaceDir })");
+    expect(bundleFunction("createBrowserWithInfo")).toContain('info.ownership === "own" && config.browser.launchOptions.headless ? defaultIdleTimeout : void 0');
+  });
+
+  it("serves sessions the way the host copies (program.ts, server.ts)", () => {
+    const program = bundleFunction("decorateMCPCommand");
+    expect(program).toContain("setupExitWatchdog();");
+    expect(program).toContain("const config = await resolveCLIConfigForMCP(options);");
+    expect(program).toContain("const useSharedBrowser = config.sharedBrowserContext || config.browser.isolated;");
+    expect(program).toContain("return new BrowserBackend(config, browserContext, tools, {");
+    expect(program).toContain("await start(factory, config.server);");
+    const server = bundleFunction("createServer");
+    expect(server).toContain("capabilities: {\n      tools: { listChanged: true }");
+    expect(server).toContain('content: [{ type: "text", text: "### Error\\n" + String(error) }],');
+    expect(bundleFunction("toMcpTool")).toContain("inputSchema: zod.toJSONSchema(tool.inputSchema),");
+    expect(bundleFunction("start")).toContain("if (options.port === void 0) {");
+  });
+
+  it("has no upstream tool with the name of a turno tool", () => {
+    expect(() => checkTurnoTools(TURNO_TOOLS, upstream().tools.browserTools)).not.toThrow();
   });
 
   it("still accepts the flags turno passes or documents", () => {

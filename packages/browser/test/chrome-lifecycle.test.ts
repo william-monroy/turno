@@ -5,14 +5,19 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished } from "vitest";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { createHost, serve } from "../src/host.js";
 import { readLockPid } from "../src/lifecycle.js";
+import { type TurnoTool, turnoZod } from "../src/tools.js";
+import { upstream } from "../src/upstream.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
  * Lifecycle tests against a real Google Chrome (ADR 0042): the idle limit of the generated
  * config, the shutdown deadline, and the sweep of a Chrome left behind by a wrapper killed with
- * SIGKILL. Every Chrome here runs on a profile inside the test's sandbox HOME, and cleanup only
+ * SIGKILL. Also the host end to end (ADR 0043): a stock tool through the built server, and a
+ * test-only turno tool on the same browser context as the stock tools. Every Chrome here runs on a profile inside the test's sandbox HOME, and cleanup only
  * signals processes whose command line names that sandbox, so no other Chrome is touched.
  *
  * Skipped, with the reason in the suite name, when Chrome is not installed or cannot start
@@ -216,5 +221,52 @@ describe.skipIf(reason !== undefined)(reason ? `real Chrome (skipped: ${reason})
     expect(alive(pid)).toBe(false);
     expect(sandboxProcesses(sb.home).filter((p) => p.pgid === pid)).toEqual([]);
     expect(next.stderr()).toMatch(new RegExp(`closed a Chrome .*pid ${pid}`));
+  }, 60_000);
+
+  it("drives stock tools end to end through the host: navigate and snapshot a data: page", async () => {
+    const r = await start("e2e");
+    const page = "data:text/html,<title>turno host</title><h1>Hello from turno</h1><button>Press me</button>";
+    const nav = await r.client.callTool({ name: "browser_navigate", arguments: { url: page } });
+    expect(nav.isError ?? false, JSON.stringify(nav.content)).toBe(false);
+    expect((nav.content as { text: string }[])[0]!.text).toContain("- Page Title: turno host");
+    const snap = await r.client.callTool({ name: "browser_snapshot", arguments: {} });
+    expect(snap.isError ?? false, JSON.stringify(snap.content)).toBe(false);
+    const text = (snap.content as { type: string; text: string }[]).map((c) => c.text).join("\n");
+    expect(text).toMatch(/heading "Hello from turno" \[level=1\] \[ref=e\d+\]/);
+    expect(text).toMatch(/button "Press me" \[ref=e\d+\]/);
+    expect(chromePid("e2e")).toBeGreaterThan(0);
+    await r.client.close();
+  }, 60_000);
+
+  it("gives a turno tool the same browser context the stock tools drive", async () => {
+    const z = turnoZod();
+    const title: TurnoTool = {
+      schema: { name: "turno_test_title", title: "Page title (test)", description: "Title of the first page.", inputSchema: z.object({}), type: "readOnly" },
+      async handle({ browserContext }) {
+        return { content: [{ type: "text", text: `title: ${await browserContext!.pages()[0]!.title()}` }] };
+      },
+    };
+    // Upstream registers a bound browser under the home's cache dir (read once per process,
+    // and this is the only test here that launches Chrome in process): keep it in the sandbox.
+    const home = process.env.HOME;
+    process.env.HOME = sb.home;
+    onTestFinished(() => {
+      process.env.HOME = home;
+    });
+    const config = await upstream().tools.resolveCLIConfigForMCP({ browser: "chrome", userDataDir: profileDir("inproc"), headless: !HEADED, outputDir: join(sb.home, "output") }, {});
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await serve(createHost({ config, cliOptions: {}, turnoTools: [title] }), serverSide);
+    const client = new Client({ name: "inproc", version: "0.0.0" });
+    await client.connect(clientSide);
+    try {
+      const nav = await client.callTool({ name: "browser_navigate", arguments: { url: "data:text/html,<title>same context</title>ok" } });
+      expect(nav.isError ?? false, JSON.stringify(nav.content)).toBe(false);
+      const pid = chromePid("inproc");
+      expect(await client.callTool({ name: "turno_test_title", arguments: {} })).toEqual({ content: [{ type: "text", text: "title: same context" }] });
+      await client.close();
+      expect(await waitFor(() => !alive(pid), 10_000), "Chrome closed with the session").toBe(true);
+    } finally {
+      await client.close().catch(() => {});
+    }
   }, 60_000);
 });
