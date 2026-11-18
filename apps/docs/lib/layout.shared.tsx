@@ -35,9 +35,9 @@ export function localePath(lang: string, path: string): string {
   return lang === i18n.defaultLanguage ? path : `/${lang}${path === "/" ? "" : path}`;
 }
 
-const NAV: Record<string, { docs: string; reference: string; troubleshooting: string }> = {
-  en: { docs: "Docs", reference: "Reference", troubleshooting: "Troubleshooting" },
-  es: { docs: "Documentación", reference: "Referencia", troubleshooting: "Solución de problemas" },
+const NAV: Record<string, { docs: string; reference: string; troubleshooting: string; releases: string }> = {
+  en: { docs: "Docs", reference: "Reference", troubleshooting: "Troubleshooting", releases: "Releases" },
+  es: { docs: "Documentación", reference: "Referencia", troubleshooting: "Solución de problemas", releases: "Versiones" },
 };
 
 export function baseOptions(lang: string): BaseLayoutProps {
@@ -52,6 +52,7 @@ export function baseOptions(lang: string): BaseLayoutProps {
       { text: t.docs, url: localePath(lang, "/docs"), active: "nested-url" },
       { text: t.reference, url: localePath(lang, "/docs/reference"), active: "nested-url" },
       { text: t.troubleshooting, url: localePath(lang, "/docs/troubleshooting"), active: "nested-url" },
+      { text: t.releases, url: localePath(lang, "/docs/releases"), active: "nested-url" },
     ],
   };
 }

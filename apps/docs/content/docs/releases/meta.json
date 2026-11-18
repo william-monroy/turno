@@ -1,0 +1,10 @@
+{
+  "title": "Releases",
+  "description": "What is new in each version",
+  "root": true,
+  "pages": [
+    "index",
+    "v0-2-0",
+    "v0-1-0"
+  ]
+}

@@ -1,0 +1,47 @@
+---
+title: turno 0.2.0
+description: A new look for the CLI, folder server sets, OAuth for remote MCP servers, one-step setup and a safer gateway.
+---
+
+_Released November 17, 2026._
+
+turno 0.2.0 gave the CLI its look and made the gateway do more with less: each folder sees only the MCP servers it needs, remote servers sign in with OAuth once per account, and `turno init` sets everything up in one step.
+
+| Package | Version |
+|---|---|
+| `turno-cli` | 0.2.0 |
+| `turno-browser` | 0.2.0 |
+
+## A CLI you can read at a glance
+
+`turno` and `turno status` show sections (here, profiles, machine), each profile as a pill in its status line color, usage bars colored by level with the time to reset, and the one thing to do next. `turno limit show`, `turno mcp list`, `turno mcp top` and `turno mcp log` share the same look, `--json` is colored on a terminal, and a single rule decides colors everywhere (`NO_COLOR`, `FORCE_COLOR`).
+
+## Set up in one step, or just try it
+
+`turno init` finds your agents, their profile folders and the MCP servers inside them, previews every change, and starts the gateway in the same run. `npx turno-cli demo` runs everything in a throwaway HOME. [Try it](/docs/get-started/try-it).
+
+## Each folder sees only its servers
+
+Folder rules can now pick which MCP servers a folder sees, so a work repository does not list your personal tools. [Folder rules](/docs/concepts/folder-rules).
+
+## OAuth for remote MCP servers
+
+mcpd signs in to remote servers that use OAuth once per account, and every agent and profile on that account uses the same sign-in.
+
+## See what the gateway does
+
+`turno mcp top` shows the servers and calls in flight, `turno mcp log` the call log and `turno mcp savings` what sharing servers saved. mcpd speaks MCP 2026-07-28 next to 2025-11-25 and stops idle servers sooner when memory is low.
+
+## Safer by default
+
+- Each profile has its own gateway token, and servers can hide tools per profile.
+- The accounts bridge no longer trusts the calling model to say what a delegated run may do.
+- `turno doctor` names the fix for every finding, and `turno doctor --security` checks permissions, tokens and secrets.
+- `turno undo` reverts a whole profile setup, and `turno uninstall` removes what turno set up.
+- A lighter default install with a locked dependency tree.
+
+## Never stuck on a question
+
+A global `--no-input` flag turns every question off, and turno asks nothing inside a coding agent's session. A command that needs an answer exits with code 2 and names the flag that gives it. Commands that need a profile and get none show a picker on a terminal.
+
+The full list: [turno-cli 0.2.0](https://github.com/wimo-dev/turno/blob/main/packages/turno/CHANGELOG.md#020) and [turno-browser 0.2.0](https://github.com/wimo-dev/turno/blob/main/packages/browser/CHANGELOG.md#020).

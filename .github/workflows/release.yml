@@ -197,5 +197,5 @@ jobs:
             if [ "$tag" != latest ]; then flags+=(--prerelease); fi
             gh api "repos/$REPO/git/refs" -f "ref=refs/tags/$name@$version" -f "sha=$SHA"
             gh release create "$name@$version" --repo "$REPO" --verify-tag "${flags[@]}" \
-              --title "$name $version" --notes "See CHANGELOG.md of $name. SBOM attached." "${name}-${version}.cdx.json"
+              --title "$name $version" --notes-file "${name}-${version}.notes.md" "${name}-${version}.cdx.json"
           done
