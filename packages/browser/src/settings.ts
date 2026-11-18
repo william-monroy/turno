@@ -1,0 +1,227 @@
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { IdentityError, assertIdentityId } from "./ids.js";
+import { paths } from "./paths.js";
+
+/**
+ * identity.json: what stays fixed for one browser identity, so a site sees the same person in
+ * the same place every time (ADR 0044). It sits next to the Chrome profile directory
+ * (`<data>/browser/identities/<id>.json`), never inside it, so Chrome never reads or rewrites it
+ * and copying a profile does not copy it by accident.
+ *
+ * - `timezone`: an IANA zone. Chrome gets it as `timezoneId`, only when it differs from the
+ *   system's (an identity made in Monterrey keeps that zone on a trip).
+ * - `languages`: the Accept-Language order, passed as Chrome's own `--accept-lang`, so the
+ *   header keeps Chrome's q-values and `navigator.languages` matches it. Without it, `locale`
+ *   gives `[locale, base language]`.
+ * - `locale`: also passed as `--lang` (Chrome's UI and, on Linux and Windows, `Intl`). It is not
+ *   Playwright's `locale` option: that one collapses Accept-Language to a single value, which no
+ *   installed Chrome sends (measured with Chrome 157).
+ * - `region`: the two-letter country the identity's sites know it from. Recorded, not applied.
+ * - `health`: a URL and a text or selector that proves the identity is signed in (session
+ *   health, `health.ts`).
+ *
+ * A missing file means Chrome's own defaults, as before identity.json existed.
+ */
+
+/**
+ * The format version of identity.json, in its `version` key: turno's state-file convention
+ * (ADR 0045), where a file without `version` is format 1 and a newer one is refused.
+ */
+export const IDENTITY_FORMAT_VERSION = 1;
+
+export interface HealthCheck {
+  /** A page that shows `text` or `selector` only to a signed-in user. */
+  url: string;
+  text?: string;
+  selector?: string;
+}
+
+export interface IdentitySettings {
+  /** Format version (`IDENTITY_FORMAT_VERSION`); a file without it is format 1. */
+  version?: number;
+  timezone?: string;
+  locale?: string;
+  languages?: string[];
+  region?: string;
+  health?: HealthCheck;
+  /** ISO dates. */
+  created: string;
+  updated: string;
+}
+
+/** A change to identity.json: a value sets the key, `null` removes it. */
+export type SettingsPatch = {
+  [K in "timezone" | "locale" | "languages" | "region" | "health"]?: IdentitySettings[K] | null;
+};
+
+const KEYS = new Set(["version", "timezone", "locale", "languages", "region", "health", "created", "updated"]);
+
+export function identitySettingsPath(id: string, env: NodeJS.ProcessEnv = process.env): string {
+  assertIdentityId(id);
+  return join(paths(env).identitiesDir, `${id}.json`);
+}
+
+/** The system's IANA time zone, as Chrome reports it when nothing overrides it. */
+export function systemTimezone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+function validTimezone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The canonical form of a BCP 47 tag ("es-mx" is "es-MX"), or undefined when it is not one. */
+function canonicalLocale(tag: string): string | undefined {
+  try {
+    const [c] = Intl.getCanonicalLocales(tag);
+    return c;
+  } catch {
+    return undefined;
+  }
+}
+
+const isoDate = (v: unknown) => typeof v === "string" && !Number.isNaN(Date.parse(v)) && /^\d{4}-\d{2}-\d{2}T/.test(v);
+
+/** Everything wrong with a parsed identity.json, in key order; empty when it is valid. */
+function problemsOf(raw: unknown): string[] {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return ["must be a JSON object"];
+  const v = raw as Record<string, unknown>;
+  const out: string[] = [];
+  if (v.version !== undefined && (typeof v.version !== "number" || !Number.isInteger(v.version) || v.version < 1)) out.push("version must be a positive integer");
+  else if (typeof v.version === "number" && v.version > IDENTITY_FORMAT_VERSION) {
+    return [`is format ${v.version}, from a newer turno-browser (this one reads up to ${IDENTITY_FORMAT_VERSION}); update turno-browser`];
+  }
+  if (v.timezone !== undefined) {
+    if (typeof v.timezone !== "string") out.push("timezone must be a string");
+    else if (!validTimezone(v.timezone)) out.push(`timezone "${v.timezone}" is not an IANA time zone (for example "America/Monterrey")`);
+  }
+  if (v.locale !== undefined) {
+    if (typeof v.locale !== "string" || !canonicalLocale(v.locale)) out.push(`locale "${String(v.locale)}" is not a language tag (for example "es-MX")`);
+  }
+  if (v.languages !== undefined) {
+    if (!Array.isArray(v.languages) || v.languages.some((l) => typeof l !== "string" || !canonicalLocale(l))) out.push("languages must be a list of language tags");
+    else if (v.languages.length === 0) out.push("languages needs at least one language tag");
+  }
+  if (v.region !== undefined && (typeof v.region !== "string" || !/^[A-Z]{2}$/.test(v.region))) {
+    out.push(`region "${String(v.region)}" must be a two-letter country code (for example "MX")`);
+  }
+  if (v.health !== undefined) {
+    const h = v.health as Record<string, unknown> | null;
+    if (typeof h !== "object" || h === null || Array.isArray(h)) out.push("health must be an object with url and text or selector");
+    else {
+      if (typeof h.url !== "string" || !/^https?:\/\//.test(h.url)) out.push("health.url must start with http:// or https://");
+      for (const k of ["text", "selector"] as const) if (h[k] !== undefined && (typeof h[k] !== "string" || !h[k])) out.push(`health.${k} must be a non-empty string`);
+      if (h.text === undefined && h.selector === undefined) out.push("health needs text or selector (what only a signed-in page shows)");
+      for (const k of Object.keys(h)) if (!["url", "text", "selector"].includes(k)) out.push(`unknown key "health.${k}"`);
+    }
+  }
+  if (!isoDate(v.created)) out.push("created must be an ISO date");
+  if (!isoDate(v.updated)) out.push("updated must be an ISO date");
+  for (const k of Object.keys(v)) if (!KEYS.has(k)) out.push(`unknown key "${k}"`);
+  return out;
+}
+
+export interface SettingsCheck {
+  path: string;
+  /** Present when the file exists and is valid. */
+  settings?: IdentitySettings;
+  /** Why the file cannot be used; empty when it is valid or missing. */
+  problems: string[];
+}
+
+/** Reads identity.json without throwing: for `turno browser doctor`. */
+export function checkIdentitySettings(id: string, env: NodeJS.ProcessEnv = process.env): SettingsCheck {
+  const path = identitySettingsPath(id, env);
+  let text: string;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return { path, problems: [] };
+    return { path, problems: [`cannot be read: ${(err as Error).message}`] };
+  }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return { path, problems: ["is not valid JSON"] };
+  }
+  const problems = problemsOf(raw);
+  return problems.length ? { path, problems } : { path, settings: raw as IdentitySettings, problems };
+}
+
+/** identity.json of the identity, undefined when there is none. Throws when it is invalid. */
+export function readIdentitySettings(id: string, env: NodeJS.ProcessEnv = process.env): IdentitySettings | undefined {
+  const { path, settings, problems } = checkIdentitySettings(id, env);
+  if (problems.length) throw new IdentityError(`identity.json of "${id}" (${path}) ${problems[0]!.startsWith("is ") ? problems[0] : `is invalid: ${problems.join("; ")}`}`);
+  return settings;
+}
+
+/**
+ * Applies a patch and writes the file (mode 600, through a rename so a reader never sees half
+ * a file). Validates first: a bad value throws and leaves the file as it was.
+ */
+export function writeIdentitySettings(id: string, patch: SettingsPatch, env: NodeJS.ProcessEnv = process.env, now: Date = new Date()): IdentitySettings {
+  const path = identitySettingsPath(id, env);
+  const current = existsSync(path) ? readIdentitySettings(id, env) : undefined;
+  const stamp = now.toISOString();
+  const next: Record<string, unknown> = { version: IDENTITY_FORMAT_VERSION, ...current, created: current?.created ?? stamp, updated: stamp };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) continue;
+    if (value === null) delete next[key];
+    else next[key] = value;
+  }
+  if (typeof next.locale === "string") next.locale = canonicalLocale(next.locale) ?? next.locale;
+  if (Array.isArray(next.languages)) next.languages = (next.languages as string[]).map((l) => canonicalLocale(l) ?? l);
+  if (typeof next.region === "string" && /^[a-z]{2}$/i.test(next.region)) next.region = next.region.toUpperCase();
+  const problems = problemsOf(next);
+  if (problems.length) throw new IdentityError(`identity "${id}": ${problems.join("; ")}`);
+  // Stable key order, whatever order the patch came in.
+  const ordered = Object.fromEntries([...KEYS].filter((k) => next[k] !== undefined).map((k) => [k, next[k]])) as unknown as IdentitySettings;
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+  const tmp = `${path}.${process.pid}.tmp`;
+  writeFileSync(tmp, `${JSON.stringify(ordered, null, 2)}\n`, { mode: 0o600 });
+  renameSync(tmp, path);
+  return ordered;
+}
+
+/** The Accept-Language order: `languages`, else the locale and its base language. */
+export function acceptLanguages(settings: IdentitySettings): string[] | undefined {
+  if (settings.languages?.length) return settings.languages;
+  if (!settings.locale) return undefined;
+  const base = settings.locale.split("-")[0]!;
+  return base === settings.locale ? [settings.locale] : [settings.locale, base];
+}
+
+export interface LaunchSettings {
+  /** Chrome flags to add. */
+  args: string[];
+  /** Playwright's `timezoneId`, when the identity's zone is not the system's. */
+  timezoneId?: string;
+}
+
+const hasArg = (args: readonly string[], flag: string) => args.some((a) => a === flag || a.startsWith(`${flag}=`));
+
+/**
+ * What the chrome engine adds at launch for these settings. Flags and context options the user
+ * already set (through `--config` or the Playwright MCP flags) always win.
+ */
+export function launchSettings(
+  settings: IdentitySettings | undefined,
+  userArgs: readonly string[],
+  systemTz: string,
+  userContext: Record<string, unknown> = {},
+): LaunchSettings {
+  const out: LaunchSettings = { args: [] };
+  if (!settings) return out;
+  if (settings.locale && !hasArg(userArgs, "--lang")) out.args.push(`--lang=${settings.locale}`);
+  const languages = acceptLanguages(settings);
+  if (languages && !hasArg(userArgs, "--accept-lang") && userContext.locale === undefined) out.args.push(`--accept-lang=${languages.join(",")}`);
+  if (settings.timezone && settings.timezone !== systemTz && userContext.timezoneId === undefined) out.timezoneId = settings.timezone;
+  return out;
+}

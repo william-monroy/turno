@@ -1,7 +1,11 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type Engine, type LaunchRequest, selectEngine, usesChromeEngine } from "../src/engine.js";
+import { EventEmitter } from "node:events";
+import type { BrowserContext } from "patchright-core";
+import { type Engine, type IdentityRef, type LaunchRequest, type LaunchedBrowser, selectEngine, usesChromeEngine } from "../src/engine.js";
+import { readHealth } from "../src/health.js";
+import { writeIdentitySettings } from "../src/settings.js";
 import { SERVER_INFO, createHost, mergeTextParts, serve } from "../src/host.js";
 import { TURNO_TOOLS, type TurnoTool, checkTurnoTools, turnoZod } from "../src/tools.js";
 import { type McpConfig, upstream } from "../src/upstream.js";
@@ -53,9 +57,9 @@ function failingEngine(): Engine & { launches: LaunchRequest[] } {
   };
 }
 
-async function connect(cfg: McpConfig, turnoTools: TurnoTool[], engine: Engine): Promise<Client> {
+async function connect(cfg: McpConfig, turnoTools: TurnoTool[], engine: Engine, identity?: IdentityRef): Promise<Client> {
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
-  await serve(createHost({ config: cfg, cliOptions: {}, turnoTools, engine }), serverSide);
+  await serve(createHost({ config: cfg, cliOptions: {}, turnoTools, engine, ...(identity ? { identity } : {}) }), serverSide);
   const client = new Client({ name: "host-test", version: "0.0.0" });
   await client.connect(clientSide);
   return client;
@@ -104,6 +108,79 @@ describe("host", () => {
     expect(engine.launches).toHaveLength(2);
     expect(engine.launches[0]).toMatchObject({ title: "host-test", clientInfo: { clientName: "host-test", cwd: process.cwd() } });
     expect(engine.launches[1]!.title).toBe("host-test (2)");
+    await client.close();
+  });
+});
+
+/**
+ * An engine whose browser is a fake context: one page that "shows" nothing, so a health check
+ * on it fails as a signed-out page would.
+ */
+function signedOutEngine(): Engine & { launches: LaunchRequest[]; closed: number } {
+  const engine = {
+    id: "chrome" as const,
+    launches: [] as LaunchRequest[],
+    closed: 0,
+    async launch(request: LaunchRequest): Promise<LaunchedBrowser> {
+      engine.launches.push(request);
+      const timeout = Object.assign(new Error("Timeout 10000ms exceeded"), { name: "TimeoutError" });
+      const missing = { first: () => missing, waitFor: async () => Promise.reject(timeout) };
+      const page = Object.assign(new EventEmitter(), {
+        url: () => "about:blank",
+        content: async () => "",
+        goto: async () => null,
+        getByText: () => missing,
+        locator: () => missing,
+        close: async () => {},
+      });
+      const context = Object.assign(new EventEmitter(), { pages: () => [page], newPage: async () => page });
+      return {
+        engine: "chrome",
+        context: context as unknown as BrowserContext,
+        isOpen: () => true,
+        async close() {
+          engine.closed++;
+        },
+      };
+    },
+  };
+  return engine;
+}
+
+describe("identity", () => {
+  it("passes the identity to the engine", async () => {
+    const engine = failingEngine();
+    const client = await connect(await config(), [], engine, { id: "school", env: sb.env });
+    await client.callTool({ name: "browser_snapshot", arguments: {} });
+    expect(engine.launches[0]!.identity).toEqual({ id: "school", env: sb.env });
+    await client.close();
+  });
+
+  it("fails a call with NEEDS_AUTH when the health check finds no signed-in page, and closes that Chrome", async () => {
+    writeIdentitySettings("school", { health: { url: "https://mail.example.com/", text: "Inbox" } }, sb.env);
+    const engine = signedOutEngine();
+    const client = await connect(await config(), [], engine, { id: "school", env: sb.env });
+    const res = await client.callTool({ name: "browser_snapshot", arguments: {} });
+    expect(res.isError).toBe(true);
+    const text = (res.content as { text: string }[])[0]!.text;
+    expect(text).toMatch(/^### Error\nError: NEEDS_AUTH: browser identity "school" is not signed in: the page did not show "Inbox" at https:\/\/mail\.example\.com\//);
+    expect(text).toContain("`turno browser login school`");
+    expect(engine.closed).toBe(1);
+    expect(readHealth("school", sb.env)).toMatchObject({ status: "needs_auth", url: "https://mail.example.com/" });
+
+    // Right after, calls fail the same way without opening another Chrome.
+    const again = await client.callTool({ name: "browser_snapshot", arguments: {} });
+    expect((again.content as { text: string }[])[0]!.text).toMatch(/NEEDS_AUTH/);
+    expect(engine.launches).toHaveLength(1);
+    await client.close();
+  });
+
+  it("runs no health check for an identity without one", async () => {
+    const engine = failingEngine();
+    const client = await connect(await config(), [], engine, { id: "plain", env: sb.env });
+    const res = await client.callTool({ name: "browser_snapshot", arguments: {} });
+    expect((res.content as { text: string }[])[0]!.text).toBe("### Error\nError: no browser in this test");
+    expect(readHealth("plain", sb.env)).toBeUndefined();
     await client.close();
   });
 });

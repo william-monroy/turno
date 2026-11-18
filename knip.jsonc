@@ -8,9 +8,7 @@
     "packages/turno": {
       // demo/server.ts runs as its own process (turno demo starts it by path).
       "entry": ["src/cli/main.ts", "src/demo/server.ts", "test/**/*.test.ts", "test/fixtures/**"],
-      "project": ["src/**/*.ts", "test/**/*.ts"],
-      // Optional packages the CLI imports at run time by a computed name; the tests install them.
-      "ignoreDependencies": ["turno-browser"]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/browser": {
       "entry": ["src/index.ts", "src/bin/mcp.ts", "test/**/*.test.ts"],

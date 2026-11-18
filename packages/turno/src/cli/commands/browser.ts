@@ -4,6 +4,7 @@ import { type Sub, group } from "../group.js";
 import { type Command, type Io, fail, needsAnswer, paint } from "../io.js";
 import { OPTIONAL, loadOptional, notInstalled } from "../optional.js";
 import { emit, jsonOutput } from "../output.js";
+import * as ident from "./browser-identity.js";
 
 /** `turno browser bench --json`: turno-browser's report (ADR 0045). */
 const BENCH_JSON = jsonOutput(["version", "startedAt", "finishedAt", "engines", "results", "file"]);
@@ -17,12 +18,13 @@ interface IdentityInfo {
   inUse: boolean;
 }
 
-export interface BrowserModule {
+export interface BrowserModule extends ident.IdentityModule {
   ENGINES: readonly string[];
   /** The current id for an engine name, old ids included (turno-browser 0.2 and later). */
   engineId?: (name: string) => string | undefined;
   listIdentities(env: NodeJS.ProcessEnv): IdentityInfo[];
-  addIdentity(id: string, env: NodeJS.ProcessEnv): IdentityInfo;
+  /** Settings are written to identity.json by turno-browser 0.3 and later; older ones ignore them. */
+  addIdentity(id: string, env: NodeJS.ProcessEnv, settings?: ident.SettingsPatch): IdentityInfo;
   removeIdentity(id: string, env: NodeJS.ProcessEnv): void;
   isInUse(id: string, env: NodeJS.ProcessEnv): boolean;
   assertIdentityId(id: string): void;
@@ -171,14 +173,17 @@ function identities(mod: BrowserModule, args: string[], io: Io): number {
 }
 
 function add(mod: BrowserModule, args: string[], io: Io): number {
-  const p = parseFlags(args, DRY_RUN, 1);
+  const p = parseFlags(args, { ...DRY_RUN, ...ident.SETTINGS_FLAGS }, 1);
   const id = checkId(mod, p.positionals[0], "add");
+  const settings = ident.settingsPatch(p);
+  if (ident.hasSettings(settings) && typeof mod.writeIdentitySettings !== "function") return fail("identity settings need turno-browser 0.3 or later: npm install --global turno-browser");
   if (bool(p, "dry-run")) {
     io.out(`(dry run) would create browser identity "${id}"`);
     return 0;
   }
-  const info = mod.addIdentity(id, io.env);
+  const info = ident.hasSettings(settings) ? mod.addIdentity(id, io.env, settings) : mod.addIdentity(id, io.env);
   io.out(`identity "${id}" ready at ${tildify(info.dir, io.env)}`);
+  if (mod.identitySettingsPath) io.out(`settings (time zone, languages, health check) in ${tildify(mod.identitySettingsPath(id, io.env), io.env)}`);
   io.out(`\nAdd this to ${tildify(paths(io.env).mcpFile, io.env)}, then run \`turno mcp sync\`:\n`);
   io.out(mod.manifestSnippet(id));
   io.out(`Sign in to your sites once with \`turno identity login browser:${id}\`.`);
@@ -203,6 +208,8 @@ async function login(mod: BrowserModule, args: string[], io: Io): Promise<number
   const id = checkId(mod, p.positionals[0], "login");
   const url = str(p, "url");
   if (url !== undefined && !/^https?:\/\//.test(url)) return fail(`--url must start with http:// or https://: ${url}`);
+  const holder = mod.inUseBy?.(id, io.env);
+  if (holder) return fail(holder);
   if (mod.isInUse(id, io.env)) {
     return fail(`identity "${id}" is in use by a running Chrome (probably an MCP session through mcpd). Close that session or wait for its lease to end, then retry.`);
   }
@@ -230,6 +237,14 @@ export async function dispatch(mod: BrowserModule, sub: string, rest: string[], 
         return await login(mod, rest, io);
       case "bench":
         return await bench(mod, rest, io, deps);
+      case "show":
+        return ident.show(mod, checkId(mod, rest.find((a) => !a.startsWith("-")), "show"), rest, io);
+      case "set":
+        return ident.set(mod, checkId(mod, rest.find((a) => !a.startsWith("-")), "set"), rest, io);
+      case "doctor":
+        return await ident.doctor(mod, rest, io);
+      case "reputation":
+        return ident.reputation(mod, rest, io, (id) => checkId(mod, id, "reputation"));
       default:
         return fail(`unknown browser command "${sub}"`);
     }
@@ -260,7 +275,33 @@ export function browserCommand(deps: BrowserDeps = defaultDeps): Command {
   const subs: Record<string, Sub> = {
     identities: { summary: "list browser identities and whether they are in use", synopsis: "[--json]", flags: ["--json"], json: IDENTITIES_JSON, run: withModule("identities") },
     list: { summary: "same as identities", hidden: true, run: withModule("identities") },
-    add: { summary: "create an identity and print its mcp.toml block", synopsis: "<id> [--dry-run]", flags: ["--dry-run"], run: withModule("add") },
+    add: {
+      summary: "create an identity (pinned to this time zone) and print its mcp.toml block",
+      synopsis: "<id> [--timezone <zone>] [--locale <tag>] [--languages <tag,...>] [--region <CC>] [--health-url <url> --health-text <text>] [--dry-run]",
+      flags: ["--dry-run", ...ident.SETTINGS_FLAG_NAMES],
+      run: withModule("add"),
+    },
+    show: { summary: "an identity's settings, session health and who holds it", synopsis: "<id> [--json]", flags: ["--json"], json: ident.SHOW_JSON, run: withModule("show") },
+    set: {
+      summary: "change an identity's identity.json (an empty value removes a setting)",
+      synopsis: "<id> [--timezone <zone>] [--locale <tag>] [--languages <tag,...>] [--region <CC>] [--health-url <url>] [--health-text <text>] [--health-selector <css>] [--no-health] [--dry-run]",
+      flags: ["--dry-run", ...ident.SETTINGS_FLAG_NAMES],
+      run: withModule("set"),
+    },
+    doctor: {
+      summary: "check Chrome, a test launch and every identity (settings, lock, sign-in), with fixes",
+      synopsis: "[--fix] [--no-launch] [--json]",
+      flags: ["--fix", "--no-launch", "--json"],
+      json: ident.DOCTOR_JSON,
+      run: withModule("doctor"),
+    },
+    reputation: {
+      summary: "challenges each identity met per site (captcha, verify it's you, block) and their trend",
+      synopsis: "[<id>] [--json]",
+      flags: ["--json"],
+      json: ident.REPUTATION_JSON,
+      run: withModule("reputation"),
+    },
     remove: { summary: "delete an identity and its saved logins", synopsis: "<id> [--dry-run]", flags: ["--dry-run"], run: withModule("remove") },
     rm: { summary: "same as remove", hidden: true, run: withModule("remove") },
     login: { summary: "open the identity's Chrome to sign in by hand once", synopsis: "<id> [--url <url>]", flags: ["--url"], run: withModule("login") },
@@ -276,8 +317,12 @@ export function browserCommand(deps: BrowserDeps = defaultDeps): Command {
     footer: FOOTER,
     examples: [
       "turno browser identities",
-      "turno browser add school",
+      "turno browser add school --languages es-MX,es,en",
+      "turno browser show school",
+      "turno browser set school --health-url https://mail.example.com/ --health-text Inbox",
       "turno browser login school --url https://example.com",
+      "turno browser doctor --fix",
+      "turno browser reputation school --json",
       "turno browser remove school --dry-run",
       "turno browser bench --only-urls --url https://example.com --yes",
     ],

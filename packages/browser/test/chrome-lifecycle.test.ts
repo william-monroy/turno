@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { type Server, createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,8 +8,13 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { runDoctor } from "../src/doctor.js";
+import { readHealth } from "../src/health.js";
 import { createHost, serve } from "../src/host.js";
 import { readLockPid } from "../src/lifecycle.js";
+import { readChallenges } from "../src/reputation.js";
+import { readRuntimeLock } from "../src/runtime-lock.js";
+import { writeIdentitySettings } from "../src/settings.js";
 import { type TurnoTool, turnoZod } from "../src/tools.js";
 import { upstream } from "../src/upstream.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -156,6 +162,25 @@ async function navigate(r: Running): Promise<void> {
   expect(res.isError ?? false, JSON.stringify(res.content)).toBe(false);
 }
 
+/** A local site for the identity tests: echoes Accept-Language, shows a challenge, or a signed-in page. */
+async function site(): Promise<{ url: string; close(): Promise<void> }> {
+  const server: Server = createServer((req, res) => {
+    res.setHeader("content-type", "text/html; charset=utf-8");
+    const path = new URL(req.url ?? "/", "http://x").pathname;
+    if (path === "/challenge") res.end("<title>Just a moment...</title><body>Checking your browser before you continue</body>");
+    else if (path === "/account") res.end("<title>Account</title><body><h1>Welcome back, Alice</h1></body>");
+    else if (path === "/signed-out") res.end("<title>Sign in</title><body><form><input name=user></form></body>");
+    else res.end(`<title>echo</title><body><pre id="lang">${req.headers["accept-language"] ?? ""}</pre></body>`);
+  });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const { port } = server.address() as { port: number };
+  return { url: `http://127.0.0.1:${port}`, close: () => new Promise((r) => server.close(() => r())) };
+}
+
+function textOf(res: unknown): string {
+  return ((res as { content: { text?: string }[] }).content ?? []).map((c) => c.text ?? "").join("\n");
+}
+
 function chromePid(id: string): number {
   const pid = readLockPid(profileDir(id));
   expect(pid, "Chrome holds the profile's SingletonLock").toBeDefined();
@@ -278,5 +303,88 @@ describe.skipIf(reason !== undefined)(reason ? `real Chrome (skipped: ${reason})
     } finally {
       await client.close().catch(() => {});
     }
+  }, 60_000);
+
+  it("applies identity.json at launch: Accept-Language with q-values, navigator.languages and the time zone", async () => {
+    const web = await site();
+    onTestFinished(() => web.close());
+    // A zone that is not this machine's, so Chrome has to be told.
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone === "Asia/Tokyo" ? "Europe/Lisbon" : "Asia/Tokyo";
+    writeIdentitySettings("langs", { timezone: zone, languages: ["fr-FR", "fr", "en"] }, sb.env);
+    const r = await start("langs");
+    const nav = await r.client.callTool({ name: "browser_navigate", arguments: { url: `${web.url}/` } });
+    expect(nav.isError ?? false, textOf(nav)).toBe(false);
+    const res = await r.client.callTool({
+      name: "browser_evaluate",
+      arguments: { function: "() => JSON.stringify({ header: document.getElementById('lang').textContent, languages: navigator.languages, zone: Intl.DateTimeFormat().resolvedOptions().timeZone })" },
+    });
+    expect(res.isError ?? false, textOf(res)).toBe(false);
+    const json = /\{\\?"header[^\n]*\}/.exec(textOf(res))?.[0]?.replace(/\\"/g, '"');
+    expect(JSON.parse(json!)).toEqual({ header: "fr-FR,fr;q=0.9,en;q=0.8", languages: ["fr-FR", "fr", "en"], zone });
+  }, 60_000);
+
+  it("holds the identity in a runtime lock while Chrome runs, and tells a second server who has it", async () => {
+    const r = await start("locked");
+    await navigate(r);
+    const pid = chromePid("locked");
+    expect(readRuntimeLock("locked", sb.env)).toMatchObject({ nodePid: r.pid, chromePid: pid, pgid: pid, holder: "mcp" });
+
+    const second = await start("locked");
+    const res = await second.client.callTool({ name: "browser_navigate", arguments: { url: "data:text/html,second" } });
+    expect(res.isError).toBe(true);
+    expect(textOf(res)).toContain(`browser identity "locked" is in use by turno-browser-mcp (pid ${r.pid}, Chrome pid ${pid})`);
+    expect(textOf(res)).toContain(`kill ${r.pid}`);
+    expect(alive(pid), "the first Chrome is untouched").toBe(true);
+
+    await r.client.close();
+    expect(await waitFor(() => !alive(r.pid), 10_000)).toBe(true);
+    expect(readRuntimeLock("locked", sb.env), "the lock goes with its process").toBeUndefined();
+    await navigate(second);
+    expect(readRuntimeLock("locked", sb.env)).toMatchObject({ nodePid: second.pid, holder: "mcp" });
+  }, 90_000);
+
+  it("gives the lock back when Chrome closes for idle, and takes it again on the next call", async () => {
+    const r = await start("idlelock", { TURNO_BROWSER_IDLE: "2s" });
+    await navigate(r);
+    const first = chromePid("idlelock");
+    expect(await waitFor(() => !alive(first), 15_000)).toBe(true);
+    expect(await waitFor(() => readRuntimeLock("idlelock", sb.env) === undefined, 5_000), "released with the idle close").toBe(true);
+    await navigate(r);
+    expect(readRuntimeLock("idlelock", sb.env)).toMatchObject({ nodePid: r.pid, chromePid: chromePid("idlelock") });
+  }, 60_000);
+
+  it("marks an identity NEEDS_AUTH when its health check page shows no sign-in, and passes once it does", async () => {
+    const web = await site();
+    onTestFinished(() => web.close());
+    writeIdentitySettings("health", { health: { url: `${web.url}/signed-out`, text: "Welcome back" } }, sb.env);
+    const r = await start("health");
+    const res = await r.client.callTool({ name: "browser_navigate", arguments: { url: "data:text/html,hi" } });
+    expect(res.isError).toBe(true);
+    expect(textOf(res)).toMatch(/NEEDS_AUTH: browser identity "health" is not signed in: the page did not show "Welcome back"/);
+    expect(textOf(res)).toContain("turno browser login health");
+    expect(readHealth("health", sb.env)).toMatchObject({ status: "needs_auth" });
+    expect(await waitFor(() => readLockPid(profileDir("health")) === undefined || !alive(readLockPid(profileDir("health"))!), 10_000), "Chrome closed").toBe(true);
+
+    writeIdentitySettings("health", { health: { url: `${web.url}/account`, text: "Welcome back" } }, sb.env);
+    await navigate(r);
+    expect(readHealth("health", sb.env)).toMatchObject({ status: "ok", url: `${web.url}/account` });
+  }, 90_000);
+
+  it("logs a challenge page to the identity's reputation log, host name only", async () => {
+    const web = await site();
+    onTestFinished(() => web.close());
+    const r = await start("rep");
+    const nav = await r.client.callTool({ name: "browser_navigate", arguments: { url: `${web.url}/challenge?session=secret` } });
+    expect(nav.isError ?? false, textOf(nav)).toBe(false);
+    expect(await waitFor(() => readChallenges("rep", sb.env).length > 0, 10_000)).toBe(true);
+    expect(readChallenges("rep", sb.env)).toEqual([{ ts: expect.any(String), site: "127.0.0.1", kind: "captcha", markers: ["checking your browser", "just a moment"] }]);
+    const raw = readFileSync(join(sb.home, ".local", "state", "turno", "browser", "identities", "rep", "reputation.jsonl"), "utf8");
+    expect(raw).not.toMatch(/secret|challenge\?/);
+  }, 60_000);
+
+  it("doctor: finds Chrome and starts it on a temporary profile", async () => {
+    const report = await runDoctor({ env: sb.env });
+    expect(report.checks.find((c) => c.area === "chrome" && c.text.startsWith("Google Chrome"))?.level).toBe("ok");
+    expect(report.checks.find((c) => c.text.startsWith("smoke launch"))).toMatchObject({ level: "ok" });
   }, 60_000);
 });
