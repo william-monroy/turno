@@ -257,7 +257,6 @@ scope = "shared"                     # one process for every session
 [server.devtools]
 command = "chrome-devtools-mcp"
 scope = "session"                    # one per agent session, stopped when it ends
-idle = "15m"
 
 [server.issues]
 command = "issues-mcp"
@@ -288,6 +287,9 @@ turno identity login browser:school  # sign in by hand once; cookies persist
 
 It drives the installed Google Chrome, headed, with a persistent profile per identity and no
 injected scripts. Why it is a separate package: [ADR 0019](docs/decisions/0019-lean-install-browser-framing-shrinkwrap.md).
+Chrome closes after 15 minutes without a tool call and opens again on the next one, and mcpd
+stops the server after 30 (the `shared`, `exclusive` block that `identity add` prints; see
+[Browsers](docs/mcp.md#browsers)).
 
 **Acceptable use.** Use it with your own accounts, on sites whose terms allow automated access
 by you, and at a human pace. Do not use it to get around access controls, paywalls, CAPTCHAs or
