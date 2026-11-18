@@ -42,6 +42,37 @@ While a server drives an identity's Chrome it holds a runtime lock. A second ses
 | mcpd stops the server | it closes the server's stdin and waits 5 seconds before SIGTERM, so Chrome closes and writes its profile on its own |
 | A server was killed and left Chrome open | that Chrome is closed the next time the identity starts |
 
+## Tabs
+
+While the agent works, turno keeps the identity's Chrome from piling up pages:
+
+| What | Default | Why |
+|---|---|---|
+| At most `max` pages open | 8 | past it, the least recently used page closes (never the agent's current tab) |
+| Popups that open while no tool call runs | closed | pop-unders and ads; a window the agent's own click opened stays |
+| A page unused for `park` | 5 minutes | it goes to about:blank and stops running; it loads its page again when the agent uses it |
+| A page unused for `close` | 15 minutes | it closes |
+
+Change them in `identity.json` (format 2), or with the server's flags, which win over the file:
+
+```json
+{
+  "version": 2,
+  "tabs": { "max": 4, "popups": "keep", "park": "2m", "close": "0" }
+}
+```
+
+```sh
+turno-browser-mcp --identity school --max-tabs 4 --popups keep --park-after 2m --close-after 0
+```
+
+`"0"` turns a stage off and `max: 0` removes the cap. What turno closed or parked is listed at
+the end of the next tool result. Tabs in the background run at full speed, as Playwright launches
+Chrome; `"backgroundThrottling": true` (or `--background-throttling`) lets Chrome slow them down
+and brings the agent's tab to the front before each call. It suits a headless browser or a window
+left in view: a covered headed window stops rendering. See
+[ADR 0048](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0048-browser-tab-governor.md).
+
 ## Session health
 
 An optional health check names a page and what it shows only when signed in:

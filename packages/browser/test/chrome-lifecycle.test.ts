@@ -1,7 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { type Server, createServer } from "node:http";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -17,6 +16,7 @@ import { readRuntimeLock } from "../src/runtime-lock.js";
 import { writeIdentitySettings } from "../src/settings.js";
 import { type TurnoTool, turnoZod } from "../src/tools.js";
 import { upstream } from "../src/upstream.js";
+import { alive, chromeUnavailable, killSandboxProcesses, sandboxProcesses, waitFor } from "./helpers/chrome.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
@@ -32,38 +32,6 @@ import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 const pkg = fileURLToPath(new URL("..", import.meta.url));
 const bin = join(pkg, "dist", "bin", "mcp.js");
-
-const CHROME_PATHS: Partial<Record<NodeJS.Platform, string[]>> = {
-  darwin: ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"],
-  linux: ["/opt/google/chrome/chrome"],
-};
-
-/** Why these tests cannot run here, or undefined when a real Chrome starts. */
-function chromeUnavailable(): string | undefined {
-  if (process.env.TURNO_SKIP_CHROME === "1") return "TURNO_SKIP_CHROME=1";
-  const candidates = CHROME_PATHS[process.platform];
-  if (!candidates) return `no process groups to test on ${process.platform}`;
-  const exe = candidates.find((p) => existsSync(p));
-  if (!exe) return `Google Chrome is not installed (looked for ${candidates.join(", ")})`;
-  // Start it once, headless, from a throwaway HOME, so a Chrome that is present but cannot run
-  // (a sandbox the host forbids, missing libraries) skips instead of failing every test.
-  const home = mkdtempSync(join(tmpdir(), "turno-chrome-probe-"));
-  const probe = [
-    "const { chromium } = require(process.argv[1]);",
-    "chromium.launch({ channel: 'chrome', headless: true, timeout: 20000 })",
-    "  .then((b) => b.close()).catch((e) => { console.error(String(e.message).split('\\n')[0]); process.exit(1); });",
-  ].join("\n");
-  try {
-    const core = join(pkg, "node_modules", "patchright-core");
-    execFileSync(process.execPath, ["-e", probe, core], { env: { PATH: process.env.PATH, HOME: home }, stdio: ["ignore", "ignore", "pipe"], timeout: 40_000 });
-    return undefined;
-  } catch (err) {
-    const why = String((err as { stderr?: Buffer }).stderr ?? "").trim() || String((err as Error).message);
-    return `Chrome at ${exe} did not start: ${why}`;
-  } finally {
-    rmSync(home, { recursive: true, force: true });
-  }
-}
 
 const reason = chromeUnavailable();
 const HEADED = process.platform === "darwin";
@@ -85,48 +53,6 @@ afterEach(async () => {
   killSandboxProcesses(sb.home);
   sb.cleanup();
 });
-
-function alive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return (err as NodeJS.ErrnoException).code === "EPERM";
-  }
-}
-
-async function waitFor(cond: () => boolean, ms: number): Promise<boolean> {
-  const end = Date.now() + ms;
-  while (Date.now() < end) {
-    if (cond()) return true;
-    await new Promise((r) => setTimeout(r, 50));
-  }
-  return cond();
-}
-
-/** Processes whose command line names the sandbox (only the Chromes these tests started). */
-function sandboxProcesses(home: string): { pid: number; ppid: number; pgid: number }[] {
-  const out = execFileSync("ps", ["-A", "-ww", "-o", "pid=,ppid=,pgid=,command="], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
-  return out
-    .split("\n")
-    .filter((l) => l.includes(home))
-    .map((l) => {
-      const [pid, ppid, pgid] = l.trim().split(/\s+/).map(Number);
-      return { pid: pid!, ppid: ppid!, pgid: pgid! };
-    });
-}
-
-function killSandboxProcesses(home: string): void {
-  for (const p of sandboxProcesses(home)) {
-    for (const sig of ["SIGCONT", "SIGKILL"] as const) {
-      try {
-        process.kill(p.pid, sig);
-      } catch {
-        /* already gone */
-      }
-    }
-  }
-}
 
 function profileDir(id: string): string {
   return join(sb.home, ".local", "share", "turno", "browser", "identities", id);
@@ -226,7 +152,9 @@ describe.skipIf(reason !== undefined)(reason ? `real Chrome (skipped: ${reason})
     process.kill(r.pid, "SIGKILL");
     const next = await start("killed");
     await navigate(next);
-    expect(alive(pid)).toBe(false);
+    // The old Chrome was signalled before the new one started; on a busy runner its exit can
+    // still be on its way.
+    expect(await waitFor(() => !alive(pid), 5_000)).toBe(true);
     expect(chromePid("killed")).not.toBe(pid);
   }, 60_000);
 
@@ -243,7 +171,9 @@ describe.skipIf(reason !== undefined)(reason ? `real Chrome (skipped: ${reason})
 
     const next = await start("orphan");
     await navigate(next);
-    expect(alive(pid)).toBe(false);
+    // The old Chrome was signalled before the new one started; on a busy runner its exit can
+    // still be on its way.
+    expect(await waitFor(() => !alive(pid), 5_000)).toBe(true);
     expect(sandboxProcesses(sb.home).filter((p) => p.pgid === pid)).toEqual([]);
     expect(next.stderr()).toMatch(new RegExp(`closed a Chrome .*pid ${pid}`));
   }, 60_000);

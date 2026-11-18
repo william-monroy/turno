@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import type { Browser, BrowserContext } from "patchright-core";
+import type { Browser, BrowserContext, Page } from "patchright-core";
 
 /**
  * The parts of the Playwright MCP tool backend in patchright-core that turno-browser uses as a
@@ -79,6 +79,27 @@ export interface BrowserBackendInstance {
   dispose(): Promise<void>;
   on(event: "dynamictoolschange" | "disconnected", listener: () => void): unknown;
   once(event: "disconnected", listener: () => void): unknown;
+}
+
+/** One tab of upstream's `Context` (`tab.ts`): only the page is read. */
+interface UpstreamTab {
+  page: Page;
+}
+
+/** Upstream's per-session `Context` (`context.ts`), which `BrowserBackend` keeps in `_context`. */
+export interface UpstreamContext {
+  /** Every tab, in the order `browser_tabs` numbers them. */
+  tabs(): UpstreamTab[];
+  /** The tab the stock tools act on. */
+  currentTab(): UpstreamTab | undefined;
+}
+
+/**
+ * The tabs of a `BrowserBackend`, for the tab governor (ADR 0048): `initialize` builds the
+ * `Context` and keeps it in `_context` (pinned by the contract test). Undefined before that.
+ */
+export function backendContext(backend: BrowserBackendInstance): UpstreamContext | undefined {
+  return (backend as unknown as { _context?: UpstreamContext })._context;
 }
 
 /** A tool as it goes out in `tools/list`. */

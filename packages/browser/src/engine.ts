@@ -3,6 +3,7 @@ import type { Browser, BrowserContext } from "patchright-core";
 import { findProfileChrome, readLockPid } from "./lifecycle.js";
 import { acquireRuntimeLock } from "./runtime-lock.js";
 import { launchSettings, readIdentitySettings, systemTimezone } from "./settings.js";
+import { type Tuning, launchTuning } from "./tuning.js";
 import { type ClientInfo, type IdleTimerLike, type McpConfig, playwright, upstream } from "./upstream.js";
 
 /**
@@ -49,6 +50,8 @@ export interface LaunchRequest {
   title: string;
   /** The identity whose profile this is (`--identity`), for its settings and runtime lock. */
   identity?: IdentityRef;
+  /** How to run this browser (ADR 0048); the chrome engine applies `backgroundThrottling`. */
+  tuning?: Tuning;
 }
 
 /** A browser identity as the host knows it: its id and the environment that locates its files. */
@@ -145,11 +148,13 @@ function profileInUse(identity: IdentityRef | undefined, userDataDir: string): E
  *
  * For an identity (ADR 0044) it also takes the identity's runtime lock before Chrome starts,
  * records Chrome's PID and process group in it, gives it back when Chrome closes, and applies
- * identity.json: languages and locale as Chrome flags, the time zone as `timezoneId`.
+ * identity.json: languages and locale as Chrome flags, the time zone as `timezoneId`. With
+ * `backgroundThrottling` (ADR 0048) it drops Playwright's three anti-throttling switches and
+ * turns off its focus emulation (`launchTuning`).
  */
 const chromeEngine: Engine = {
   id: "chrome",
-  async launch({ config, clientInfo, title, identity }) {
+  async launch({ config, clientInfo, title, identity, tuning }) {
     const userDataDir = config.browser.userDataDir;
     if (userDataDir === undefined) throw new Error("the chrome engine needs a profile directory");
     const { tools } = upstream();
@@ -163,15 +168,17 @@ const chromeEngine: Engine = {
       const ignore = config.browser.launchOptions.ignoreDefaultArgs;
       const userArgs = (config.browser.launchOptions.args as string[] | undefined) ?? [];
       const applied = launchSettings(settings, userArgs, systemTimezone(), config.browser.contextOptions);
+      const tuned = tuning ? launchTuning(tuning) : { ignoreDefaultArgs: [], contextOptions: {} };
       const launchOptions = {
         tracesDir,
         ...config.browser.launchOptions,
+        ...tuned.contextOptions,
         ...config.browser.contextOptions,
         ...(applied.args.length ? { args: [...userArgs, ...applied.args] } : {}),
         ...(applied.timezoneId ? { timezoneId: applied.timezoneId } : {}),
         handleSIGINT: false,
         handleSIGTERM: false,
-        ignoreDefaultArgs: ignore === true ? true : ["--disable-extensions", ...(Array.isArray(ignore) ? ignore : [])],
+        ignoreDefaultArgs: ignore === true ? true : ["--disable-extensions", ...tuned.ignoreDefaultArgs, ...(Array.isArray(ignore) ? ignore : [])],
       };
       try {
         context = await playwright()[config.browser.browserName].launchPersistentContext(userDataDir, launchOptions);

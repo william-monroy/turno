@@ -7,9 +7,10 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { buildArgv } from "../src/argv.js";
+import { TUNING_FLAGS, buildArgv } from "../src/argv.js";
 import { mcpEntryPath } from "../src/patchright.js";
 import { TURNO_TOOLS, checkTurnoTools } from "../src/tools.js";
+import { BACKGROUND_SWITCHES } from "../src/tuning.js";
 import { upstream } from "../src/upstream.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
@@ -247,6 +248,28 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
     expect(server).toContain('content: [{ type: "text", text: "### Error\\n" + String(error) }],');
     expect(bundleFunction("toMcpTool")).toContain("inputSchema: zod.toJSONSchema(tool.inputSchema),");
     expect(bundleFunction("start")).toContain("if (options.port === void 0) {");
+  });
+
+  it("keeps each session's tabs where the tab governor reads them (ADR 0048)", () => {
+    const backend = lib().BrowserBackend.toString();
+    expect(backend).toMatch(/this\._context = new Context\(this\._browserContext, \{/);
+    const context = bundleSource.slice(bundleSource.indexOf("    Context = class {"), bundleSource.indexOf("// packages/playwright-core/src/tools/backend/response.ts"));
+    expect(context).toMatch(/\n {6}tabs\(\) \{\n {8}return this\._tabs;/);
+    expect(context).toMatch(/\n {6}currentTab\(\) \{\n {8}return this\._currentTab;/);
+    expect(context).toContain("const tab2 = new Tab(this, page, isolatedContext, (tab3) => this._onPageClosed(tab3));");
+    expect(bundleSource).toMatch(/Tab = class _Tab extends import_events\d+\.EventEmitter \{\n {6}constructor\(context, page, isolatedContext, onPageClose\) \{[\s\S]*?this\.page = page;/);
+  });
+
+  it("launches Chromium with the anti-throttling switches and focus emulation that backgroundThrottling turns off", () => {
+    const switches = bundleSource.slice(bundleSource.indexOf("chromiumSwitches = (options) => ["), bundleSource.indexOf("chromiumSwitches = (options) => [") + 3000);
+    for (const flag of BACKGROUND_SWITCHES) expect(switches).toContain(`"${flag}"`);
+    expect(bundleSource).toContain('if (this._isMainFrame() && !this._crPage._browserContext._options.focusControl)\n            promises2.push(this._client.send("Emulation.setFocusEmulationEnabled", { enabled: true }));');
+  });
+
+  it("has no option with the name of a turno flag", () => {
+    const help = execFileSync(process.execPath, [bin, "--help"], { env: sb.env, encoding: "utf8" });
+    const upstreamPart = help.slice(help.indexOf("Every other flag is a Playwright MCP flag:"));
+    for (const flag of Object.keys(TUNING_FLAGS)) expect(upstreamPart).not.toContain(`${flag} `);
   });
 
   it("has no upstream tool with the name of a turno tool", () => {

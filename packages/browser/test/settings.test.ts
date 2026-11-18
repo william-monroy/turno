@@ -47,7 +47,7 @@ describe("writeIdentitySettings", () => {
   it("creates the file with the schema version and timestamps, mode 600", () => {
     const s = writeIdentitySettings("school", { timezone: "America/Monterrey", languages: ["es-MX", "es", "en"], region: "mx" }, sb.env, T0);
     expect(s).toEqual({
-      version: IDENTITY_FORMAT_VERSION,
+      version: 1,
       timezone: "America/Monterrey",
       languages: ["es-MX", "es", "en"],
       region: "MX",
@@ -111,7 +111,31 @@ describe("reading and checking", () => {
   it("refuses a newer schema version instead of guessing", () => {
     addIdentity("newer", sb.env);
     writeFileSync(identitySettingsPath("newer", sb.env), JSON.stringify({ version: 99, created: T0.toISOString(), updated: T0.toISOString() }));
-    expect(checkIdentitySettings("newer", sb.env).problems).toEqual(["is format 99, from a newer turno-browser (this one reads up to 1); update turno-browser"]);
+    expect(checkIdentitySettings("newer", sb.env).problems).toEqual([`is format 99, from a newer turno-browser (this one reads up to ${IDENTITY_FORMAT_VERSION}); update turno-browser`]);
+  });
+
+  it("writes format 2 only while a browser key (tabs, backgroundThrottling) is set", () => {
+    const s = writeIdentitySettings("tuned", { tabs: { max: 4, popups: "keep", park: "2m", close: "0" }, backgroundThrottling: true }, sb.env, T0);
+    expect(s).toEqual({
+      version: 2,
+      tabs: { max: 4, popups: "keep", park: "2m", close: "0" },
+      backgroundThrottling: true,
+      created: T0.toISOString(),
+      updated: T0.toISOString(),
+    });
+    expect(readIdentitySettings("tuned", sb.env)).toEqual(s);
+    expect(writeIdentitySettings("tuned", { tabs: null, backgroundThrottling: null }, sb.env, T1).version).toBe(1);
+  });
+
+  it("names every bad browser key and leaves the file as it was", () => {
+    expect(() =>
+      writeIdentitySettings("tuned", { tabs: { max: -1, popups: "never" as "keep", park: "soon", close: "5x" }, backgroundThrottling: "yes" as unknown as boolean }, sb.env),
+    ).toThrow(
+      /tabs\.max must be a whole number from 0 \(no cap\) to 100; tabs\.popups must be "close" or "keep"; tabs\.park must be a duration like "5m" or "0" \(off\); tabs\.close must be a duration.*; backgroundThrottling must be true or false/,
+    );
+    addIdentity("odd", sb.env);
+    writeFileSync(identitySettingsPath("odd", sb.env), JSON.stringify({ version: 2, tabs: { size: 3 }, created: T0.toISOString(), updated: T0.toISOString() }));
+    expect(checkIdentitySettings("odd", sb.env).problems).toEqual(['unknown key "tabs.size"']);
   });
 });
 

@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assertIdentityId, identityDir } from "./identities.js";
 import { paths } from "./paths.js";
+import type { TuningFlags } from "./tuning.js";
+import { parseDuration } from "./units.js";
 
 /**
  * Turns `turno-browser-mcp [--identity <id>] [playwright-mcp flags]` into the argv for the
@@ -21,6 +23,9 @@ import { paths } from "./paths.js";
  * Headed mode and `viewport: null` are already the program's defaults for headed runs, so
  * nothing is added for them; no init scripts are ever added.
  *
+ * The tab governor and background throttling flags of ADR 0048 (`TUNING_FLAGS`) are turno's: they
+ * are taken out here and win over identity.json.
+ *
  * An identity holds saved logins, so serving it over HTTP (`--port`, `--host`) lets any local
  * process drive a signed-in browser without the stdio pipe or mcpd's token. That needs
  * `--allow-http-identity`, and even then the server binds to 127.0.0.1 and keeps the Host check
@@ -37,6 +42,8 @@ export interface BuiltArgv {
   tempDir?: string;
   /** The Playwright MCP config to write before the program starts, when turno passes one. */
   config?: { path: string; data: PlaywrightMcpConfig };
+  /** turno's own flags for the host (ADR 0048), when any was given. */
+  tuning?: TuningFlags;
 }
 
 /** The keys of the Playwright MCP config file that turno sets (pinned by the contract test). */
@@ -113,6 +120,61 @@ function hasAny(args: string[], flags: string[]): boolean {
   return flags.some((f) => hasFlag(args, f));
 }
 
+/** turno's flags for the tab governor and background throttling, with what each takes. */
+export const TUNING_FLAGS = {
+  "--max-tabs": "<n>",
+  "--popups": "<close|keep>",
+  "--park-after": "<duration>",
+  "--close-after": "<duration>",
+  "--background-throttling": "",
+} as const;
+
+function tuningValue(flag: keyof typeof TUNING_FLAGS, value: string, out: TuningFlags): void {
+  if (flag === "--max-tabs") {
+    if (!/^\d+$/.test(value) || Number(value) > 100) throw new Error(`--max-tabs must be a whole number from 0 (no cap) to 100, not "${value}"`);
+    out.maxTabs = Number(value);
+  } else if (flag === "--popups") {
+    if (value !== "close" && value !== "keep") throw new Error(`--popups must be "close" or "keep", not "${value}"`);
+    out.popups = value;
+  } else {
+    const ms = parseDuration(value);
+    if (ms === undefined) throw new Error(`${flag} must be a duration like "5m", "90s" or "0" (off), not "${value}"`);
+    if (flag === "--park-after") out.parkAfterMs = ms;
+    else out.closeAfterMs = ms;
+  }
+}
+
+/** Removes turno's tuning flags (`TUNING_FLAGS`) from args and returns their values. */
+export function extractTuning(args: string[]): { tuning?: TuningFlags; rest: string[] } {
+  const rest: string[] = [];
+  const out: TuningFlags = {};
+  let any = false;
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    const eq = a.indexOf("=");
+    const name = (eq > 0 ? a.slice(0, eq) : a) as keyof typeof TUNING_FLAGS;
+    if (!Object.hasOwn(TUNING_FLAGS, name)) {
+      rest.push(a);
+      continue;
+    }
+    any = true;
+    if (name === "--background-throttling") {
+      if (eq > 0) throw new Error("--background-throttling takes no value");
+      out.backgroundThrottling = true;
+      continue;
+    }
+    let value: string | undefined;
+    if (eq > 0) value = a.slice(eq + 1);
+    else {
+      value = args[i + 1];
+      if (value === undefined || value.startsWith("--")) throw new Error(`${name} needs a value ${TUNING_FLAGS[name]}`);
+      i++;
+    }
+    tuningValue(name, value, out);
+  }
+  return any ? { tuning: out, rest } : { rest };
+}
+
 /** Removes `--identity <id>` / `--identity=<id>` from args and returns the id. */
 export function extractIdentity(args: string[]): { identity?: string; rest: string[] } {
   const rest: string[] = [];
@@ -140,12 +202,13 @@ function defaultTempDir(): string {
 
 export function buildArgv(rawArgs: string[], options: BuildOptions = {}): BuiltArgv {
   const env = options.env ?? process.env;
-  const { identity, rest } = extractIdentity(rawArgs);
+  const { identity, rest: afterIdentity } = extractIdentity(rawArgs);
+  const { tuning, rest } = extractTuning(afterIdentity);
   const allowHttp = rest.includes(ALLOW_HTTP_IDENTITY);
   const args = rest.filter((a) => a !== ALLOW_HTTP_IDENTITY);
   guardHttp(args, identity, allowHttp);
   const external = hasAny(args, EXTERNAL_BROWSER);
-  const out: BuiltArgv = { args };
+  const out: BuiltArgv = { args, ...(tuning ? { tuning } : {}) };
   if (identity !== undefined) {
     const clash = ["--user-data-dir", "--isolated", ...EXTERNAL_BROWSER].find((f) => hasFlag(args, f));
     if (clash) throw new Error(`--identity cannot be combined with ${clash}`);

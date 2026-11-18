@@ -266,7 +266,11 @@ server: Chrome still closes when idle, and mcpd stops the server when the sessio
 under critical memory pressure. Do not declare an identity as `session`: two sessions would
 share one profile, and the second would find it in use. A Chrome left running by a server that
 was killed is closed the next time the identity starts. See
-[ADR 0042](decisions/0042-browser-lifecycle.md).
+[ADR 0042](decisions/0042-browser-lifecycle.md). While it runs, at most 8 pages stay open,
+popups that open while no tool call runs are closed, and a page unused for 5 minutes is parked on
+about:blank (15 minutes: closed); `tabs` in the identity's identity.json or the server's
+`--max-tabs`, `--popups`, `--park-after` and `--close-after` flags change that
+([ADR 0048](decisions/0048-browser-tab-governor.md)).
 
 When mcpd stops a browser server it closes its stdin and waits 5 seconds (`stop_grace`) before
 SIGTERM, so the server closes Chrome and writes its profile on its own; other servers keep the
