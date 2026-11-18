@@ -2,5 +2,5 @@
 #   git config blame.ignoreRevsFile .git-blame-ignore-revs
 # and GitHub's blame view reads this file on its own.
 
-# style: format the code with Biome
-ec3d700ff1bff072f865c25575413517328dd479
+# build: format the code with Biome and check it in CI (#69)
+00358d8fa7ae6e7620f44f7aadb5427735bef173
