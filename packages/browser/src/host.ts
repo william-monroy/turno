@@ -1,17 +1,19 @@
 import { EventEmitter } from "node:events";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { CallToolRequestSchema, type CallToolResult, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { explainFailure } from "./diagnose.js";
 import { type Engine, type IdentityRef, type LaunchedBrowser, createUpstreamEngine, selectEngine } from "./engine.js";
 import { TabGovernor } from "./governor.js";
 import { type HealthContext, NEEDS_AUTH_HOLD_MS, healthDue, needsAuthMessage, readHealth, runHealthCheck, writeHealth } from "./health.js";
 import { recordChallenge, watchChallenges } from "./reputation.js";
 import { sessionFromMeta } from "./session.js";
 import { readIdentitySettings } from "./settings.js";
-import { TURNO_TOOLS, type TurnoTool, checkTurnoTools, parseArguments } from "./tools.js";
+import { type StockAccess, TURNO_TOOLS, type TurnoTool, checkTurnoTools, parseArguments } from "./tools.js";
 import { type Tuning, type TuningFlags, resolveTuning } from "./tuning.js";
 import {
   type BrowserBackendInstance,
@@ -22,6 +24,7 @@ import {
   type ToolResult,
   type ToolSchemaJson,
   type UpstreamTool,
+  type ZodObject,
   backendContext,
   toMcpTool,
   upstream,
@@ -43,7 +46,10 @@ import {
  *   next call, with the same profile;
  * - runs the tab governor on that browser and wraps each stock call with it (ADR 0048): a parked
  *   tab loads again before a call uses it, and what the governor did since the last call is
- *   added to the result.
+ *   added to the result; a click or type that fails because of the element gets an error that
+ *   says what is in the way (`diagnose.ts`);
+ * - gives each browser its own copy of the config, so the identity's `settle` and a batch's
+ *   snapshot-free steps change only that session.
  *
  * stdio, the transport mcpd and every agent use, is served by turno with the MCP SDK.
  * `--port` keeps upstream's HTTP server (Host check, streamable HTTP and SSE) serving the
@@ -130,6 +136,8 @@ function errorResult(message: string, json: boolean): ToolResult {
 /** A session's running browser, as the host drives it. */
 interface Running {
   backend: BrowserBackendInstance;
+  /** The config this browser's `BrowserBackend` reads on every call (a copy per launch). */
+  config: McpConfig;
   launched: LaunchedBrowser;
   governor: TabGovernor;
   tuning: Tuning;
@@ -148,6 +156,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       config: McpConfig;
       cliOptions: Record<string, unknown>;
       stock: UpstreamTool[];
+      stockSchemas: ReadonlyMap<string, ZodObject>;
       turno: Map<string, TurnoTool>;
       engine: Engine;
       identity?: IdentityRef;
@@ -208,7 +217,8 @@ class SessionBackend extends EventEmitter implements ServerBackend {
           this.launched = undefined;
         }
       };
-      const backend = new BrowserBackend(config, launched.context, stock, {
+      const sessionConfig = configForSession(config, cliOptions, tuning);
+      const backend = new BrowserBackend(sessionConfig, launched.context, stock, {
         ...(launched.idleTimer ? { idleTimer: launched.idleTimer } : {}),
         dispose: async () => {
           gone();
@@ -235,7 +245,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         this.live = backend;
         this.launched = launched;
       }
-      return { backend, launched, governor, tuning };
+      return { backend, config: sessionConfig, launched, governor, tuning };
     })();
     promise.catch(() => {
       if (this.current === promise) this.current = undefined;
@@ -256,13 +266,22 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     if ("error" in parsed) return errorResult(parsed.error, json);
     const clientInfo = this.info();
     let browserContext: LaunchedBrowser["context"] | undefined;
+    let stock: StockAccess | undefined;
     if (tool.browser !== false) {
-      const { launched } = await this.browser();
-      launched.idleTimer?.poke();
-      browserContext = launched.context;
+      const running = await this.browser();
+      running.launched.idleTimer?.poke();
+      browserContext = running.launched.context;
+      stock = this.stockAccess(running, signal);
     }
     try {
-      const context = { config: this.host.config, clientInfo, ...(browserContext ? { browserContext } : {}), ...(signal ? { signal } : {}), ...(session ? { session } : {}) };
+      const context = {
+        config: this.host.config,
+        clientInfo,
+        ...(browserContext ? { browserContext } : {}),
+        ...(stock ? { stock } : {}),
+        ...(signal ? { signal } : {}),
+        ...(session ? { session } : {}),
+      };
       return await tool.handle(context, parsed.params);
     } catch (error) {
       return errorResult(String(error), json);
@@ -275,20 +294,39 @@ class SessionBackend extends EventEmitter implements ServerBackend {
    * comes to the front (a tab in the background would not render, and an action on it would
    * wait for its timeout).
    */
-  private async callStock(name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<ToolResult> {
-    const { backend, governor, tuning } = await this.browser();
+  private async callStock(name: string, args: Record<string, unknown>, signal?: AbortSignal, options: { snapshot?: boolean } = {}): Promise<ToolResult> {
+    const { backend, config, governor, tuning } = await this.browser();
     const json = !!(args._meta as { json?: boolean } | undefined)?.json;
+    const snapshot = config.snapshot ?? {};
+    const mode = snapshot.mode;
+    if (options.snapshot === false) config.snapshot = { ...snapshot, mode: "none" };
     governor.beginCall();
     let result: ToolResult;
     try {
       await governor.prepare(name, args);
       if (tuning.backgroundThrottling && name !== "browser_tabs") await backendContext(backend)?.currentTab()?.page.bringToFront().catch(() => {});
       result = await backend.callTool(name, args, signal);
+      if (result.isError) result = await explainFailure(backendContext(backend)?.currentTab()?.page, name, args, result, json);
       await governor.afterCall();
     } finally {
       governor.endCall();
+      if (options.snapshot === false) config.snapshot = { ...snapshot, ...(mode === undefined ? {} : { mode }) };
     }
     return withGovernor(result, governor, json);
+  }
+
+  /** The stock tools of this session, for a turno tool that runs them (`browser_batch`). */
+  private stockAccess(running: Running, signal?: AbortSignal): StockAccess {
+    return {
+      schemas: this.host.stockSchemas,
+      formatError: (error) => upstream().utils.z.prettifyError(error),
+      call: (name, args, options) => this.callStock(name, args, signal, options),
+      page: async () => {
+        const page = backendContext(running.backend)?.currentTab()?.page;
+        if (!page) return undefined;
+        return { url: page.url(), title: await page.title().catch(() => "") };
+      },
+    };
   }
 
   async dispose(): Promise<void> {
@@ -299,6 +337,29 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     this.live = undefined;
     this.launched = undefined;
     if (current) await current.then(({ backend }) => backend.dispose()).catch(() => {});
+  }
+}
+
+/**
+ * The config of one launch: a copy, so a change for this session (a batch's snapshot-free
+ * steps) does not reach another, with the identity's `settle` (ADR 0048) unless the user set
+ * Playwright's own `--timeout-settle`, `PLAYWRIGHT_MCP_TIMEOUT_SETTLE` or `timeouts.settle` in a
+ * config file, which win.
+ */
+export function configForSession(config: McpConfig, cliOptions: Record<string, unknown>, tuning: Tuning): McpConfig {
+  const timeouts = { ...config.timeouts };
+  if (tuning.settleMs !== undefined && !userSetSettle(config, cliOptions)) timeouts.settle = tuning.settleMs;
+  return { ...config, timeouts, snapshot: { ...config.snapshot } };
+}
+
+function userSetSettle(config: McpConfig, cliOptions: Record<string, unknown>): boolean {
+  if (cliOptions.timeoutSettle !== undefined) return true;
+  if (!config.configFile) return false;
+  try {
+    const file = JSON.parse(readFileSync(resolve(config.configFile), "utf8")) as { timeouts?: { settle?: unknown } };
+    return file.timeouts?.settle !== undefined;
+  } catch {
+    return false;
   }
 }
 
@@ -340,6 +401,7 @@ export function createHost(options: HostOptions): Host {
   const { tools } = upstream();
   const { config, cliOptions } = options;
   const stock = tools.filteredTools(config);
+  const stockSchemas = new Map(stock.map((t) => [t.schema.name, t.schema.inputSchema]));
   const turnoTools = options.turnoTools ?? TURNO_TOOLS;
   checkTurnoTools(turnoTools, tools.browserTools);
   const turno = new Map(turnoTools.map((t) => [t.schema.name, t]));
@@ -351,7 +413,7 @@ export function createHost(options: HostOptions): Host {
     sessionsByName.set(clientInfo.clientName, count);
     return count > 1 ? `${clientInfo.clientName} (${count})` : clientInfo.clientName;
   };
-  const shared = { config, cliOptions, stock, turno, engine, tuning: options.tuning ?? {}, ...(options.identity ? { identity: options.identity } : {}) };
+  const shared = { config, cliOptions, stock, stockSchemas, turno, engine, tuning: options.tuning ?? {}, ...(options.identity ? { identity: options.identity } : {}) };
   return {
     config,
     listTools: () => schemas.map(toMcpTool),

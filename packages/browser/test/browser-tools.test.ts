@@ -13,7 +13,8 @@ import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
  * The browser tools of ADR 0048 against a real Google Chrome, through the built server: the tab
- * governor (popups, cap, parking) and background throttling. Every Chrome runs on a profile in
+ * governor (popups, cap, parking), background throttling, the click diagnosis, browser_batch
+ * and the settle setting. Every Chrome runs on a profile in
  * the test's sandbox HOME; cleanup only signals processes whose command line names it.
  *
  * Skipped, with the reason in the suite name, when Chrome is missing or cannot start (or with
@@ -79,6 +80,20 @@ async function site(): Promise<{ url: string; requested: Map<string, number>; cl
     // usually over (the test turns Chrome's popup blocker off, so no click is needed).
     "/delayed-popup": `<title>delayed</title><script>setTimeout(() => window.open('/plain?ad'), 3500)</script>delayed`,
     "/link": `<title>link</title><a href="/b" target="_blank">Open B</a><button onclick="document.title='clicked'">Press</button>`,
+    "/covered": `<title>covered</title><button id="save" onclick="document.title='saved'">Save</button>
+      <div class="cookie-banner" role="dialog" aria-label="We use cookies" style="position:fixed;inset:0;background:#fff">
+        <p>We use cookies</p><button>Accept all</button><button>Reject</button></div>`,
+    "/disabled": `<title>disabled</title><button id="go" disabled>Continue</button>`,
+    "/hidden": `<title>hidden</title><nav class="menu" aria-label="Menu" style="display:none"><a id="settings" href="/b">Settings</a></nav>`,
+    "/form": `<title>Sign up</title><h1>Sign up</h1>
+      <form onsubmit="event.preventDefault(); fetch('/api/save').then(() => document.getElementById('out').textContent = 'Saved ' + document.getElementById('name').value)">
+        <label>Name <input id="name"></label>
+        <label>Plan <select id="plan"><option>Free</option><option>Pro</option></select></label>
+        <label><input id="agree" type="checkbox"> I agree</label>
+        <button id="submit">Save</button>
+      </form><p id="out"></p>`,
+    "/api/save": "{}",
+    "/later": `<title>before</title><button id="go" onclick="setTimeout(() => { document.title = 'after'; }, 1500)">Go</button>`,
     // Timer ticks in the last second, and whether the page was ever hidden, kept in the DOM (a
     // stock tool's evaluate runs in an isolated world).
     "/busy": `<title>busy</title><script>
@@ -173,6 +188,83 @@ describe.skipIf(reason !== undefined)(reason ? `browser tools on real Chrome (sk
     const after = await call(client, "browser_tabs", { action: "list" });
     expect(after).toMatch(/closed a tab unused for \d+ seconds \(/);
     expect(after.match(/^- \d+:/gm)).toHaveLength(1);
+  }, 90_000);
+
+  it("says which element covers the target of a failed click, and what the page offers to close it", async () => {
+    const web = await site();
+    onTestFinished(() => web.close());
+    const client = await start("diagnose", ["--timeout-action", "1500"]);
+    await call(client, "browser_navigate", { url: `${web.url}/covered` });
+    const res = await client.callTool({ name: "browser_click", arguments: { target: "#save", element: "Save button" } });
+    expect(res.isError).toBe(true);
+    const text = textOf(res);
+    expect(text).toContain('### Error\nCould not click button "Save" (button#save), #save: dialog "We use cookies" (div.cookie-banner) covers it and would get the click instead.');
+    expect(text).toContain('Next: close or answer that element first (it has "Accept all", "Reject")');
+    expect(text).toContain("Playwright: ");
+
+    await call(client, "browser_navigate", { url: `${web.url}/disabled` });
+    expect(textOf(await client.callTool({ name: "browser_click", arguments: { target: "#go" } }))).toContain('Could not click button "Continue" (button#go), #go: it is disabled.');
+    await call(client, "browser_navigate", { url: `${web.url}/hidden` });
+    expect(textOf(await client.callTool({ name: "browser_click", arguments: { target: "#settings" } }))).toContain(
+      'Could not click link "Settings" (a#settings), #settings: it is not visible (navigation "Menu" (nav.menu) hides it).',
+    );
+
+    // JSON results keep their shape.
+    await call(client, "browser_navigate", { url: `${web.url}/covered` });
+    const json = await client.callTool({ name: "browser_click", arguments: { target: "#save", _meta: { json: true } } });
+    const payload = JSON.parse(textOf(json)) as { isError: boolean; error: string };
+    expect(payload.isError).toBe(true);
+    expect(payload.error).toMatch(/^Could not click button "Save" .* covers it/);
+  }, 60_000);
+
+  it("runs a batch of actions in one call, with one snapshot at the end", async () => {
+    const web = await site();
+    onTestFinished(() => web.close());
+    const client = await start("batch");
+    const text = await call(client, "browser_batch", {
+      actions: [
+        { tool: "browser_navigate", arguments: { url: `${web.url}/form` } },
+        { tool: "browser_type", arguments: { target: "#name", text: "Alice" } },
+        { tool: "browser_select_option", arguments: { target: "#plan", values: ["Pro"] } },
+        { tool: "browser_click", arguments: { target: "#agree" } },
+        { tool: "browser_click", arguments: { target: "#submit" } },
+        { tool: "browser_wait_for", arguments: { text: "Saved Alice" } },
+      ],
+      snapshot: true,
+    });
+    expect(text).toMatch(/### Batch\n1\. browser_navigate http:\/\/127\.0\.0\.1:\d+\/form: ok/);
+    expect(text).toContain("6. browser_wait_for Saved Alice: ok");
+    expect(text.match(/### Snapshot/g)).toHaveLength(1);
+    expect(text).toContain("Saved Alice");
+    expect(text).toMatch(/checkbox "I agree" \[checked\]/);
+
+    const failed = await client.callTool({
+      name: "browser_batch",
+      arguments: {
+        actions: [
+          { tool: "browser_navigate", arguments: { url: `${web.url}/covered` } },
+          { tool: "browser_click", arguments: { target: "#save" } },
+          { tool: "browser_press_key", arguments: { key: "Enter" } },
+        ],
+      },
+    });
+    expect(failed.isError).toBe(true);
+    expect(textOf(failed)).toMatch(/^### Error\nAction 2 of 3 \(browser_click #save\) failed; the last action did not run\.\nCould not click button "Save"/);
+  }, 90_000);
+
+  it("waits the identity's settle after an action before it reads the page", async () => {
+    const web = await site();
+    onTestFinished(() => web.close());
+    // The click changes the title 1.5 s later: the result shows the new title only when the
+    // settle after the click is longer than that.
+    const after = async (id: string, settle: string) => {
+      writeIdentitySettings(id, { settle }, sb.env);
+      const client = await start(id);
+      await call(client, "browser_navigate", { url: `${web.url}/later` });
+      return call(client, "browser_click", { target: "#go" });
+    };
+    expect(await after("settle-long", "3s")).toContain("- Page Title: after");
+    expect(await after("settle-zero", "0")).toContain("- Page Title: before");
   }, 90_000);
 
   it("keeps background tabs at full speed by default", async () => {

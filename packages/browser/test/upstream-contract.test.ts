@@ -54,6 +54,9 @@ const tools = (createRequire(import.meta.url)(bundlePath) as { tools: McpTools }
 const lib = () => upstream().tools;
 
 /** The tools a default `turno-browser-mcp` serves, in the order it lists them. */
+/** The turno tools, listed after the stock ones. */
+const TURNO_NAMES = ["browser_batch"];
+
 const TOOL_NAMES = [
   "browser_close",
   "browser_resize",
@@ -110,7 +113,8 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
     await client.connect(transport);
     try {
       const { tools: listed } = await client.listTools();
-      expect(listed.map((t) => t.name)).toEqual(TOOL_NAMES);
+      // The stock tools in upstream's order, then turno's (ADR 0048).
+      expect(listed.map((t) => t.name)).toEqual([...TOOL_NAMES, ...TURNO_NAMES]);
     } finally {
       await client.close();
     }
@@ -144,8 +148,9 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
     for (const caps of [[], ["--caps", "vision,pdf,devtools"]]) {
       const host = await listToolsOver([bin, "--identity", "contract", ...caps], sb.env, sb.home);
       const stock = await listToolsOver([mcpEntryPath(), "--browser", "chrome", "--user-data-dir", join(sb.home, "stock"), ...caps], sb.env, sb.home);
-      expect(host.length).toBeGreaterThanOrEqual(25);
-      expect(host).toEqual(stock);
+      expect(host.length).toBeGreaterThanOrEqual(25 + TURNO_NAMES.length);
+      expect(host.slice(0, host.length - TURNO_NAMES.length)).toEqual(stock);
+      expect(host.slice(-TURNO_NAMES.length).map((t) => (t as { name: string }).name)).toEqual(TURNO_NAMES);
     }
   });
 
@@ -168,7 +173,7 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
       const client = new Client({ name: "contract", version: "0.0.0" });
       await client.connect(new StreamableHTTPClientTransport(new URL(`${url}/mcp`)));
       const { tools: listed } = await client.listTools();
-      expect(listed.map((t) => t.name)).toEqual(TOOL_NAMES);
+      expect(listed.map((t) => t.name)).toEqual([...TOOL_NAMES, ...TURNO_NAMES]);
       expect(client.getServerVersion()?.name).toBe("turno-browser");
       await client.close();
     } finally {
@@ -264,6 +269,20 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
     const switches = bundleSource.slice(bundleSource.indexOf("chromiumSwitches = (options) => ["), bundleSource.indexOf("chromiumSwitches = (options) => [") + 3000);
     for (const flag of BACKGROUND_SWITCHES) expect(switches).toContain(`"${flag}"`);
     expect(bundleSource).toContain('if (this._isMainFrame() && !this._crPage._browserContext._options.focusControl)\n            promises2.push(this._client.send("Emulation.setFocusEmulationEnabled", { enabled: true }));');
+  });
+
+  it("reads the settle and snapshot mode the host changes per session from the config, on every call (ADR 0048)", () => {
+    expect(bundleSource).toContain("const settleMs = tab2.context.config.timeouts?.settle ?? 500;");
+    expect(bundleSource).toContain('this._includeSnapshot = this._context.config.snapshot?.mode ?? "full";');
+    expect(bundleSource).toContain('const ariaFormat = this._includeSnapshot === "none" ? "none"');
+    expect(bundleSource).toContain("settle: cliOptions.timeoutSettle");
+    expect(bundleSource).toContain("options.timeoutSettle = numberParser(e.PLAYWRIGHT_MCP_TIMEOUT_SETTLE);");
+  });
+
+  it("reports a failed action the way the click diagnosis reads it", () => {
+    expect(bundleSource).toContain('content: [{ type: "text", text: json ? JSON.stringify({ isError: true, error: message }, null, 2) : `### Error\n${message}` }],');
+    expect(bundleSource).toContain("throw new Error(`Ref ${param.target} not found in the current page snapshot. Try capturing new snapshot.`);");
+    expect(bundleSource).toMatch(/getByRef\(ref\) \{\n\s+return this\.locator\(`aria-ref=\$\{ref\}`\);/);
   });
 
   it("has no option with the name of a turno flag", () => {

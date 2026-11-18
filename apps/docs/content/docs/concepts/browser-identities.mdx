@@ -73,6 +73,20 @@ and brings the agent's tab to the front before each call. It suits a headless br
 left in view: a covered headed window stops rendering. See
 [ADR 0048](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0048-browser-tab-governor.md).
 
+## Actions
+
+turno adds `browser_batch` to the browser tools: it runs several actions (`browser_type`,
+`browser_click`, `browser_select_option`, ...) in order in one call, stops at the first one that
+fails, and returns one line per action plus, when asked, one snapshot at the end. A form filled
+in one call costs the agent one round trip instead of one per field.
+
+When a click or a type fails because of the page, the error says why: the element that covers
+the target (a cookie banner, a dialog) with its buttons, or that the target is hidden or
+disabled, and the next step. Playwright waits 500 ms after each action for the work it started;
+`"settle": "100ms"` in `identity.json` shortens that wait (Playwright's own `--timeout-settle`
+wins over it). See
+[ADR 0051](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0051-browser-batch-and-action-errors.md).
+
 ## Session health
 
 An optional health check names a page and what it shows only when signed in:

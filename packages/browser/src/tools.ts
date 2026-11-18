@@ -1,4 +1,5 @@
 import type { BrowserContext } from "patchright-core";
+import { batchTool } from "./batch.js";
 import { type ClientInfo, type McpConfig, type ToolResult, type ToolSchema, type UpstreamTool, type Zod, type ZodObject, upstream } from "./upstream.js";
 
 /**
@@ -15,6 +16,21 @@ import { type ClientInfo, type McpConfig, type ToolResult, type ToolSchema, type
  *   it exactly like a stock tool's and arguments are validated the same way.
  */
 
+/** The session's stock tools, for a turno tool that runs them (`browser_batch`). */
+export interface StockAccess {
+  /** Input schema of each stock tool this session lists. */
+  schemas: ReadonlyMap<string, ZodObject>;
+  /** A zod error as upstream words it. */
+  formatError(error: unknown): string;
+  /**
+   * Runs a stock tool the way a call of its own runs (tab governor, click diagnosis); with
+   * `snapshot: false` the result leaves out the page snapshot an action would add.
+   */
+  call(name: string, args: Record<string, unknown>, options: { snapshot: boolean }): Promise<ToolResult>;
+  /** URL and title of the current tab, when there is one. */
+  page(): Promise<{ url: string; title: string } | undefined>;
+}
+
 interface TurnoToolContext {
   config: McpConfig;
   clientInfo: ClientInfo;
@@ -27,6 +43,8 @@ interface TurnoToolContext {
    * Undefined when the call did not come through mcpd.
    */
   session?: string;
+  /** The session's stock tools; set by the host for a tool with `browser: true`. */
+  stock?: StockAccess;
 }
 
 export interface TurnoTool {
@@ -36,8 +54,8 @@ export interface TurnoTool {
   handle(context: TurnoToolContext, params: Record<string, unknown>): Promise<ToolResult>;
 }
 
-/** The tools turno adds to every session. None yet: the registry is the extension point. */
-export const TURNO_TOOLS: readonly TurnoTool[] = [];
+/** The tools turno adds to every session (ADR 0051). */
+export const TURNO_TOOLS: readonly TurnoTool[] = [batchTool()];
 
 /** The zod of the bundle, to build a turno tool's `inputSchema` with. */
 export function turnoZod(): Zod {

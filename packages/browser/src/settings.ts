@@ -21,7 +21,7 @@ import { parseDuration } from "./units.js";
  * - `region`: the two-letter country the identity's sites know it from. Recorded, not applied.
  * - `health`: a URL and a text or selector that proves the identity is signed in (session
  *   health, `health.ts`).
- * - `tabs`, `backgroundThrottling` (format 2): how the host runs this identity's Chrome
+ * - `tabs`, `backgroundThrottling`, `settle` (format 2): how the host runs this identity's Chrome
  *   (ADR 0048, `tuning.ts`): the tab governor and background tab throttling.
  *
  * A missing file means Chrome's own defaults, as before identity.json existed.
@@ -37,7 +37,10 @@ import { parseDuration } from "./units.js";
 export const IDENTITY_FORMAT_VERSION = 2;
 
 /** The keys format 2 added. */
-const FORMAT_2_KEYS = ["tabs", "backgroundThrottling"] as const;
+const FORMAT_2_KEYS = ["tabs", "backgroundThrottling", "settle"] as const;
+
+/** Longest `settle` accepted: past this, a wait is a `browser_wait_for`, not a settle. */
+const MAX_SETTLE_MS = 10_000;
 
 /** The tab governor (`tuning.ts`): durations are strings like `"5m"`, `"0"` turns a stage off. */
 interface TabSettings {
@@ -69,6 +72,8 @@ export interface IdentitySettings {
   tabs?: TabSettings;
   /** True: let Chrome throttle tabs that are not in front (see `tuning.ts`). */
   backgroundThrottling?: boolean;
+  /** Wait after each action for the work it started, like `"250ms"` (Playwright's `timeouts.settle`). */
+  settle?: string;
   /** ISO dates. */
   created: string;
   updated: string;
@@ -102,6 +107,10 @@ function browserProblems(v: Record<string, unknown>, out: string[]): void {
     }
   }
   if (v.backgroundThrottling !== undefined && typeof v.backgroundThrottling !== "boolean") out.push("backgroundThrottling must be true or false");
+  if (v.settle !== undefined) {
+    const ms = typeof v.settle === "string" ? parseDuration(v.settle) : undefined;
+    if (ms === undefined || ms > MAX_SETTLE_MS) out.push('settle must be a duration from "0" to "10s", like "250ms"');
+  }
 }
 
 export function identitySettingsPath(id: string, env: NodeJS.ProcessEnv = process.env): string {
