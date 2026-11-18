@@ -6,7 +6,8 @@ The design lives in `docs/design/`, and every non-obvious choice is recorded in
 
 ## Hard rules
 
-- English everywhere in the repository: code, comments, CLI output, docs, ADRs, commits.
+- English everywhere in the repository: code, comments, CLI output, docs, ADRs, commits. The
+  only Spanish is `README.es.md` and the `*.es.mdx` pages of the docs site.
 - Never use the em dash character (U+2014). `pnpm check` fails if one appears.
 - Conventional Commits (`feat(mcpd): ...`, `fix(cli): ...`). No `Co-Authored-By`, no
   `Generated with`, no attribution trailers of any kind. The only author is the owner.
@@ -34,3 +35,8 @@ The design lives in `docs/design/`, and every non-obvious choice is recorded in
 - New commands go in `cli/registry.ts`; keep old names as aliases there. Writes to user files go
   through `core/journal.ts` so `turno undo` can revert them. Read commands take `--json`,
   write commands take `--dry-run` (shared flags in `cli/args.ts`).
+- The docs site is `apps/docs` (ADR 0046). Its reference and troubleshooting pages are
+  generated: after changing a command's help, a config or `mcp.toml` key, an exit code or a
+  doctor check, run `pnpm build && pnpm docs:generate` and commit the result (a new doctor
+  warning or failure also needs an entry in `apps/docs/reference/doctor-checks.mjs`).
+  `pnpm docs:check` runs what the `docs` workflow runs; `pnpm docs:dev` previews the site.

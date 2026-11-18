@@ -1,0 +1,23 @@
+turno demo ~ % turno profile list
+Profiles ───────────────────────────────────────────────────────────────────────
+              agent        account                     folders     role
+   personal   Claude Code  you@personal.example · pro  no folders  default
+   work       Claude Code  you@work.example · max      1 folder
+
+turno <name> opens one; turno profile assign <dir> gives a folder its profile.
+turno demo ~ % turno profile which ~/code/acme
+~/code/acme
+  assigned: work (project ~/code/acme)
+  using now: work
+turno demo ~ % cd ~/code/acme && turno profile which --check; echo exit code $?
+exit code 0
+turno demo ~/code/acme % cd ~ && turno limit show
+ personal   you@personal.example · pro
+  5 hours  ━━━━━━━━━━━━━━━━━━━━  38%  resets in 1h59m (Wed 18 01:17)
+  week     ━━━━━━━━━━━━━━━━━━━━  12%  resets in 3d 23h (Sat 21 23:17)
+  data from 2 min ago
+
+ work   you@work.example · max
+  5 hours  ━━━━━━━━━━━━━━━━━━━━  87%  resets in 59m (Wed 18 00:17)
+  week     ━━━━━━━━━━━━━━━━━━━━  64%  resets in 1d 23h (Thu 19 23:17)
+  data from 2 min ago

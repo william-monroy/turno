@@ -42,6 +42,15 @@ The three packages:
 | `turno-browser` | `packages/browser` | the persistent-profile browser MCP server (a separate package, not installed with `turno-cli`) |
 | `turno-fonts` | `packages/fonts` | the status line font (not installed with `turno-cli`: `turno ui install` downloads the same files and checks their SHA-256) |
 
+The documentation site is a fourth workspace project, `apps/docs` (private, never published):
+
+```sh
+pnpm build && pnpm docs:dev   # preview at http://localhost:3000
+pnpm docs:generate            # rewrite the reference and troubleshooting pages from the code
+pnpm docs:check               # what the docs workflow runs: generated pages, build, links
+pnpm docs:tapes               # re-render the text recordings (needs vhs, ttyd and ffmpeg)
+```
+
 ## Rules for changes
 
 - **Tests first** for behavior changes. Integration tests for the gateway use the fixture

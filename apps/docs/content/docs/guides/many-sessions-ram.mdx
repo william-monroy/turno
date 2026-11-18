@@ -1,0 +1,102 @@
+---
+title: Many sessions eat my RAM
+description: Put your MCP servers behind one gateway, so each one runs once instead of once per session.
+---
+
+This guide moves the MCP servers you already use behind turno's gateway, so opening another agent session stops starting another copy of each server.
+
+## Why it happens
+
+Every coding-agent session starts its own copy of every MCP server in its config. With eight sessions and six common servers that is 56 processes and 3,163 MiB before any tool is called. Behind the gateway each server starts once, only when one of its tools is called, and stops when idle.
+
+<GatewayDiagram />
+
+## Move your servers behind the gateway
+
+<Steps>
+<Step>
+
+### Preview what turno would import
+
+```sh
+turno mcp import
+```
+
+It drafts `mcp.toml` from the servers your agents already use: `~/.claude.json`, `.mcp.json` in the current folder, `~/.codex/config.toml`, `~/.cursor/mcp.json`, `~/.copilot/mcp-config.json`, and the config inside each turno profile. It is a preview until `--write`: secrets are shown masked, nothing is stored and nothing goes online.
+
+</Step>
+<Step>
+
+### Write it, with the secrets in the secret store
+
+```sh
+turno mcp import --move-secrets --write
+```
+
+`--move-secrets` stores env and header secrets in the macOS Keychain or the Linux Secret Service and writes `keychain:` references in their place. Secrets in a server's args or URL stay literal, since they cannot come from the store.
+
+</Step>
+<Step>
+
+### Start the gateway and point every profile at it
+
+```sh
+turno mcp daemon start && turno mcp sync
+```
+
+The gateway runs as a login service (launchd on macOS, `systemd --user` on Linux). `turno mcp sync` writes one HTTP entry per server into every profile's config, pointing at `127.0.0.1`.
+
+</Step>
+<Step>
+
+### Pin the versions (optional, recommended)
+
+```sh
+turno mcp install
+```
+
+It installs each `package` at an exact version, without install scripts, with a lockfile per server. Until then `npx` runs the server, with a warning in its log.
+
+</Step>
+</Steps>
+
+## What you see
+
+`turno mcp list` shows the servers and where they run. Before any tool is called, none is running:
+
+<Recording name="gateway" title="The gateway before the first tool call" />
+
+Once sessions are open, three commands watch it:
+
+```sh
+turno mcp top        # memory, sessions, calls in flight, idle time and restarts per running server
+turno mcp savings    # mcpd's memory now against the same sessions without the gateway
+turno mcp log        # the last 20 tool calls: time, outcome, duration, server, tool, profile, agent
+```
+
+`turno mcp savings` compares the gateway plus every server it runs with an estimate of the same live sessions without it: each session would start its own copy of every stdio server its profile uses. The tool call log never holds a call's arguments or its result, only their sizes.
+
+## Servers that cannot be shared
+
+A stateless server (docs, search, an issue tracker) shares one process safely. A server that keeps state per conversation, or that only one session can use at a time, needs another scope:
+
+<ScopeTree />
+
+Those scopes give back some of the saving, on purpose. See [Scopes](/docs/concepts/scopes).
+
+## When memory is tight
+
+mcpd stops a server after it sits idle (30 minutes by default for a shared server). When the system reports memory pressure, the idle limit shrinks to `idle_under_pressure` (5 minutes by default), and to a quarter of that when pressure is critical:
+
+```toml title="~/.config/turno/config.toml"
+[mcpd]
+idle_under_pressure = "5m"     # false turns it off
+```
+
+## Plugin servers
+
+Servers that come from Claude Code plugins start in every session and bypass the gateway. `turno mcp doctor` lists them. To route one through the gateway, disable the plugin and declare `[server.plugin_<plugin>_<name>]` in `mcp.toml`, so tool names stay the same.
+
+## Measure it yourself
+
+The numbers above come from one machine. Run the [benchmark](/docs/benchmarks) on yours, with your own servers, before you quote one.

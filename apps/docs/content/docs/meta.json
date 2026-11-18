@@ -1,0 +1,20 @@
+{
+  "title": "turno",
+  "pages": [
+    "---Get started---",
+    "index",
+    "...get-started",
+    "---Guides---",
+    "...guides",
+    "---Concepts---",
+    "...concepts",
+    "---Reference---",
+    "reference",
+    "troubleshooting",
+    "---More---",
+    "security",
+    "benchmarks",
+    "comparison",
+    "faq"
+  ]
+}

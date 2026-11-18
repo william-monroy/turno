@@ -1,0 +1,14 @@
+{
+  "title": "Reference",
+  "description": "Generated from the code",
+  "root": false,
+  "pages": [
+    "index",
+    "cli",
+    "config-toml",
+    "mcp-toml",
+    "environment",
+    "exit-codes",
+    "json-output"
+  ]
+}

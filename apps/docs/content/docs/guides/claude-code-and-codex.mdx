@@ -1,0 +1,77 @@
+---
+title: I use Claude Code and Codex
+description: Use the same profiles, folder rules and gateway for Claude Code, Codex CLI, GitHub Copilot CLI and Cursor CLI.
+---
+
+This guide adds a second agent to a turno setup, so both share one gateway and each folder picks the right account for each agent.
+
+## What each agent gets
+
+| Agent | Profile and launcher | Gateway entries | Shared between its profiles |
+|---|---|---|---|
+| Claude Code | `~/.claude-<p>`, `claude-<p>` | `.claude.json` | projects, sessions, skills, plugins, settings |
+| Codex CLI | `~/.codex-<p>`, `codex-<p>` | `config.toml`, token from the environment | `sessions`, `prompts`, `skills`, `AGENTS.md` |
+| GitHub Copilot CLI | `~/.copilot-<p>`, `copilot-<p>` | `mcp-config.json` | `session-state` |
+| Cursor CLI | `~/.cursor-<p>`, `cursor-agent-<p>` | `~/.cursor/mcp.json`, routed by environment | none |
+
+`turno mcp sync` writes the gateway entries for all four. Copilot CLI support has not been tested against the real CLI yet.
+
+## Add a Codex profile
+
+```sh
+turno profile add cx --agent codex   # ~/.codex-cx, codex-cx, config.toml with file credentials
+codex-cx login                       # sign in once, with the ChatGPT account of this profile
+turno mcp sync cx                    # point it at the gateway (the token stays in the environment)
+turno profile assign ~/code/acme cx  # this folder uses cx for Codex
+turno auto --agent codex             # the Codex profile of this folder
+```
+
+`config.toml` is copied from `~/.codex/config.toml` the first time, and turno always keeps `cli_auth_credentials_store = "file"` in it, so the login stays inside the profile instead of the shared Keychain.
+
+Copilot and Cursor profiles work the same way, with `--agent copilot` or `--agent cursor`.
+
+## One rule per agent
+
+A folder can have one rule per agent. `turno profile assign <dir> <profile>` adds a rule for the profile's agent; `turno auto` resolves among Claude Code profiles and `turno auto --agent codex` among Codex profiles. The defaults of the other agents live in their own table:
+
+```toml title="~/.config/turno/config.toml"
+[profiles.cx]
+agent = "codex"
+
+[agents.codex]
+default = "cx"
+```
+
+`turno profile which` shows the answer for each agent:
+
+```sh
+turno profile which ~/code/acme
+```
+
+```text
+~/code/acme
+  assigned: work (project ~/code/acme)
+  using now: work
+```
+
+## The same servers for every agent
+
+Both agents reach the same gateway, so a server started for a Claude Code session serves a Codex session too. Each profile has its own gateway token: Claude Code profiles carry it in `.claude.json`, and the launchers of Codex, Copilot and Cursor read it from `TURNO_MCPD_TOKEN`, which they fill from a file that only you can read.
+
+## Cursor's particular case
+
+Cursor CLI moves only `cli-config.json` with its config folder; its MCP servers always come from `~/.cursor/mcp.json`, which the Cursor editor reads too. turno writes the gateway entries there once, with headers read from the environment: inside a `cursor-agent-<p>` launcher they carry the token and the profile, and anywhere else (the editor) they have no token and the gateway refuses them. Cursor asks to approve each new server once: `cursor-agent-<p> mcp enable <name>`.
+
+## Agents turno does not manage
+
+opencode, Gemini CLI, Goose, Crush, Droid and Kiro can use the gateway too. turno does not manage their profiles, but it prints their entries, with the file they go in:
+
+```sh
+turno mcp config --agent opencode --profile work
+```
+
+## What is Claude Code only
+
+- The status line, usage windows, the accounts bridge and session handoff are Claude Code only.
+- Exhausted marks are per profile (`turno limit set cx --for 3h`), and only Claude Code marks them by itself, through the plugin's hook.
+- Resuming a Codex session under another profile works because the `sessions` folder is shared, but it has not been verified across two ChatGPT accounts: treat it as experimental.

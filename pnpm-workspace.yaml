@@ -1,5 +1,7 @@
 packages:
   - packages/*
+  # The documentation site (private, never published).
+  - apps/*
 
 # Supply-chain settings (https://pnpm.io/supply-chain-security). pnpm rejects unknown keys.
 # Wait three days before installing a newly published version (minutes). The workspace's own
@@ -10,3 +12,9 @@ minimumReleaseAge: 4320
 trustPolicy: no-downgrade
 # Refuse to install on a Node version outside "engines".
 engineStrict: true
+
+# Dependencies of the documentation site (apps/docs) that ship an install script. None runs:
+# esbuild and sharp work from their prebuilt platform packages.
+allowBuilds:
+  esbuild: false
+  sharp: false

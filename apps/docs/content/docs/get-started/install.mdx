@@ -1,0 +1,69 @@
+---
+title: Install
+description: Install turno with npm, pnpm, bun, yarn or Homebrew, on macOS or Linux.
+---
+
+This page installs the `turno` command and shows how to update and remove it.
+
+## Requirements
+
+- macOS or Linux. Windows is not supported.
+- Node 22.11 or newer.
+- At least one of the agents turno works with: Claude Code, Codex CLI, GitHub Copilot CLI or Cursor CLI.
+
+## Install the CLI
+
+The npm package is `turno-cli`; the command it installs is `turno`.
+
+<Install pkg="turno-cli" />
+
+Check it:
+
+```sh
+turno version
+```
+
+The package runs no install scripts and ships an `npm-shrinkwrap.json`, so you get exactly the dependency versions that were tested. CI checks both.
+
+## Linux
+
+Linux works too: MCP secrets go to the Secret Service (`secret-tool`, from libsecret), the gateway runs as a `systemd --user` unit, and links open with `xdg-open`.
+
+## The browser package (optional)
+
+`turno-browser` is a separate package, not installed with turno; turno works without it. Install it only if you want an agent to drive your signed-in Chrome ([guide](/docs/guides/signed-in-browser)).
+
+<Install pkg="turno-browser" />
+
+## Shell completion (optional)
+
+```sh
+echo 'source <(turno completion zsh)' >> ~/.zshrc
+echo 'source <(turno completion bash)' >> ~/.bashrc
+turno completion fish > ~/.config/fish/completions/turno.fish
+```
+
+It completes commands, profiles, identities and config keys.
+
+## Update
+
+```sh
+turno upgrade --check   # is there a newer release?
+turno upgrade           # update turno the way it was installed
+```
+
+Interactive commands ask the npm registry for a newer version at most once a day, sending only the package name. Turn that off with `update_check = false` in config.toml or `TURNO_NO_UPDATE_CHECK=1` ([more ways](/docs/security#when-turno-goes-online)).
+
+## Uninstall
+
+```sh
+turno uninstall --dry-run   # lists what turno set up: service, launchers, MCP entries, status line, config
+turno uninstall             # removes it
+npm uninstall --global turno-cli
+```
+
+Profile folders, which hold your logins, stay until you delete them. `turno uninstall --purge` also removes turno's state and caches (backups, logs, usage, installed MCP servers), after which `turno undo` has nothing to restore.
+
+## Next
+
+[First five minutes](/docs/get-started/first-five-minutes): set turno up with `turno init`.

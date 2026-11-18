@@ -1,0 +1,52 @@
+---
+title: Try it
+description: Run turno demo to see two profiles, a gateway and the status line in a throwaway HOME.
+---
+
+This page shows turno working before you install anything: one command, in a throwaway HOME that is removed when you leave.
+
+```sh
+npx turno-cli demo
+```
+
+`turno demo` sets up two Claude Code profiles (`work` for `~/code/acme`, `personal` for every other folder), a gateway with two MCP servers, and the status line. Then it opens a shell in that HOME. Nothing there reads or changes your own HOME, and nothing signs in.
+
+## What you see
+
+This is the demo and the first two commands to try, recorded as text:
+
+<Recording name="try-it" title="turno demo" />
+
+The same session as a recording, with the profile picker and `turno doctor`:
+
+![turno demo: two profiles, one gateway, the status line, the picker and turno doctor, in a throwaway HOME](/demo.gif)
+
+## Things to try inside the demo
+
+| Command | What it shows |
+|---|---|
+| `turno` | the one-screen summary: this folder, accounts, gateway, what to do next |
+| `turno profile which ~/code/acme` | which account a folder opens with, and why |
+| `turno mcp list` | the servers behind the gateway |
+| `cat ~/.claude-work/.claude.json` | the gateway entries `turno mcp sync` wrote |
+| `turno undo --list` | every change turno made, each one undoable |
+| `turno doctor` | every check, with the fix under each problem |
+
+Type `exit` to end the demo. It stops the gateway and removes the throwaway HOME:
+
+```text
+turno demo ~ % exit
+turno demo: stopped mcpd and removed /private/tmp/turno-demo-Xk3f9a
+```
+
+## Without a terminal
+
+In a script or an agent session, `turno demo` shows what it set up and ends. `turno demo --keep` waits for Ctrl-C instead, and `turno demo -- <command>` runs one command inside the demo HOME:
+
+```sh
+npx turno-cli demo -- turno mcp list
+```
+
+## Next
+
+When you want it for real, [install turno](/docs/get-started/install) and follow the [first five minutes](/docs/get-started/first-five-minutes).

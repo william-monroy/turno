@@ -1,0 +1,69 @@
+---
+title: Instalación
+description: Instala turno con npm, pnpm, bun, yarn o Homebrew, en macOS o Linux.
+---
+
+Esta página instala el comando `turno` y te dice cómo actualizarlo y quitarlo.
+
+## Requisitos
+
+- macOS o Linux. Windows no está soportado.
+- Node 22.11 o más nuevo.
+- Al menos uno de los agentes con los que funciona turno: Claude Code, Codex CLI, GitHub Copilot CLI o Cursor CLI.
+
+## Instala la CLI
+
+El paquete de npm se llama `turno-cli`; el comando que instala es `turno`.
+
+<Install pkg="turno-cli" />
+
+Revisa que quedó:
+
+```sh
+turno version
+```
+
+El paquete no ejecuta scripts de instalación e incluye un `npm-shrinkwrap.json`, así que instalas exactamente las versiones de dependencias que se probaron. CI revisa ambas cosas.
+
+## Linux
+
+En Linux también funciona: los secretos MCP van al Secret Service (`secret-tool`, de libsecret), el gateway corre como una unidad de `systemd --user` y los enlaces se abren con `xdg-open`.
+
+## El paquete del navegador (opcional)
+
+`turno-browser` es un paquete aparte que no se instala con turno; turno funciona sin él. Instálalo solo si quieres que un agente maneje tu Chrome con sesión iniciada ([guía](/es/docs/guides/signed-in-browser), en inglés).
+
+<Install pkg="turno-browser" />
+
+## Autocompletado (opcional)
+
+```sh
+echo 'source <(turno completion zsh)' >> ~/.zshrc
+echo 'source <(turno completion bash)' >> ~/.bashrc
+turno completion fish > ~/.config/fish/completions/turno.fish
+```
+
+Completa comandos, perfiles, identidades y claves de configuración.
+
+## Actualizar
+
+```sh
+turno upgrade --check   # ¿hay una versión más nueva?
+turno upgrade           # actualiza turno de la misma forma en que lo instalaste
+```
+
+Los comandos interactivos le preguntan al registro de npm si hay una versión más nueva, como máximo una vez al día, y solo envían el nombre del paquete. Lo apagas con `update_check = false` en config.toml o con `TURNO_NO_UPDATE_CHECK=1`.
+
+## Desinstalar
+
+```sh
+turno uninstall --dry-run   # muestra lo que turno configuró: servicio, lanzadores, entradas MCP, status line, configuración
+turno uninstall             # lo quita
+npm uninstall --global turno-cli
+```
+
+Las carpetas de los perfiles, que guardan tus credenciales, se quedan hasta que tú las borres. `turno uninstall --purge` también borra el estado y las cachés de turno (copias, registros, uso, servidores MCP instalados), y después `turno undo` ya no tiene qué restaurar.
+
+## Qué sigue
+
+[Primeros cinco minutos](/es/docs/get-started/first-five-minutes): configura turno con `turno init`.

@@ -1,0 +1,131 @@
+---
+title: The gateway
+description: mcpd is one local process that every session of every agent reaches, and that starts each MCP server once.
+---
+
+This page explains what the gateway (`mcpd`) does between your agents and your MCP servers.
+
+<GatewayDiagram />
+
+## Every agent config points at one place
+
+`turno mcp sync` writes each server into every profile's config as an HTTP entry that points at mcpd:
+
+```json title="~/.claude-work/.claude.json"
+"calendar": {
+  "type": "http",
+  "url": "http://127.0.0.1:47821/mcp/calendar",
+  "headers": {
+    "Authorization": "Bearer <the work profile's token>",
+    "X-Turno-Profile": "work",
+    "X-Turno-Pid": "${TURNO_SESSION_PID:-0}",
+    "X-Turno-Cwd-B64": "${TURNO_SESSION_CWD_B64:-}"
+  }
+}
+```
+
+The servers themselves live in one file, `~/.config/turno/mcp.toml` ([reference](/docs/reference/mcp-toml)):
+
+```toml title="~/.config/turno/mcp.toml"
+[server.calendar]
+command = "cal-mcp"
+package = "@calcom/cal-mcp@1.4.0"   # installed by `turno mcp install`
+env = { CAL_API_KEY = "keychain:turno/calendar/api-key" }
+scope = "shared"                     # one process for every session
+```
+
+## What it does
+
+- **Answers from a cache.** `initialize`, `tools/list`, `prompts/list` and `resources/templates/list` come from a cache, so a session that never calls a tool never starts the server.
+- **Starts a server on its first real call**, and relays requests, notifications, progress and cancellation.
+- **Shares the process** between sessions where it is safe, according to the server's [scope](/docs/concepts/scopes).
+- **Stops it when idle**: after `idle` without calls (30 minutes by default for a shared server, 20 for the others), sooner when memory is low.
+- **Cancels a call upstream** when the client cancels it or goes away, so an interrupted tool does not keep the server alive.
+- **Backs off a server that fails to start**: after 3 failed starts in a row it answers at once with the last lines of the server's log, and retries with a growing delay.
+- **Reloads `mcp.toml` when it changes**, and tells open sessions when what they see changed.
+
+It speaks MCP 2025-11-25 and 2026-07-28 on the same endpoint.
+
+## What you see
+
+```sh
+turno mcp list             # servers in mcp.toml and where they run
+turno mcp daemon status    # running servers, clients, memory; or why mcpd is down
+```
+
+```text
+MCP servers ────────────────────────────────────────────────────────────────────
+  server  kind   scope   idle  profiles  state      auth  details
+  docs    stdio  shared  30m   all       ○ stopped  -     /private/tmp/turno-vhs/bin/node
+  issues  stdio  shared  30m   all       ○ stopped  -     /private/tmp/turno-vhs/bin/node; variants: work
+
+mcpd pid 92050 · port 52151 · 68 MB · 0 client sessions
+  no servers running (they start on first use)
+```
+
+## One token per profile
+
+Each profile gets its own gateway token, derived from a master token that never goes into an agent config. mcpd reads the profile from the token, so a session with the `work` token cannot open a server whose `profiles` leave `work` out. `turno mcp token rotate` replaces the master token, which invalidates every profile token; then `turno mcp sync` writes the new ones.
+
+mcpd listens on `127.0.0.1` only, and rejects any request that carries an `Origin` header, so a web page in your browser cannot reach it. More in [Security and privacy](/docs/security#the-gateway).
+
+## One server, two accounts
+
+A variant holds what changes for one profile, usually the account. Each variant runs as its own process, so two profiles can reach two accounts of the same service:
+
+```toml title="~/.config/turno/mcp.toml"
+[server.issues]
+command = "issues-mcp"
+[server.issues.variant.work]         # the work profile reaches a different account
+env = { ISSUES_TOKEN = "keychain:turno/issues/work" }
+```
+
+## Which tools a session sees
+
+```toml
+[server.issues]
+command = "issues-mcp"
+tools = { allow = ["get_*", "list_*"], deny = ["*_delete"] }
+```
+
+Patterns match whole tool names. With `allow`, only matching tools stay; `deny` then removes matching ones. A filtered tool is absent from `tools/list`, and a call to it gets an error.
+
+## Secrets
+
+Values that start with `keychain:` are read from the macOS Keychain or the Linux Secret Service when the server starts; `env:` reads mcpd's own environment. Store a secret with `turno secret set <service>`: the input is hidden and never printed.
+
+## Remote servers
+
+```toml title="~/.config/turno/mcp.toml"
+[server.linear]
+url = "https://mcp.linear.app/mcp"
+auth = "oauth"                       # mcpd logs in once per account: turno mcp login linear
+
+[server.docs]
+url = "https://docs.example.com/mcp" # remote, no secrets: written straight into each profile
+```
+
+A remote server with `auth = "oauth"` or secret headers goes through mcpd, so no agent logs in to it on its own. You log in once per account:
+
+```sh
+turno mcp login linear                     # the login every profile without a variant uses
+turno mcp login linear --profile personal  # the personal variant
+```
+
+The tokens go to the secret store, never to a file or a log. A remote server without secrets is written straight into each profile and never touches mcpd.
+
+## The daemon as a service
+
+`turno mcp daemon start` keeps mcpd alive with a LaunchAgent on macOS or a `systemd --user` unit on Linux; `turno mcp daemon stop` stops it and removes the file, so it does not come back at login.
+
+mcpd listens only on `mcpd.port` (47821 by default). If something else holds that port, mcpd does not move: it fails and names the owner. If `mcp.toml` stops validating, mcpd keeps serving the last copy that did and reports the error in `turno mcp daemon status` and `turno doctor`.
+
+## Watching it
+
+```sh
+turno mcp log -f --server github --profile work   # follow new tool calls, filtered
+turno mcp top                                     # memory, sessions and calls per running server
+turno mcp savings                                 # memory now against the same sessions without the gateway
+```
+
+The call log holds tool names, profiles, agents, durations, sizes and redacted errors, never a call's arguments or its result. Turn it off with `call_log = false` under `[mcpd]` in config.toml.

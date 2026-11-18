@@ -1,0 +1,83 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+
+/* turno's blue, from the logo (docs/assets): #2457F5 on light, #4C7DFF on dark. */
+:root {
+  --color-fd-primary: #2457f5;
+  --color-fd-primary-foreground: #ffffff;
+  --color-fd-ring: #2457f5;
+  --turno-1: #acbffb;
+  --turno-2: #809ef9;
+  --turno-3: #5079f7;
+  --turno-4: #2457f5;
+  --turno-ink: #16161d;
+  /* Profile pills, as the status line draws them. */
+  --pill-work: #7c5cff;
+  --pill-personal: #1f9d55;
+  --pill-codex: #d97706;
+  --term-bg: #0f1117;
+  --term-fg: #d7dae0;
+  --term-muted: #7d8590;
+}
+
+.dark {
+  --color-fd-primary: #4c7dff;
+  --color-fd-primary-foreground: #0b0d12;
+  --color-fd-ring: #4c7dff;
+  --turno-1: #26396f;
+  --turno-2: #324f9e;
+  --turno-3: #4067d1;
+  --turno-4: #4c7dff;
+  --turno-ink: #f3f4f8;
+  --pill-work: #9d85ff;
+  --pill-personal: #34c27b;
+  --pill-codex: #f0a13a;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  --color-turno: var(--turno-4);
+}
+
+/* The dotted backdrop of the home hero. */
+.home-grid {
+  background-image: radial-gradient(circle at 1px 1px, color-mix(in oklab, var(--color-fd-foreground) 14%, transparent) 1px, transparent 0);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 30%, transparent 100%);
+}
+
+/* Diagrams: lines that show requests flowing to the gateway. */
+@keyframes turno-flow {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+@keyframes turno-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.turno-flow {
+  stroke-dasharray: 3 5;
+  animation: turno-flow 1.2s linear infinite;
+}
+.turno-pulse {
+  animation: turno-pulse 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .turno-flow,
+  .turno-pulse {
+    animation: none;
+  }
+}
+
+/* Terminal recordings keep their columns: no wrapping, scroll sideways on small screens. */
+.recording pre {
+  white-space: pre;
+}

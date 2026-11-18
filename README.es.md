@@ -122,3 +122,8 @@ Las preguntas en español son bienvenidas en
 [Discussions](https://github.com/wimo-dev/turno/discussions), en la categoría Español.
 Lee [CONTRIBUTING.md](CONTRIBUTING.md) antes de abrir un pull request. Hecho en Monterrey,
 México. Licencia Apache 2.0.
+
+## Documentación
+
+El sitio de documentación está en [turno.wimo.dev](https://turno.wimo.dev): los primeros pasos y
+las preguntas frecuentes están en español ([turno.wimo.dev/es](https://turno.wimo.dev/es)).

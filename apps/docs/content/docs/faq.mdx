@@ -1,0 +1,54 @@
+---
+title: FAQ
+description: Short answers about accounts, credentials, privacy, platforms, scripts and undo.
+---
+
+This page answers the questions people ask before they install turno.
+
+## Is using several accounts allowed?
+
+That depends on your plan, not on turno. turno runs each vendor's own, unmodified CLI, and each account signs in with the vendor's own login in its own folder. The intended use is separate work and personal accounts. Do not use it to get around usage limits or safeguards; see [Vendor terms](/docs/security#vendor-terms).
+
+## Where are my credentials?
+
+Where each agent keeps them, inside that profile's folder (or the Keychain where the agent uses it). turno never reads, copies or forwards login tokens. MCP secrets you move with `--move-secrets`, and the OAuth tokens of remote MCP servers, go to the macOS Keychain or the Linux Secret Service. What turno stores where: [Security and privacy](/docs/security#what-turno-stores).
+
+## Does turno see my prompts or model traffic?
+
+No. It launches the agent and gets out of the way. Only MCP tool calls go through `mcpd`, on `127.0.0.1`, with a bearer token per profile, and requests with an `Origin` header are rejected so web pages cannot reach it.
+
+## Linux? Windows?
+
+Linux works too: secrets go to the Secret Service (`secret-tool`), mcpd runs as a `systemd --user` unit, and links open with `xdg-open`. Windows is not supported.
+
+## Can scripts and agents run turno?
+
+Yes. turno asks only when a person is at a terminal: with `--no-input` (or `TURNO_NO_INPUT=1`), when stdin is not a terminal, and inside a Claude Code, Codex, Copilot CLI or Cursor agent session it never asks. A command that would ask exits with code 2 and names the flag that answers it:
+
+```text
+turno: init needs an answer; pass --yes (or run it in a terminal)
+```
+
+`TURNO_NO_INPUT=0` lets you answer in an editor terminal that sets an agent's variable.
+
+A command that needs a profile and gets none (`turno profile assign`, `turno run`, `turno session handoff`, `turno limit set`) shows a list to choose from on a terminal (arrows or j/k, type to filter, Enter, Esc to cancel). Elsewhere it exits with 2 and lists the profiles:
+
+```text
+pass a profile: personal, work
+```
+
+For scripts, read commands take `--json` and the [exit codes](/docs/reference/exit-codes) are stable.
+
+## How do I undo it?
+
+Every command that writes keeps a copy of each file it changes: `turno undo --list` shows them and `turno undo <stamp>` puts them back (backups older than 30 days are pruned, keeping the newest 10).
+
+To remove turno, `turno uninstall --dry-run` lists what turno set up (service, launchers, MCP entries, status line, config) and `turno uninstall` removes it; then `npm uninstall --global turno-cli`. Profile folders, which hold your logins, stay until you delete them. `turno uninstall --purge` also removes turno's state and caches (backups, logs, usage, installed MCP servers), after which `turno undo` has nothing to restore.
+
+## Is turno affiliated with the agents' vendors?
+
+No. turno is an independent open-source project, not affiliated with, endorsed by or sponsored by any of them. It runs the vendors' own, unmodified command-line tools.
+
+## Where do I ask something else?
+
+In [Discussions](https://github.com/wimo-dev/turno/discussions) on GitHub (there is an Español category). Security issues go through [private reporting](/docs/security#report-a-vulnerability).

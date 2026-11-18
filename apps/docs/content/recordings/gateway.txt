@@ -1,0 +1,12 @@
+turno demo ~ % turno mcp list
+MCP servers ────────────────────────────────────────────────────────────────────
+  server  kind   scope   idle  profiles  state      auth  details
+  docs    stdio  shared  30m   all       ○ stopped  -     /private/tmp/turno-vhs/bin/node
+  issues  stdio  shared  30m   all       ○ stopped  -     /private/tmp/turno-vhs/bin/node; variants: work
+turno demo ~ % turno mcp daemon status
+mcpd pid 92050 · port 52151 · 68 MB · 0 client sessions
+  no servers running (they start on first use)
+turno demo ~ % turno mcp top --once
+mcpd pid 92050 · v0.2.0 · up 4s · 68 MB own, 149 MB with servers · 0 sessions from 0 agents
+  ! memory pressure warn: idle servers stop after 5m 0s (mcpd.idle_under_pressure)
+  no servers running (they start on first use)

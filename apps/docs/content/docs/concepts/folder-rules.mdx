@@ -1,0 +1,83 @@
+---
+title: Folder rules
+description: A rule gives a folder, and everything under it, a profile, a set of MCP servers, or both.
+---
+
+This page explains how turno decides which account and which MCP servers a folder gets.
+
+## A rule covers a folder and everything under it
+
+```sh
+turno profile assign ~/code/acme work
+```
+
+writes a `[[projects]]` rule into `config.toml`:
+
+```toml title="~/.config/turno/config.toml"
+[[projects]]
+path = "~/code/acme"
+profile = "work"
+```
+
+<FolderTree />
+
+`turno auto` resolves the profile for the current folder: the rule with the longest matching path wins, a git worktree counts as its main repository, and a folder without a rule uses `default`.
+
+Ask what a folder resolves to, and why:
+
+```sh
+turno profile which ~/code/acme
+```
+
+```text
+~/code/acme
+  assigned: work (project ~/code/acme)
+  using now: work
+```
+
+## When there is no rule
+
+| Situation | What `turno auto` does |
+|---|---|
+| A rule names a profile | opens that profile |
+| No rule, `default` is set | opens the default profile |
+| No rule, no default | runs the agent's own command (`claude`, `codex`, ...) |
+| No rule, no default, `system = ""` | exits 3: there is no default account |
+| A rule names a profile that does not exist | exits 3, with the command that fixes it |
+
+`turno profile unassign <dir>` removes a folder's rules.
+
+## One rule per agent
+
+A folder can have one rule per agent. `turno profile assign <dir> <profile>` adds a rule for the profile's agent, and `turno auto --agent codex` resolves among Codex profiles. Defaults of the other agents live under `[agents.<agent>]` ([guide](/docs/guides/claude-code-and-codex)).
+
+## Server sets: which MCP servers a folder sees
+
+A rule may carry a profile, a server set, or both:
+
+```toml title="~/.config/turno/config.toml"
+[[projects]]
+path = "~/code/acme"
+profile = "work"
+mcp = ["issues", "docs"]      # only these servers, by their name in mcp.toml
+
+[[projects]]
+path = "~/code/oss"
+mcp_deny = ["mail"]           # every server but these
+```
+
+`mcp` keeps only the listed servers; `mcp_deny` then removes servers. The rule with the longest path that has a set wins: a nested rule replaces its parent's set, it does not add to it.
+
+Every agent config still lists every server; the gateway hides the rest per session, from the folder the session sends. A hidden server answers with no tools and a line that says which rule hides it, and is never started. `turno profile which <dir>` shows the set of a folder, and `turno profile assign` and `unassign` change only the profile part of a rule and keep its set.
+
+<Callout title="A convenience, not a boundary">
+Server sets hide servers from sessions in a folder. A session whose folder the gateway cannot learn sees every server. To keep a profile away from a server, use `profiles = [...]` on the server in `mcp.toml`: the gateway enforces that with the profile's token.
+</Callout>
+
+## Check your rules
+
+```sh
+turno config check    # parses config.toml, mcp.toml and accounts.toml
+```
+
+It warns about server names that are not in `mcp.toml` and about remote servers that skip the gateway, which a set cannot hide. Every key is in the [config.toml reference](/docs/reference/config-toml).

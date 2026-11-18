@@ -1,0 +1,103 @@
+---
+title: First five minutes
+description: Set turno up with turno init, sign in once per profile and open a folder with its account.
+---
+
+This page takes you from a fresh install to an agent that opens with the right account, in four commands.
+
+```sh
+turno init                    # finds your agents, profiles, folders and MCP servers, shows the diff,
+                              # then starts the gateway and points every profile at it
+claude-work                   # sign in once per profile (/login)
+cd ~/code/acme && turno auto  # Claude Code, with this folder's account
+turno                         # where you stand: this folder, accounts, gateway, what to do next
+```
+
+<Steps>
+<Step>
+
+### Run turno init
+
+`turno init` looks for installed agents, turno profiles, agent folders made by hand (`~/.claude-<name>`, `~/.codex-<name>`), MCP servers in every agent config, and the folders each Claude Code account was used in. Then it proposes profiles, folder rules, a default and `mcp.toml`, and prints the whole change before it writes anything.
+
+It asks before it adopts anything and writes everything as one change, so one `turno undo <stamp>` reverts it. To look without writing:
+
+```sh
+turno init --dry-run
+```
+
+When there are MCP servers, `turno init` also offers to start the gateway as a login service (launchd on macOS, `systemd --user` on Linux) and point every profile at it. `turno init --no-start` leaves that for later (`turno mcp daemon start`, then `turno mcp sync`).
+
+</Step>
+<Step>
+
+### Sign in once per profile
+
+Each profile has a launcher named after it. Run it and sign in with that account, the vendor's own way:
+
+```sh
+claude-work        # then /login inside Claude Code
+```
+
+Launchers go in `~/.local/bin`. When that folder is not on your `PATH`, `turno profile add` prints the line to add, and `turno work` works meanwhile.
+
+</Step>
+<Step>
+
+### Open a folder with its account
+
+```sh
+cd ~/code/acme && turno auto
+```
+
+`turno auto` opens the agent with the profile assigned to the current folder. It never switches accounts in silence: a missing profile or a broken `config.toml` stops it with the command that fixes it.
+
+</Step>
+<Step>
+
+### See where you stand
+
+A bare `turno` is the status screen and the next step. `turno doctor` checks every part and names the fix under each problem:
+
+<Recording name="doctor" title="turno doctor" />
+
+</Step>
+</Steps>
+
+## Step by step instead
+
+If you prefer to do each part by hand:
+
+```sh
+turno profile add work --color violet     # ~/.claude-work and the claude-work command
+turno profile add personal
+claude-work                               # sign in once per profile (/login)
+turno profile assign ~/code/acme work     # this folder and everything under it
+turno config set default personal         # folders without a rule
+turno mcp import --move-secrets --write   # mcp.toml from the servers you already have
+turno mcp daemon start && turno mcp sync  # the gateway, and every profile pointed at it
+cd ~/code/acme && turno auto              # Claude Code, signed in as work
+```
+
+Codex, Copilot and Cursor profiles are the same with `--agent codex|copilot|cursor`.
+
+## Make it the default way to open an agent
+
+Point your terminal or editor at `turno auto` (or the `turno-auto` launcher), and every folder opens with its account.
+
+## Undo
+
+Every command that writes keeps a copy of each file it changes:
+
+```sh
+turno undo --list     # the changes turno made
+turno undo <stamp>    # put one back
+```
+
+Backups older than 30 days are pruned, keeping the newest 10.
+
+## Next
+
+- [I have work and personal accounts](/docs/guides/work-and-personal)
+- [Many sessions eat my RAM](/docs/guides/many-sessions-ram)
+- [Troubleshooting](/docs/troubleshooting), when `turno doctor` flags something

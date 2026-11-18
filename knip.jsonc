@@ -16,6 +16,8 @@
     },
     "packages/fonts": {}
   },
+  // The documentation site is a Next.js app with its own build and checks (docs.yml).
+  "ignoreWorkspaces": ["apps/docs"],
   // The Codex end-to-end test runs the real binary when it is installed.
   "ignoreBinaries": ["codex"]
 }

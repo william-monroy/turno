@@ -1,0 +1,103 @@
+---
+title: Let an agent use my signed-in browser
+description: Give an agent a Chrome profile you signed into by hand, with turno-browser.
+---
+
+This guide gives an agent a browser that is already signed in where you need it: you sign into a site once by hand, and the agent works in that same browser afterwards.
+
+`turno-browser` is an MCP server that drives your installed Google Chrome, headed, with one persistent profile per identity and no injected scripts. It serves the Playwright MCP tools. It is a separate package: turno works without it.
+
+<Callout title="Acceptable use" type="warn">
+Use it with your own accounts, on sites whose terms allow automated access by you, and at a human pace. Do not use it to get around access controls, paywalls, CAPTCHAs or rate limits, to scrape at scale, or to access accounts that are not yours. You are responsible for how you use it.
+</Callout>
+
+## Set it up
+
+<Steps>
+<Step>
+
+### Install the package
+
+<Install pkg="turno-browser" />
+
+</Step>
+<Step>
+
+### Create an identity
+
+An identity is one browser profile with its own cookies: `school`, `work`, `shop`.
+
+```sh
+turno identity add browser:school
+```
+
+It creates the identity, pinned to your current time zone, and prints the `mcp.toml` block for it:
+
+```toml title="~/.config/turno/mcp.toml"
+[server.browser-school]
+command = "turno-browser-mcp"
+args = ["--identity", "school"]
+scope = "shared"
+exclusive = true
+lease = "10m"
+idle = "30m"
+```
+
+</Step>
+<Step>
+
+### Sign in by hand, once
+
+```sh
+turno identity login browser:school
+```
+
+Chrome opens with that identity's profile. Sign into the sites you need; the cookies persist.
+
+</Step>
+<Step>
+
+### Point your profiles at it
+
+```sh
+turno mcp sync
+```
+
+Sessions now see a `browser-school` server. One session uses it at a time (`exclusive = true`), and a holder that sits idle keeps it for `lease`.
+
+</Step>
+</Steps>
+
+## What happens while it runs
+
+- Chrome closes after 15 minutes without a tool call and opens again, with the same profile, on the next one. Set `env = { TURNO_BROWSER_IDLE = "10m" }` on the server to change it; `"0"` keeps it open.
+- mcpd stops the server itself after `idle` (30 minutes in the block above), sooner under memory pressure.
+- A Chrome left running by a server that was killed is closed the next time the identity starts.
+
+## Know when a session expired
+
+Tell turno how to see that the identity is still signed in: a page, and a text it shows only when signed in.
+
+```sh
+turno identity set browser:school --health-url https://mail.example.com/ --health-text Inbox
+turno identity show browser:school
+```
+
+When Chrome starts (at most every 30 minutes while the check passes), turno opens the page and looks for the text. If it is missing, the identity is `NEEDS_AUTH`, and tool calls fail with a message that asks you to run `turno browser login <id>`, instead of the agent trying to sign in.
+
+## Check it
+
+```sh
+turno browser doctor              # Chrome, a test launch, and every identity: settings, lock, sign-in
+turno browser reputation school   # captchas and block pages this identity met, per site
+```
+
+Every captcha, "verify it's you" or block page an identity meets is written to its reputation log, with the site's host name only. A site that starts to challenge you is a signal to slow down, and to check that its terms allow what you are doing.
+
+## Keep in mind
+
+- A browser identity holds live cookies of the sites you signed into: treat `~/.local/share/turno/browser/` as credentials.
+- Do not declare an identity as a `session` server: two sessions would share one profile, and the second would find it in use.
+- A browser without an identity (a temporary profile) can be a `session` server. See [Scopes](/docs/concepts/scopes).
+
+More about how identities work: [Browser identities](/docs/concepts/browser-identities).

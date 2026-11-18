@@ -1,0 +1,120 @@
+---
+title: I have work and personal accounts
+description: Give each folder its own account, so work repositories open with your work login and everything else with your personal one.
+---
+
+This guide sets up two accounts so that the folder you are in decides which one an agent uses, and you stop signing in and out.
+
+## The idea
+
+A profile is one account: a folder such as `~/.claude-work` and a launcher such as `claude-work`. A folder rule says which profile a folder (and everything under it) uses. `turno auto` reads the rule and opens the agent with that account.
+
+<FolderTree />
+
+## Set it up
+
+<Steps>
+<Step>
+
+### Create one profile per account
+
+```sh
+turno profile add work --color violet     # ~/.claude-work and the claude-work command
+turno profile add personal --color green
+```
+
+If you already keep separate folders by hand, `turno init` finds them and proposes to adopt them instead.
+
+</Step>
+<Step>
+
+### Sign in once per profile
+
+```sh
+claude-work        # /login with your work account
+claude-personal    # /login with your personal account
+```
+
+Each agent logs in by itself, inside that profile's folder. turno never reads, copies or forwards login tokens.
+
+</Step>
+<Step>
+
+### Say which folders are work
+
+```sh
+turno profile assign ~/code/acme work     # this folder and everything under it
+turno config set default personal         # folders without a rule
+```
+
+Without a profile argument, `turno profile assign` shows the profiles to choose from on a terminal.
+
+</Step>
+<Step>
+
+### Open agents through turno
+
+```sh
+cd ~/code/acme && turno auto     # Claude Code, signed in as work
+cd ~/notes && turno auto         # Claude Code, signed in as personal
+```
+
+Point your terminal or editor at `turno auto` (or the `turno-auto` launcher) and every folder opens with its account. `turno work` opens a profile by name, wherever you are.
+
+</Step>
+</Steps>
+
+## What you see
+
+`turno profile list` shows each profile and its account, `turno profile which` says which profile a folder uses and why, and `turno limit show` shows the usage windows of each account:
+
+<Recording name="accounts" title="Profiles, a folder's rule and usage" />
+
+In scripts, `turno profile which --check` answers with the exit code: 0 ready, 3 no profile for the folder, 4 not signed in.
+
+```sh
+turno profile which --check || turno profile assign . work
+```
+
+## What stays shared
+
+Conversations, skills and settings stay shared between your Claude Code profiles, so a session started with one account can continue with another:
+
+```sh
+turno work --resume <id>
+```
+
+`turno session list` shows the live sessions and the account of each, and `turno session handoff <profile>` prints the command that continues the current session under another profile.
+
+## Close the gap: the default account
+
+A plain `claude` in a new terminal, a cron job or an app opened from the Dock does not go through turno, so it uses the account signed in at `~/.claude`. If that is a personal account, it can act in a work repository. Three ways to avoid that:
+
+1. Start agents through turno: `turno auto` resolves the folder's account every time.
+2. Sign the plain agent out (`claude`, then `/logout`), so a stray process fails to authenticate instead of using an account. Profiles keep their own logins.
+3. Tell turno there is no default account: `turno config set system ""`. Then `turno auto` in a folder without a rule (and without a `default`) exits with an error instead of running the plain agent.
+
+`turno auto` never switches accounts in silence. When a rule names a profile that does not exist, it exits 3 with the reason and the command that fixes it. More in [Profiles](/docs/concepts/profiles#where-the-account-goes-and-where-it-does-not).
+
+## Different MCP servers for work
+
+The same folder rule can choose which MCP servers sessions there see, and a server can reach a different account per profile:
+
+```toml title="~/.config/turno/config.toml"
+[[projects]]
+path = "~/code/oss"
+mcp_deny = ["mail"]     # sessions here see every MCP server but mail
+```
+
+```toml title="~/.config/turno/mcp.toml"
+[server.issues]
+command = "issues-mcp"
+[server.issues.variant.work]         # the work profile reaches a different account
+env = { ISSUES_TOKEN = "keychain:turno/issues/work" }
+```
+
+See [Folder rules](/docs/concepts/folder-rules) and [The gateway](/docs/concepts/gateway).
+
+<Callout title="Check your plan first" type="warn">
+Each account you add is yours and stays bound by its vendor's terms; turno does not change them. Check that your plan allows several accounts, and use each account for what its terms allow (for example, a work account for work). Do not use several accounts to get around usage limits or safeguards. See [Vendor terms](/docs/security#vendor-terms).
+</Callout>
