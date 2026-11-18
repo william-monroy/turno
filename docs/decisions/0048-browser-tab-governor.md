@@ -25,7 +25,9 @@ The host runs one governor per session's browser context (`src/governor.ts`) and
 stock tool call with it:
 
 - **Cap.** At most `max` pages are open at once (default 8). When a new page goes past it, the
-  least recently used page closes: never the agent's current tab, never the new page.
+  least recently used page closes: never the agent's current tab, never the new page. A page a
+  tool call opened is counted once that call returns, since upstream reads every tab to build
+  the call's result and a tab closed under it would fail the call.
 - **Popups.** A page with an opener that opens while no tool call is running, and not within
   2 seconds of the end of one, is closed (`popups: "close"`, the default; `"keep"` leaves it).
   Chrome's popup blocker already stops `window.open` without a user gesture; what gets through
@@ -93,7 +95,7 @@ So the default stays as Playwright launches it, and parking is what stops forgot
 switch is there for whoever wants it (`backgroundThrottling: true` or `--background-throttling`):
 it drops the three switches, sets `focusControl`, and the host brings the agent's current tab to
 the front before every stock call, so the tab the agent acts on is always the visible one. With
-it, the same busy background tab fell to under 20 ticks a second while actions on the current tab
+it, the same busy background tab fell to under 10 ticks a second (headless) while actions on the current tab
 kept their speed (`test/browser-tools.test.ts`). A covered headed window still pauses rendering;
 it suits a headless browser or a window left in view.
 

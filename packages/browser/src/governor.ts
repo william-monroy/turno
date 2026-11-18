@@ -61,6 +61,8 @@ export class TabGovernor {
   private sweeping: Promise<void> | undefined;
   private readonly now: () => number;
   private readonly adopting = new Set<Promise<void>>();
+  /** Pages opened during a call: the cap is applied once the call returns (`afterCall`). */
+  private readonly opened = new Set<Page>();
   private readonly onPage = (page: Page) => {
     const done = this.adopt(page)
       .catch(() => {})
@@ -96,6 +98,18 @@ export class TabGovernor {
   /** Resolves once every page opened so far has been looked at (popup check, cap). */
   async settled(): Promise<void> {
     await Promise.all([...this.adopting]);
+  }
+
+  /**
+   * The stock call returned: apply the cap to the pages it opened. Not during the call, since
+   * upstream reads every tab (title, console) to build the result and a page closed under it
+   * fails the call.
+   */
+  async afterCall(): Promise<void> {
+    await this.settled();
+    const opened = [...this.opened];
+    this.opened.clear();
+    for (const page of opened) if (!page.isClosed()) await this.enforceCap(page);
   }
 
   /** A tool call starts: nothing is swept and popups count as asked for until it ends. */
@@ -214,7 +228,8 @@ export class TabGovernor {
         return;
       }
     }
-    await this.enforceCap(page);
+    if (this.calls > 0) this.opened.add(page);
+    else await this.enforceCap(page);
   }
 
   private async enforceCap(added: Page): Promise<void> {
@@ -232,7 +247,7 @@ export class TabGovernor {
     for (const page of victims) {
       const url = this.pages.get(page)?.parkedUrl ?? page.url();
       await page.close().catch(() => {});
-      this.note(`closed the least recently used tab (${shortUrl(url)}): more than ${max} were open`);
+      this.note(`closed the least recently used tab (${shortUrl(url)}): more than ${max} were open; tab numbers changed, list them again before selecting one`);
     }
   }
 

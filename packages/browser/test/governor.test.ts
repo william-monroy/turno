@@ -82,13 +82,29 @@ function setup(policy: Partial<TabPolicy> = {}, initial = ["https://a.example/"]
       governor.beginCall();
       if (page) current = page;
       await during?.();
-      await governor.settled();
+      await governor.afterCall();
       governor.endCall();
     },
   };
 }
 
 describe("tab governor: cap", () => {
+  it("applies the cap after the call that opened the page, not while it runs", async () => {
+    const g = setup({ max: 1 });
+    const [a] = g.context.all;
+    const b = new FakePage("https://b.example/");
+    g.governor.beginCall();
+    g.context.open(b);
+    g.select(b);
+    await g.governor.settled();
+    // Upstream still reads every tab to build the result: nothing closes yet.
+    expect(g.context.pages()).toHaveLength(2);
+    await g.governor.afterCall();
+    g.governor.endCall();
+    expect(g.context.pages()).toEqual([b]);
+    expect(a!.isClosed()).toBe(true);
+  });
+
   it("closes the least recently used pages past the cap, never the current tab or the new page", async () => {
     const g = setup({ max: 3 });
     const [a] = g.context.all;
@@ -104,7 +120,7 @@ describe("tab governor: cap", () => {
     const d = new FakePage("https://d.example/");
     await g.call(a!, () => void g.context.open(d));
     expect(g.context.pages().map((p) => p.url())).toEqual(["https://a.example/", "https://b.example/", "https://d.example/"]);
-    expect(g.governor.takeNotes()).toEqual(["closed the least recently used tab (https://c.example/): more than 3 were open"]);
+    expect(g.governor.takeNotes()).toEqual(["closed the least recently used tab (https://c.example/): more than 3 were open; tab numbers changed, list them again before selecting one"]);
   });
 
   it("does nothing with max 0", async () => {

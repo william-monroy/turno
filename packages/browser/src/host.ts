@@ -284,7 +284,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       await governor.prepare(name, args);
       if (tuning.backgroundThrottling && name !== "browser_tabs") await backendContext(backend)?.currentTab()?.page.bringToFront().catch(() => {});
       result = await backend.callTool(name, args, signal);
-      await governor.settled();
+      await governor.afterCall();
     } finally {
       governor.endCall();
     }

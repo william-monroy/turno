@@ -21,7 +21,6 @@ import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 const pkg = fileURLToPath(new URL("..", import.meta.url));
 const bin = join(pkg, "dist", "bin", "mcp.js");
 const reason = chromeUnavailable();
-const HEADED = process.platform === "darwin";
 
 beforeAll(() => {
   if (reason) return;
@@ -42,7 +41,9 @@ afterEach(async () => {
 async function start(id: string, args: string[] = []): Promise<Client> {
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [bin, "--identity", id, ...(HEADED ? [] : ["--headless"]), ...args],
+    // Headless: on CI runners a headed Chrome stalls on new windows (a click on a target=_blank
+    // link waits out its timeout). ADR 0048 has the headed measurements.
+    args: [bin, "--identity", id, "--headless", ...args],
     env: sb.env as Record<string, string>,
     cwd: sb.home,
     stderr: "pipe",
@@ -75,10 +76,16 @@ async function site(): Promise<{ url: string; close(): Promise<void> }> {
     // user activation lasts 5 s), but no tool call is running any more.
     "/delayed-popup": `<title>delayed</title><button onclick="setTimeout(() => window.open('/plain?ad'), 4000)">Download</button>`,
     "/link": `<title>link</title><a href="/b" target="_blank">Open B</a><button onclick="document.title='clicked'">Press</button>`,
-    // Counts timer ticks in the DOM (a stock tool's evaluate runs in an isolated world).
+    // Timer ticks in the last second, kept in the DOM (a stock tool's evaluate runs in an
+    // isolated world).
     "/busy": `<title>busy</title><script>
-      const t0 = performance.now(); let n = 0;
-      (function tick() { n++; document.documentElement.dataset.rate = String(Math.round(n / ((performance.now() - t0) / 1000))); setTimeout(tick, 4); })();
+      const ticks = [];
+      (function tick() {
+        const now = performance.now(); ticks.push(now);
+        while (ticks[0] < now - 1000) ticks.shift();
+        document.documentElement.dataset.rate = String(ticks.length);
+        setTimeout(tick, 4);
+      })();
     </script>busy`,
   };
   const server: Server = createServer((req, res) => {
@@ -156,7 +163,8 @@ describe.skipIf(reason !== undefined)(reason ? `browser tools on real Chrome (sk
     await sleep(4_000);
     await call(client, "browser_tabs", { action: "select", index: 0 });
     const rate = Number(/"(\d+)"/.exec(await call(client, "browser_evaluate", { function: "() => document.documentElement.dataset.rate" }))?.[1]);
-    expect(rate).toBeGreaterThan(50);
+    // About 200 locally and 40 and up on CI runners; throttled, under 10.
+    expect(rate).toBeGreaterThan(20);
   }, 60_000);
 
   it("with --background-throttling, slows a tab in the background and still acts at once on the current tab", async () => {
@@ -168,7 +176,7 @@ describe.skipIf(reason !== undefined)(reason ? `browser tools on real Chrome (sk
     await sleep(4_000);
     await call(client, "browser_tabs", { action: "select", index: 0 });
     const rate = Number(/"(\d+)"/.exec(await call(client, "browser_evaluate", { function: "() => document.documentElement.dataset.rate" }))?.[1]);
-    expect(rate).toBeLessThan(20);
+    expect(rate).toBeLessThan(12);
 
     // A click that opens a window puts that window in front while the agent stays on its tab;
     // the next action on the agent's tab must not wait for a frame that never comes.
