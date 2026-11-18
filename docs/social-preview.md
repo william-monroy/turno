@@ -4,7 +4,15 @@
 `docs/assets/social-preview.html` is its source, rendered at 1280x640 with a device scale of 2
 (a 2560x1280 PNG) with the Chromium of `patchright-core`, the engine `packages/browser` already
 depends on: open the HTML in a 1280x640 page with `deviceScaleFactor: 2`, wait for the fonts and
-take a screenshot.
+take a screenshot. GitHub takes images under 1 MB, so the PNG is saved again with the strongest
+lossless compression; quantizing it to 256 colors bands the glow of the curtains.
+
+The background, `docs/assets/social-preview-aurora.jpg`, is the landing page's hero
+(turno.wimo.dev) captured at 1280x640 with a device scale of 2: a 1280x696 window, the header
+above, the hero's text hidden, and the thread and its traveling message turned off (the
+`uThreadFade` and `uPulse` uniforms set to zero), so only the three curtains of glyphs remain.
+The account labels are placed by hand at each curtain's hem; capture again and move them if the
+hero's composition changes.
 `docs/assets/avatar.svg` and `avatar.png` are the avatar of the `wimo-dev` organization: the
 mark on a full-bleed square, because GitHub rounds organization avatars itself.
 
@@ -27,10 +35,12 @@ rendered and compared at those sizes (name only, headline with diagram, benchmar
 install command, name with a stat line). The headline with a diagram won: the name and the
 headline stay readable at 360 px, and the diagram explains the product without words.
 
-The card now carries the narrative the README opens with: the headline "Switch accounts. Keep
-everything else." and the hook "Switching accounts? Keep talking." The diagram is one
-conversation (the bubbles) above a switch that has moved from one account to the other, drawn in
-the logo's blues with the cobalt `#2457F5` on the switch. The first version showed four agent
-sessions joining one `mcpd`; the gateway is now part of how turno works, not what the card says.
+The card carries the narrative the README opens with: the headline "Switch accounts. Keep
+everything else." and the hook "Switching accounts? Keep talking." Since the landing page got
+its own look, the card uses it so the repository and the site read as one brand: paper and ink,
+Geist at weight 500 with tight tracking, the landing's three curtains in the account tones (work
+violet, client amber, personal green) as the picture, and blue only for what stays. The first
+version showed four agent sessions joining one `mcpd`, and the second a conversation above an
+account switch; the gateway is part of how turno works, not what the card says.
 Memory numbers stay out of the image; they live in the README's Benchmark section and
 BENCHMARKS.md.
