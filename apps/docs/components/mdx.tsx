@@ -11,6 +11,10 @@ import { ScopeTree } from "@/components/diagrams/scope-tree";
 import { StatusLine } from "@/components/diagrams/status-line";
 import { Install } from "@/components/install";
 import { Recording } from "@/components/recording";
+import { Highlight } from "@/components/releases/highlight";
+import { ReleaseHeader } from "@/components/releases/release-header";
+import { Release, ReleaseLine } from "@/components/releases/release-line";
+import { Upgrade } from "@/components/releases/upgrade";
 
 const MdxImage = defaultMdxComponents.img;
 
@@ -35,6 +39,12 @@ export function getMDXComponents(components?: MDXComponents) {
     FolderTree,
     StatusLine,
     ScopeTree,
+    // Release pages (content/docs/releases, docs/RELEASING.md).
+    ReleaseHeader,
+    Highlight,
+    Upgrade,
+    ReleaseLine,
+    Release,
     ...components,
   } satisfies MDXComponents;
 }

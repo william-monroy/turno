@@ -848,3 +848,457 @@ div[data-state]:has(+ [role="dialog"] [aria-controls="fd-search-list"]),
 #nd-nav [data-theme-toggle] {
   border-color: var(--d-line);
 }
+
+/* ------------------------------------------------------------------------------------------ */
+/* Release pages (components/releases/)                                                        */
+/* ------------------------------------------------------------------------------------------ */
+
+/* A package and its version as one chip: the name in ink, the version after a hairline. */
+.d-chip {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--d-line);
+  background: var(--d-card);
+  font-family: var(--d-mono);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--d-ink);
+  white-space: nowrap;
+}
+.d-chip > span {
+  padding: 5px 7px;
+}
+.d-chip-version {
+  border-left: 1px solid var(--d-line);
+  color: var(--d-keep);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The facts under the title: when, which packages, where the full notes are. */
+.d-rel {
+  margin-bottom: 36px;
+  border-block: 1px solid var(--d-line);
+}
+.d-rel-facts {
+  display: grid;
+  grid-template-columns: minmax(150px, max-content) minmax(0, 1fr);
+  margin: 0;
+}
+.d-rel-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 24px 16px 0;
+}
+.d-rel-fact + .d-rel-fact {
+  padding-left: 24px;
+  padding-right: 0;
+  border-left: 1px solid var(--d-line);
+}
+.d-rel-fact dt,
+.d-rel-step-dir {
+  font-family: var(--d-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--d-dim);
+}
+.d-rel-fact dd {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--d-ink);
+}
+.d-rel-pkgs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.d-rel-pkg {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+}
+.d-rel-pkg .d-chip {
+  min-width: 15ch;
+  justify-content: space-between;
+}
+.d-rel-pkg-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 13px;
+}
+.d-rel-pkg-links a {
+  color: var(--d-dim);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--d-keep) 70%, transparent);
+  text-underline-offset: 4px;
+}
+.d-rel-pkg-links a:hover {
+  background: var(--d-ink);
+  color: var(--d-paper);
+  text-decoration-color: transparent;
+}
+
+/* A phone stacks the facts: the date, then a row per package. */
+@media (max-width: 640px) {
+  .d-rel-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .d-rel-fact + .d-rel-fact {
+    padding-left: 0;
+    border-left: 0;
+    border-top: 1px solid var(--d-line);
+  }
+}
+
+/* Older and newer: two cells on the header's lower hairline. */
+.d-rel-nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--d-line);
+}
+.d-rel-step {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 12px 10px 0;
+  font-family: var(--d-mono);
+  font-size: 12px;
+  color: var(--d-ink);
+}
+.d-rel-step + .d-rel-step {
+  justify-content: flex-end;
+  padding: 10px 0 10px 12px;
+  border-left: 1px solid var(--d-line);
+}
+.d-rel-step-name {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+}
+.d-rel-step-none {
+  color: var(--d-dim);
+}
+a.d-rel-step:hover,
+a.d-rel-step:focus-visible {
+  background: var(--d-ink);
+  color: var(--d-paper);
+  padding-inline: 12px;
+}
+a.d-rel-step:hover .d-rel-step-dir,
+a.d-rel-step:focus-visible .d-rel-step-dir {
+  color: inherit;
+  opacity: 0.75;
+}
+a.d-rel-step:focus-visible {
+  outline-offset: -2px;
+}
+
+/*
+ * The change lists. A page that carries a ReleaseHeader reads as release notes: each item opens
+ * with the thing that changed, in ink, and the rest steps back, so a column of names can be
+ * scanned down the left edge. Items sit on hairlines instead of bullets.
+ */
+#nd-page:has(.d-rel) .prose > ul {
+  padding-left: 0;
+  list-style: none;
+  border-top: 1px solid var(--d-line);
+}
+#nd-page:has(.d-rel) .prose > ul > li {
+  margin: 0;
+  padding: 11px 0 12px;
+  border-bottom: 1px solid var(--d-line);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--d-dim);
+}
+#nd-page:has(.d-rel) .prose > ul > li::marker {
+  content: none;
+}
+#nd-page:has(.d-rel) .prose > ul > li > :first-child {
+  margin-top: 0;
+}
+#nd-page:has(.d-rel) .prose > ul > li > :last-child {
+  margin-bottom: 0;
+}
+#nd-page:has(.d-rel) .prose > ul > li > p > strong:first-child,
+#nd-page:has(.d-rel) .prose > ul > li > strong:first-child {
+  color: var(--d-ink);
+  font-weight: 600;
+}
+#nd-page:has(.d-rel) .prose > ul > li code {
+  color: var(--d-ink);
+}
+/* A lead-in that is a command reads as a name, not as a box among the boxes of the text. */
+#nd-page:has(.d-rel) .prose > ul > li > :is(p > strong, strong):first-child code {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.9em;
+  font-weight: 600;
+}
+/* An h2 right above a list: the list's own top rule is enough. */
+#nd-page:has(.d-rel) .prose > h2 + ul,
+#nd-page:has(.d-rel) .prose > h2 + p + ul {
+  margin-top: 18px;
+}
+
+/* Highlights: one headline feature each, numbered down the page like the landing's chapters. */
+#nd-page .prose {
+  counter-reset: d-hl;
+}
+.d-hl {
+  counter-increment: d-hl;
+  margin-block: 0;
+  padding-block: 28px 30px;
+  border-top: 1px solid var(--d-line);
+}
+.d-hl + .d-hl {
+  margin-top: 0;
+}
+#nd-page .prose h2 + .d-hl {
+  margin-top: 24px;
+}
+#nd-page .prose .d-hl-area {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  font-family: var(--d-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--d-dim);
+}
+#nd-page .prose .d-hl-area::before {
+  content: counter(d-hl, decimal-leading-zero);
+  color: var(--d-keep);
+  letter-spacing: 0.04em;
+}
+#nd-page .prose .d-hl-title {
+  margin: 10px 0 0;
+  font-size: 22px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.d-hl-body {
+  font-size: 15px;
+  line-height: 1.6;
+}
+#nd-page .prose .d-hl-body > p {
+  max-width: var(--d-measure);
+  margin: 12px 0 0;
+}
+#nd-page .prose .d-hl-body > figure {
+  margin: 18px 0 0;
+}
+.d-hl-more {
+  display: inline-flex;
+  gap: 6px;
+  margin-top: 14px;
+  font-family: var(--d-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+#nd-page .prose a.d-hl-more {
+  font-weight: 400;
+  color: var(--d-ink);
+}
+/* Wide: the text on the left, the example on the right, both under the title. */
+@media (min-width: 1100px) {
+  .d-hl:has(.d-hl-body > figure) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+    column-gap: 32px;
+    align-items: start;
+  }
+  .d-hl:has(.d-hl-body > figure) > :is(.d-hl-area, .d-hl-title) {
+    grid-column: 1 / -1;
+  }
+  .d-hl:has(.d-hl-body > figure) .d-hl-body {
+    display: contents;
+  }
+  .d-hl:has(.d-hl-body > figure) .d-hl-body > :not(figure),
+  .d-hl:has(.d-hl-body > figure) .d-hl-more {
+    grid-column: 1;
+  }
+  #nd-page .prose .d-hl:has(.d-hl-body > figure) .d-hl-body > figure {
+    grid-column: 2;
+    grid-row: 3 / span 12;
+    margin-top: 14px;
+  }
+  .d-hl:has(.d-hl-body > figure) .d-hl-more {
+    justify-self: start;
+  }
+}
+
+/* The upgrade block: the one command, the same per package manager, then what to run after. */
+.d-up {
+  margin-block: 24px 8px;
+}
+.d-up-way + .d-up-way {
+  margin-top: 22px;
+}
+#nd-page .prose .d-up-label {
+  margin: 0 0 8px;
+  font-family: var(--d-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--d-dim);
+}
+#nd-page .prose .d-up-note {
+  max-width: var(--d-measure);
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--d-dim);
+}
+.d-up figure.shiki,
+.d-up div[data-orientation="horizontal"] {
+  margin-block: 0;
+}
+.d-up .d-callout {
+  max-width: none;
+  margin-top: 26px;
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* The list of releases: every version on one blue line (components/releases/release-line.tsx) */
+/* ------------------------------------------------------------------------------------------ */
+
+#nd-page .prose .d-line {
+  position: relative;
+  margin: 40px 0 0;
+  padding: 0;
+  list-style: none;
+}
+#nd-page .prose .d-line-item {
+  position: relative;
+  margin: 0;
+  padding: 0 0 44px 40px;
+}
+#nd-page .prose .d-line-item::marker {
+  content: none;
+}
+/* The line: from the first knot down through the last one, where it stops: turno began there. */
+#nd-page .prose .d-line-item::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: -6px;
+  left: 6px;
+  width: 1px;
+  background: color-mix(in oklab, var(--d-keep) 70%, transparent);
+}
+#nd-page .prose .d-line-item:last-child {
+  padding-bottom: 0;
+}
+#nd-page .prose .d-line-item:last-child::before {
+  display: none;
+}
+/* Each version hangs on the line as an empty square; the latest is filled. */
+.d-line-knot {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--d-keep);
+  background: var(--d-paper);
+}
+.d-line-item[data-latest] .d-line-knot {
+  top: 1px;
+  left: 2px;
+  width: 9px;
+  height: 9px;
+  background: var(--d-keep);
+}
+#nd-page .prose .d-line-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  font-family: var(--d-mono);
+  font-size: 11px;
+  line-height: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--d-dim);
+}
+.d-line-flag {
+  color: var(--d-keep);
+}
+#nd-page .prose .d-line-version {
+  margin: 10px 0 0;
+  padding: 0;
+  border: 0;
+  font-family: var(--d-mono);
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+#nd-page .prose .d-line-item[data-latest] .d-line-version {
+  font-size: clamp(30px, 3.4vw, 40px);
+  letter-spacing: -0.03em;
+}
+#nd-page .prose .d-line-version a {
+  color: var(--d-ink);
+  font-weight: inherit;
+  text-decoration: none;
+}
+.d-line-name {
+  color: var(--d-dim);
+}
+#nd-page .prose .d-line-version a:hover .d-line-name {
+  color: inherit;
+}
+#nd-page .prose .d-line-pkgs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+#nd-page .prose .d-line-pkgs > li {
+  margin: 0;
+  padding: 0;
+}
+#nd-page .prose .d-line-summary {
+  max-width: var(--d-measure);
+}
+#nd-page .prose .d-line-summary > p {
+  margin: 12px 0 0;
+}
+#nd-page .prose .d-line-item:not([data-latest]) .d-line-summary {
+  font-size: 15px;
+  color: var(--d-dim);
+}
+#nd-page .prose a.d-line-go {
+  display: inline-flex;
+  gap: 6px;
+  margin-top: 14px;
+  font-family: var(--d-mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--d-ink);
+}
+/* The way into the latest notes is a button: ink border, and ink and paper swap on hover. */
+#nd-page .prose a.d-line-go-strong {
+  margin-top: 20px;
+  padding: 9px 12px;
+  border: 1px solid var(--d-ink);
+  text-decoration: none;
+}

@@ -63,13 +63,28 @@ to `main`, in four jobs:
 ### The release page
 
 A minor release of turno (0.3, 0.4, ...) gets a page on the site that tells what is new and how
-to use it: `apps/docs/content/docs/releases/v<major>-<minor>-<patch>.mdx`, listed in that
-folder's `meta.json` and as a card in its `index.mdx`. Write it from the pending changesets
-while the "version packages" pull request is open: lead with what users notice, one section per
-feature with a command to try, a "Changed behavior" callout for anything that can break a
-script, and links to the changelogs. Merge it, with `_Released <Month> <day>, <year>._` under
-the title, just before merging the version pull request, so the site and the GitHub releases
-go live together. A patch release needs no page.
+to use it: `apps/docs/content/docs/releases/v<major>-<minor>-<patch>.mdx`, listed right after `index` in
+that folder's `meta.json`. Write it from the pending changesets while the "version packages" pull
+request is open, and copy the shape of the newest page (`v0-2-0.mdx`), in this order:
+
+1. `description`: one sentence that names the features. Under it,
+   `<ReleaseHeader date="YYYY-MM-DD" packages={["turno-cli@0.3.0", "turno-browser@0.3.0"]} />`,
+   each package as its git tag; it links the GitHub releases, the changelogs and the older and
+   newer versions by itself.
+2. A paragraph with the headline features in bold, each linked to the docs page that explains it.
+3. `## Upgrade` with `<Upgrade>`; its children are what to run after upgrading, when there is
+   something (`<Upgrade />` when there is not).
+4. `## Highlights`: one `<Highlight area="Gateway" title="..." href="/docs/..." more="...">` per
+   headline feature, with two or three lines and a short code block (comments under about 30
+   characters, so it fits beside the text). `area` is CLI, Gateway, Browser, Accounts or Docs.
+5. One `##` per area (CLI, Gateway, Accounts, Security, Browser), then `## Fixes`,
+   `## Changed behavior` for anything that can break a script, and `## Links`. These are plain
+   Markdown lists, one item per change: `- **The thing**: what changed.`
+
+Then put the version on the list of releases (`index.mdx`): a `<Release latest ...>` entry at
+the top of `<ReleaseLine>`, with a summary that names and links the features, and remove `latest`
+from the entry below it. Merge the page just before merging the version pull request, so the
+site and the GitHub releases go live together. A patch release needs no page.
 
 The gate is the `npm` environment: the publish job waits until a required reviewer approves
 the deployment on GitHub. The trusted publishers allow `npm publish`, so an approved run

@@ -3,45 +3,167 @@ title: turno 0.2.0
 description: A new look for the CLI, folder server sets, OAuth for remote MCP servers, one-step setup and a safer gateway.
 ---
 
-_Released November 17, 2026._
+<ReleaseHeader date="2026-11-17" packages={["turno-cli@0.2.0", "turno-browser@0.2.0"]} />
 
-turno 0.2.0 gave the CLI its look and made the gateway do more with less: each folder sees only the MCP servers it needs, remote servers sign in with OAuth once per account, and `turno init` sets everything up in one step.
+turno 0.2.0 gives the CLI **[a look you can read at a glance](/docs/reference/cli/status)** and makes the gateway do more with less. **[`turno init`](/docs/get-started/first-five-minutes)** sets everything up in one step, and **[`turno demo`](/docs/get-started/try-it)** shows it without touching your setup. **[Server sets](/docs/concepts/folder-rules#server-sets-which-mcp-servers-a-folder-sees)** let each folder see only the MCP servers it needs, the gateway signs in to **[remote servers with OAuth](/docs/concepts/gateway#remote-servers)** once per account, and **[`turno mcp top` and `turno mcp log`](/docs/concepts/gateway#watching-it)** show what it does. Each profile gets **[its own gateway token](/docs/concepts/gateway#one-token-per-profile)**, and the **[accounts bridge](/docs/concepts/profiles#service-accounts-and-the-accounts-bridge)** no longer trusts the calling model to say what a delegated run may do.
 
-| Package | Version |
-|---|---|
-| `turno-cli` | 0.2.0 |
-| `turno-browser` | 0.2.0 |
+## Upgrade
 
-## A CLI you can read at a glance
+<Upgrade>
 
-`turno` and `turno status` show sections (here, profiles, machine), each profile as a pill in its status line color, usage bars colored by level with the time to reset, and the one thing to do next. `turno limit show`, `turno mcp list`, `turno mcp top` and `turno mcp log` share the same look, `--json` is colored on a terminal, and a single rule decides colors everywhere (`NO_COLOR`, `FORCE_COLOR`).
+**Run `turno mcp sync` once.** Each profile now has its own gateway token, and mcpd refuses the master token that configs synced by an older turno still send. `turno upgrade --finish` offers to run it for you, and `turno doctor` points it out.
 
-## Set up in one step, or just try it
+**Install turno-browser yourself if you use it.** `turno-cli` no longer pulls in `turno-browser` and `turno-fonts`: run `npm install --global turno-browser`. `turno ui install` downloads the status line font.
 
-`turno init` finds your agents, their profile folders and the MCP servers inside them, previews every change, and starts the gateway in the same run. `npx turno-cli demo` runs everything in a throwaway HOME. [Try it](/docs/get-started/try-it).
+</Upgrade>
 
-## Each folder sees only its servers
+## Highlights
 
-Folder rules can now pick which MCP servers a folder sees, so a work repository does not list your personal tools. [Folder rules](/docs/concepts/folder-rules).
+<Highlight area="CLI" title="A CLI you can read at a glance" href="/docs/reference/cli/status" more="turno status">
 
-## OAuth for remote MCP servers
+`turno` and `turno status` show sections (here, profiles, machine), each profile as a pill in its status line color, usage bars colored by level with the time to reset, and the one thing to do next. `turno limit show`, `turno mcp list`, `turno mcp top` and `turno mcp log` share the look.
 
-mcpd signs in to remote servers that use OAuth once per account, and every agent and profile on that account uses the same sign-in.
+```sh
+turno              # the status screen, once set up
+turno limit show   # usage bars and time to reset
+turno mcp list     # the gateway's servers, as a table
+```
 
-## See what the gateway does
+</Highlight>
 
-`turno mcp top` shows the servers and calls in flight, `turno mcp log` the call log and `turno mcp savings` what sharing servers saved. mcpd speaks MCP 2026-07-28 next to 2025-11-25 and stops idle servers sooner when memory is low.
+<Highlight area="CLI" title="Set up in one step, or just try it" href="/docs/get-started/try-it" more="Try it">
 
-## Safer by default
+`turno init` finds your agents, their profile folders and the MCP servers inside them, previews every change and starts the gateway in the same run. One `turno undo` reverts it all. `turno demo` runs everything in a throwaway HOME, with nothing to install.
 
-- Each profile has its own gateway token, and servers can hide tools per profile.
-- The accounts bridge no longer trusts the calling model to say what a delegated run may do.
-- `turno doctor` names the fix for every finding, and `turno doctor --security` checks permissions, tokens and secrets.
-- `turno undo` reverts a whole profile setup, and `turno uninstall` removes what turno set up.
-- A lighter default install with a locked dependency tree.
+```sh
+turno init --dry-run   # the plan, changing nothing
+turno init             # preview, confirm, write
+npx turno-cli demo     # all of it in a throwaway HOME
+```
 
-## Never stuck on a question
+</Highlight>
 
-A global `--no-input` flag turns every question off, and turno asks nothing inside a coding agent's session. A command that needs an answer exits with code 2 and names the flag that gives it. Commands that need a profile and get none show a picker on a terminal.
+<Highlight area="Gateway" title="Each folder sees only its servers" href="/docs/concepts/folder-rules#server-sets-which-mcp-servers-a-folder-sees" more="Server sets">
 
-The full list: [turno-cli 0.2.0](https://github.com/wimo-dev/turno/blob/main/packages/turno/CHANGELOG.md#020) and [turno-browser 0.2.0](https://github.com/wimo-dev/turno/blob/main/packages/browser/CHANGELOG.md#020).
+A folder rule can say which MCP servers its sessions see, so a work repository does not list your personal tools. The gateway hides the others: they show no tools, refuse calls and never start.
+
+```toml title="~/.config/turno/config.toml"
+[[projects]]
+path = "~/code/acme"
+profile = "work"
+mcp = ["issues", "docs"]   # only these servers
+
+[[projects]]
+path = "~/code/oss"
+mcp_deny = ["mail"]        # every server but these
+```
+
+</Highlight>
+
+<Highlight area="Gateway" title="OAuth for remote MCP servers" href="/docs/concepts/gateway#remote-servers" more="Remote servers">
+
+Declare a remote server with `auth = "oauth"` and the gateway signs in once per account, for every agent and profile on it. Tokens stay in the Keychain or Secret Service, never in files or logs, and are refreshed when they expire.
+
+```sh
+turno mcp login linear                     # default login
+turno mcp login linear --profile personal  # its variant
+```
+
+</Highlight>
+
+<Highlight area="Gateway" title="See what the gateway does" href="/docs/concepts/gateway#watching-it" more="Watching the gateway">
+
+`turno mcp top` shows each running server's memory, sessions and calls in flight, `turno mcp log` the tool calls the gateway relayed, and `turno mcp savings` its memory against the same sessions without it. The log never holds a call's arguments or result.
+
+```sh
+turno mcp top                      # memory and calls per server
+turno mcp log -f --server github   # follow tool calls
+turno mcp savings                  # memory saved by sharing
+```
+
+</Highlight>
+
+## CLI
+
+- **Status screen**: bare `turno` shows it once turno is set up (the help before that), with sections Here, Profiles and Machine and a Next row with the one command to run. `turno status --json` has it as `next`.
+- **`turno help`**: section headers, an Examples block and a "Start here" line, fitted to the terminal width. `turno <command> --help` and `turno help <command>` print the same usage and never run the command.
+- **`turno init`**: prints its phases (Found, Plan, Write, Gateway, Sync), shows the `config.toml` diff and the new `mcp.toml` with TOML colors, and ends with a `Try it:` line. It also finds MCP servers configured inside profile folders.
+- **Profile picker**: a command that needs a profile and gets none (`turno profile assign`, `turno run`, `turno limit set`, ...) shows the profiles on a terminal as colored pills, with arrow keys or j/k, typing to filter, and Esc to cancel.
+- **One look**: `turno limit show`, `turno mcp list`, `turno mcp top`, `turno mcp log` and `turno identity list` share the pills and columns, fitted to the terminal width.
+- **Colors**: one rule everywhere, set with `--color auto|always|never` or `TURNO_COLOR`, then `NO_COLOR` and `FORCE_COLOR`. `--json` is colored on a terminal and stays plain JSON in a pipe.
+- **`--no-input`**: a global flag (or `TURNO_NO_INPUT=1`) that turns every question off. turno also asks nothing inside a coding agent's session.
+- **`turno doctor`**: every finding is followed by the command that fixes it or the manual step, in sections with a summary line. `--summary` prints one line for hooks and status lines.
+- **`turno undo`**: reverts a whole profile setup and sums up each folder in one line; `-v` lists every change.
+- **`turno uninstall`**: removes what turno set up, after listing all of it. The run is journaled, so `turno undo` puts it back while turno is installed. `--purge` also removes its state, caches and installed servers.
+- **Typos**: `turno stauts` suggests `turno status`, and a mistyped flag is an error instead of being ignored.
+- **Faster**: `turno --help` renders about 3x faster, and `turno`, `turno status` and `turno profile list` no longer start one `claude` per profile on every run.
+
+## Gateway
+
+- **Server sets**: `mcp = [...]` and `mcp_deny = [...]` on a `[[projects]]` rule. A git worktree follows its main repository's rule, and mcpd reloads config.toml when it changes or on SIGHUP.
+- **OAuth**: `auth = "oauth"` in mcp.toml, `turno mcp login` and `turno mcp logout`. When a login is missing or was revoked, calls fail with the `turno mcp login` command to run.
+- **One token per profile**: `turno mcp sync` writes each profile's own token into its agent config, and mcpd takes the profile from the token, so a profile cannot open a server limited to other profiles. `turno mcp token rotate` invalidates every profile token at once.
+- **Tool filters**: `tools = { allow = [...], deny = [...] }` per server and per profile variant in mcp.toml. Filtered tools are not listed and calls to them fail with a clear error. Changing a filter no longer restarts the server.
+- **Call log**: `turno mcp log` reads `~/.local/state/turno/logs/calls.jsonl` (mode 600, rotated at 5 MiB). Error texts have tokens redacted; `call_log = false` under `[mcpd]` turns it off.
+- **MCP 2026-07-28**: mcpd serves agents that use the stateless revision directly, next to 2025-11-25 sessions. Elicitation and sampling still need a 2025-11-25 session.
+- **Low memory**: when the machine is short of memory, idle servers stop after `idle_under_pressure` (5 minutes by default) instead of their usual 20 or 30. `turno mcp top` shows the pressure in its header.
+- **Linux**: `turno mcp daemon start|stop|restart|status` use a `systemd --user` unit, and the LaunchAgent on macOS.
+- **Calls always finish**: pressing Esc on a slow tool, closing a session or a new `call_timeout` per server cancels the call on the server too.
+- **Live config**: editing mcp.toml applies to sessions that are already open, and a change of tool filter or server set tells them their tool list changed.
+- **Variables**: mcpd expands `${VAR}`, `${VAR:-default}` and `${env:VAR}` in a stdio server's args and env and in a proxied server's headers. A missing variable stops that server with an error that names it.
+- **`turno mcp install`**: pins each package to an exact version in mcp.toml, installs without install scripts and keeps a lockfile per server.
+
+## Accounts
+
+- **Accounts bridge**: accounts take `read_tools` and `confirm = "always" | "writes" | "never"`. A delegated read gets only its read tools, so injected text cannot make it send, post or delete.
+- **Delegated runs**: start in turno's own empty folder, load no settings files, get a minimal environment, and come back marked as data from another account, capped at 20,000 characters.
+- **Audit log**: append-only and hash-chained. `turno identity log` shows each decision and `turno identity log --verify` checks the chain.
+- **`turno auto`**: never switches accounts in silence. A missing launcher, a rule that names a missing profile or a broken config.toml stop it with the command that fixes it.
+- **`copy-artifact`**: a third skill in the Claude Code plugin copies a claude.ai artifact from one profile's account to another, with its files and assets.
+
+## Security
+
+- **`turno doctor --security`**: checks who can read or write turno's folders (`--fix` narrows them), who holds the mcpd port, literal secrets left in config files (it names where, never the value), servers that do not run an exact version, the age of the mcpd token and the audit log's chain.
+- **Secrets**: `turno secret set` no longer passes the value as a command argument. On Linux, `turno secret` and `keychain:` references use the Secret Service through `secret-tool`.
+- **Private files**: turno's folders are created 0700 and the files it writes 0600. Backups are private and pruned after 30 days, always keeping the newest 10.
+- **`turno open`**: accepts only http(s) and mailto links, and works on Linux.
+- **A lighter, locked install**: `turno-cli` no longer pulls in `turno-browser` and `turno-fonts` (about 52 MB down to 27 MB), and both packages ship an `npm-shrinkwrap.json`. No package in either tree runs an install script.
+
+## Browser
+
+- **Engine ids**: `turno browser bench` names its engines `chrome-headed`, `chrome-headless`, `chrome-baseline` and `firefox`. `--engine` still accepts the old ids.
+- **Asks first**: `turno browser bench` asks before it opens Chrome on third-party test pages. `--only-urls` replaces `--no-detectors`, which still works.
+- **`turno-browser-mcp`**: refuses `--port` or `--host` together with `--identity`, which would serve a signed-in browser over HTTP. `--allow-http-identity` accepts it, and then it listens on 127.0.0.1 only.
+
+## Fixes
+
+- **Status line**: no longer shows `$0.00` for a model it has no price for, and a damaged cache, a full disk or a read-only state folder leaves one part of the line empty instead of replacing it with an error. It shows `mcpd down` when the gateway does not answer.
+- **Folders with accents, CJK characters or emoji**: no longer break every gateway server. Run `turno mcp sync` and `turno profile repair` to pick up the fix.
+- **mcpd restarts**: open conversations keep working afterwards instead of getting 404.
+- **Shared servers**: a confirmation form or sampling request goes only to the session whose call asked for it.
+- **A broken mcp.toml**: no longer keeps mcpd from starting. It serves the last valid copy and shows the error in `turno mcp daemon status` and `turno doctor`.
+- **A busy port**: mcpd runs as a single instance and never moves to another port; it names the process that holds `mcpd.port`.
+- **`turno secret`**: refuses unknown flags, and `turno secret set --help` prints the usage instead of waiting for a value.
+- **Quoted status line paths**: `turno doctor` and the status screen recognize turno's own status line when its path is quoted.
+
+## Changed behavior
+
+What can break a script or a habit when you upgrade from 0.1:
+
+- **The master token**: mcpd no longer accepts it for MCP sessions. Run `turno mcp sync` once.
+- **turno-browser and turno-fonts**: no longer installed with turno-cli. Install turno-browser yourself when you use it.
+- **Exit code 2**: a command that needs an answer and cannot ask exits with 2 and names the flag that gives it (`init`, `uninstall` and `profile add` used 1).
+- **Bare `turno`**: shows the status screen once turno is set up, instead of the help.
+- **Accounts without `read_tools`**: a delegated read is confirmed like a write. Add `read_tools` to keep unconfirmed reads.
+- **`turno auto`**: exits 1 instead of running the plain agent when the setup is broken. `TURNO_ALLOW_PLAIN=1` runs the plain agent despite a broken config.
+- **`turno mcp sync`**: does not rewrite `~/.claude.json` while a plain `claude` session is open, unless you pass `--force`.
+- **Unknown flags**: every `turno mcp` subcommand, and more commands besides, reject them (exit 2) instead of ignoring them.
+- **`turno browser bench`**: reports the new engine ids in its table and `--json`, and without a terminal it needs `--yes` (`--json` alone no longer runs it).
+- **Profile names**: `init` and `demo` can no longer be profile names.
+
+## Links
+
+- Full changelogs: [turno-cli 0.2.0](https://github.com/wimo-dev/turno/blob/main/packages/turno/CHANGELOG.md#020) and [turno-browser 0.2.0](https://github.com/wimo-dev/turno/blob/main/packages/browser/CHANGELOG.md#020).
+- Get started: [Try it](/docs/get-started/try-it) and [First five minutes](/docs/get-started/first-five-minutes).
+- Concepts: [Folder rules](/docs/concepts/folder-rules), [The gateway](/docs/concepts/gateway) and [Profiles](/docs/concepts/profiles).
+- [Security and privacy](/docs/security), for what `turno doctor --security` checks.
