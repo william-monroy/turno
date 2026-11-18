@@ -104,7 +104,11 @@ value); mcpd under the LaunchAgent or systemd has its own environment, so set th
 ## Remote servers with OAuth
 
 A remote server that asks its users to log in (Linear, Notion, GitHub and most hosted MCP
-servers) can be declared with `auth = "oauth"`. mcpd then becomes its OAuth client: you log in
+servers) can be declared with `auth = "oauth"`. `turno mcp import --write` sets it for you: it
+sends each remote server without an `Authorization` header (or a header with a secret) one
+`initialize` request without credentials, and a `401` with a `WWW-Authenticate: Bearer`
+challenge, which is how the MCP authorization spec asks for a login, marks the server. Previews
+stay offline and mark nothing. mcpd then becomes its OAuth client: you log in
 once per account with `turno mcp login`, and every agent and profile reaches the server through
 mcpd without a login of its own. See [ADR 0029](decisions/0029-oauth-for-remote-servers.md).
 
@@ -195,6 +199,35 @@ of an npx server is guessed from the package and checked on npm when written). `
 in the Keychain and writes `keychain:` references; secrets in args or URLs stay literal (they
 cannot come from the Keychain). `${VAR}` and `${VAR:-default}` become `env:VAR` and
 `env:VAR:-default`.
+
+### Moving servers to another machine
+
+`turno mcp export` prints `mcp.toml` without a single secret value, and `turno mcp import <file>`
+merges such a file into `mcp.toml` on the other machine:
+
+```sh
+turno mcp export > servers.toml                      # every server
+turno mcp export --profile work > work.toml          # only what work gets, and only its variant
+turno mcp import servers.toml                        # preview: what it would add, replace or keep
+turno mcp import servers.toml --write                # merge it; servers already there stay
+turno mcp import servers.toml --write --force        # replace those too (backed up; turno undo)
+```
+
+Secrets travel by name only. `keychain:` and `env:` references stay as they are; a literal
+secret in `env` or `headers` becomes `keychain:turno/<server>/<key>` (`turno/<server>/<profile>/<key>`
+in a variant), the same name `--move-secrets` uses. The top of the file lists one
+`turno secret set <name>` line for each Keychain secret the servers need, and the variables mcpd
+must have. A secret inside `args` or a URL cannot be a reference, so the export replaces it with
+`<secret>` and says so; fill those in by hand. Comments in `mcp.toml` are not exported.
+
+`turno mcp import <file>` also takes another agent's MCP config: a JSON file with `mcpServers`
+(Claude Code, Cursor, Copilot CLI, `.mcp.json`) or a Codex `config.toml`, converted the way the
+import without a file converts them. It never replaces `mcp.toml` as a whole: new servers are
+appended (the rest of the file and its comments stay), servers with a name already there are
+kept unless `--force`, and a server written as an inline table under `[server]` has to be
+replaced by hand. With `--write` it marks OAuth servers as above and ends with the next steps:
+`turno secret list` for the references still missing, `turno mcp install`, `turno mcp login`
+for OAuth servers, and `turno mcp sync`.
 
 `turno mcp install` then resolves each `package` to an exact version, rewrites it in
 `mcp.toml`, installs it without install scripts (`--allow-scripts` to run them) and keeps a

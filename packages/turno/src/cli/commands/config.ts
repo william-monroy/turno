@@ -34,6 +34,7 @@ const KEYS: Record<string, string> = {
   icons: "auto, nerd or unicode",
   nerd_terminals: "terminals whose font draws Nerd icons",
   update_check: "true or false: look for new turno releases once a day",
+  hints: "true or false: print the next step after a command that writes",
   "open.chrome_dir": "folder of the isolated Chrome profiles",
   "mcpd.port": "port of the MCP gateway",
   "mcpd.call_log": "true or false: keep the log of tool calls (turno mcp log)",
@@ -147,7 +148,8 @@ export function checkValue(key: string, raw: string, env: NodeJS.ProcessEnv): To
       if (raw !== "auto" && raw !== "nerd" && raw !== "unicode") fail("icons must be auto, nerd or unicode");
       return raw;
     case "update_check":
-      if (typeof value !== "boolean") fail("update_check must be true or false");
+    case "hints":
+      if (typeof value !== "boolean") fail(`${key} must be true or false`);
       return value;
     case "mcpd.port":
       if (typeof value !== "number" || value < 1024 || value > 65535) fail("mcpd.port must be an integer between 1024 and 65535");

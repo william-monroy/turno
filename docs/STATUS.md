@@ -161,6 +161,10 @@ Last updated: 2026-11-17.
   `turno <profile>` and `turno auto`, per agent through the adapter's `safeMode`; Copilot CLI
   and Cursor CLI gateway entries send the session folder header; `system = ""` reads as "no
   account" in status, which, sessions and the hub's gateway token.
+- **Export, import and hints** (ADR 0050): `turno mcp export` (mcp.toml with secrets by name
+  only) and `turno mcp import <file>` (merges an export or another agent's config, keeping
+  comments); `auth = "oauth"` for remotes that answer with an OAuth challenge on `--write`; Codex
+  `[projects]` trust entries for folder rules; `Next:` lines after writes, `hints = false`.
 
 ## Known gaps
 
@@ -261,10 +265,8 @@ Last updated: 2026-11-17.
      login); `list_changed` for stateless 2026-07-28 clients (sessions get it since 0.2).
    - MCP SDK v2 migration: elicitation and sampling for 2026-07-28 clients, 2026-07-28-only
      upstreams; an end-to-end test once an agent defaults to 2026-07-28.
-   - OAuth: host a turno Client ID Metadata Document at a project HTTPS URL; `mcp import`
-     setting `auth = "oauth"` for remotes that need it.
-   - CLI: Codex
-     `[projects]` trust entries for folder rules; the OAuth login state for doctor without the
+   - OAuth: host a turno Client ID Metadata Document at a project HTTPS URL.
+   - CLI: the OAuth login state for doctor without the
      MCP SDK (`loginState` lives in `mcpd/oauth.ts`, which imports it).
    - Accounts bridge: a rate limit per session; opt-in extra environment for runs (Bedrock,
      Vertex); verify that strict MCP runs reach the gateway with per-profile tokens on a real

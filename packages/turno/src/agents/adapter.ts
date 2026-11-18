@@ -56,6 +56,19 @@ export function gatewayNames(map: unknown): string[] {
     .sort();
 }
 
+/** What `ruleFolders` gets: a profile and the folders whose `[[projects]]` rules use it. */
+export interface RuleFoldersStep {
+  name: string;
+  /** The profile's folder. */
+  dir: string;
+  /** Absolute folders of the rules that name this profile. */
+  folders: string[];
+  env: NodeJS.ProcessEnv;
+  out(line: string): void;
+  /** Write a file the step changes, mode 600, through the journal. */
+  writeOwn(file: string, text: string): void;
+}
+
 /** What an agent's profile setup steps get from `turno profile repair` (cli/commands/setup.ts). */
 export interface SetupStep {
   name: string;
@@ -150,6 +163,11 @@ export interface AgentAdapter {
    * by cli/safe.ts for every agent.
    */
   safeMode(s: SafeStep): SafePlan;
+  /**
+   * Folder rules use this profile (`turno profile assign`, `turno profile repair`): what the agent
+   * needs per folder (Codex: a `[projects]` trust entry). Optional.
+   */
+  ruleFolders?(s: RuleFoldersStep): void;
   /** Agent steps of `turno profile repair`, around the shared links. */
   setup?: {
     /** Before anything is linked. */

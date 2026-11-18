@@ -19,6 +19,7 @@ import { emit, jsonOutput } from "../output.js";
 import { LOG_FLAGS, LOG_JSON, SAVINGS_FLAGS, SAVINGS_JSON, TOP_FLAGS, TOP_JSON } from "./mcp-observe.js";
 import { LOGIN_FLAGS, LOGIN_JSON, LOGOUT_FLAGS, type LoginRow, describeLogin, oauthLogins } from "./mcp-oauth.js";
 import { CALL_FLAGS, CALL_JSON } from "./mcp-call.js";
+import { EXPORT_FLAGS, EXPORT_JSON, IMPORT_FLAGS as IMPORT_FILE_FLAGS } from "./mcp-share.js";
 
 const run = promisify(execFile);
 
@@ -448,6 +449,8 @@ export async function binOf(io: Io, pkg: string): Promise<string | undefined> {
 const IMPORT_FLAGS: FlagSpec = { write: { type: "boolean" }, "move-secrets": { type: "boolean" }, ...FORCE, ...DRY_RUN };
 
 async function importCmd(args: string[], io: Io): Promise<number> {
+  const file = parseFlags(args, IMPORT_FILE_FLAGS, 1).positionals[0];
+  if (file !== undefined) return (await import("./mcp-share.js")).importFile(file, args, io);
   const flags = parseFlags(args, IMPORT_FLAGS, 0);
   const write = bool(flags, "write");
   const moveSecrets = bool(flags, "move-secrets");
@@ -779,10 +782,21 @@ const SUBS: Record<string, Sub> = {
     run: config,
   },
   import: {
-    synopsis: "[--write] [--move-secrets] [--force]",
-    summary: "draft mcp.toml from your agent configs",
+    synopsis: "[file] [--write] [--move-secrets] [--force]",
+    summary: "draft mcp.toml from your agent configs, or merge a file",
     flags: flagsOf(IMPORT_FLAGS),
+    details:
+      "Without a file it drafts mcp.toml from every agent config on this machine (a\npreview until --write; --force replaces an existing mcp.toml). With a file it\nmerges that file's servers into mcp.toml: an export (turno mcp export), a JSON\nfile with mcpServers, or a Codex config.toml. Servers already in mcp.toml are\nkept unless --force replaces them. With --write, remote servers that answer\nwith an OAuth challenge get auth = \"oauth\".",
     run: importCmd,
+  },
+  export: {
+    synopsis: "[--profile <p>] [--json]",
+    summary: "print mcp.toml without secret values, for another machine",
+    flags: flagsOf(EXPORT_FLAGS),
+    json: EXPORT_JSON,
+    details:
+      "Prints mcp.toml with each secret named, never its value: keychain: and env:\nreferences stay, literal secrets become keychain:turno/<server>/<key>\nreferences, and the top of the file lists the turno secret set commands the\nother machine needs. A secret inside args or a URL is replaced by <secret>.\n--profile keeps only the servers that profile gets, and only its own variant.",
+    run: async (rest, io) => (await import("./mcp-share.js")).exportCmd(rest, io),
   },
   install: {
     synopsis: "[server...] [--dry-run] [--allow-scripts]",
@@ -865,12 +879,14 @@ const SUBS: Record<string, Sub> = {
 export const command = group("mcp", "MCP servers behind the lazy gateway, and the gateway daemon itself", SUBS, {
   fallback: "list",
   footer: `config prints entries for ${SNIPPET_AGENTS.join(", ")}.
-import reads ~/.claude.json, .mcp.json, ~/.codex, ~/.cursor and ~/.copilot.
-It only previews, with secrets hidden, until --write.
+import reads ~/.claude.json, .mcp.json, ~/.codex, ~/.cursor and ~/.copilot,
+or one file. It only previews, with secrets hidden, until --write.
 Docs: docs/mcp.md in the turno repository.`,
   examples: [
     "turno mcp list --json=name,kind",
     "turno mcp import --write --move-secrets",
+    "turno mcp import servers.toml --write",
+    "turno mcp export --profile work > servers.toml",
     "turno mcp install",
     "turno mcp sync",
     "turno mcp config --agent opencode",
