@@ -23,7 +23,22 @@ Check it:
 turno version
 ```
 
-The package runs no install scripts and ships an `npm-shrinkwrap.json`, so you get exactly the dependency versions that were tested. CI checks both.
+`turno upgrade` later updates turno with the same tool that installed it. CI installs the packed release with each of these on macOS and Linux and runs it.
+
+- The package runs no install scripts, so pnpm and bun, which block dependencies' scripts by default, need no approval.
+- npm and Homebrew install exactly the dependency versions that were tested, from the package's `npm-shrinkwrap.json`. pnpm, bun and yarn do not read that file: they install the same direct dependencies (pinned to exact versions) and resolve the dependencies of those themselves.
+- pnpm 11 and later wait a day before they install a new release (`minimumReleaseAge`), so a release reaches pnpm a day after npm.
+- yarn means yarn 1 (classic). yarn 2 and later have no global installs: use npm, pnpm or bun there.
+
+## Run it once without installing
+
+```sh
+npx turno-cli demo
+pnpm dlx turno-cli demo
+bunx turno-cli demo
+```
+
+`turno demo` works from there, in a throwaway HOME. Commands that write launchers or the status line refuse to run from a one-off copy, because the runner may delete its cache at any time: install turno first.
 
 ## Linux
 
@@ -59,7 +74,7 @@ Interactive commands ask the npm registry for a newer version at most once a day
 ```sh
 turno uninstall --dry-run   # lists what turno set up: service, launchers, MCP entries, status line, config
 turno uninstall             # removes it
-npm uninstall --global turno-cli
+npm uninstall --global turno-cli   # or: pnpm remove --global, bun remove --global, yarn global remove, brew uninstall turno
 ```
 
 Profile folders, which hold your logins, stay until you delete them. `turno uninstall --purge` also removes turno's state and caches (backups, logs, usage, installed MCP servers), after which `turno undo` has nothing to restore.

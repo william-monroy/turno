@@ -49,14 +49,24 @@ memory saving is in [Benchmark](#benchmark).
 
 ```sh
 npx turno-cli demo              # try it first, in a throwaway HOME; your own setup is not touched
-npm install --global turno-cli  # macOS or Linux, Node 22.11+
-brew tap wimo-dev/turno && brew trust wimo-dev/turno && brew install turno  # or Homebrew
 ```
 
-The npm package is `turno-cli`; the command it installs is `turno`. It runs no install scripts
-and ships an `npm-shrinkwrap.json`, so you get exactly the dependency versions that were tested
-(CI checks both). Nothing leaves your machine: no account, no telemetry, no proxy for model
-traffic.
+Then install it with the package manager you already use (macOS or Linux, Node 22.11+):
+
+```sh
+npm install --global turno-cli
+pnpm add --global turno-cli
+bun add --global turno-cli
+yarn global add turno-cli        # yarn 1 (classic); yarn 2 and later have no global installs
+brew tap wimo-dev/turno && brew trust wimo-dev/turno && brew install turno
+```
+
+The npm package is `turno-cli`; the command it installs is `turno`, and `turno upgrade` later
+updates it with the same tool. `npx turno-cli`, `pnpm dlx turno-cli` and `bunx turno-cli` run it
+once without installing. It runs no install scripts, and npm and Homebrew install exactly the
+dependency versions that were tested, from its `npm-shrinkwrap.json` (pnpm, bun and yarn resolve
+the dependencies of its dependencies themselves). CI installs it each of these ways on macOS and
+Linux. Nothing leaves your machine: no account, no telemetry, no proxy for model traffic.
 
 ## What it does
 

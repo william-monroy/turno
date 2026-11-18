@@ -22,7 +22,7 @@ export function packageInfo(): PackageInfo {
   return cached;
 }
 
-type InstallMethod = "npm" | "pnpm" | "yarn" | "bun" | "volta" | "brew" | "source" | "unknown";
+type InstallMethod = "npm" | "pnpm" | "yarn" | "bun" | "volta" | "brew" | "npx" | "pnpm-dlx" | "bunx" | "source" | "unknown";
 
 export interface Install {
   method: InstallMethod;
@@ -31,6 +31,45 @@ export interface Install {
   /** For a source checkout: the repository root. */
   repo?: string;
 }
+
+/** The runner that executes turno from its cache for one run, and the command that runs the newest release. */
+export const ONE_OFF_RUNNERS = {
+  npx: { runner: "npx", latest: "npx turno-cli@latest", install: "npm install --global turno-cli" },
+  "pnpm-dlx": { runner: "pnpm dlx", latest: "pnpm dlx turno-cli@latest", install: "pnpm add --global turno-cli" },
+  bunx: { runner: "bunx", latest: "bunx turno-cli@latest", install: "bun add --global turno-cli" },
+} as const;
+
+type OneOffMethod = keyof typeof ONE_OFF_RUNNERS;
+
+function oneOffMethod(path: string): OneOffMethod | undefined {
+  const parts = path.split(sep);
+  // npx: <npm cache>/_npx/<hash>/node_modules/<pkg>.
+  if (parts.includes("_npx")) return "npx";
+  // pnpm dlx: <pnpm cache>/dlx/<hash>/<stamp>/node_modules/... (~/.cache/pnpm, ~/Library/Caches/pnpm).
+  const dlx = parts.indexOf("dlx");
+  if (dlx > 0 && (parts[dlx - 1] === "pnpm" || parts.includes(".pnpm") || parts.includes(".pacquet"))) return "pnpm-dlx";
+  // bunx: $TMPDIR/bunx-<uid>-<pkg>@<version>/node_modules/<pkg>.
+  if (parts.some((p) => p.startsWith("bunx-"))) return "bunx";
+  return undefined;
+}
+
+/** "npx", "pnpm dlx" or "bunx" when turno runs from that runner's cache, which it may delete at any time. */
+export function oneOffRunner(path: string): (typeof ONE_OFF_RUNNERS)[OneOffMethod]["runner"] | undefined {
+  const m = oneOffMethod(path);
+  return m ? ONE_OFF_RUNNERS[m].runner : undefined;
+}
+
+export function isOneOff(method: InstallMethod): method is OneOffMethod {
+  return method in ONE_OFF_RUNNERS;
+}
+
+/** The lockfile each package manager keeps next to its global node_modules. */
+const LOCKFILES: [string, InstallMethod][] = [
+  ["bun.lock", "bun"],
+  ["bun.lockb", "bun"],
+  ["yarn.lock", "yarn"],
+  ["pnpm-lock.yaml", "pnpm"],
+];
 
 /** How the running turno was installed, from where its files are. */
 export function detectInstall(root = packageInfo().root): Install {
@@ -44,15 +83,21 @@ export function detectInstall(root = packageInfo().root): Install {
   // Homebrew keeps the npm package under Cellar/<formula>/<version>/libexec: brew owns it.
   if (parts.includes("Cellar") && parts.includes("node_modules")) return { method: "brew", root: real };
   if (parts.includes("node_modules")) {
-    const method: InstallMethod = real.includes(`${sep}.volta${sep}`)
-      ? "volta"
-      : real.includes(`${sep}.bun${sep}`)
-        ? "bun"
-        : real.includes(`${sep}pnpm${sep}`) || real.includes(`${sep}.pnpm${sep}`)
-          ? "pnpm"
-          : real.includes(`${sep}yarn${sep}`) || real.includes(`${sep}.yarn${sep}`)
-            ? "yarn"
-            : "npm";
+    const once = oneOffMethod(real);
+    if (once) return { method: once, root: real };
+    if (real.includes(`${sep}.volta${sep}`)) return { method: "volta", root: real };
+    // The folder that holds the outermost node_modules: yarn, bun and pnpm keep their lockfile
+    // there, wherever a custom prefix (--global-folder, BUN_INSTALL, PNPM_HOME) put it.
+    const top = parts.slice(0, parts.indexOf("node_modules")).join(sep) || sep;
+    const locked = LOCKFILES.find(([file]) => existsSync(join(top, file)));
+    if (locked) return { method: locked[1], root: real };
+    const method: InstallMethod = real.includes(`${sep}.bun${sep}`)
+      ? "bun"
+      : real.includes(`${sep}pnpm${sep}`) || parts.includes(".pnpm")
+        ? "pnpm"
+        : real.includes(`${sep}yarn${sep}`) || real.includes(`${sep}.yarn${sep}`)
+          ? "yarn"
+          : "npm";
     return { method, root: real };
   }
   for (let dir = real; dir !== dirname(dir); dir = dirname(dir)) {

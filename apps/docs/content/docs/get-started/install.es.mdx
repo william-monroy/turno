@@ -23,7 +23,22 @@ Revisa que quedó:
 turno version
 ```
 
-El paquete no ejecuta scripts de instalación e incluye un `npm-shrinkwrap.json`, así que instalas exactamente las versiones de dependencias que se probaron. CI revisa ambas cosas.
+`turno upgrade` actualiza turno después con la misma herramienta que lo instaló. CI instala la versión empaquetada con cada una de estas en macOS y Linux y la ejecuta.
+
+- El paquete no ejecuta scripts de instalación, así que pnpm y bun, que bloquean los scripts de las dependencias por defecto, no piden aprobación.
+- npm y Homebrew instalan exactamente las versiones de dependencias que se probaron, desde el `npm-shrinkwrap.json` del paquete. pnpm, bun y yarn no leen ese archivo: instalan las mismas dependencias directas (fijadas a versiones exactas) y resuelven por su cuenta las dependencias de esas.
+- pnpm 11 y posteriores esperan un día antes de instalar una versión nueva (`minimumReleaseAge`), así que una versión llega a pnpm un día después que a npm.
+- yarn quiere decir yarn 1 (classic). yarn 2 y posteriores no instalan global: ahí usa npm, pnpm o bun.
+
+## Ejecútalo una vez sin instalarlo
+
+```sh
+npx turno-cli demo
+pnpm dlx turno-cli demo
+bunx turno-cli demo
+```
+
+`turno demo` funciona desde ahí, en un HOME desechable. Los comandos que escriben lanzadores o la status line se niegan a correr desde una copia temporal, porque el ejecutor puede borrar su caché en cualquier momento: instala turno primero.
 
 ## Linux
 
@@ -59,7 +74,7 @@ Los comandos interactivos le preguntan al registro de npm si hay una versión m�
 ```sh
 turno uninstall --dry-run   # muestra lo que turno configuró: servicio, lanzadores, entradas MCP, status line, configuración
 turno uninstall             # lo quita
-npm uninstall --global turno-cli
+npm uninstall --global turno-cli   # o: pnpm remove --global, bun remove --global, yarn global remove, brew uninstall turno
 ```
 
 Las carpetas de los perfiles, que guardan tus credenciales, se quedan hasta que tú las borres. `turno uninstall --purge` también borra el estado y las cachés de turno (copias, registros, uso, servidores MCP instalados), y después `turno undo` ya no tiene qué restaurar.

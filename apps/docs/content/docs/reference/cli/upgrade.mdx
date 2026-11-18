@@ -17,12 +17,14 @@ Usage:
 When agent configs need a new gateway token, --finish offers to run turno mcp sync (in a
 terminal it asks; --yes runs it without asking).
 
-turno knows how it was installed (npm, pnpm, yarn, bun, volta, or a git checkout) and runs the
-matching command. Once a day interactive commands look for a new release in the background and
+turno knows how it was installed (npm, pnpm, yarn, bun, volta, Homebrew, or a git checkout) and
+runs the matching command. A copy that npx, pnpm dlx or bunx runs once has nothing to upgrade:
+the next run of that runner with @latest gets the newest release. Once a day interactive commands look for a new release in the background and
 mention it once; set update_check = false in config.toml or TURNO_NO_UPDATE_CHECK=1 to stop that.
 
 Examples:
   $ turno upgrade --check
   $ turno upgrade
+  $ turno upgrade --dry-run --to 1.2.3
   $ turno upgrade --finish
 ```
