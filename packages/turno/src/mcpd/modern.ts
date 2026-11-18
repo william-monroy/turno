@@ -9,7 +9,7 @@ import { ErrorCode, type Id, type Message, type Outcome, rpcError } from "./json
 import type { CallPipeline } from "./middleware.js";
 
 /**
- * MCP revision 2026-07-28 on mcpd's HTTP endpoint (ADR 0028): stateless requests that carry
+ * MCP revision 2026-07-28 on mcpd's HTTP endpoint: stateless requests that carry
  * their protocol version, client capabilities and identity in `_meta`, with no `initialize` and
  * no `Mcp-Session-Id`. 2025-11-25 sessions keep going through the SDK transport in gateway.ts;
  * the upstream servers are still spoken to as 2025-11-25 clients.
@@ -316,7 +316,7 @@ export class StatelessClient implements ClientHandle {
 
   constructor(
     readonly ctx: ClientContext,
-    /** The client folder and, for a worktree, its main repository: what folder sets match (ADR 0031). */
+    /** The client folder and, for a worktree, its main repository: what folder sets match. */
     readonly folders: string[] = [],
   ) {
     this.id = ctx.sessionId;
@@ -363,7 +363,7 @@ export class StatelessClient implements ClientHandle {
 
 export interface FrontOptions {
   manager: InstanceManager;
-  /** The call middleware every tools/call goes through (ADR 0047), the gateway's. */
+  /** The call middleware every tools/call goes through, the gateway's. */
   calls: CallPipeline;
   /** The tool filter of a client, for the lists (calls are filtered by the middleware). */
   toolFilter: (ctx: ClientContext) => ToolFilter | undefined;
@@ -372,9 +372,9 @@ export interface FrontOptions {
   /** Capabilities as mcpd announces them (listChanged on lists it can relist). */
   capabilities: (caps: Record<string, unknown>) => Record<string, unknown>;
   peerPid?: (remotePort: number) => Promise<number | undefined>;
-  /** Folders a client's server set is matched against (ADR 0031); none when sets are off. */
+  /** Folders a client's server set is matched against; none when sets are off. */
   folders?: (ctx: ClientContext) => Promise<string[]>;
-  /** Why the client's folder hides its server (ADR 0031), or undefined when it is shown. */
+  /** Why the client's folder hides its server, or undefined when it is shown. */
   hiddenBySet?: (c: { ctx: ClientContext; folders: string[] }) => string | undefined;
   log?: (line: string) => void;
 }
@@ -536,7 +536,7 @@ export class StatelessFront {
     const agent = cleanAgentName(isObject(meta[CLIENT_INFO]) ? meta[CLIENT_INFO].name : undefined);
     if (agent) client.ctx.clientName = agent;
 
-    // Outside the folder's server set (ADR 0031): answer from mcpd, never start the server.
+    // Outside the folder's server set: answer from mcpd, never start the server.
     const hidden = this.opts.hiddenBySet?.(client);
     if (hidden) return this.hiddenReply(res, id, method, hidden);
     try {

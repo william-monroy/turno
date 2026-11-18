@@ -40,7 +40,7 @@ export function safePlan(agent: AgentId, file: string, cwd: string, env: NodeJS.
 }
 
 /**
- * The environment a launcher gives `profile` (ADR 0032), without the gateway variables, and with
+ * The environment a launcher gives `profile`, without the gateway variables, and with
  * TURNO_SAFE=1 so a turno the agent runs stays in safe mode. Without a profile: the plain agent.
  */
 export function safeEnv(

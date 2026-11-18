@@ -10,7 +10,7 @@ import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 /**
  * Starts the built `turno-browser-mcp` over stdio and lists its tools. Listing tools does
  * not launch Chrome, so this stays offline and headless-safe. It guards the internal
- * patchright-core entry path (ADR 0003) against upgrades.
+ * patchright-core entry path against upgrades.
  */
 
 const pkg = fileURLToPath(new URL("..", import.meta.url));

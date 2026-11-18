@@ -13,7 +13,7 @@ import type { Check } from "./commands/doctor.js";
 import { isObject } from "../core/fsutil.js";
 
 /**
- * `turno doctor --security` (ADR 0027): who can read turno's files, who holds the mcpd port,
+ * `turno doctor --security`: who can read turno's files, who holds the mcpd port,
  * literal secrets left in configs and backups, MCP servers that run whatever version is newest,
  * the age of the gateway token, and the audit log's hash chain. Every check only reads, except
  * the permissions fix, which narrows modes under turno's own folders.
@@ -503,7 +503,7 @@ function tokenAgeCheck(env: NodeJS.ProcessEnv, now = Date.now()): Check[] {
   } catch {
     return [];
   }
-  // Profile tokens (ADR 0023) derive from the master token, so they share its age; a token file
+  // Profile tokens derive from the master token, so they share its age; a token file
   // that does not match it was written before a rotation and no longer opens mcpd.
   const dir = dirname(profileTokenFile("x", env));
   let names: string[] = [];

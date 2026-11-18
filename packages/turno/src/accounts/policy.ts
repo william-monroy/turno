@@ -1,5 +1,5 @@
 /**
- * What a call to the accounts bridge may do (ADR 0024): whether the user must confirm it, and
+ * What a call to the accounts bridge may do: whether the user must confirm it, and
  * which tools the delegated run gets. The decision depends on the account, never on the
  * caller's word alone: `write=false` only narrows the tools when the account lists read tools.
  */

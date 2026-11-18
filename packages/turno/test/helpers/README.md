@@ -25,7 +25,7 @@ Other helpers:
   `use` again with another port when something took the first one (EADDRINUSE). Never pick a
   random port number.
 - `oauth-fakes.ts`: an in-process OAuth authorization server and an MCP server it protects, on
-  127.0.0.1, and `approve(url)`, which plays the browser for `turno mcp login` (ADR 0029).
+  127.0.0.1, and `approve(url)`, which plays the browser for `turno mcp login`.
 - `wait.ts`: `waitFor(check)` polls instead of sleeping a guessed time; `killAndWait(child)`
   for `afterEach`, so no child outlives a failed test.
 

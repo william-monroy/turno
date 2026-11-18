@@ -1,7 +1,7 @@
 import { gatewayUrl } from "./adapter.js";
 
 /**
- * Config snippets that point agents turno does not manage at the MCP gateway (ADR 0013).
+ * Config snippets that point agents turno does not manage at the MCP gateway.
  * turno prints them; the user pastes them. The token is never printed: each snippet reads it
  * from TURNO_MCPD_TOKEN where the agent expands variables, and says so where it does not.
  */
@@ -23,7 +23,7 @@ export interface Snippet {
 }
 
 const url = (port: number, name: string) => gatewayUrl(name, port);
-/** How the profile's own token (ADR 0023) reaches an agent that expands variables. */
+/** How the profile's own token reaches an agent that expands variables. */
 const tokenEnv = (file: string) =>
   `Start the agent with TURNO_MCPD_TOKEN set to this profile's token, e.g. in your shell profile: export TURNO_MCPD_TOKEN="$(cat ${file})"`;
 

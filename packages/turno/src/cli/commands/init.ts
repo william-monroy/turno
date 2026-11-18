@@ -28,7 +28,7 @@ import { resolveAll, warnPath } from "./profile.js";
 import { RESERVED, checkName, localCopies, setupProfiles } from "./setup.js";
 
 /**
- * `turno init` (ADR 0030): one command in place of the quick start. It looks at the machine
+ * `turno init`: one command in place of the quick start. It looks at the machine
  * (agents on PATH, turno profiles, agent folders made by hand, MCP servers in every agent config,
  * the folders each account was used in), proposes profiles, folder rules, a default and mcp.toml,
  * prints the whole change, and writes it through one journal so one `turno undo` reverts it.

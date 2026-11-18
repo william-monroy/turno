@@ -97,7 +97,7 @@ full disk or a read-only state folder leaves that part empty and the rest of the
 ### Colors and `NO_COLOR`
 
 turno's own screens choose colors by one order, and the first rule that applies wins
-(ADR 0037, ADR 0045):
+:
 
 1. `--color always|never` on the command line (before the command or among its flags);
 2. `TURNO_COLOR=always|never` (`--color auto` sets it aside);

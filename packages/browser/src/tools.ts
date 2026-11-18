@@ -13,13 +13,13 @@ import {
 } from "./upstream.js";
 
 /**
- * The turno tool registry (ADR 0043). A turno tool is listed after the stock Playwright MCP
+ * The turno tool registry. A turno tool is listed after the stock Playwright MCP
  * tools and called by the host itself; stock tools keep going to upstream's `BrowserBackend`.
  *
  * Rules, checked when the host starts and by the contract test:
  *
  * - A turno tool never takes the name of an upstream tool, whatever its capability, so a stock
- *   tool name always means the stock tool (ADR 0003). An upgrade of patchright-core that adds a
+ *   tool name always means the stock tool. An upgrade of patchright-core that adds a
  *   tool with the same name fails the contract test, not a user's session.
  * - Names are unique and match `^[a-z][a-z0-9_]*$`.
  * - The input schema is a zod object of the bundled zod (`turnoZod()`), so `tools/list` renders
@@ -50,14 +50,14 @@ interface TurnoToolContext {
   browserContext?: BrowserContext;
   signal?: AbortSignal;
   /**
-   * The client session mcpd relays this call for (`_meta["io.turno/session"]`, ADR 0047): an
+   * The client session mcpd relays this call for (`_meta["io.turno/session"]`): an
    * opaque id, the same for every call of one agent session and different for every other.
    * Undefined when the call did not come through mcpd.
    */
   session?: string;
   /** The session's stock tools; set by the host for a tool with `browser: true`. */
   stock?: StockAccess;
-  /** The identity's vault, its redactor and guard; set by the host when it serves an identity (ADR 0054). */
+  /** The identity's vault, its redactor and guard; set by the host when it serves an identity. */
   vault?: VaultAccess;
 }
 
@@ -68,7 +68,7 @@ export interface TurnoTool {
   handle(context: TurnoToolContext, params: Record<string, unknown>): Promise<ToolResult>;
 }
 
-/** The tools turno adds to every session (ADRs 0051 and 0054). */
+/** The tools turno adds to every session. */
 export const TURNO_TOOLS: readonly TurnoTool[] = [batchTool(), loginTool()];
 
 /** The zod of the bundle, to build a turno tool's `inputSchema` with. */

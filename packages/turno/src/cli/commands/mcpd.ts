@@ -63,7 +63,7 @@ export async function downReasons(env: NodeJS.ProcessEnv): Promise<string[]> {
   return out;
 }
 
-/** `turno mcp daemon status --json`: mcpd's /status, or `{ running: false, problems }` (ADR 0045). */
+/** `turno mcp daemon status --json`: mcpd's /status, or `{ running: false, problems }`. */
 const STATUS_JSON = jsonOutput([
   "running",
   "problems",

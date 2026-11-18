@@ -15,8 +15,8 @@ import { upstream } from "../src/upstream.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
- * What turno-browser relies on in the Playwright MCP program bundled in patchright-core
- * (ADR 0003, ADR 0042, ADR 0043). An upgrade that changes any of it fails here, not in a user's
+ * What turno-browser relies on in the Playwright MCP program bundled in patchright-core.
+ * An upgrade that changes any of it fails here, not in a user's
  * session: the tool names agents see, the config keys and precedence of the generated
  * `--config`, the idle timer that honors `timeouts.idle` even when headed, the exit watchdog,
  * and the library entry points the host uses in place of the stock program.
@@ -118,7 +118,7 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
     await client.connect(transport);
     try {
       const { tools: listed } = await client.listTools();
-      // The stock tools in upstream's order, then turno's (ADR 0048).
+      // The stock tools in upstream's order, then turno's.
       expect(listed.map((t) => t.name)).toEqual([...TOOL_NAMES, ...TURNO_NAMES]);
     } finally {
       await client.close();
@@ -277,7 +277,7 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
     expect(bundleFunction("start")).toContain("if (options.port === void 0) {");
   });
 
-  it("keeps each session's tabs where the tab governor reads them (ADR 0048)", () => {
+  it("keeps each session's tabs where the tab governor reads them", () => {
     const backend = lib().BrowserBackend.toString();
     expect(backend).toMatch(/this\._context = new Context\(this\._browserContext, \{/);
     const context = bundleSource.slice(
@@ -303,7 +303,7 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
     );
   });
 
-  it("reads the settle and snapshot mode the host changes per session from the config, on every call (ADR 0048)", () => {
+  it("reads the settle and snapshot mode the host changes per session from the config, on every call", () => {
     expect(bundleSource).toContain("const settleMs = tab2.context.config.timeouts?.settle ?? 500;");
     expect(bundleSource).toContain('this._includeSnapshot = this._context.config.snapshot?.mode ?? "full";');
     expect(bundleSource).toContain('const ariaFormat = this._includeSnapshot === "none" ? "none"');
@@ -321,7 +321,7 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
     expect(bundleSource).toMatch(/getByRef\(ref\) \{\n\s+return this\.locator\(`aria-ref=\$\{ref\}`\);/);
   });
 
-  it("turns Chrome's HTTP cache off while a route intercepts, which is why the resource cache exists (ADR 0052)", () => {
+  it("turns Chrome's HTTP cache off while a route intercepts, which is why the resource cache exists", () => {
     expect(bundleSource).toContain(
       'info.session.send("Network.setCacheDisabled", { cacheDisabled: this._page.needsRequestInterception() })',
     );

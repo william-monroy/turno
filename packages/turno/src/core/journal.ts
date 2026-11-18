@@ -25,8 +25,8 @@ import { hasFields, readState } from "./state-file.js";
  * backups/<stamp>/journal.json lists each path with a copy of what it held (or that it did
  * not exist), so `turno undo <stamp>` can put everything back.
  *
- * Besides file contents, a journal records the links, folders and moves a command makes
- * (ADR 0025), each with its inverse:
+ * Besides file contents, a journal records the links, folders and moves a command makes,
+ * each with its inverse:
  * - "symlink": the command created a link at `path` to `target`; undo removes it.
  * - "unlink": the command removed a link at `path` to `target`; undo creates it again.
  * - "move": the command renamed `path` to `to`; undo renames it back.
@@ -38,7 +38,7 @@ import { hasFields, readState } from "./state-file.js";
 type EntryKind = "file" | "symlink" | "unlink" | "move" | "mkdir" | "rmdir" | "chmod";
 
 export interface JournalEntry {
-  /** Missing in journals written before ADR 0025: a file. */
+  /** Missing in journals written before link and folder entries existed: a file. */
   kind?: EntryKind;
   path: string;
   existed: boolean;

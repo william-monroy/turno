@@ -19,7 +19,7 @@ export interface Account {
   tools: string[];
   /**
    * Tools that only read (`read_tools` in accounts.toml), each covered by `tools`. A delegated
-   * read gets only these; without them a read is treated like a write (ADR 0024).
+   * read gets only these; without them a read is treated like a write.
    */
   readTools?: string[];
   /** When the user confirms a delegated run (`confirm`); unset means the service default. */

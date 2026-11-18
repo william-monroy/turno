@@ -82,7 +82,7 @@ function sessionGone(err: unknown, hadSession: boolean): boolean {
  * One running MCP server, spoken to over a raw transport. Request ids and progress tokens
  * are rewritten so several clients can share it without their messages crossing. Every
  * request it relays is settled exactly once: by the server's answer, a cancellation, a
- * timeout, the client going away, or the server stopping (ADR 0016).
+ * timeout, the client going away, or the server stopping.
  */
 export class Upstream {
   private transport?: Transport;
@@ -316,7 +316,7 @@ export class Upstream {
    * The client a server-to-client message belongs to. Stdio carries no link between a server
    * request and the call that caused it, so: an explicit related request id wins; else the one
    * client with calls in flight; else the only attached client. With calls in flight from
-   * several clients the message is refused rather than sent to a guess (ADR 0016).
+   * several clients the message is refused rather than sent to a guess.
    */
   private route(method: string, params: Record<string, unknown> | undefined): Route {
     const meta = params?._meta as Record<string, unknown> | undefined;

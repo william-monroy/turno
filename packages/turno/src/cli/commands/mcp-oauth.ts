@@ -9,7 +9,7 @@ import { DRY_RUN, type FlagSpec, JSON_FLAG, bool, parseFlags, str } from "../arg
 import { type Io, fail } from "../io.js";
 import { emit, jsonOutput } from "../output.js";
 
-/** `turno mcp login --json` (ADR 0045). */
+/** `turno mcp login --json`. */
 export const LOGIN_JSON = jsonOutput([
   "server",
   "variant",
@@ -24,7 +24,7 @@ export const LOGIN_JSON = jsonOutput([
 ]);
 
 /**
- * `turno mcp login` and `turno mcp logout` (ADR 0029): mcpd is the OAuth client of remote
+ * `turno mcp login` and `turno mcp logout`: mcpd is the OAuth client of remote
  * servers declared with `auth = "oauth"`, one login per server variant. Agents reach the server
  * through mcpd and never log in themselves.
  */

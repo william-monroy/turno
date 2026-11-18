@@ -2,7 +2,7 @@
 "turno-cli": minor
 ---
 
-Move MCP servers between machines, OAuth detection, Codex trust and next-step hints (ADR 0050):
+Move MCP servers between machines, OAuth detection, Codex trust and next-step hints:
 
 - `turno mcp export [--profile p] [--json]` prints mcp.toml without secret values: references
   stay, literal secrets become `keychain:turno/<server>/<key>` names, and the top of the file

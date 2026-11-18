@@ -2,7 +2,7 @@ import type { Journal } from "../core/journal.js";
 import type { AgentId } from "./index.js";
 
 /**
- * How an agent keeps its MCP servers in a config file (ADR 0032). The sync and import code
+ * How an agent keeps its MCP servers in a config file. The sync and import code
  * reads and writes a store by its format; it never asks which agent owns the file.
  */
 export interface McpStore {
@@ -88,7 +88,7 @@ export interface SetupStep {
 }
 
 /**
- * One coding agent turno makes profiles for (ADR 0013, ADR 0032). Everything that differs
+ * One coding agent turno makes profiles for. Everything that differs
  * between agents lives here, in one file per agent; the commands read these fields and call
  * these hooks instead of branching on the agent's id.
  */
@@ -154,7 +154,7 @@ export interface AgentAdapter {
      * it skip them (their formats differ; `turno mcp config` prints them).
      */
     directRemote: boolean;
-    /** A gateway entry in the agent's format; `token` is the profile's own token (ADR 0023). */
+    /** A gateway entry in the agent's format; `token` is the profile's own token. */
     gatewayEntry(name: string, port: number, token: string, profile: string): Record<string, unknown>;
     /** A line to print after `turno mcp sync` added servers to the agent's file. */
     afterSync?(added: string[]): string | undefined;

@@ -81,7 +81,7 @@ export async function profilesData(env: NodeJS.ProcessEnv, config: Config, withA
   });
 }
 
-/** `turno profile list --json`: one element per profile (ADR 0045). */
+/** `turno profile list --json`: one element per profile. */
 const LIST_JSON = jsonOutput([
   "name",
   "agent",
@@ -310,7 +310,7 @@ async function remove(args: string[], io: Io): Promise<number> {
   return 0;
 }
 
-/** The server set keys of a rule (ADR 0031), to write back when its profile part goes. */
+/** The server set keys of a rule, to write back when its profile part goes. */
 function setKeys(rule: ProjectRule | undefined): Record<string, TomlValue> {
   return { ...(rule?.mcp ? { mcp: rule.mcp } : {}), ...(rule?.mcpDeny ? { mcp_deny: rule.mcpDeny } : {}) };
 }
@@ -369,7 +369,7 @@ export const NO_DEFAULT_ACCOUNT = 'no profile: system = "" (turno auto exits 3)'
 
 export const WHICH_SPEC: FlagSpec = { ...JSON_FLAG, check: { type: "boolean" }, agent: { type: "string" } };
 
-/** `turno profile which --json`; `check` only with --check (ADR 0045). */
+/** `turno profile which --json`; `check` only with --check. */
 export const WHICH_JSON = jsonOutput(["dir", "assigned", "chosen", "reason", "note", "agents", "mcp", "check"]);
 
 /** What `profile which --check` found: its exit code and one line that says why. */
@@ -379,7 +379,7 @@ export interface WhichCheck {
 }
 
 /**
- * Whether the folder has a profile ready to open (ADR 0045): 0 yes; 3 no rule and no default,
+ * Whether the folder has a profile ready to open: 0 yes; 3 no rule and no default,
  * or a rule naming a missing profile; 4 the profile's account is not signed in (agents turno
  * reads an account for: Claude Code); 1 its launcher is missing or the sign-in is unknown.
  */
@@ -509,7 +509,7 @@ async function assign(args: string[], io: Io): Promise<number> {
   const journal = new Journal(io.env, `profile assign ${tildify(dir, io.env)} ${name}`, dry);
   const shown = tildify(dir, io.env);
   // One rule per folder and agent: a Codex rule does not replace the folder's Claude Code rule.
-  // A rule with only a server set (ADR 0031) is not a profile rule and stays; a replaced rule
+  // A rule with only a server set is not a profile rule and stays; a replaced rule
   // passes its set on to the new one.
   const agent = agentOf(name, config);
   const same = (e: { path?: string; profile?: string }) =>
@@ -543,7 +543,7 @@ async function unassign(args: string[], io: Io): Promise<number> {
   const dry = bool(p, "dry-run");
   const journal = new Journal(io.env, `profile unassign ${tildify(dir, io.env)}`, dry);
   const config = loadConfig(io.env);
-  // Profile rules only: the folder keeps its server set (ADR 0031).
+  // Profile rules only: the folder keeps its server set.
   const own = (e: { path?: string; profile?: string }) =>
     e.profile !== undefined && resolvePath(expandHome(e.path ?? "", io.env)) === dir;
   let removed = 0;

@@ -9,7 +9,7 @@ import { emit, jsonOutput } from "../output.js";
 import { style } from "../style.js";
 import type { BrowserApi } from "./browser.js";
 
-/** `turno browser show --json` and `turno identity show browser:<id> --json` (ADR 0045). */
+/** `turno browser show --json` and `turno identity show browser:<id> --json`. */
 export const SHOW_JSON = jsonOutput(["id", "dir", "settingsFile", "settings", "problems", "inUse", "holder", "health"]);
 /** `turno browser set --json` and `turno identity set browser:<id> --json`: what changed, or would. */
 export const SET_JSON = jsonOutput(["id", "settingsFile", "dryRun", "changes", "settings"]);
@@ -19,9 +19,9 @@ export const DOCTOR_JSON = jsonOutput(["ok", "counts", "checks", "fixed"]);
 export const REPUTATION_JSON = jsonOutput(["id", "file", "total", "sites"]);
 
 /**
- * The identity module of turno-browser in the CLI (ADR 0044): identity.json (`show`, `set`, the
+ * The identity module of turno-browser in the CLI: identity.json (`show`, `set`, the
  * settings flags of `add`), `turno browser doctor` and `turno browser reputation`. The types
- * come from the package itself (`import type`, ADR 0047); `loadBrowser` refuses a package whose
+ * come from the package itself (`import type`); `loadBrowser` refuses a package whose
  * API_VERSION does not fit, so every function used here is there.
  */
 type IdentitySettings = NonNullable<ReturnType<BrowserApi["checkIdentitySettings"]>["settings"]>;
@@ -42,8 +42,8 @@ export const SETTINGS_FLAGS: FlagSpec = {
   "health-text": { type: "string" },
   "health-selector": { type: "string" },
   "no-health": { type: "boolean" },
-  // How the host runs this identity's Chrome (format 2 of identity.json): the tab governor
-  // (ADR 0048), background throttling, settle (ADR 0051), resource blocking and cache (ADR 0052).
+  // How the host runs this identity's Chrome (format 2 of identity.json): the tab governor,
+  // background throttling, settle, resource blocking and cache.
   "tabs-max": { type: "string" },
   "tabs-popups": { type: "string" },
   "tabs-park": { type: "string" },

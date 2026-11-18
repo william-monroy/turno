@@ -8,7 +8,7 @@ import { resolveFrom } from "./patchright.js";
 
 /**
  * `turno browser bench`: runs several browser engines against public bot detectors and the
- * user's own URLs, so engine choices rest on measurements (ADR 0003, 0005).
+ * user's own URLs, so engine choices rest on measurements.
  */
 
 /**

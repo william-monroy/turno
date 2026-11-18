@@ -1,5 +1,5 @@
 /**
- * Reading turno's own state files (ADR 0045): JSON that turno wrote earlier (locks, caches, the
+ * Reading turno's own state files: JSON that turno wrote earlier (locks, caches, the
  * managed-entries list, journal manifests, audit and call log lines). A file another program or
  * a crash left half-written, a hand edit, or a newer turno's format must never become a cast that
  * crashes later: each reader passes a small guard for the shape it needs and the format version

@@ -31,7 +31,7 @@ export interface AuditEntry {
   detail: string;
   durationMs: number;
   costUsd: number | null;
-  /** The bridge's decision (ADR 0024), when the call reached one. */
+  /** The bridge's decision, when the call reached one. */
   decision?: AuditDecision;
   /**
    * sha256 (hex) of the previous line as written, or GENESIS on the first line. Each line

@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 /**
  * Process helpers shared by turno-cli and turno-browser: whether a PID lives, a signal that
  * never throws, and the process table with process groups (Chrome runs as the leader of its own
- * group, ADR 0042).
+ * group).
  */
 
 /** Whether a process is alive. EPERM means it exists but belongs to someone else. */

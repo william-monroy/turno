@@ -1,5 +1,5 @@
 /**
- * Choose a profile when a command needs one and the argument is missing (ADR 0036). A small
+ * Choose a profile when a command needs one and the argument is missing. A small
  * picker with no dependencies: arrow keys or j/k move, typing filters, Enter chooses, Esc or
  * Ctrl-C cancels. It draws on stderr and reads stdin in raw mode, only when both are terminals;
  * the terminal is restored on every way out (a choice, a cancel, an error, a signal).

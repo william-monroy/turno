@@ -33,7 +33,7 @@ import type { SecretResolver, SecretStore } from "../core/secrets.js";
 import { packageInfo } from "../core/version.js";
 
 /**
- * mcpd as the OAuth client of remote MCP servers (ADR 0029), following the MCP authorization
+ * mcpd as the OAuth client of remote MCP servers, following the MCP authorization
  * specification (revision 2026-07-28): protected resource metadata (RFC 9728), authorization
  * server metadata (RFC 8414, OpenID Connect Discovery) with issuer validation, pre-registration,
  * Client ID Metadata Documents or Dynamic Client Registration (RFC 7591), PKCE with S256

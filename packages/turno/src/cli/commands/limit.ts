@@ -47,7 +47,7 @@ export async function limitsData(env: NodeJS.ProcessEnv, withAccounts = true) {
 
 const SHOW_SPEC = { ...JSON_FLAG, ...WATCH };
 
-/** `turno limit show --json`: one element per profile (ADR 0045). */
+/** `turno limit show --json`: one element per profile. */
 const SHOW_JSON = jsonOutput(["profile", "agent", "email", "plan", "exhaustedUntil", "fiveHour", "week", "updatedAt"]);
 
 /** How often `limit show --watch --json` prints the profiles again. */

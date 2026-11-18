@@ -2,7 +2,7 @@
 "turno-cli": minor
 ---
 
-Diagnostics and safe mode (ADR 0049):
+Diagnostics and safe mode:
 
 - `turno mcp call <server> [tool] [--args JSON] [--arg k=v|k:=json] [--profile p] [--json]`
   calls a tool through mcpd as a profile's session in this folder would, or lists the tools.

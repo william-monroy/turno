@@ -26,7 +26,7 @@ export interface Parsed {
 }
 
 /**
- * Take `--json=<value>` out of `args` when the spec has a boolean --json (ADR 0045): it turns
+ * Take `--json=<value>` out of `args` when the spec has a boolean --json: it turns
  * --json on and keeps the value for `emit`. Only a command's own flags count, not those after --.
  */
 function takeJsonValue(args: string[], spec: FlagSpec): { args: string[]; json?: string } {

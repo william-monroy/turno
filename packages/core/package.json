@@ -4,7 +4,7 @@
   "description": "Shared building blocks of turno-cli and turno-browser: XDG paths, the OS secret store (macOS Keychain, Linux Secret Service) and process helpers.",
   "license": "Apache-2.0",
   "author": "William Frank Monroy Mamani (https://github.com/william-monroy)",
-  "homepage": "https://github.com/wimo-dev/turno#readme",
+  "homepage": "https://turno.wimo.dev",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wimo-dev/turno.git",

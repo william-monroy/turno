@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 
 const run = promisify(execFile);
 
-/** How hard the machine is pressed for memory (ADR 0028). */
+/** How hard the machine is pressed for memory. */
 export type PressureLevel = "normal" | "warn" | "critical";
 
 /** Reads the current level; injectable so tests and other platforms can plug in. */

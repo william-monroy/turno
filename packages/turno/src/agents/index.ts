@@ -7,7 +7,7 @@ import { copilot } from "./copilot.js";
 import { cursor } from "./cursor.js";
 
 /**
- * The registry of coding agents turno manages profiles for (ADR 0013, ADR 0032). Adding an
+ * The registry of coding agents turno manages profiles for. Adding an
  * agent is one adapter file next to this one plus its entries here.
  */
 export const AGENT_IDS = ["claude", "codex", "copilot", "cursor"] as const;

@@ -3,7 +3,7 @@
 "turno-cli": minor
 ---
 
-Cross-package contracts (ADR 0047):
+Cross-package contracts:
 
 - turno-browser exports its public API as a typed `api` object with `API_VERSION` (1.0).
   turno-cli checks it when it loads the package: a turno-browser that is too old (0.2 and older

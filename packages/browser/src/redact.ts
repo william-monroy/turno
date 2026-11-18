@@ -2,7 +2,7 @@ import type { Page } from "patchright-core";
 import type { ToolResult } from "./upstream.js";
 
 /**
- * Keeps vault values out of everything the model reads (ADR 0054). Once `browser_login` fills a
+ * Keeps vault values out of everything the model reads. Once `browser_login` fills a
  * username, a password or a one-time code into a page, the host passes every tool result and
  * error of this server through `redact`, so the value never comes back: not in the page
  * snapshot (a filled textbox shows its value there), not in a network request body, a console

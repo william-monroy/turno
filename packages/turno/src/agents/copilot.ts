@@ -26,7 +26,7 @@ export const copilot: AgentAdapter = {
     hubFile: (env) => join(copilot.hub(env), "mcp-config.json"),
     directRemote: false,
     // Copilot CLI expands `${VAR}` in a remote server's headers ("Supports variable expansion",
-    // CLI command reference); not verified against the real CLI yet (ADR 0013). The folder is
+    // CLI command reference); not verified against the real CLI yet. The folder is
     // the launcher's, base64url like Claude Code's and Codex's (docs/agents.md).
     gatewayEntry: (name, port, _token, profile) => ({
       type: "http",

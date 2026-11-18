@@ -1,9 +1,9 @@
 # Versions and releases
 
 turno follows semantic versioning per package (`turno-cli`, `turno-browser`, `turno-core`,
-`turno-fonts`).
-Why this setup: [ADR 0007](decisions/0007-versions-and-updates.md) and, for the release
-pipeline, [ADR 0011](decisions/0011-release-pipeline-and-supply-chain.md).
+`turno-fonts`), published to npm from CI with provenance, so every tarball links to the commit
+and the workflow run that built it. What users can check is in
+[SECURITY.md](../SECURITY.md#releases-and-how-to-verify-them).
 
 ## Version policy
 
@@ -52,7 +52,7 @@ to `main`, in four jobs:
 3. **publish**: in the protected `npm` environment, downloads the tarballs, attests them
    (`actions/attest-build-provenance`) and runs `npm publish <tarball> --provenance` for each,
    dependencies first: `release-plan.mjs` lists a package after the workspace packages it
-   depends on (turno-core before turno-browser and turno-cli, ADR 0053), and the job stops at
+   depends on (turno-core before turno-browser and turno-cli), and the job stops at
    the first failure, so a dependent is never published without its dependency. It does not check out the repository, install anything or use a cache,
    so no project or dependency code runs where the publish token lives.
 4. **tag**: creates the `name@version` git tags and GitHub releases, with the SBOM attached.
@@ -74,7 +74,7 @@ then releases go to the `next` dist-tag (`turno upgrade --channel next` follows 
 ## A new package
 
 npmjs.com offers the trusted publisher settings only for a package that already exists, so the
-first version of a new package (turno-core, ADR 0053) is published by the owner, by hand, and
+first version of a new package (turno-core) is published by the owner, by hand, and
 the workflow takes over from the second. Until that is done, a release that includes the new
 package fails in the publish job at that package, before any package that depends on it.
 
@@ -106,7 +106,7 @@ Releases after that need nothing by hand. The same steps apply to any other new 
 - Workflows: `permissions: {}` at the top and the minimum per job, every action pinned to a
   full commit SHA (Dependabot keeps them current), `persist-credentials: false`, no
   `pull_request_target`, no cache in the release workflow. Harden-Runner blocks every host
-  outside each release job's allow list (ADR 0058) and audits the other workflows. When a
+  outside each release job's allow list and audits the other workflows. When a
   release job fails with a blocked connection, see "Egress allow lists" below.
   `zizmor.yml` lints the workflows on every change to `.github/`; `scorecard.yml` runs the
   OpenSSF Scorecard weekly.

@@ -6,7 +6,7 @@ import { ensurePrivateDir, paths } from "../core/paths.js";
 import { readState } from "../core/state-file.js";
 
 /**
- * Per-profile gateway tokens (ADR 0023). Each profile's agent config carries its own token,
+ * Per-profile gateway tokens. Each profile's agent config carries its own token,
  * derived from the master token so mcpd needs no list of them:
  *
  *   tp1.<profile>.<base64url(HMAC-SHA256(master, "profile:" + profile))>

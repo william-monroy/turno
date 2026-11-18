@@ -33,7 +33,7 @@ const BENCH = { direct: [3163, 56], running: [847, 8], idle: [103, 1] } as const
 const LESS = { running: 73, idle: 97 } as const;
 /** bench/mcp-ram.mjs, SERVERS, by the names it gives them. */
 const SERVERS = ["playwright", "devtools", "filesystem", "memory", "thinking", "context7"] as const;
-/** The server the logged call reaches: a Playwright MCP tool named in ADR 0005. */
+/** The server the logged call reaches: a Playwright MCP tool. */
 const CALLED = 0;
 const PER_LANE = 4;
 /** The page's conversation is the first session of the personal lane: its line lands on the called server. */

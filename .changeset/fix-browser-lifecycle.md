@@ -3,7 +3,7 @@
 "turno-cli": minor
 ---
 
-Browser lifecycle (ADR 0042):
+Browser lifecycle:
 
 - `turno-browser-mcp` passes a generated Playwright MCP `--config` that closes Chrome after 15
   minutes without a tool call, headed too; the next call opens it again with the same profile.

@@ -136,8 +136,8 @@ export function launcherName(name: string, agent: AgentId = DEFAULT_AGENT): stri
 const shWord = (v: string) => (/^[A-Za-z0-9_.,:/@%+=-]+$/.test(v) ? v : `"${esc(v)}"`);
 
 /**
- * Text of a profile's launcher (claude-<name>, codex-<name>, ...), from the agent's adapter
- * (ADR 0032). Classic launchers (Claude Code) keep the format they had before other agents.
+ * Text of a profile's launcher (claude-<name>, codex-<name>, ...), from the agent's adapter.
+ * Classic launchers (Claude Code) keep the format they had before other agents.
  */
 export function launcherText(
   name: string,

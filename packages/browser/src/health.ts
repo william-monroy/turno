@@ -4,7 +4,7 @@ import { identityStateDir } from "./ids.js";
 import type { HealthCheck } from "./settings.js";
 
 /**
- * Session health (ADR 0044): whether an identity is still signed in where it matters. The check
+ * Session health: whether an identity is still signed in where it matters. The check
  * in identity.json is a URL plus a text or selector that only a signed-in page shows, as in
  * agent-browser's `--restore-check-text` and Kernel's health checks. The host runs it in the
  * identity's own browser when it launches Chrome (at most every 30 minutes while it passes); a

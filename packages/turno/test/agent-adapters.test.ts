@@ -24,7 +24,7 @@ function sources(dir: string): string[] {
   });
 }
 
-describe("agent registry (ADR 0032)", () => {
+describe("agent registry", () => {
   it("has one adapter per agent id, and every agent in the scan order once", () => {
     for (const id of AGENT_IDS) expect(adapter(id).id).toBe(id);
     expect([...SCAN_ORDER].sort()).toEqual([...AGENT_IDS].sort());

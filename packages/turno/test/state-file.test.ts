@@ -31,7 +31,7 @@ afterEach(() => sb.cleanup());
 
 const isNamed = (v: unknown): v is { name: string } => hasFields(v, { name: "string" });
 
-describe("readState (ADR 0045)", () => {
+describe("readState", () => {
   it("returns the value, or says why it cannot", () => {
     const file = sb.write("s.json", '{"name":"a"}');
     expect(readState(file, isNamed)).toEqual({ name: "a" });

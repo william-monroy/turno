@@ -6,18 +6,18 @@ import type { ClientContext, ClientHandle, InstanceManager } from "./instances.j
 import { ErrorCode, type Id, type Outcome, rpcError } from "./jsonrpc.js";
 
 /**
- * The call middleware (ADR 0047). Every `tools/call` mcpd relays, from a 2025-11-25 session
+ * The call middleware. Every `tools/call` mcpd relays, from a 2025-11-25 session
  * (gateway.ts) or a 2026-07-28 stateless request (modern.ts), goes through one pipeline of
  * named stages before `InstanceManager.forward`:
  *
  *     filter -> <opt-in stages, in order> -> calllog -> session -> forward
  *
- * - `filter` refuses a tool the profile's `tools.allow` / `tools.deny` hides (ADR 0023). A
+ * - `filter` refuses a tool the profile's `tools.allow` / `tools.deny` hides. A
  *   refused call reaches no other stage and is not logged.
  * - opt-in stages (none ship yet; later tool-output trimming, local telemetry counters, a cost
  *   meter) are off by default: each is a `CallStage` that something turns on explicitly. They
  *   see the call as the client sent it, and the outcome the client gets.
- * - `calllog` times the call and hands one event to the call log (ADR 0026) when it is on.
+ * - `calllog` times the call and hands one event to the call log when it is on.
  * - `session` puts the client session id in the forwarded `_meta` (`io.turno/session`).
  *
  * Stage names are unique, lowercase, and never a built-in name.
@@ -54,7 +54,7 @@ export interface CallStage {
 const BUILT_IN = ["filter", "calllog", "session"] as const;
 const STAGE_NAME = /^[a-z][a-z0-9-]*$/;
 
-/** A profile's tool filter for a client's server, or undefined when it filters nothing (ADR 0023). */
+/** A profile's tool filter for a client's server, or undefined when it filters nothing. */
 export function toolFilterOf(manifest: Manifest, ctx: ClientContext): ToolFilter | undefined {
   const server = manifest.servers[ctx.serverName];
   if (!server) return undefined;

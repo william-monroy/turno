@@ -13,6 +13,6 @@ yourself: both packages depend on it.
 - `turno-core/process`: whether a PID is alive, signals that never throw, and the process table
   with process groups.
 
-Why it exists:
-[ADR 0053](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0053-shared-core-package.md).
+It exists because turno-browser runs without turno-cli and cannot import it, yet both need
+the same paths, secret store and process helpers.
 Apache-2.0.

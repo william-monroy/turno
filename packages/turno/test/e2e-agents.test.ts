@@ -43,7 +43,7 @@ describe("other agents against mcpd", () => {
       const env = realBinEnv(sb, {
         CURSOR_CONFIG_DIR: join(sb.home, ".cursor-cur"),
         AGENT_CLI_CREDENTIAL_STORE: "file",
-        // What the cursor-cur launcher reads from its token file (ADR 0023).
+        // What the cursor-cur launcher reads from its token file.
         TURNO_MCPD_TOKEN: profileToken(token, "cur"),
         TURNO_PROFILE: "cur",
         TURNO_SESSION_PID: String(process.pid),

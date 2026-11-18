@@ -19,9 +19,9 @@ import { alive, chromeUnavailable, killSandboxProcesses, sandboxProcesses, waitF
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
- * Lifecycle tests against a real Google Chrome (ADR 0042): the idle limit of the generated
+ * Lifecycle tests against a real Google Chrome: the idle limit of the generated
  * config, the shutdown deadline, and the sweep of a Chrome left behind by a wrapper killed with
- * SIGKILL. Also the host end to end (ADR 0043): a stock tool through the built server, and a
+ * SIGKILL. Also the host end to end: a stock tool through the built server, and a
  * test-only turno tool on the same browser context as the stock tools. Every Chrome here runs on a profile inside the test's sandbox HOME, and cleanup only
  * signals processes whose command line names that sandbox, so no other Chrome is touched.
  *

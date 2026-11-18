@@ -1,5 +1,5 @@
 /**
- * turno-core: what turno-cli and turno-browser share (ADR 0053). Each part is also its own
+ * turno-core: what turno-cli and turno-browser share. Each part is also its own
  * entry point (`turno-core/paths`, `turno-core/secrets`, `turno-core/process`), so a command
  * that needs one loads only that module.
  */

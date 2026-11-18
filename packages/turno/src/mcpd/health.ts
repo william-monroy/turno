@@ -9,7 +9,7 @@ import { profileTokenFile, tokenProfile } from "./tokens.js";
 import { isRecord, readState } from "../core/state-file.js";
 
 /**
- * The mcpd part of `turno doctor` (ADR 0017): the service file and the paths it runs, the
+ * The mcpd part of `turno doctor`: the service file and the paths it runs, the
  * token's mode, who answers on the port, why mcpd is down, the manifest it serves, and
  * whether synced profiles point at the port mcpd uses.
  */
@@ -235,7 +235,7 @@ function syncedFiles(env: NodeJS.ProcessEnv): string[] {
 }
 
 /**
- * Synced configs and launcher token files that mcpd would refuse (ADR 0023): configs written
+ * Synced configs and launcher token files that mcpd would refuse: configs written
  * before per-profile tokens still carry the master token, and every derived token dies with a
  * `turno mcp token rotate`. Both are fixed by `turno mcp sync`. Works without mcp-managed.json.
  * Never prints a token.

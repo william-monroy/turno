@@ -8,12 +8,12 @@ import { OPTIONAL, notInstalled } from "../optional.js";
 import type { BrowserApi, BrowserDeps } from "./browser.js";
 
 /**
- * `turno browser vault`: the credential vault of a browser identity (ADR 0054). Values go
+ * `turno browser vault`: the credential vault of a browser identity. Values go
  * from a hidden prompt or stdin straight to turno-browser, which keeps them in the secret store;
  * nothing here prints, logs or passes one as an argument.
  */
 
-/** `turno browser vault list --json` (ADR 0045). */
+/** `turno browser vault list --json`. */
 const VAULT_JSON = jsonOutput(["identity", "submit", "sites"]);
 
 /** How the vault reads what a person types; tests replace it. */

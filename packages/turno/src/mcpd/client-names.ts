@@ -4,8 +4,8 @@ import { isRecord, readState } from "../core/state-file.js";
 
 /**
  * The client name (`clientInfo.name` from initialize) of each agent process, by PID, kept in a
- * small state file so a session mcpd rebuilds after a restart (ADR 0016) still has its agent's
- * name for the call log and `/status` (ADR 0026). Entries of processes that are gone are dropped
+ * small state file so a session mcpd rebuilds after a restart still has its agent's
+ * name for the call log and `/status`. Entries of processes that are gone are dropped
  * on the next write. Never holds anything but PIDs and printable names.
  */
 export class ClientNames {

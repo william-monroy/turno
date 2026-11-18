@@ -9,13 +9,13 @@ import * as ident from "./browser-identity.js";
 import * as session from "./browser-session.js";
 import { vaultCommand } from "./browser-vault.js";
 
-/** `turno browser bench --json`: turno-browser's report (ADR 0045). */
+/** `turno browser bench --json`: turno-browser's report. */
 const BENCH_JSON = jsonOutput(["version", "startedAt", "finishedAt", "engines", "results", "file"]);
 /** `turno browser identities --json`: one element per identity. */
 const IDENTITIES_JSON = jsonOutput(["id", "inUse", "dir"]);
 
 /**
- * turno-browser's public API (ADR 0047). The types come from the package with `import type`,
+ * turno-browser's public API. The types come from the package with `import type`,
  * which the build erases: turno-browser stays an optional package, loaded at run time.
  */
 export type { BrowserApi };

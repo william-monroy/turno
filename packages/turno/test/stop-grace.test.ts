@@ -7,7 +7,7 @@ import { DefaultConnector } from "../src/mcpd/connectors.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
- * `stop_grace` (ADR 0044): how long mcpd waits, after closing a server's stdin, before it sends
+ * `stop_grace`: how long mcpd waits, after closing a server's stdin, before it sends
  * SIGTERM. The MCP SDK waits a fixed 2 seconds; a browser server needs that time to close Chrome
  * and write its profile, so turno-browser-mcp gets 5 seconds by default.
  */

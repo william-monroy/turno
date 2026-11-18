@@ -2,7 +2,7 @@ import type { Locator, Page } from "patchright-core";
 import type { ToolResult } from "./upstream.js";
 
 /**
- * Click and type errors that say what is in the way (ADR 0051). When an action on an element
+ * Click and type errors that say what is in the way. When an action on an element
  * fails because the element cannot take it, Playwright retries until the action timeout and
  * then reports "Timeout 5000ms exceeded" with a call log, which leaves the agent guessing. The
  * host looks at the target once, after the failure (a successful call costs nothing), and

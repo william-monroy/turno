@@ -2,7 +2,7 @@
 "turno-browser": minor
 ---
 
-Tab governor (ADR 0048):
+Tab governor:
 
 - At most 8 pages stay open per session's browser; past that the least recently used one
   closes (never the agent's current tab). Popups that open while no tool call runs, such as a

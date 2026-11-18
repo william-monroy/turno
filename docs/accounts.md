@@ -79,10 +79,11 @@ system` goes back to not knowing.
 `turno auto` does not switch accounts in silence. When a rule names a profile that does not
 exist (or there is no rule and `system = ""`), it exits 3; when the folder's profile has no
 launcher, or `config.toml` does not parse, it exits 1; either way with the reason and the
-command that fixes it (`turno help exit-codes`, ADR 0045). `turno profile which --check` tells
+command that fixes it (`turno help exit-codes`). `turno profile which --check` tells
 a script the same before it runs anything: 0 ready, 3 no profile, 4 not signed in. `TURNO_ALLOW_PLAIN=1` runs the plain
 agent despite a broken `config.toml`, for the rare moment you need it.
-[ADR 0021](decisions/0021-no-silent-account-fallback.md) records why.
+turno never opens another account in silence: a work repository that opens with the wrong
+account is worse than one that does not open.
 
 ## Service accounts and the accounts bridge
 
@@ -161,5 +162,6 @@ any tool the run tried and was refused listed after it.
 Every call to `accounts_delegate` adds a line to `~/.local/state/turno/audit.jsonl` (mode 600,
 hash-chained): caller, account, task, outcome, cost, and the decision (policy, whether the user
 was asked and what they answered, read or all tools, the allowed patterns, whether the MCP
-config was strict, refused tools). `turno identity log` prints the recent ones.
-[ADR 0024](decisions/0024-accounts-bridge-policy-and-isolated-runs.md) records the design.
+config was strict, refused tools). `turno identity log` prints the recent ones, and
+`turno identity log --verify` checks the hash chain. [SECURITY.md](../SECURITY.md#the-accounts-bridge)
+says what the bridge guards against.

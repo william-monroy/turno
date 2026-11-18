@@ -1,7 +1,7 @@
 import { isAbsolute, join, normalize } from "node:path";
 import { browserPaths, turnoRoots } from "turno-core/paths";
 
-// The roots, private folders and PATH lookup are shared with turno-browser (ADR 0053).
+// The roots, private folders and PATH lookup are shared with turno-browser.
 export {
   PRIVATE_DIR_MODE,
   PRIVATE_FILE_MODE,

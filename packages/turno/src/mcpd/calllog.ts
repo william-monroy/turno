@@ -15,7 +15,7 @@ import { ErrorCode, type Outcome } from "./jsonrpc.js";
 import { hasFields, parseState } from "../core/state-file.js";
 
 /**
- * The call log (ADR 0026): one JSON line per tool call that mcpd relays, in
+ * The call log: one JSON line per tool call that mcpd relays, in
  * `<state>/logs/calls.jsonl`. A record says who called what and how it went. It never holds
  * the call's arguments or its result: only their sizes.
  */

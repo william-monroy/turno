@@ -18,7 +18,7 @@ const run = promisify(execFile);
 /**
  * Who is calling: one MCP client session against one server. Only the server's name is kept:
  * its definition is looked up in the current manifest on every use, so a reload applies to
- * sessions that are already open (ADR 0016).
+ * sessions that are already open.
  */
 export interface ClientContext {
   serverName: string;
@@ -39,7 +39,7 @@ export interface ClientHandle extends ClientPort {
   ctx: ClientContext;
   lastSeen: number;
   /**
-   * A 2026-07-28 `subscriptions/listen` stream (ADR 0028): it gets the resource list changes of
+   * A 2026-07-28 `subscriptions/listen` stream: it gets the resource list changes of
    * its server even though it never joined an instance.
    */
   listening?: boolean;
@@ -55,7 +55,7 @@ export interface Connector {
   ): Promise<{ transport: Transport; pid?: () => number | null | undefined; warnings?: string[] }>;
   /** Last lines of the server's own log, shown when it keeps failing to start. */
   logTail?(server: ServerDef, variant: string, lines?: number): string | undefined;
-  /** OAuth logins (ADR 0029): drop the copy in memory of these variants (all when none are named). */
+  /** OAuth logins: drop the copy in memory of these variants (all when none are named). */
   forgetLogin?(server: string, variants?: string[]): void;
   /** OAuth logins: save rotated tokens still only in memory; the labels whose tokens are lost. */
   flushLogins?(): Promise<string[]>;
@@ -101,7 +101,7 @@ export interface ManagerOptions {
   breakerThreshold?: number;
   /** First backoff once the breaker is open, doubled on each further failure (default 5 s, max 5 min). */
   breakerBaseMs?: number;
-  /** Reads memory pressure before each reap (ADR 0028); without it the pressure is always normal. */
+  /** Reads memory pressure before each reap; without it the pressure is always normal. */
   pressure?: PressureProbe;
   /** Idle limit in seconds while memory is tight (`[mcpd] idle_under_pressure`); 0 or unset turns it off. */
   idleUnderPressure?: number;
@@ -195,7 +195,7 @@ export function descriptionFingerprint(server: ServerDef, variant: string): stri
 
 /**
  * Fingerprint of the whole definition (launch, scope, cwd, exclusive, idle, lease, timeouts),
- * except who gets it and which tools they see: tool filters apply per request (ADR 0023), so a
+ * except who gets it and which tools they see: tool filters apply per request, so a
  * changed filter needs no new process.
  */
 export function definitionFingerprint(server: ServerDef): string {
@@ -387,8 +387,8 @@ export class InstanceManager {
    * and retry once on a fresh instance when a remote server forgot our session. `cancelled`
    * says whether the client cancelled the request while the instance was still starting: the
    * upstream has no call to cancel yet, so the request is dropped here instead of sent.
-   * `onVariant` learns the variant of the instance that serves it (the call log's, ADR 0026).
-   * A tools/call comes here through the call middleware (middleware.ts, ADR 0047), never directly.
+   * `onVariant` learns the variant of the instance that serves it (the call log's).
+   * A tools/call comes here through the call middleware (middleware.ts), never directly.
    */
   async forward(
     client: ClientHandle,
@@ -675,7 +675,7 @@ export class InstanceManager {
   }
 
   /**
-   * The memory pressure for /status and `turno mcp top` (ADR 0028): the level the last reap
+   * The memory pressure for /status and `turno mcp top`: the level the last reap
    * read (null while the feature is off or before the first read), the configured limit, and
    * the idle cap that applies now (null when servers keep their own limits).
    */
@@ -724,8 +724,8 @@ export class InstanceManager {
 
   /**
    * Stop instances whose owner died, whose definition changed, or that sat idle too long; forget
-   * dead clients. Under memory pressure the idle limit shrinks (ADR 0028), and under critical
-   * pressure it applies to session servers too (ADR 0042).
+   * dead clients. Under memory pressure the idle limit shrinks, and under critical
+   * pressure it applies to session servers too.
    */
   async reap(): Promise<string[]> {
     const stopped: string[] = [];
@@ -741,7 +741,7 @@ export class InstanceManager {
       const stale = quiet && !this.current(inst);
       // A session server lives as long as its session: its state (a browser, a login) is the
       // point. Under critical memory pressure a quiet one stops like any other; the next call
-      // starts it again (ADR 0042).
+      // starts it again.
       const idleApplies = !(inst.scope === "session" && ownerAlive && level !== "critical");
       const limit = effectiveIdle(inst.server.idle, level, this.opts.idleUnderPressure ?? 0);
       const idleFor = this.now() - inst.upstream.lastActivity;
@@ -808,7 +808,7 @@ export class InstanceManager {
  * Resolve a command against an installed package (turno mcp install). A declared package that
  * is not installed still runs through `npx -y -p <package> <command>`, with a warning: `mcp
  * import` writes `package` and `mcp install` is a separate step, so failing here would break
- * imported setups (ADR 0016).
+ * imported setups.
  */
 export function resolveCommand(
   server: StdioServer,

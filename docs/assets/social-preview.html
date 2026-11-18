@@ -1,7 +1,16 @@
 <!doctype html>
-<!-- Social preview (Settings > Social preview). Render at 1280x640 with a device scale of 2
-     (docs/social-preview.md). The background is the landing page's hero (turno.wimo.dev): three
-     curtains of glyphs, one per account, captured without the thread. -->
+<!-- Social preview (Settings > Social preview).
+     To render it: open this file with the Chromium of patchright-core (the engine
+     packages/browser depends on) in a 1280x640 page with deviceScaleFactor 2, wait for the
+     fonts and take a screenshot (a 2560x1280 PNG) as social-preview.png. Then save the PNG
+     again with the strongest lossless compression, because GitHub takes images under 1 MB
+     (quantizing it to 256 colors bands the glow of the curtains).
+     The background, social-preview-aurora.jpg, is the landing page's hero (turno.wimo.dev)
+     captured at 1280x640 with a device scale of 2: a 1280x696 window, the header above, the
+     hero's text hidden, and the thread and its traveling message turned off (the uThreadFade
+     and uPulse uniforms set to zero), so only the three curtains of glyphs, one per account,
+     remain. The account labels are placed by hand at each curtain's hem; capture again and
+     move them if the hero's composition changes. -->
 <html><head><meta charset="utf-8">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@400;500&display=block">
 <style>

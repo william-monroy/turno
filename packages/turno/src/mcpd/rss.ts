@@ -92,7 +92,7 @@ export async function processTable(opts: ProcTableOptions = {}): Promise<ProcTab
  * RSS of a process and all its descendants (npx and shell wrappers start the real server as a
  * child). A descendant that leads its own process group brings the whole group: a browser server
  * starts Chrome as a group leader, and a Chrome helper whose parent went away stays in that
- * group (ADR 0042).
+ * group.
  */
 export function treeRss(table: ProcTable, pid: number): number | undefined {
   if (!table.has(pid)) return undefined;

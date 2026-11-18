@@ -173,7 +173,7 @@ export async function probeOAuth(url: string, timeoutMs = 5000): Promise<boolean
 }
 
 /**
- * Mark remote servers that ask for OAuth with `auth = "oauth"` (ADR 0029), so mcpd logs in for
+ * Mark remote servers that ask for OAuth with `auth = "oauth"`, so mcpd logs in for
  * them. Only servers with no auth of their own are probed: no `auth`, no Authorization header,
  * no header that holds a secret or a variable. Returns the names it marked.
  */

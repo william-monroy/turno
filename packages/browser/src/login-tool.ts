@@ -8,7 +8,7 @@ import { type ToolSchema, upstream } from "./upstream.js";
 import { type Credential, VaultError, type VaultSite, originAllowed, readCredential, vaultSite } from "./vault.js";
 
 /**
- * `browser_login` (ADR 0054): fills a site's username, password and current one-time code from
+ * `browser_login`: fills a site's username, password and current one-time code from
  * the identity's vault into the sign-in form of the current page. The model names the site; it
  * never sees, sends or receives a value:
  *

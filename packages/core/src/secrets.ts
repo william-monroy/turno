@@ -3,8 +3,8 @@ import { findOnPath } from "./paths.js";
 
 /**
  * The secret store of this machine: the macOS Keychain through `security`, the Linux Secret
- * Service through libsecret's `secret-tool` (ADR 0018), shared by turno-cli (the `keychain:<name>`
- * references of mcp.toml) and turno-browser (ADR 0053). Values travel on stdin, never in a
+ * Service through libsecret's `secret-tool`, shared by turno-cli (the `keychain:<name>`
+ * references of mcp.toml) and turno-browser. Values travel on stdin, never in a
  * process argv, and this module never writes them to a file or a log.
  */
 

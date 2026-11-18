@@ -2,7 +2,7 @@ import { NO_SECRET_STORE, SecretError, requireSecretStore, secretStore } from "t
 
 /**
  * The store itself (macOS Keychain, Linux Secret Service) lives in turno-core, shared with
- * turno-browser (ADR 0053); this module keeps what mcp.toml references need on top of it.
+ * turno-browser; this module keeps what mcp.toml references need on top of it.
  */
 export {
   NO_SECRET_STORE,

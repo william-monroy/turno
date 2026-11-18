@@ -18,7 +18,7 @@ import { MARKER } from "../launchers.js";
 import { realOr } from "../../core/fsutil.js";
 
 /**
- * `turno uninstall` (ADR 0025): remove everything turno set up outside its package, through
+ * `turno uninstall`: remove everything turno set up outside its package, through
  * one journal, so `turno undo <stamp>` puts it back while turno is still installed. It never
  * deletes a profile folder (they hold logins), turno's backups, or anything turno did not write.
  */
@@ -73,7 +73,7 @@ export interface UninstallPlan {
   launchers: string[];
   completions: string[];
   token?: string;
-  /** Per-profile gateway token files (ADR 0023). */
+  /** Per-profile gateway token files. */
   profileTokens: string[];
   turnoConfig?: ConfigFiles;
   /** With --purge: turno's state, caches and installed servers, removed whole and without a journal. */

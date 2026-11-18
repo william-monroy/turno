@@ -41,8 +41,7 @@ The master token never goes into an agent config. It opens only mcpd's own endpo
 a turno older than per-profile tokens still send it: mcpd answers 403 with "run: turno mcp sync",
 and `turno doctor` and `turno upgrade --finish` say the same (`--finish` offers to run the sync,
 and `--yes` runs it). Removing a profile does not revoke its token; `turno mcp token rotate` does
-(for every profile). The next full `turno mcp sync` removes the token file it wrote for it. See
-[ADR 0023](decisions/0023-per-profile-gateway-tokens-and-tool-filters.md).
+(for every profile). The next full `turno mcp sync` removes the token file it wrote for it.
 
 ## mcp.toml reference
 
@@ -110,7 +109,7 @@ sends each remote server without an `Authorization` header (or a header with a s
 challenge, which is how the MCP authorization spec asks for a login, marks the server. Previews
 stay offline and mark nothing. mcpd then becomes its OAuth client: you log in
 once per account with `turno mcp login`, and every agent and profile reaches the server through
-mcpd without a login of its own. See [ADR 0029](decisions/0029-oauth-for-remote-servers.md).
+mcpd without a login of its own. See [SECURITY.md](../SECURITY.md#the-gateway-mcpd).
 
 ```toml
 [server.linear]
@@ -160,7 +159,7 @@ token at once; an mcpd older than 0.2 notices within a minute.
 ## Server sets per folder
 
 A `[[projects]]` rule in `config.toml` can also say which servers sessions in that folder see
-(ADR 0031). The rule may have a profile, a server set, or both:
+. The rule may have a profile, a server set, or both:
 
 ```toml
 [[projects]]
@@ -265,32 +264,28 @@ under memory pressure. A browser without an identity (a temporary profile) can b
 server: Chrome still closes when idle, and mcpd stops the server when the session ends, or
 under critical memory pressure. Do not declare an identity as `session`: two sessions would
 share one profile, and the second would find it in use. A Chrome left running by a server that
-was killed is closed the next time the identity starts. See
-[ADR 0042](decisions/0042-browser-lifecycle.md). While it runs, at most 8 pages stay open,
+was killed is closed the next time the identity starts. While it runs, at most 8 pages stay open,
 popups that open while no tool call runs are closed, and a page unused for 5 minutes is parked on
 about:blank (15 minutes: closed); `tabs` in the identity's identity.json or the server's
-`--max-tabs`, `--popups`, `--park-after` and `--close-after` flags change that
-([ADR 0048](decisions/0048-browser-tab-governor.md)).
+`--max-tabs`, `--popups`, `--park-after` and `--close-after` flags change that.
 
 Next to the stock Playwright MCP tools, turno-browser lists `browser_batch`, which runs several
 of them in order in one call (stopping at the first failure) and returns one line per action and
 at most one snapshot. A click, hover, type, select or drag that fails because of the element says
 which element covers it, or whether it is hidden or disabled, and what to do next. `settle` in
-identity.json (like `"100ms"`) shortens Playwright's 500 ms wait after each action
-([ADR 0051](decisions/0051-browser-batch-and-action-errors.md)).
+identity.json (like `"100ms"`) shortens Playwright's 500 ms wait after each action.
 Blocking ads, trackers or heavy resource types (`block`) and an on-disk cache of static files
-(`cache`) are opt-in per identity in identity.json
-([ADR 0052](decisions/0052-browser-resource-blocking-and-cache.md)).
+(`cache`) are opt-in per identity in identity.json.
 With `--identity`, `browser_login <site>` fills a sign-in form from the identity's credential
 vault (`turno browser vault add`), on the site's own origins only; the values never appear in a
 tool result, and the form is submitted only when the identity allows it
-([ADR 0054](decisions/0054-browser-credential-vault.md)).
+([SECURITY.md](../SECURITY.md#the-credential-vault) has the threat model).
 
 When mcpd stops a browser server it closes its stdin and waits 5 seconds (`stop_grace`) before
 SIGTERM, so the server closes Chrome and writes its profile on its own; other servers keep the
 MCP SDK's 2 seconds.
 
-Each identity also has (ADR 0044):
+Each identity also has:
 
 - **identity.json** next to its profile (`~/.local/share/turno/browser/identities/<id>.json`): the
   time zone, languages, locale and region that stay fixed for it, applied at every Chrome start.
@@ -344,7 +339,7 @@ stays in the secret store, and `tools` filters and folder server sets apply to i
   (default `"5m"`, a quarter of it when pressure is critical, `false` turns it off; a change in
   config.toml applies without a restart). A session server whose launcher still runs is kept
   under `warn`; under `critical` it stops like any other once it has been quiet for the
-  critical limit, and the next call starts it again (ADR 0042). `/status` reports it as `memoryPressure`: `level` (`normal`, `warn`, `critical`,
+  critical limit, and the next call starts it again. `/status` reports it as `memoryPressure`: `level` (`normal`, `warn`, `critical`,
   or null while the setting is off), `checkedAt`, `idleUnderPressure` and `idleCap` (the idle
   limit in seconds every server gets now, null when they keep their own).
 - Speaks two MCP revisions on the same endpoint: 2025-11-25 sessions (`initialize`,
@@ -352,8 +347,7 @@ stays in the secret store, and `tools` filters and folder server sets apply to i
   `Mcp-Method` and `Mcp-Name` headers, `server/discover`, `subscriptions/listen`). List results
   for 2026-07-28 clients carry `ttlMs` (5 minutes once a running server confirmed the list since
   mcpd started, else 0) and `cacheScope = "private"`. Servers behind mcpd are still spoken to as
-  2025-11-25. A 2026-07-28 client cannot answer elicitation or sampling through mcpd yet; see
-  [ADR 0028](decisions/0028-mcp-2026-07-28-and-memory-pressure-idle.md).
+  2025-11-25. A 2026-07-28 client cannot answer elicitation or sampling through mcpd yet.
 - After 3 failed starts in a row, answers at once with the last lines of the server's log and
   retries with a growing delay (5 s, doubling, up to 5 minutes).
 - Rebuilds a session it does not know (mcpd restarted) from the request headers instead of
@@ -367,7 +361,7 @@ stays in the secret store, and `tools` filters and folder server sets apply to i
   it once the server is up.
 - Sends every `tools/call`, from both protocol revisions, through one call middleware before
   relaying it: the profile's tool filter (`tools.allow` / `tools.deny`), then the call log, then
-  the session id below. See [ADR 0047](decisions/0047-cross-package-contracts.md).
+  the session id below.
 
 ### The session id in `_meta`
 
@@ -423,7 +417,7 @@ server its profile uses, so the estimate is sessions x per-server memory. A serv
 running now counts with the memory mcpd measured the last time it ran (mcpd samples every 15
 seconds while servers run and keeps the numbers in `~/.local/state/turno/mcpd-rss.json`).
 Resident memory counts shared pages once per process, so both sides overcount a little in the
-same way. See [ADR 0026](decisions/0026-call-log-top-and-savings.md).
+same way.
 
 ## Plugin servers
 
@@ -486,9 +480,9 @@ If `mcp.toml` stops validating, mcpd keeps serving the last copy that did
 and `turno doctor`.
 
 `turno mcp token rotate` replaces the master token, which invalidates every profile token,
-restarts mcpd and asks you to run `turno mcp sync`. See [ADR 0017](decisions/0017-daemon-service-port-and-last-good-manifest.md).
+restarts mcpd and asks you to run `turno mcp sync`.
 
 `turno doctor --security` checks the rest of the posture: who can read turno's folders (and
 narrows them with `--fix`), who holds the mcpd port, literal secrets left in `mcp.toml`, agent
 configs and backups, servers that run whatever version is newest, the age of the token and the
-audit log's hash chain. See [ADR 0027](decisions/0027-security-doctor-and-variable-expansion.md).
+audit log's hash chain. See [SECURITY.md](../SECURITY.md#checking-your-setup).

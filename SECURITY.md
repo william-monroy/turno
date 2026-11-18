@@ -52,8 +52,8 @@ is what it stores, what it trusts, and what it does not protect against.
 | OAuth tokens of remote MCP servers | the same secret store, items `turno/oauth/<server>@<variant>` | never in a file or a log; refreshed by mcpd and sent only to that server's own origin |
 | Master gateway token | `~/.local/state/turno/mcpd.token` | file mode 600; used by turno only, for mcpd's own endpoints; never written into an agent config |
 | Per-profile gateway tokens | each profile's agent config (`.claude.json` for Claude Code), and `~/.local/state/turno/mcpd-tokens/<profile>.token` for the launchers of Codex, Copilot and Cursor | file mode 600; each one holds that profile's own token, derived from the master token |
-| Browser identities | `~/.local/share/turno/browser/<identity>` | live cookies of the sites you signed into: treat as credentials. By default Chrome encrypts them with a fixed public key (`--use-mock-keychain`), so anyone who can read the folder can read them; `"keychain": "system"` in identity.json uses the OS keychain's key instead ([ADR 0059](docs/decisions/0059-browser-cookie-keychain.md)) |
-| Session exports (`turno browser export`) | the file you name, mode 600 | cookies, localStorage and IndexedDB of an identity, encrypted with your passphrase (scrypt, AES-256-GCM) and refused on import after their expiry (default 7 days); never the vault ([ADR 0055](docs/decisions/0055-browser-session-export-import.md)) |
+| Browser identities | `~/.local/share/turno/browser/<identity>` | live cookies of the sites you signed into: treat as credentials. By default Chrome encrypts them with a fixed public key (`--use-mock-keychain`), so anyone who can read the folder can read them; `"keychain": "system"` in identity.json uses the OS keychain's key instead, so a copy of the folder (a backup, a synced disk) does not hand over the sessions; changing it signs the identity out, so export first and import after |
+| Session exports (`turno browser export`) | the file you name, mode 600 | cookies, localStorage and IndexedDB of an identity, encrypted with your passphrase (scrypt, AES-256-GCM) and refused on import after their expiry (default 7 days); never the vault |
 | Browser vault credentials (username, password, TOTP secret per site) | the same secret store, items `turno-browser/vault/<identity>/<site>` | never in a file, a log, a tool result or a snapshot; the index `<identity>.vault.json` (mode 600) holds only site names, origins and the submit policy |
 | Chrome profiles for `turno open` | `~/.local/share/turno/chrome/<profile>` | the claude.ai session of each profile |
 | Installed MCP servers | `~/.local/share/turno/servers/<name>/` | folders mode 700; exact versions, no install scripts unless `--allow-scripts` |
@@ -62,6 +62,14 @@ is what it stores, what it trusts, and what it does not protect against.
 | Backups of the files turno changes | `~/.local/state/turno/backups/` | folders 0700, files 0600; they can hold literal secrets that were in those files; pruned after 30 days, keeping the newest 10 (`turno undo --prune` by hand) |
 | Accounts bridge audit log | `~/.local/state/turno/audit.jsonl` (mode 600) | append-only and hash-chained; prompts, results and the policy decision of each delegated task |
 
+On macOS, turno's Keychain items trust `/usr/bin/security`, so mcpd can read a secret when it
+starts a server, in the background, without a Keychain dialog. The price: any process running
+as you can read those items without a prompt too, as it could a mode 600 file. They are still
+encrypted at rest and stay out of backups, dotfile repositories and config diffs. The Linux
+Secret Service has no per-application access control, so an unlocked collection is the same.
+Machines without a secret store (most servers and containers) use `env:` references in
+`mcp.toml` instead.
+
 `turno mcp import` shows secrets masked and stores nothing until `--write`. With
 `--move-secrets` it moves env and header secrets to the secret store; secrets in a server's
 args or URL query string stay literal in `mcp.toml`, since they cannot come from the store.
@@ -69,6 +77,17 @@ args or URL query string stay literal in `mcp.toml`, since they cannot come from
 turno does not intercept, store or forward model traffic, and it does not handle the OAuth
 tokens of Claude, ChatGPT, GitHub or any other vendor's agent login. Each agent logs in by
 itself, in its own config directory.
+
+### The agents' terms of service
+
+turno launches the agents' own, unmodified command line tools, and each one signs in with your
+own account. turno never reads, copies, stores or forwards their login tokens and never routes
+requests with them; features that would need to (for example a usage meter that calls a vendor
+API with your login) are out of scope. Profiles and folder rules choose which of your own
+accounts opens a folder. `fallback`, which chooses which of your accounts opens a folder while another
+is marked exhausted, is off unless you set it, and it is not a way around a vendor's usage limits or
+safeguards: each vendor's terms and usage policies apply to every account you use, and
+following them is up to you.
 
 ### The gateway (`mcpd`)
 
@@ -87,8 +106,7 @@ itself, in its own config directory.
   code you trust; the gateway does not sandbox it.
 - Is the OAuth client of `auth = "oauth"` remote servers: it logs in once per account with
   PKCE, refuses authorization servers without S256 and answers whose issuer or state does not
-  match, and never presents a token to another server
-  ([ADR 0029](docs/decisions/0029-oauth-for-remote-servers.md)).
+  match, and never presents a token to another server.
 - Folder server sets (`mcp`, `mcp_deny` in `config.toml`) hide servers from sessions in a
   folder; they are a convenience, not a boundary: a session whose folder mcpd cannot learn
   sees every server.
@@ -114,7 +132,7 @@ tools), is written to the audit log (`turno identity log`). Details:
 
 `turno browser vault add <identity> <site>` stores a username, a password and optionally a
 TOTP secret for one site of one browser identity, and the `browser_login` tool fills them into
-that site's sign-in form ([ADR 0054](docs/decisions/0054-browser-credential-vault.md)). The
+that site's sign-in form. The
 values come from a hidden prompt or stdin, go straight to the secret store, and are read back
 only inside `turno-browser-mcp` when the tool runs. The model names the site; it never sends
 or receives a value.
@@ -152,6 +170,31 @@ What it does not guard against:
   an honest model, not against a model or a page set on extracting a secret.
 - Anything running as your user can ask the secret store for the items, as it can for every
   other secret turno keeps (see out of scope).
+
+### Releases and how to verify them
+
+Every package is built and published by CI (`.github/workflows/release.yml`), never from a
+laptop, with npm trusted publishing: there is no long-lived npm token. One job runs the tests
+and packs the tarballs; a separate job, in a protected environment that a maintainer approves,
+attests and publishes those same tarballs without checking out the repository, installing
+anything or using a cache, so no project or dependency code runs where the publishing
+credential lives. Every release job can reach only the hosts on its allow list. `turno-cli`
+and `turno-browser` ship an `npm-shrinkwrap.json`, so `npm install --global` installs the
+exact dependency tree that CI tested, and nothing in it runs an install script. Each GitHub
+release carries a CycloneDX SBOM. Details: [docs/RELEASING.md](docs/RELEASING.md).
+
+To verify what you installed:
+
+- On npmjs.com, each version shows its provenance: the commit and the workflow run that built
+  it.
+- `npm pack turno-cli@<version>`, then
+  `gh attestation verify turno-cli-<version>.tgz --repo wimo-dev/turno`, checks that tarball
+  against the build attestation of the release.
+- `npm audit signatures` checks the registry signatures and provenance of every package in a
+  project that installs a turno package as a dependency.
+
+The first version of a new package is published by hand, because npm accepts a trusted
+publisher only for a package that exists; that one version has no provenance.
 
 ### Checking your setup
 

@@ -41,7 +41,7 @@ export function listProfiles(config: Config, env: NodeJS.ProcessEnv, agent?: Age
   return [...found].filter((n) => !agent || agentOf(n, config) === agent).sort();
 }
 
-/** A problem in a config.toml that parses, and how to fix it (ADR 0035). */
+/** A problem in a config.toml that parses, and how to fix it. */
 export interface ConfigFinding {
   text: string;
   /** A command that fixes it. */
@@ -161,7 +161,7 @@ function keyLine(lines: readonly string[], key: string): number | undefined {
 }
 
 /**
- * Folder server sets (ADR 0031) checked against mcp.toml: names it does not declare, and
+ * Folder server sets checked against mcp.toml: names it does not declare, and
  * remote servers that skip mcpd, which a set cannot hide. Nothing when mcp.toml is missing or
  * broken (its own check reports that).
  */

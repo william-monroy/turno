@@ -143,7 +143,7 @@ export const codex: AgentAdapter = {
   hub: (env) => join(paths(env).home, ".codex"),
   homeMarkers: ["config.toml", "auth.json", "sessions", "history.jsonl"],
   // Rollouts in sessions/ let `codex resume <id>` continue a session with another account
-  // (not verified across ChatGPT accounts yet; ADR 0013).
+  // (not verified across ChatGPT accounts yet).
   sharedDirs: ["sessions", "prompts", "skills"],
   sharedFiles: ["AGENTS.md"],
   launcherEnv: {},

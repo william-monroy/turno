@@ -44,7 +44,7 @@ function firstId(args: string[]): string | undefined {
   return args.find((a) => !a.startsWith("-"));
 }
 
-/** `turno identity list --json` (ADR 0045). */
+/** `turno identity list --json`. */
 const LIST_JSON = jsonOutput(["services", "browser", "preferences"]);
 
 async function list(args: string[], io: Io): Promise<number> {

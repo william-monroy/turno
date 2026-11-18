@@ -4,7 +4,7 @@ import { pidAlive } from "turno-core/process";
 import { IdentityError, identityStateDir } from "./ids.js";
 
 /**
- * The runtime lock of an identity (ADR 0044): which process drives its Chrome right now.
+ * The runtime lock of an identity: which process drives its Chrome right now.
  * `<state>/browser/identities/<id>/lock.json`, mode 600:
  *
  *     { "nodePid": 123, "chromePid": 456, "pgid": 456, "holder": "mcp", "startedAt": "..." }
@@ -26,7 +26,7 @@ export interface RuntimeLock {
   chromePid?: number;
   /** Chrome's process group (Playwright makes Chrome its leader). */
   pgid?: number;
-  /** `export` and `import`: `turno browser export` and `import` (ADR 0055), for a few seconds. */
+  /** `export` and `import`: `turno browser export` and `import`, for a few seconds. */
   holder: "mcp" | "login" | "export" | "import";
   startedAt: string;
 }

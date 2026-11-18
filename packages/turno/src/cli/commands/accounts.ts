@@ -46,7 +46,7 @@ const ADD_SPEC: FlagSpec = {
 };
 export const LOG_SPEC: FlagSpec = { tail: { type: "string", short: "n" }, verify: { type: "boolean" }, ...JSON_FLAG };
 
-/** `log --json`: one element per audit line; `log --verify --json`: the chain check (ADR 0045). */
+/** `log --json`: one element per audit line; `log --verify --json`: the chain check. */
 const AUDIT_JSON = jsonOutput([
   "ts",
   "caller",
@@ -68,7 +68,7 @@ export const LOG_JSON = jsonOutput([
 ]);
 
 /**
- * `log --verify`: check the hash chain of audit.jsonl (ADR 0018). It shows accidents and naive
+ * `log --verify`: check the hash chain of audit.jsonl. It shows accidents and naive
  * edits (a changed, inserted, removed or reordered line), not a determined attacker who can
  * rewrite the whole file, and it cannot see lines cut from the end.
  */

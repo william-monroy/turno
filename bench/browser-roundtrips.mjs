@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Round trips of turno-browser for a fixed form-filling sequence on a local page (ADR 0051).
+// Round trips of turno-browser for a fixed form-filling sequence on a local page.
 //
 //   pnpm build && node bench/browser-roundtrips.mjs [--runs 3] [--headed] [--json]
 //     [--modes calls,batch] [--bin <path to another build's dist/bin/mcp.js>] [--methods]

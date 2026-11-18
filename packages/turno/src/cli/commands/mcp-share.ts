@@ -1,5 +1,5 @@
 /**
- * `turno mcp export` and `turno mcp import <file>` (ADR 0050): move MCP servers between machines
+ * `turno mcp export` and `turno mcp import <file>`: move MCP servers between machines
  * without their secret values. The export is mcp.toml's own format; import also takes another
  * agent's MCP config file.
  */

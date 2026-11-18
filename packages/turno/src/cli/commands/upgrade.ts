@@ -21,7 +21,7 @@ import { type Command, type Io, confirm, fail } from "../io.js";
 import { findOnPath, launcherPath } from "../launch.js";
 import { turnoCommand, isGenerated, writeHelperLaunchers, writeLauncher } from "../launchers.js";
 
-/** `turno upgrade --check --json` (ADR 0045). */
+/** `turno upgrade --check --json`. */
 const CHECK_JSON = jsonOutput(["current", "latest", "channel", "method", "updateAvailable", "error", "note"]);
 
 const USAGE = `Usage:
@@ -106,7 +106,7 @@ export async function finishUpgrade(io: Io, opts: { sync?: "ask" | "yes" | "no" 
   if (rewritten) io.out(`launchers: ${rewritten} rewritten for turno ${now}`);
   const hint = journal.hint();
   if (hint) io.out(hint);
-  // Configs synced before per-profile gateway tokens (ADR 0023) send the master token, which
+  // Configs synced before per-profile gateway tokens send the master token, which
   // mcpd refuses for MCP sessions: say so here instead of leaving it to the first failed call.
   const tokens = (await import("../../mcpd/health.js")).tokenSyncCheck(env);
   if (tokens) {

@@ -13,8 +13,8 @@ import { CliError } from "../cli/io.js";
 import { isStringArray, readState, recordOf, requireState } from "../core/state-file.js";
 
 /**
- * A gateway entry in the format of each agent (ADR 0013, ADR 0032). Claude Code gets the
- * profile's token (ADR 0023) in the entry; the others read it, and the session PID, from the
+ * A gateway entry in the format of each agent. Claude Code gets the
+ * profile's token in the entry; the others read it, and the session PID, from the
  * launcher's environment.
  */
 export function gatewayEntryFor(
@@ -31,7 +31,7 @@ export function gatewayEntryFor(
  * The MCP entries a profile should have, according to the manifest. Remote servers that do not
  * go through the gateway are written as they are for agents that take them (Claude Code), and
  * skipped for the others (their formats differ; `turno mcp config` prints them). `master` is the gateway's
- * master token: entries carry the profile's own token derived from it (ADR 0023), never the
+ * master token: entries carry the profile's own token derived from it, never the
  * master itself.
  */
 export function profileServers(
@@ -151,7 +151,7 @@ export function syncJsonServers(
 }
 
 /**
- * Rewrite the servers of an agent config file in its store's format (ADR 0032): add or update
+ * Rewrite the servers of an agent config file in its store's format: add or update
  * `wanted`, remove entries turno wrote earlier that left it, keep everything else.
  */
 export function syncServers(

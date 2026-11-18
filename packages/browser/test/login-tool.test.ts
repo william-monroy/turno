@@ -12,7 +12,7 @@ import { fakeSecretStore } from "./helpers/fake-secret-store.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
- * `browser_login` (ADR 0054) against a real Google Chrome, through the server dist/ that the
+ * `browser_login` against a real Google Chrome, through the server dist/ that the
  * global setup builds once (test/helpers/build-dist.ts), with a fake `security`/`secret-tool`
  * on the sandbox PATH (never a real Keychain). The values are compared, never printed: an
  * assertion message shows only the redacted text.

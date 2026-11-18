@@ -3,7 +3,7 @@
 "turno-cli": minor
 ---
 
-Browser identity module (ADR 0044):
+Browser identity module:
 
 - `identity.json` next to each identity's profile keeps its time zone, languages, locale and
   region fixed; Chrome gets them at every start (`--accept-lang`, `--lang`, and the time zone

@@ -6,7 +6,7 @@ import { IdentityError, assertIdentityId, identityDir } from "./ids.js";
 import { type TotpParams, parseTotpSecret } from "./totp.js";
 
 /**
- * The credential vault of a browser identity (ADR 0054): a username, a password and optionally
+ * The credential vault of a browser identity: a username, a password and optionally
  * a TOTP secret per site, so `browser_login` can fill a sign-in form without the model ever
  * seeing them.
  *

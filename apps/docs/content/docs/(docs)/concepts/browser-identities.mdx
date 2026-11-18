@@ -76,8 +76,7 @@ the end of the next tool result. Tabs in the background run at full speed, as Pl
 Chrome; `"backgroundThrottling": true` (`turno identity set browser:school
 --background-throttling true`, or the server's `--background-throttling`) lets Chrome slow them down
 and brings the agent's tab to the front before each call. It suits a headless browser or a window
-left in view: a covered headed window stops rendering. See
-[ADR 0048](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0048-browser-tab-governor.md).
+left in view: a covered headed window stops rendering.
 
 ## Actions
 
@@ -90,8 +89,7 @@ When a click or a type fails because of the page, the error says why: the elemen
 the target (a cookie banner, a dialog) with its buttons, or that the target is hidden or
 disabled, and the next step. Playwright waits 500 ms after each action for the work it started;
 `"settle": "100ms"` in `identity.json` (`turno identity set browser:school --settle 100ms`)
-shortens that wait (Playwright's own `--timeout-settle` wins over it). See
-[ADR 0051](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0051-browser-batch-and-action-errors.md).
+shortens that wait (Playwright's own `--timeout-settle` wins over it).
 
 ## Blocking and the resource cache
 
@@ -116,8 +114,7 @@ and `font`; a pattern is a host name (with its subdomains) or a URL with `*`. Th
 never blocked. The cache keeps images, fonts, stylesheets and scripts on disk for this identity
 only, as long as their `Cache-Control` allows, and never a response with `Set-Cookie` or a request
 with `Authorization`. Requests still go out through Chrome. Turn the cache on with blocking:
-blocking turns Chrome's own cache off. See
-[ADR 0052](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0052-browser-resource-blocking-and-cache.md).
+blocking turns Chrome's own cache off.
 
 ## Credential vault
 
@@ -128,7 +125,7 @@ turno browser vault add school mail --url https://mail.example.com/login --usern
 turno browser vault list school
 ```
 
-The password and the TOTP secret are asked with hidden prompts (or read from stdin). An agent then calls `browser_login` with the site name on that sign-in page: the tool fills the username, the password and the current one-time code without the agent seeing them, only on the origins given with `--url`, and hides the values from every later result. It does not submit the form unless you run `turno browser vault submit school auto`. See [ADR 0054](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0054-browser-credential-vault.md) and the threat model in SECURITY.md.
+The password and the TOTP secret are asked with hidden prompts (or read from stdin). An agent then calls `browser_login` with the site name on that sign-in page: the tool fills the username, the password and the current one-time code without the agent seeing them, only on the origins given with `--url`, and hides the values from every later result. It does not submit the form unless you run `turno browser vault submit school auto`. See the threat model in [SECURITY.md](https://github.com/wimo-dev/turno/blob/main/SECURITY.md#the-credential-vault).
 
 ## Moving a session
 
@@ -137,9 +134,9 @@ turno browser export school --out school.session --expires 2d
 turno browser import school.session --as school-laptop
 ```
 
-The export holds the identity's cookies, localStorage and IndexedDB, encrypted with a passphrase you type (asked twice, or the first line of stdin), and is refused after its expiry (7 days by default, at most 90). It never holds vault credentials. Importing into an identity that exists replaces its session, so turno asks first (or needs `--yes`). See [ADR 0055](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0055-browser-session-export-import.md).
+The export holds the identity's cookies, localStorage and IndexedDB, encrypted with a passphrase you type (asked twice, or the first line of stdin), and is refused after its expiry (7 days by default, at most 90). It never holds vault credentials. Importing into an identity that exists replaces its session, so turno asks first (or needs `--yes`).
 
-By default Chrome encrypts an identity's cookies with a fixed key that is the same on every machine, so the profile folder is as sensitive as the sessions in it. `"keychain": "system"` in identity.json makes Chrome use the macOS Keychain or the Linux Secret Service instead. Changing it signs the identity out (its cookies were encrypted with the other key): export first and import after. See [ADR 0059](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0059-browser-cookie-keychain.md).
+By default Chrome encrypts an identity's cookies with a fixed key that is the same on every machine, so the profile folder is as sensitive as the sessions in it. `"keychain": "system"` in identity.json makes Chrome use the macOS Keychain or the Linux Secret Service instead. Changing it signs the identity out (its cookies were encrypted with the other key): export first and import after.
 
 ## Session health
 

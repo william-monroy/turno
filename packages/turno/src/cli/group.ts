@@ -10,7 +10,7 @@ export interface Sub extends Completion {
   ownHelp?: boolean;
   /** More text for `turno <group> <sub> --help`. */
   details?: string;
-  /** Its `--json` output, so `--json=fields` answers before it runs (ADR 0045). */
+  /** Its `--json` output, so `--json=fields` answers before it runs. */
   json?: JsonOutput;
   run(args: string[], io: Io): Promise<number>;
 }

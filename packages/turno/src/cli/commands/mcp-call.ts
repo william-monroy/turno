@@ -22,7 +22,7 @@ export const CALL_FLAGS: FlagSpec = {
 };
 
 /**
- * `turno mcp call --json` (ADR 0045). A call fills `tool`, `isError`, `content` and
+ * `turno mcp call --json`. A call fills `tool`, `isError`, `content` and
  * `structuredContent`; without a tool, `tools` lists the server's tools and the rest is null.
  */
 export const CALL_JSON = jsonOutput([
@@ -183,7 +183,7 @@ export async function call(args: string[], io: Io): Promise<number> {
       if (g.status === undefined && /ECONNREFUSED|fetch failed|connect/i.test(g.message)) throw down();
       throw new CliError(`mcpd refused the session for ${server} as profile ${profile}: ${g.message}`);
     }
-    // A server the folder's set leaves out answers with no capabilities and says why (ADR 0031).
+    // A server the folder's set leaves out answers with no capabilities and says why.
     if (client.getServerVersion()?.version === "hidden")
       throw new CliError(client.getInstructions() ?? `${server} is hidden in this folder`);
     if (!tool) {

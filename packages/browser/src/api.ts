@@ -12,7 +12,7 @@ import { checkIdentitySettings, identitySettingsPath, writeIdentitySettings } fr
 import { manifestSnippet } from "./snippet.js";
 
 /**
- * The contract between turno-browser and turno-cli (ADR 0047). turno-cli installs this package
+ * The contract between turno-browser and turno-cli. turno-cli installs this package
  * apart, types it with `import type` (erased at build, so the package stays optional) and,
  * when it loads it, compares `API_VERSION` with the version it was built against:
  *

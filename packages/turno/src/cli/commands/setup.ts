@@ -87,7 +87,7 @@ type Link = "linked" | "same" | "aside";
 
 /**
  * Make <dir>/<item> a symlink to the hub, moving a local copy aside. Every step goes through
- * the journal, so `turno undo` removes the link and moves the copy back (ADR 0025).
+ * the journal, so `turno undo` removes the link and moves the copy back.
  */
 function linkItem(dir: string, item: string, aside: string, journal: Journal, hub: string): Link {
   const target = join(hub, item);
@@ -205,7 +205,7 @@ export interface SetupOptions {
 }
 
 /**
- * Set up one profile: its folder (0700), the hub links, the agent's own steps (ADR 0032) and
+ * Set up one profile: its folder (0700), the hub links, the agent's own steps and
  * its launcher. Local copies of shared items move to .aside-<stamp>/.
  */
 function setupProfile(
@@ -261,7 +261,7 @@ function ruleFolders(profile: string, config: Config, env: NodeJS.ProcessEnv): s
 }
 
 /**
- * The agent's per-folder setup for `profile`'s rules (ADR 0050), after `turno profile assign`
+ * The agent's per-folder setup for `profile`'s rules, after `turno profile assign`
  * changed them. Nothing for agents without a `ruleFolders` hook.
  */
 export function applyRuleFolders(profile: string, io: Io, journal: Journal): void {

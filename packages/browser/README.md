@@ -4,8 +4,7 @@ An MCP server that lets a coding agent drive your installed Google Chrome with a
 profile per identity: you sign into a site once by hand, and the agent works in that same
 signed-in browser afterwards. It serves the Playwright MCP tools and flags, run on Patchright (a
 Playwright fork that drives Chrome without the automation flags Playwright adds), from its own
-MCP server, which launches Chrome itself
-([ADR 0043](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0043-browser-host-inversion.md)).
+MCP server, which launches Chrome itself.
 
 It is a separate package from [turno](https://www.npmjs.com/package/turno-cli), not installed
 with it; turno works without it.
@@ -21,8 +20,8 @@ stdio; `--port` or `--host` with `--identity` would serve a signed-in browser ov
 needs `--allow-http-identity` and then listens on 127.0.0.1 only.
 
 Defaults: headed, the installed Chrome channel, a persistent user data dir per identity, no
-injected init scripts. The reasons, and what these settings do and do not change, are in
-[ADR 0005](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0005-stealth-browser-defaults.md).
+injected init scripts: the browser a site sees is your own Chrome, signed in by you. More on
+how identities work: [Browser identities](https://turno.wimo.dev/docs/concepts/browser-identities).
 
 ## Lifecycle
 
@@ -38,8 +37,6 @@ injected init scripts. The reasons, and what these settings do and do not change
 
 - Through mcpd, stopping the server closes its stdin and waits 5 seconds before SIGTERM
   (`stop_grace`), so Chrome closes and writes its profile on its own.
-
-Details: [ADR 0042](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0042-browser-lifecycle.md).
 
 ## Identities
 
@@ -67,8 +64,6 @@ turno identity show browser:school
   `turno browser reputation [<id>]` shows counts per site and their trend.
 - **Doctor.** `turno browser doctor [--fix] [--json]` checks Chrome and its version, a test
   launch on a temporary profile, and each identity's settings, lock and sign-in.
-
-Details: [ADR 0044](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0044-browser-identity-module.md).
 
 ## Credential vault
 
@@ -101,14 +96,12 @@ turno browser import school.session --as school-laptop
 The file holds the identity's cookies, localStorage and IndexedDB, encrypted with the
 passphrase (scrypt and AES-256-GCM), and is refused after its expiry. It never holds vault
 credentials. Importing into an existing identity replaces its session and asks first.
-Details: [ADR 0055](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0055-browser-session-export-import.md).
 
 `"keychain": "system"` in identity.json makes Chrome encrypt the profile's cookies with the OS
-keychain's key instead of Playwright's fixed mock key
-([ADR 0059](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0059-browser-cookie-keychain.md)).
+keychain's key instead of Playwright's fixed mock key, so a copy of the profile folder does not
+hand over the sessions. Changing it signs the identity out: export first and import after.
 
 Vault threat model: [SECURITY.md](https://github.com/wimo-dev/turno/blob/main/SECURITY.md#the-credential-vault).
-Details: [ADR 0054](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0054-browser-credential-vault.md).
 
 ## Acceptable use
 

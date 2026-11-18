@@ -8,10 +8,10 @@ import { installShutdownGuard, sweepOrphan } from "../lifecycle.js";
 /**
  * turno-browser-mcp [--identity <id>] [playwright-mcp flags]
  *
- * Serves the Playwright MCP tools of patchright-core from turno's own MCP host (ADR 0043), with
- * the defaults of ADR 0005 and the lifecycle of ADR 0042: a generated config that closes an idle
- * Chrome, a sweep of a Chrome an earlier run left behind on the same profile, and a deadline on
- * shutdown. With `--identity`, the identity module of ADR 0044: identity.json applied at launch,
+ * Serves the Playwright MCP tools of patchright-core from turno's own MCP host, with
+ * turno's defaults and lifecycle: a generated config that closes an idle Chrome, a sweep of a
+ * Chrome an earlier run left behind on the same profile, and a deadline on shutdown. With
+ * `--identity`, the identity module: identity.json applied at launch,
  * a runtime lock while Chrome runs, the session health check and the reputation log.
  * Speaks MCP over stdio; `--port` with `--identity` needs `--allow-http-identity`.
  */
@@ -27,7 +27,7 @@ persistent profile per identity (turno identity add browser:<id>).
                            next call opens it again with the same profile. "0" keeps it open.
                            --idle-timeout <ms> and a --config of your own take precedence.
 
-Tabs (these flags win over the identity's identity.json; see ADR 0048):
+Tabs (these flags win over the identity's identity.json):
   --max-tabs <n>           most pages open at once, the least recently used closes past it
                            (default 8; 0: no cap)
   --popups <close|keep>    close popups that open while no tool call runs (default close)

@@ -54,7 +54,7 @@ export function defaultIo(): Io {
 
 /**
  * The variables each coding agent sets for the commands it runs, by agent id: inside them nobody
- * reads a question, so turno never asks one. Sources are in ADR 0033. Kept here rather than in
+ * reads a question, so turno never asks one. Kept here rather than in
  * the adapters because every run loads io.ts and it stays free of heavy imports; a test keeps the
  * ids in step with src/agents.
  */
@@ -128,7 +128,7 @@ export interface Command extends Completion {
   summary: string;
   usage: string;
   hidden?: boolean;
-  /** Its `--json` output, so `--json=fields` answers before the command runs (ADR 0045). */
+  /** Its `--json` output, so `--json=fields` answers before the command runs. */
   json?: JsonOutput;
   /** Subcommand names (visible ones) with their completion data. */
   subcommands?: Record<string, Completion>;
@@ -145,7 +145,7 @@ export function isColorMode(v: string | undefined): v is ColorMode {
 }
 
 /**
- * Whether output gets ANSI colors. The first rule that applies wins (ADR 0037, ADR 0045):
+ * Whether output gets ANSI colors. The first rule that applies wins:
  *
  * 1. `--color always|never` on the command line;
  * 2. TURNO_COLOR=always|never (any other value counts as auto; --color auto sets it aside);
