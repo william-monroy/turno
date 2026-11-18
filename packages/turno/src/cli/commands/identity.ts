@@ -11,7 +11,7 @@ import { profileColor, style } from "../style.js";
 import * as accounts from "./accounts.js";
 import { policyLine } from "./accounts.js";
 import { type BrowserDeps, type BrowserApi, NOT_INSTALLED, defaultDeps, dispatch } from "./browser.js";
-import { SETTINGS_FLAGS, SETTINGS_FLAG_NAMES, SHOW_JSON } from "./browser-identity.js";
+import { SETTINGS_FLAGS, SETTINGS_FLAG_NAMES, SET_DETAILS, SET_FLAG_NAMES, SET_JSON, SET_SYNOPSIS, SHOW_JSON } from "./browser-identity.js";
 
 /**
  * Who acts on an outside service for a session: a service account (`linear:work`, run by a
@@ -170,10 +170,12 @@ export const command = group(
     },
     show: { summary: "a browser identity's settings, session health and who holds it", synopsis: "browser:<id> [--json]", args: ["identity"], flags: ["--json"], json: SHOW_JSON, run: (a, io) => browserOnly("show", a, io) },
     set: {
-      summary: "change a browser identity's time zone, languages, region or health check",
-      synopsis: "browser:<id> [--timezone <zone>] [--locale <tag>] [--languages <tag,...>] [--region <CC>] [--health-url <url>] [--health-text <text>] [--health-selector <css>] [--no-health] [--dry-run]",
+      summary: "change a browser identity's identity.json: place, languages, health check, tabs, blocking, cache",
+      synopsis: `browser:<id> ${SET_SYNOPSIS}`,
+      details: SET_DETAILS,
       args: ["identity"],
-      flags: ["--dry-run", ...SETTINGS_FLAG_NAMES],
+      flags: SET_FLAG_NAMES,
+      json: SET_JSON,
       run: (a, io) => browserOnly("set", a, io),
     },
     remove: { summary: "remove a service account, or delete a browser identity and its logins", synopsis: "<id> [--dry-run]", args: ["identity"], flags: ["--dry-run"], run: remove },
@@ -202,6 +204,10 @@ export const command = group(
       "turno identity login browser:school",
       "turno identity show browser:school",
       "turno identity set browser:school --timezone America/Monterrey --languages es-MX,es,en",
+      "turno identity set browser:school --tabs-max 5 --tabs-park 10m --background-throttling true",
+      "turno identity set browser:school --block-trackers true --block-types image,font --cache-max-size 200MB",
+      "turno identity set browser:school --settle 500ms --dry-run --json",
+      "turno identity set browser:school --no-block --no-cache",
       "turno identity prefer ~/code/acme linear=linear:work",
       "turno identity remove linear:work --dry-run",
       "turno identity log --verify",

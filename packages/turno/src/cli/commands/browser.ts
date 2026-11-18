@@ -274,8 +274,10 @@ export function browserCommand(deps: BrowserDeps = defaultDeps): Command {
     show: { summary: "an identity's settings, session health and who holds it", synopsis: "<id> [--json]", flags: ["--json"], json: ident.SHOW_JSON, run: withModule("show") },
     set: {
       summary: "change an identity's identity.json (an empty value removes a setting)",
-      synopsis: "<id> [--timezone <zone>] [--locale <tag>] [--languages <tag,...>] [--region <CC>] [--health-url <url>] [--health-text <text>] [--health-selector <css>] [--no-health] [--dry-run]",
-      flags: ["--dry-run", ...ident.SETTINGS_FLAG_NAMES],
+      synopsis: `<id> ${ident.SET_SYNOPSIS}`,
+      details: ident.SET_DETAILS,
+      flags: ident.SET_FLAG_NAMES,
+      json: ident.SET_JSON,
       run: withModule("set"),
     },
     doctor: {
@@ -310,6 +312,8 @@ export function browserCommand(deps: BrowserDeps = defaultDeps): Command {
       "turno browser add school --languages es-MX,es,en",
       "turno browser show school",
       "turno browser set school --health-url https://mail.example.com/ --health-text Inbox",
+      "turno browser set school --tabs-max 5 --tabs-popups keep --settle 250ms",
+      "turno browser set school --block-trackers true --cache --json",
       "turno browser login school --url https://example.com",
       "turno browser doctor --fix",
       "turno browser reputation school --json",

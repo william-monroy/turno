@@ -80,6 +80,110 @@ describe("turno identity add/show/set for browser identities", () => {
     expect(readFileSync(settingsFile("school"), "utf8")).toBe(before);
   });
 
+  it("sets the tab governor, throttling, settle, blocking and cache keys (ADRs 0048, 0051, 0052)", async () => {
+    prev = setBrowserDeps(deps(real));
+    await identity.run(["add", "browser:school"], fakeIo(sb.env));
+    const file = () => JSON.parse(readFileSync(settingsFile("school"), "utf8"));
+    const set = fakeIo(sb.env);
+    expect(
+      await identity.run(
+        [
+          "set",
+          "browser:school",
+          ...["--tabs-max", "8", "--tabs-popups", "keep", "--tabs-park", "5m", "--tabs-close", "1h"],
+          ...["--background-throttling", "true", "--settle", "250ms"],
+          ...["--block-trackers", "true", "--block-types", "image, font", "--block-patterns", "ads.example,*/promo/*"],
+          ...["--cache-max-size", "200MB"],
+        ],
+        set,
+      ),
+    ).toBe(0);
+    expect(file()).toMatchObject({
+      version: 2,
+      tabs: { max: 8, popups: "keep", park: "5m", close: "1h" },
+      backgroundThrottling: true,
+      settle: "250ms",
+      block: { trackers: true, types: ["image", "font"], patterns: ["ads.example", "*/promo/*"] },
+      cache: { maxSize: "200MB" },
+    });
+    const text = set.lines.join("\n");
+    expect(text).toMatch(/tabs +at most 8 open, popups kept, parked after 5m, closed after 1h/);
+    expect(text).toMatch(/throttling +background tabs throttled/);
+    expect(text).toMatch(/settle +250ms/);
+    expect(text).toMatch(/blocking +trackers, image, font, 2 patterns/);
+    expect(text).toMatch(/cache +on, up to 200MB/);
+
+    // One part of a group changes; the rest of it stays. An empty value removes that part.
+    expect(await identity.run(["set", "browser:school", "--tabs-max", "0", "--tabs-park", "", "--block-patterns", ""], fakeIo(sb.env))).toBe(0);
+    expect(file().tabs).toEqual({ max: 0, popups: "keep", close: "1h" });
+    expect(file().block).toEqual({ trackers: true, types: ["image", "font"] });
+
+    // --cache alone turns the cache on with its default size; --no-* removes a whole group.
+    expect(await identity.run(["set", "browser:school", "--cache-max-size", ""], fakeIo(sb.env))).toBe(0);
+    expect(file().cache).toEqual({});
+    expect(await identity.run(["set", "browser:school", "--no-tabs", "--no-block", "--no-cache", "--background-throttling", "", "--settle", ""], fakeIo(sb.env))).toBe(0);
+    expect(file()).toMatchObject({ version: 1 });
+    for (const key of ["tabs", "backgroundThrottling", "settle", "block", "cache"]) expect(file()[key], key).toBeUndefined();
+    expect(await identity.run(["set", "browser:school", "--cache"], fakeIo(sb.env))).toBe(0);
+    expect(file()).toMatchObject({ version: 2, cache: {} });
+    // Removing the last part of a group removes the group.
+    expect(await identity.run(["set", "browser:school", "--block-trackers", "true"], fakeIo(sb.env))).toBe(0);
+    expect(await identity.run(["set", "browser:school", "--block-trackers", ""], fakeIo(sb.env))).toBe(0);
+    expect(file().block).toBeUndefined();
+  });
+
+  it("refuses bad tuning values with the flag's name, and writes nothing", async () => {
+    prev = setBrowserDeps(deps(real));
+    await identity.run(["add", "browser:school"], fakeIo(sb.env));
+    const before = readFileSync(settingsFile("school"), "utf8");
+    const bad = async (args: string[], message: RegExp) => {
+      await expect(identity.run(["set", "browser:school", ...args], fakeIo(sb.env)), args.join(" ")).rejects.toThrow(message);
+      await expect(identity.run(["set", "browser:school", ...args, "--dry-run"], fakeIo(sb.env)), `${args.join(" ")} --dry-run`).rejects.toThrow(message);
+    };
+    await bad(["--tabs-max", "many"], /^--tabs-max must be a whole number from 0 \(no cap\) to 100$/);
+    await bad(["--tabs-max", "101"], /^--tabs-max must be a whole number from 0 \(no cap\) to 100$/);
+    await bad(["--tabs-popups", "open"], /^--tabs-popups must be "close" or "keep"$/);
+    await bad(["--tabs-park", "soon"], /^--tabs-park must be a duration like "5m" or "0" \(off\)$/);
+    await bad(["--background-throttling", "maybe"], /^--background-throttling must be true or false/);
+    await bad(["--settle", "20s"], /^--settle must be a duration from "0" to "10s", like "250ms"$/);
+    await bad(["--block-trackers", "yes please"], /^--block-trackers must be true or false/);
+    await bad(["--block-types", "image,script"], /^--block-types must be a list of "image", "media", "font"$/);
+    await bad(["--block-patterns", "a b"], /^--block-patterns must be a list of host names or URL patterns without spaces/);
+    await bad(["--cache-max-size", "1KB"], /^--cache-max-size must be a size from "1MB" to "10GB", like "100MB"$/);
+    await bad(["--no-tabs", "--tabs-max", "3"], /--no-tabs does not go with the other --tabs flags/);
+    await bad(["--no-block", "--block-trackers", "true"], /--no-block does not go with the other --block flags/);
+    await bad(["--no-cache", "--cache"], /--no-cache does not go with --cache or --cache-max-size/);
+    expect(readFileSync(settingsFile("school"), "utf8")).toBe(before);
+  });
+
+  it("reports what set changed with --json, and what it would change with --dry-run --json", async () => {
+    prev = setBrowserDeps(deps(real));
+    await identity.run(["add", "browser:school"], fakeIo(sb.env));
+    const before = readFileSync(settingsFile("school"), "utf8");
+    const dry = fakeIo(sb.env);
+    expect(await identity.run(["set", "browser:school", "--tabs-max", "6", "--dry-run", "--json"], dry)).toBe(0);
+    const planned = JSON.parse(dry.lines.join("\n"));
+    expect(planned).toMatchObject({
+      schemaVersion: 1,
+      id: "browser:school",
+      settingsFile: "~/.local/share/turno/browser/identities/school.json",
+      dryRun: true,
+      changes: { tabs: { max: 6 } },
+      settings: { version: 2, tabs: { max: 6 } },
+    });
+    expect(readFileSync(settingsFile("school"), "utf8")).toBe(before);
+
+    const io = fakeIo(sb.env);
+    expect(await browserCommand(deps(real)).run(["set", "school", "--settle", "500ms", "--json"], io)).toBe(0);
+    const done = JSON.parse(io.lines.join("\n"));
+    expect(done).toMatchObject({ dryRun: false, changes: { settle: "500ms" }, settings: { version: 2, settle: "500ms" } });
+    expect(JSON.parse(readFileSync(settingsFile("school"), "utf8")).settle).toBe("500ms");
+
+    const fields = fakeIo(sb.env);
+    expect(await identity.run(["set", "browser:school", "--json=fields"], fields)).toBe(0);
+    expect(fields.lines.join("\n")).toMatch(/changes/);
+  });
+
   it("refuses an installed turno-browser whose API_VERSION does not fit, with one message", async () => {
     const pkg = await import("turno-browser");
     const old = { ...pkg, API_VERSION: undefined };
