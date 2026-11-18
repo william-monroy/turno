@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import { type Server, createServer } from "node:http";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -74,9 +75,9 @@ async function site(): Promise<{ url: string; requested: Map<string, number>; cl
     "/plain": "<title>plain</title><p>plain page</p>",
     "/a": "<title>page A</title><h1>Page A</h1>",
     "/b": "<title>page B</title><h1>Page B</h1>",
-    // A click that opens a window 3.5 s later: Chrome's popup blocker lets it through (the
-    // click's user activation lasts 5 s), and the tool call is usually over by then.
-    "/delayed-popup": `<title>delayed</title><button onclick="setTimeout(() => window.open('/plain?ad'), 3500)">Download</button>`,
+    // A page that opens a window 3.5 s after it loads, when the tool call that loaded it is
+    // usually over (the test turns Chrome's popup blocker off, so no click is needed).
+    "/delayed-popup": `<title>delayed</title><script>setTimeout(() => window.open('/plain?ad'), 3500)</script>delayed`,
     "/link": `<title>link</title><a href="/b" target="_blank">Open B</a><button onclick="document.title='clicked'">Press</button>`,
     // Timer ticks in the last second, and whether the page was ever hidden, kept in the DOM (a
     // stock tool's evaluate runs in an isolated world).
@@ -105,14 +106,17 @@ describe.skipIf(reason !== undefined)(reason ? `browser tools on real Chrome (sk
   it("closes a popup that opens after the tool call ended, and keeps the window a click opened", async () => {
     const web = await site();
     onTestFinished(() => web.close());
-    // New windows can take seconds on CI runners: give the clicks that open one time.
-    const client = await start("popups", ["--timeout-action", "20000"]);
+    // New windows can take seconds on CI runners: give the clicks that open one time. Chrome's
+    // popup blocker would make the delayed popup depend on a click's user activation, which
+    // expires on a slow runner; turned off here, the page opens it from a timer.
+    const config = join(sb.home, "popup-config.json");
+    writeFileSync(config, JSON.stringify({ browser: { launchOptions: { args: ["--disable-popup-blocking"] } } }));
+    const client = await start("popups", ["--timeout-action", "20000", "--config", config]);
     await call(client, "browser_navigate", { url: `${web.url}/link` });
     const opened = await call(client, "browser_click", { target: "a", element: "Open B link" });
     expect(opened).toMatch(/^- 1: /m);
 
     await call(client, "browser_navigate", { url: `${web.url}/delayed-popup` });
-    await call(client, "browser_click", { target: "button", element: "Download button" });
     const ended = Date.now();
     // Wait for the popup's request without a tool call (a call would make it the agent's).
     const deadline = ended + 30_000;
