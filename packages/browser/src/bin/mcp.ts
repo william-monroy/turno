@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import { dirname } from "node:path";
 import { type BuiltArgv, buildArgv } from "../argv.js";
+import { runHost } from "../host.js";
 import { installShutdownGuard, sweepOrphan } from "../lifecycle.js";
-import { mcpEntryPath } from "../patchright.js";
 
 /**
  * turno-browser-mcp [--identity <id>] [playwright-mcp flags]
  *
- * Runs the Patchright build of the Playwright MCP program in this process with the defaults of
- * ADR 0005 and the lifecycle of ADR 0042: a generated config that closes an idle Chrome, a sweep
- * of a Chrome an earlier run left behind on the same profile, and a deadline on shutdown.
+ * Serves the Playwright MCP tools of patchright-core from turno's own MCP host (ADR 0043), with
+ * the defaults of ADR 0005 and the lifecycle of ADR 0042: a generated config that closes an idle
+ * Chrome, a sweep of a Chrome an earlier run left behind on the same profile, and a deadline on
+ * shutdown.
  * Speaks MCP over stdio; `--port` with `--identity` needs `--allow-http-identity`.
  */
 
@@ -26,7 +26,7 @@ persistent profile per identity (turno identity add browser:<id>).
                            next call opens it again with the same profile. "0" keeps it open.
                            --idle-timeout <ms> and a --config of your own take precedence.
 
-Every other flag goes to the Playwright MCP program:
+Every other flag is a Playwright MCP flag:
 `;
 
 const help = process.argv.includes("--help") || process.argv.includes("-h");
@@ -59,7 +59,4 @@ if (built.userDataDir && !help) {
   installShutdownGuard(built.userDataDir);
 }
 
-const entry = mcpEntryPath();
-// The program parses process.argv with commander ("node <script> ...flags").
-process.argv = [process.argv[0]!, entry, ...built.args];
-createRequire(import.meta.url)(entry);
+await runHost(built.args);

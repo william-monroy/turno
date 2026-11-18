@@ -6,9 +6,9 @@ import { parseSingletonLock } from "./identities.js";
 /**
  * The life of the Chrome behind one profile (ADR 0042).
  *
- * The Playwright MCP program launches Chrome as the leader of its own process group and only
- * kills that group from exit handlers, which never run when the server is killed with SIGKILL.
- * So turno-browser-mcp
+ * Playwright launches Chrome as the leader of its own process group and only kills that group
+ * from exit handlers, which never run when the server is killed with SIGKILL. So
+ * turno-browser-mcp
  *
  * - sweeps a Chrome that an earlier run left behind for the same profile before it starts
  *   (`sweepOrphan`): the profile's `SingletonLock` names the PID, the process table confirms it

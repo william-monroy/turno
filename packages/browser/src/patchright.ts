@@ -10,7 +10,9 @@ function patchrightDir(): string {
 
 /**
  * The Playwright MCP program shipped inside patchright-core (ADR 0003). The subpath is not in
- * the package `exports`, so it is resolved from the install dir.
+ * the package `exports`, so it is resolved from the install dir. `turno-browser-mcp` no longer
+ * runs it (ADR 0043 serves the same tools from turno's host); the contract test still starts it
+ * to compare tool lists.
  */
 export function mcpEntryPath(): string {
   return join(patchrightDir(), "lib", "entry", "mcp.js");
