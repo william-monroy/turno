@@ -1,8 +1,9 @@
 # Other agents
 
 turno started with Claude Code, and its profiles, folder rules and MCP gateway work with other
-coding agents too. Why and how: [ADR 0013](decisions/0013-agent-adapters.md); where the code for
-each agent lives: [ADR 0032](decisions/0032-agent-adapter-boundary.md).
+coding agents too. Each agent is one adapter file in `packages/turno/src/agents/`, and commands
+read the adapter's fields instead of branching on the agent id, so a new agent is one adapter
+file plus its tests.
 
 | Agent | Profiles and launcher | Gateway entries | Shared from the hub | Notes |
 |---|---|---|---|---|
@@ -75,7 +76,7 @@ itself, through the plugin's hook.
 
 ## Which folder a session is in
 
-Folder rules with an MCP set (`mcp = [...]` in a `[[projects]]` rule, ADR 0031) need mcpd to know
+Folder rules with an MCP set (`mcp = [...]` in a `[[projects]]` rule) need mcpd to know
 the folder each session runs in. Every launcher exports it as `TURNO_SESSION_CWD_B64` (base64url,
 so any path fits in an HTTP header), and each agent's gateway entries send it back as the
 `X-Turno-Cwd-B64` header, each with the mechanism its documentation gives for headers:

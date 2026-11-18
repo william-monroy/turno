@@ -11,8 +11,8 @@ are made and [AI_POLICY.md](AI_POLICY.md) if you use AI tools.
 - **Docs**: typos, unclear steps, missing examples. No issue needed.
 - **Features, new agents, new commands, config keys**: open an issue first and wait until it
   is labeled `accepted`. Large changes (a new agent adapter, a change to the config format, the
-  security model, or anything that breaks a command) go through an `rfc` issue and end in an
-  ADR in `docs/decisions/`. A pull request for a feature without an accepted issue may be closed
+  security model, or anything that breaks a command) go through an `rfc` issue (see
+  [GOVERNANCE.md](GOVERNANCE.md)). A pull request for a feature without an accepted issue may be closed
   without review; that is about time, not about the idea.
 
 ## Set up
@@ -42,7 +42,7 @@ The four packages:
 |---|---|---|
 | `turno` | `packages/turno` | the CLI, the MCP gateway (`mcpd`), the status line, the accounts bridge |
 | `turno-browser` | `packages/browser` | the persistent-profile browser MCP server (a separate package, not installed with `turno-cli`) |
-| `turno-core` | `packages/core` | what both share: paths, the secret store (Keychain, Secret Service), process helpers (ADR 0053); `pnpm build` builds it first |
+| `turno-core` | `packages/core` | what both share: paths, the secret store (Keychain, Secret Service), process helpers; `pnpm build` builds it first |
 | `turno-fonts` | `packages/fonts` | the status line font (not installed with `turno-cli`: `turno ui install` downloads the same files and checks their SHA-256) |
 
 The documentation site is a fourth workspace project, `apps/docs` (private, never published):
@@ -60,8 +60,9 @@ pnpm docs:tapes               # re-render the text recordings (needs vhs, ttyd a
   server in `packages/turno/test/fixtures/`.
 - **English** in code, comments, CLI output and docs. No em dash character anywhere
   (`pnpm check` fails on one).
-- **Agents**: a new agent is one adapter file in `packages/turno/src/agents/` plus tests
-  ([ADR 0032](docs/decisions/0032-agent-adapter-boundary.md)).
+- **Agents**: a new agent is one adapter file in `packages/turno/src/agents/` plus tests;
+  commands read adapter fields instead of branching on the agent id
+  ([docs/agents.md](docs/agents.md)).
 - **Commands**: new commands go in `cli/registry.ts`; renamed commands keep the old name as an
   alias. Read commands take `--json`, write commands take `--dry-run`, and every write to a
   user file goes through `core/journal.ts` so `turno undo` can revert it.

@@ -24,4 +24,4 @@ body:
     attributes:
       label: Scope
       options:
-        - label: This adds an agent, changes the config format, the security model, or breaks a command (it needs an `rfc` issue and an ADR).
+        - label: This adds an agent, changes the config format, the security model, or breaks a command (it needs an `rfc` issue).

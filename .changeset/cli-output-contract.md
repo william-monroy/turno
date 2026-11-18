@@ -2,7 +2,7 @@
 "turno-cli": minor
 ---
 
-An output contract for scripts, hooks and agents (ADR 0045):
+An output contract for scripts, hooks and agents:
 
 - Every `--json` object carries `schemaVersion` (each element, for a list); no existing key
   changed. `--json=fields` lists a command's fields, `--json=a,b` keeps only those, and an

@@ -15,5 +15,12 @@ packages/core/LICENSE
 packages/core/NOTICE
 *.tgz
 
-# Written by scripts/shrinkwrap.mjs when a package is packed (ADR 0019)
+# Written by scripts/shrinkwrap.mjs when a package is packed
 packages/*/npm-shrinkwrap.json
+
+# Internal docs (status, design notes, decision records) live only on the maintainer's machine
+docs/decisions/
+docs/design/
+docs/STATUS.md
+docs/social-preview.md
+CLAUDE.local.md

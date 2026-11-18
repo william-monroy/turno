@@ -2,7 +2,7 @@
 "turno-browser": minor
 ---
 
-`browser_batch`, useful action errors and the settle setting (ADR 0051):
+`browser_batch`, useful action errors and the settle setting:
 
 - New tool `browser_batch`: runs up to 20 stock browser actions in order in one call, checks
   every action's arguments before running any, stops at the first failure, and returns one line

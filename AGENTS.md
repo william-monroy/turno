@@ -1,12 +1,12 @@
 # turno: rules for agents working in this repository
 
-Read `docs/STATUS.md` first: it says what is done, what is in progress and what is next.
-The design lives in `docs/design/`, and every non-obvious choice is recorded in
-`docs/decisions/` (one short ADR per decision).
+Start with the public docs: `CONTRIBUTING.md` for the setup and the rules for changes,
+`docs/` and `apps/docs` for how turno works, `SECURITY.md` for what it stores and how releases
+are built.
 
 ## Hard rules
 
-- English everywhere in the repository: code, comments, CLI output, docs, ADRs, commits. The
+- English everywhere in the repository: code, comments, CLI output, docs, commits. The
   only Spanish is `README.es.md` and the `*.es.mdx` pages of the docs site.
 - Never use the em dash character (U+2014). `pnpm check` fails if one appears.
 - Conventional Commits (`feat(mcpd): ...`, `fix(cli): ...`). No `Co-Authored-By`, no
@@ -27,15 +27,16 @@ The design lives in `docs/design/`, and every non-obvious choice is recorded in
   network.
 - Write the test first for behavior changes. Integration tests for mcpd use the fixture
   server in `packages/turno/test/fixtures/`.
-- Record decisions as ADRs (`docs/decisions/NNNN-title.md`: context, decision, consequences).
-- Update `docs/STATUS.md` at the end of each work session.
+- The repository holds only what users and contributors need. Design notes, status reports
+  and decision records stay out of it; explain the reason for a non-obvious choice in a short
+  code comment or in the public doc it affects.
 - A user-visible change adds a changeset (`pnpm changeset`); see `docs/RELEASING.md`.
-- A new agent is one adapter file in `packages/turno/src/agents/` plus tests (ADR 0032);
+- A new agent is one adapter file in `packages/turno/src/agents/` plus tests;
   commands read adapter fields instead of branching on the agent id.
 - New commands go in `cli/registry.ts`; keep old names as aliases there. Writes to user files go
   through `core/journal.ts` so `turno undo` can revert them. Read commands take `--json`,
   write commands take `--dry-run` (shared flags in `cli/args.ts`).
-- The docs site is `apps/docs` (ADR 0046). Its reference and troubleshooting pages are
+- The docs site is `apps/docs`. Its reference and troubleshooting pages are
   generated: after changing a command's help, a config or `mcp.toml` key, an exit code or a
   doctor check, run `pnpm build && pnpm docs:generate` and commit the result (a new doctor
   warning or failure also needs an entry in `apps/docs/reference/doctor-checks.mjs`).

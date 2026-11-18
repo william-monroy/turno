@@ -10,9 +10,9 @@ decisions fast while the project is small; this file will change if more maintai
 - **Features** start as an issue. The maintainer labels it `accepted` or explains why not.
 - **Large changes** go through an issue labeled `rfc`: a new agent adapter, a change to the
   config format, the security model, a command that breaks, a new runtime dependency. The
-  discussion stays open for at least a week, and the outcome is written as an ADR in
-  [docs/decisions/](docs/decisions/) (context, decision, consequences). ADRs are the project's
-  memory: read them before proposing to undo one.
+  discussion stays open for at least a week, and the maintainer closes it with the outcome
+  (context, decision, consequences). Closed `rfc` issues are the project's memory: read them
+  before proposing to undo one.
 
 ## Roles
 
