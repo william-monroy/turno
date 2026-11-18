@@ -15,6 +15,7 @@ import { type OAuthRecord, OAuthSession, type SessionOptions, checkIssuerParam, 
 import { ensureToken } from "../src/mcpd/state.js";
 import { profileToken } from "../src/mcpd/tokens.js";
 import { fakeIo } from "./helpers/cli.js";
+import { withFreePort } from "./helpers/net.js";
 import { type FakeSecretStore, fakeSecretStore } from "./helpers/fake-secret-store.js";
 import { type AuthServerOptions, type FakeAuthServer, type FakeResourceServer, approve, fakeAuthServer, fakeResourceServer } from "./helpers/oauth-fakes.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -238,15 +239,20 @@ describe("turno mcp login", () => {
   it("uses a pre-registered client on its fixed callback port", async () => {
     as = await fakeAuthServer();
     rs = await fakeResourceServer(as);
-    const port = 40_000 + Math.floor(Math.random() * 20_000);
-    const reg = await fetch(`${as.issuer}/register`, { method: "POST", body: JSON.stringify({ redirect_uris: [`http://127.0.0.1:${port}/callback`] }) });
-    const { client_id } = (await reg.json()) as { client_id: string };
-    as.registrations = [];
-    writeToml(`[server.rem]\nurl = ${JSON.stringify(rs.url)}\nauth = "oauth"\n[server.rem.oauth]\nclient_id = "${client_id}"\ncallback_port = ${port}\n`);
-    await cliLogin();
+    // A port the system reports free, and another one if something takes it before the login listens.
+    const { port, client_id } = await withFreePort(async (port) => {
+      const reg = await fetch(`${as.issuer}/register`, { method: "POST", body: JSON.stringify({ redirect_uris: [`http://127.0.0.1:${port}/callback`] }) });
+      const { client_id } = (await reg.json()) as { client_id: string };
+      as.registrations = [];
+      writeToml(`[server.rem]\nurl = ${JSON.stringify(rs.url)}\nauth = "oauth"\n[server.rem.oauth]\nclient_id = "${client_id}"\ncallback_port = ${port}\n`);
+      await cliLogin();
+      return { port, client_id };
+    });
     expect(as.registrations).toEqual([]);
     expect(record()!.registration).toBe("pre-registered");
     expect(record()!.client).toEqual({ client_id });
+    // The browser was sent back to the fixed port, the one the client was registered with.
+    expect(as.authorizeRequests.at(-1)!.get("redirect_uri")).toBe(`http://127.0.0.1:${port}/callback`);
   });
 
   it("plans with --dry-run without a browser or a write", async () => {

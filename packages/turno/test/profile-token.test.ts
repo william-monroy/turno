@@ -1,6 +1,5 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { type Server, createServer } from "node:http";
-import type { AddressInfo } from "node:net";
+import type { Server } from "node:http";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -16,6 +15,7 @@ import { tokenSyncCheck } from "../src/mcpd/health.js";
 import { InstanceManager } from "../src/mcpd/instances.js";
 import { profileToken, profileTokenFile, tokenProfile } from "../src/mcpd/tokens.js";
 import { fakeIo } from "./helpers/cli.js";
+import { freePort } from "./helpers/net.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 const FIXTURE = fileURLToPath(new URL("./fixtures/fixture-server.mjs", import.meta.url));
@@ -41,14 +41,6 @@ afterEach(async () => {
   manager = undefined;
   sb.cleanup();
 });
-
-async function freePort(): Promise<number> {
-  const s = createServer();
-  await new Promise<void>((r) => s.listen(0, "127.0.0.1", r));
-  const port = (s.address() as AddressInfo).port;
-  await new Promise<void>((r) => s.close(() => r()));
-  return port;
-}
 
 async function run(args: string[]) {
   const { main } = await import("../src/cli/main.js");

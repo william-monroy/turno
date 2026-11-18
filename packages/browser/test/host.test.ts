@@ -1,15 +1,15 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventEmitter } from "node:events";
 import type { BrowserContext } from "patchright-core";
 import { type Engine, type IdentityRef, type LaunchRequest, type LaunchedBrowser, selectEngine, usesChromeEngine } from "../src/engine.js";
 import { readHealth } from "../src/health.js";
 import { writeIdentitySettings } from "../src/settings.js";
-import { SERVER_INFO, createHost, mergeTextParts, serve } from "../src/host.js";
+import { CallIdleTimer, SERVER_INFO, createHost, mergeTextParts, serve } from "../src/host.js";
 import { SESSION_META_KEY } from "../src/session.js";
 import { TURNO_TOOLS, type TurnoTool, checkTurnoTools, turnoZod } from "../src/tools.js";
-import { type McpConfig, upstream } from "../src/upstream.js";
+import { type IdleTimerLike, type McpConfig, upstream } from "../src/upstream.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
@@ -207,6 +207,95 @@ describe("identity", () => {
     expect((res.content as { text: string }[])[0]!.text).toBe("### Error\nError: no browser in this test");
     expect(readHealth("plain", sb.env)).toBeUndefined();
     await client.close();
+  });
+});
+
+/** An idle timer that records what the session does with it, instead of counting. */
+function recordingTimer(): IdleTimerLike & { events: string[]; armed: boolean } {
+  const timer = {
+    events: [] as string[],
+    armed: false,
+    poke() {
+      timer.events.push("poke");
+      timer.armed = true;
+    },
+    dispose() {
+      timer.events.push("dispose");
+      timer.armed = false;
+    },
+  };
+  return timer;
+}
+
+/** An engine whose fake browser has one blank page and the given idle timer. */
+function idleEngine(idleTimer: IdleTimerLike): Engine {
+  return {
+    id: "chrome",
+    async launch(): Promise<LaunchedBrowser> {
+      const page = Object.assign(new EventEmitter(), { url: () => "about:blank", isClosed: () => false, close: async () => {} });
+      const context = Object.assign(new EventEmitter(), { pages: () => [page], newPage: async () => page, browser: () => null });
+      return { engine: "chrome", context: context as unknown as BrowserContext, isOpen: () => true, idleTimer, async close() {} };
+    },
+  };
+}
+
+describe("idle limit", () => {
+  it("does not count while a call runs, and counts again from the end of the last call", async () => {
+    const timer = recordingTimer();
+    let release!: () => void;
+    const seen: boolean[] = [];
+    const z = turnoZod();
+    const slow: TurnoTool = {
+      schema: { name: "turno_test_slow", title: "Slow (test)", description: "Waits until the test releases it.", inputSchema: z.object({}), type: "readOnly" },
+      async handle() {
+        seen.push(timer.armed);
+        await new Promise<void>((r) => {
+          release = r;
+        });
+        seen.push(timer.armed);
+        return { content: [{ type: "text", text: "done" }] };
+      },
+    };
+    const client = await connect(await config(), [slow], idleEngine(timer));
+    const call = client.callTool({ name: "turno_test_slow", arguments: {} });
+    await vi.waitFor(() => expect(release).toBeDefined());
+    // A call longer than the idle limit must not have Chrome closed under it.
+    expect(timer.armed).toBe(false);
+    release();
+    expect(await call).toEqual({ content: [{ type: "text", text: "done" }] });
+    expect(seen).toEqual([false, false]);
+    expect(timer.armed).toBe(true);
+    expect(timer.events.at(-1)).toBe("poke");
+    await client.close();
+  });
+
+  it("keeps counting stopped until the last of two overlapping calls ends", () => {
+    const inner = recordingTimer();
+    const timer = new CallIdleTimer(inner, () => true);
+    const a = timer.begin();
+    const b = timer.begin();
+    timer.poke(); // upstream pokes at the start of each call
+    expect(inner.armed).toBe(false);
+    a();
+    expect(inner.armed).toBe(false);
+    b();
+    expect(inner.armed).toBe(true);
+    b(); // ending twice changes nothing
+    inner.dispose();
+    timer.poke();
+    expect(inner.armed).toBe(true);
+  });
+
+  it("does not start counting again for a browser that already closed", () => {
+    const inner = recordingTimer();
+    let open = true;
+    const timer = new CallIdleTimer(inner, () => open);
+    const end = timer.begin();
+    open = false;
+    end();
+    expect(inner.armed).toBe(false);
+    timer.poke();
+    expect(inner.armed).toBe(false);
   });
 });
 
