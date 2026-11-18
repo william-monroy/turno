@@ -42,14 +42,25 @@ de memoria medido está en [BENCHMARKS.md](BENCHMARKS.md).
 
 ```sh
 npx turno-cli demo              # pruébalo primero, en un HOME desechable; no toca tu configuración
-npm install --global turno-cli  # macOS o Linux, Node 22.11 o más nuevo
-brew tap wimo-dev/turno && brew trust wimo-dev/turno && brew install turno  # o con Homebrew
 ```
 
-El paquete de npm se llama `turno-cli`; el comando que instala es `turno`. No ejecuta scripts de
-instalación e incluye un `npm-shrinkwrap.json`, así que instalas exactamente las versiones de
-dependencias que se probaron (CI revisa ambas cosas). Nada sale de tu máquina: no hay cuenta,
-ni telemetría, ni proxy del tráfico con el modelo.
+Luego instálalo con el gestor de paquetes que ya usas (macOS o Linux, Node 22.11 o más nuevo):
+
+```sh
+npm install --global turno-cli
+pnpm add --global turno-cli
+bun add --global turno-cli
+yarn global add turno-cli        # yarn 1 (classic); yarn 2 y posteriores no instalan global
+brew tap wimo-dev/turno && brew trust wimo-dev/turno && brew install turno
+```
+
+El paquete de npm se llama `turno-cli`; el comando que instala es `turno`, y `turno upgrade` lo
+actualiza después con la misma herramienta. `npx turno-cli`, `pnpm dlx turno-cli` y
+`bunx turno-cli` lo ejecutan una vez sin instalarlo. No ejecuta scripts de instalación, y npm y
+Homebrew instalan exactamente las versiones de dependencias que se probaron, desde su
+`npm-shrinkwrap.json` (pnpm, bun y yarn resuelven por su cuenta las dependencias de sus
+dependencias). CI lo instala de todas estas formas en macOS y Linux. Nada sale de tu máquina: no
+hay cuenta, ni telemetría, ni proxy del tráfico con el modelo.
 
 ## Inicio rápido
 

@@ -3,9 +3,10 @@
  * them (ADR 0019, ADR 0045). turno-browser today; a turno-tui later goes in OPTIONAL the same way.
  */
 import { execFileSync } from "node:child_process";
+import { existsSync, readdirSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { join, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { CliError } from "./io.js";
 
 /** An optional package: its npm name and how to install it. */
@@ -67,6 +68,32 @@ function npmGlobalRoot(env: NodeJS.ProcessEnv): string | undefined {
   }
 }
 
+/**
+ * The node_modules folders of every pnpm global group, when `self` (this turno's package
+ * folder) is in one. pnpm 11 and later install each global package in its own group
+ * (`$PNPM_HOME/global/v11/<group>/node_modules`), so a package added with its own
+ * `pnpm add --global` is not next to turno, and npm's global folder does not have it either.
+ */
+export function pnpmGlobalRoots(self: string): string[] {
+  let real = self;
+  try {
+    real = realpathSync(self);
+  } catch {
+    /* keep it */
+  }
+  const parts = real.split(sep);
+  const at = parts.findIndex((p, i) => p === "global" && /^v\d+$/.test(parts[i + 1] ?? "") && parts[i + 3] === "node_modules");
+  if (at < 0) return [];
+  const groups = parts.slice(0, at + 2).join(sep);
+  let names: string[];
+  try {
+    names = readdirSync(groups).sort();
+  } catch {
+    return [];
+  }
+  return names.map((g) => join(groups, g, "node_modules")).filter((d) => existsSync(d));
+}
+
 export interface LoadOptions<T> {
   /** Also look in the global npm folder, which a Homebrew or npx install of turno cannot see on its own. */
   global?: boolean;
@@ -85,6 +112,8 @@ export interface LoadOptions<T> {
   importer?: (specifier: string) => Promise<unknown>;
   /** For tests: the global npm folder. */
   globalRoot?: (env: NodeJS.ProcessEnv) => string | undefined;
+  /** For tests: this turno's package folder (where pnpm's global groups are looked for). */
+  self?: string;
 }
 
 /**
@@ -109,8 +138,18 @@ export async function loadOptional<T>(pkg: OptionalPackage, options: LoadOptions
     if (!isMissingModule(err)) throw err;
   }
   if (!options.global) return undefined;
+  const self = options.self ?? fileURLToPath(new URL("../../", import.meta.url));
+  for (const root of pnpmGlobalRoots(self)) {
+    const found = await loadFrom(root, pkg, load, checked);
+    if (found !== undefined) return found;
+  }
   const root = (options.globalRoot ?? npmGlobalRoot)(options.env ?? process.env);
   if (!root) return undefined;
+  return await loadFrom(root, pkg, load, checked);
+}
+
+/** The package as installed in the node_modules folder `root`, undefined when it is not there. */
+async function loadFrom<T>(root: string, pkg: OptionalPackage, load: (s: string) => Promise<unknown>, checked: (mod: unknown) => T): Promise<T | undefined> {
   let entry: string;
   try {
     entry = createRequire(join(root, "noop.js")).resolve(pkg.name);

@@ -6,7 +6,7 @@ import { Journal } from "../../core/journal.js";
 import { paths, writePrivateFile } from "../../core/paths.js";
 import { listProfiles } from "../../core/profiles.js";
 import { fetchLatest, isSemver, updateChecksOff } from "../../core/update.js";
-import { compareVersions, detectInstall, packageInfo, upgradeCommand } from "../../core/version.js";
+import { type Install, ONE_OFF_RUNNERS, compareVersions, detectInstall, isOneOff, packageInfo, upgradeCommand } from "../../core/version.js";
 import { DRY_RUN, JSON_FLAG, bool, parseFlags, str } from "../args.js";
 import { emit, jsonOutput } from "../output.js";
 import { type Command, type Io, confirm, fail } from "../io.js";
@@ -25,13 +25,15 @@ const USAGE = `Usage:
 When agent configs need a new gateway token, --finish offers to run turno mcp sync (in a
 terminal it asks; --yes runs it without asking).
 
-turno knows how it was installed (npm, pnpm, yarn, bun, volta, or a git checkout) and runs the
-matching command. Once a day interactive commands look for a new release in the background and
+turno knows how it was installed (npm, pnpm, yarn, bun, volta, Homebrew, or a git checkout) and
+runs the matching command. A copy that npx, pnpm dlx or bunx runs once has nothing to upgrade:
+the next run of that runner with @latest gets the newest release. Once a day interactive commands look for a new release in the background and
 mention it once; set update_check = false in config.toml or TURNO_NO_UPDATE_CHECK=1 to stop that.
 
 Examples:
   $ turno upgrade --check
   $ turno upgrade
+  $ turno upgrade --dry-run --to 1.2.3
   $ turno upgrade --finish`;
 
 function versionFile(env: NodeJS.ProcessEnv): string {
@@ -143,71 +145,81 @@ export const command: Command = {
   usage: USAGE,
   flags: ["--check", "--channel", "--to", "--dry-run", "--json", "--finish", "--yes"],
   json: CHECK_JSON,
-  async run(args, io) {
-    const p = parseFlags(
-      args,
-      { check: { type: "boolean" }, finish: { type: "boolean" }, yes: { type: "boolean", short: "y" }, channel: { type: "string" }, to: { type: "string" }, ...DRY_RUN, ...JSON_FLAG },
-      0,
-    );
-    const yes = bool(p, "yes");
-    if (bool(p, "finish")) return finishUpgrade(io, { sync: yes ? "yes" : "ask" });
-    const to = str(p, "to");
-    if (to !== undefined && !isSemver(to)) fail(`--to needs a version like 1.2.3 (got "${to}")`);
-    if (!/^[a-z][a-z0-9-]{0,63}$/.test(str(p, "channel") ?? "latest")) fail("--channel needs a dist-tag such as latest or next");
-    const pkg = packageInfo();
-    const install = detectInstall();
-    const channel = str(p, "channel") ?? "latest";
-    const off = updateChecksOff(io.env);
-    const fromRegistry = install.method !== "source" && install.method !== "unknown";
+  run: (args, io) => runUpgrade(args, io),
+};
 
-    if (bool(p, "check")) {
-      if (pkg.private || !fromRegistry) {
-        const why = pkg.private ? "this copy is not published to a registry" : `installed from ${install.method}`;
-        if (bool(p, "json")) emit(io, p, CHECK_JSON, { current: pkg.version, latest: null, method: install.method, note: why });
-        else io.out(`turno ${pkg.version} (${why}; turno upgrade pulls the source)`);
-        return 0;
-      }
-      const s = await fetchLatest(io.env, channel);
-      const newer = s.latest && compareVersions(s.latest, pkg.version) > 0;
-      if (bool(p, "json")) emit(io, p, CHECK_JSON, { current: pkg.version, latest: s.latest ?? null, channel, method: install.method, updateAvailable: Boolean(newer), error: s.error ?? null });
-      else if (s.error) io.out(`could not reach the registry: ${s.error}`);
-      else io.out(newer ? `turno ${s.latest} is available (you have ${pkg.version}): turno upgrade` : `turno ${pkg.version} is the newest on ${channel}`);
-      return s.error ? 1 : 0;
-    }
+/** `turno upgrade`; `deps.install` stands for how this turno was installed, for tests. */
+export async function runUpgrade(args: string[], io: Io, deps: { install?: Install } = {}): Promise<number> {
+  const p = parseFlags(
+    args,
+    { check: { type: "boolean" }, finish: { type: "boolean" }, yes: { type: "boolean", short: "y" }, channel: { type: "string" }, to: { type: "string" }, ...DRY_RUN, ...JSON_FLAG },
+    0,
+  );
+  const yes = bool(p, "yes");
+  if (bool(p, "finish")) return finishUpgrade(io, { sync: yes ? "yes" : "ask" });
+  const to = str(p, "to");
+  if (to !== undefined && !isSemver(to)) fail(`--to needs a version like 1.2.3 (got "${to}")`);
+  if (!/^[a-z][a-z0-9-]{0,63}$/.test(str(p, "channel") ?? "latest")) fail("--channel needs a dist-tag such as latest or next");
+  const pkg = packageInfo();
+  const install = deps.install ?? detectInstall();
+  const channel = str(p, "channel") ?? "latest";
+  const off = updateChecksOff(io.env);
+  const fromRegistry = install.method !== "source" && install.method !== "unknown";
 
-    if (fromRegistry && off === "this copy is not published to a registry") fail("this copy is not published to a registry");
-    let spec = str(p, "to") ?? channel;
-    if (fromRegistry && !str(p, "to")) {
-      const s = await fetchLatest(io.env, channel);
-      if (s.error) fail(`could not reach the registry: ${s.error}`);
-      if (s.latest && compareVersions(s.latest, pkg.version) <= 0) {
-        io.out(`turno ${pkg.version} is already the newest on ${channel}`);
-        return 0;
-      }
-      spec = s.latest ?? channel;
-    }
-    // Whatever reaches the package manager is a plain version or a dist-tag, never a URL or range.
-    if (!isSemver(spec) && !/^[a-z][a-z0-9-]{0,63}$/.test(spec)) fail(`refusing to install "${spec}": not a version`);
-    const steps = upgradeCommand(install, pkg.name, spec);
-    if (!steps) return fail(`cannot tell how turno was installed (${install.root}); reinstall it with your package manager`);
-    for (const step of steps) {
-      io.out(`$ ${step.join(" ")}`);
-      if (bool(p, "dry-run")) continue;
-      const r = spawnSync(step[0]!, step.slice(1), { stdio: "inherit", env: io.env });
-      if (r.status !== 0) {
-        io.err(`turno: ${step[0]} failed (exit ${r.status ?? r.signal}); nothing else was changed`);
-        return 1;
-      }
-    }
-    if (bool(p, "dry-run")) return 0;
-    // The new files are in place: let the new version finish its own upgrade.
-    const self = install.method === "source" ? process.argv[1] : findOnPath("turno", io.env);
-    if (!self) {
-      io.out("upgraded; run `turno upgrade --finish` to rewrite the launchers");
+  if (bool(p, "check")) {
+    if (pkg.private || !fromRegistry) {
+      const why = pkg.private ? "this copy is not published to a registry" : `installed from ${install.method}`;
+      if (bool(p, "json")) emit(io, p, CHECK_JSON, { current: pkg.version, latest: null, method: install.method, note: why });
+      else io.out(`turno ${pkg.version} (${why}; turno upgrade pulls the source)`);
       return 0;
     }
-    const finish = ["upgrade", "--finish", ...(yes ? ["--yes"] : [])];
-    const r = spawnSync(install.method === "source" ? process.execPath : self, install.method === "source" ? [self, ...finish] : finish, { stdio: "inherit", env: io.env });
-    return r.status ?? 1;
-  },
-};
+    const s = await fetchLatest(io.env, channel);
+    const newer = s.latest && compareVersions(s.latest, pkg.version) > 0;
+    if (bool(p, "json")) emit(io, p, CHECK_JSON, { current: pkg.version, latest: s.latest ?? null, channel, method: install.method, updateAvailable: Boolean(newer), error: s.error ?? null });
+    else if (s.error) io.out(`could not reach the registry: ${s.error}`);
+    else io.out(newer ? `turno ${s.latest} is available (you have ${pkg.version}): turno upgrade` : `turno ${pkg.version} is the newest on ${channel}`);
+    return s.error ? 1 : 0;
+  }
+
+  if (isOneOff(install.method)) {
+    // A copy in npx's (pnpm dlx's, bunx's) cache: nothing to replace, the runner fetches releases.
+    const once = ONE_OFF_RUNNERS[install.method];
+    io.out(`turno runs from ${once.runner}'s cache for this run: \`${once.latest}\` runs the newest release.`);
+    io.out(`To keep turno, install it: ${once.install}`);
+    return 0;
+  }
+  if (fromRegistry && off === "this copy is not published to a registry") fail("this copy is not published to a registry");
+  let spec = str(p, "to") ?? channel;
+  if (fromRegistry && !str(p, "to")) {
+    const s = await fetchLatest(io.env, channel);
+    if (s.error) fail(`could not reach the registry: ${s.error}`);
+    if (s.latest && compareVersions(s.latest, pkg.version) <= 0) {
+      io.out(`turno ${pkg.version} is already the newest on ${channel}`);
+      return 0;
+    }
+    spec = s.latest ?? channel;
+  }
+  // Whatever reaches the package manager is a plain version or a dist-tag, never a URL or range.
+  if (!isSemver(spec) && !/^[a-z][a-z0-9-]{0,63}$/.test(spec)) fail(`refusing to install "${spec}": not a version`);
+  const steps = upgradeCommand(install, pkg.name, spec);
+  if (!steps) return fail(`cannot tell how turno was installed (${install.root}); reinstall it with your package manager`);
+  for (const step of steps) {
+    io.out(`$ ${step.join(" ")}`);
+    if (bool(p, "dry-run")) continue;
+    const r = spawnSync(step[0]!, step.slice(1), { stdio: "inherit", env: io.env });
+    if (r.status !== 0) {
+      io.err(`turno: ${step[0]} failed (exit ${r.status ?? r.signal}); nothing else was changed`);
+      return 1;
+    }
+  }
+  if (bool(p, "dry-run")) return 0;
+  // The new files are in place: let the new version finish its own upgrade.
+  const self = install.method === "source" ? process.argv[1] : findOnPath("turno", io.env);
+  if (!self) {
+    io.out("upgraded; run `turno upgrade --finish` to rewrite the launchers");
+    return 0;
+  }
+  const finish = ["upgrade", "--finish", ...(yes ? ["--yes"] : [])];
+  const r = spawnSync(install.method === "source" ? process.execPath : self, install.method === "source" ? [self, ...finish] : finish, { stdio: "inherit", env: io.env });
+  return r.status ?? 1;
+}

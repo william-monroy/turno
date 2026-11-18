@@ -6,6 +6,7 @@ import { loadConfig } from "../core/config.js";
 import type { Journal } from "../core/journal.js";
 import { paths, tildify } from "../core/paths.js";
 import { agentOf } from "../core/profiles.js";
+import { oneOffRunner } from "../core/version.js";
 import { profileTokenFile } from "../mcpd/tokens.js";
 import { CliError, UsageError } from "./io.js";
 
@@ -42,9 +43,9 @@ export function findOnPath(cmd: string, env: NodeJS.ProcessEnv = process.env): s
   return undefined;
 }
 
-export const NPX_MESSAGE = "turno is running from npx's cache. Install it first: npm install --global turno-cli";
+export const NPX_MESSAGE = "turno is running from a temporary copy (npx, pnpm dlx or bunx). Install it first, for example: npm install --global turno-cli";
 
-/** True when this turno runs from npm's npx cache, which npm may delete at any time. */
+/** True when this turno runs from the cache of a one-off runner (npx, pnpm dlx, bunx), which may delete it at any time. */
 export function runningFromNpx(argv1: string | undefined = process.argv[1]): boolean {
   if (!argv1) return false;
   let file = argv1;
@@ -53,7 +54,7 @@ export function runningFromNpx(argv1: string | undefined = process.argv[1]): boo
   } catch {
     /* keep the given path */
   }
-  return file.includes("/_npx/");
+  return oneOffRunner(file) !== undefined;
 }
 
 /** Refuse a write that would keep a path into npx's cache (launchers, status line). */

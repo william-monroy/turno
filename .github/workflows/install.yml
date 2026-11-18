@@ -1,0 +1,82 @@
+name: install
+
+# turno-cli and turno-browser as users install them: packed like a release, then installed
+# globally with npm, pnpm, bun and yarn, and run once with npx, pnpm dlx and bunx. Each run uses
+# a throwaway HOME and prefix (scripts/install-smoke.sh) and checks `turno --version`,
+# `turno doctor --summary`, the install method `turno upgrade` detects, and that turno finds
+# turno-browser installed next to it.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: install-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  install:
+    name: install (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read # check out the code
+    env:
+      # Package manager versions under test: pnpm comes from packageManager, bun is pinned here,
+      # and yarn is the Yarn 1 that the runner images ship.
+      BUN_VERSION: 1.3.14
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        if: runner.os == 'Linux'
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - name: Yarn 1 from the runner image (only Yarn 1 has yarn global)
+        run: |
+          yarn --version
+          case "$(yarn --version)" in 1.*) ;; *) echo "expected Yarn 1 on the runner"; exit 1 ;; esac
+      - run: pnpm install --frozen-lockfile
+      # turno-cli compiles against turno-browser's types, so both are built before packing.
+      - run: pnpm build
+      - name: Pack both packages as a release would (prepack builds and writes the shrinkwrap)
+        id: pack
+        run: |
+          mkdir -p "$RUNNER_TEMP/tarballs"
+          for dir in browser turno; do (cd "packages/$dir" && pnpm pack --pack-destination "$RUNNER_TEMP/tarballs"); done
+          ls -l "$RUNNER_TEMP/tarballs"
+      - name: npm install --global
+        if: ${{ !cancelled() && steps.pack.outcome == 'success' }}
+        run: bash scripts/install-smoke.sh npm "$RUNNER_TEMP/tarballs"
+      - name: pnpm add --global
+        if: ${{ !cancelled() && steps.pack.outcome == 'success' }}
+        run: bash scripts/install-smoke.sh pnpm "$RUNNER_TEMP/tarballs"
+      - name: bun add --global
+        if: ${{ !cancelled() && steps.pack.outcome == 'success' }}
+        run: bash scripts/install-smoke.sh bun "$RUNNER_TEMP/tarballs"
+      - name: yarn global add
+        if: ${{ !cancelled() && steps.pack.outcome == 'success' }}
+        run: bash scripts/install-smoke.sh yarn "$RUNNER_TEMP/tarballs"
+      - name: npx
+        if: ${{ !cancelled() && steps.pack.outcome == 'success' }}
+        run: bash scripts/install-smoke.sh npx "$RUNNER_TEMP/tarballs"
+      - name: pnpm dlx
+        if: ${{ !cancelled() && steps.pack.outcome == 'success' }}
+        run: bash scripts/install-smoke.sh pnpm-dlx "$RUNNER_TEMP/tarballs"
+      - name: bunx
+        if: ${{ !cancelled() && steps.pack.outcome == 'success' }}
+        run: bash scripts/install-smoke.sh bunx "$RUNNER_TEMP/tarballs"
