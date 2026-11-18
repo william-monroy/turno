@@ -6,18 +6,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { pinPackage } from "../src/cli/commands/mcp.js";
 import { fakeIo } from "./helpers/cli.js";
+import { freePort } from "./helpers/net.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 let sb: Sandbox;
 let servers: Server[] = [];
-
-async function freePort(): Promise<number> {
-  const s = createServer();
-  await new Promise<void>((r) => s.listen(0, "127.0.0.1", r));
-  const port = (s.address() as AddressInfo).port;
-  await new Promise<void>((r) => s.close(() => r()));
-  return port;
-}
 
 async function run(args: string[]) {
   const { main } = await import("../src/cli/main.js");

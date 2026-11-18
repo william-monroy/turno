@@ -1,5 +1,4 @@
 import { mkdirSync, readFileSync, rmSync } from "node:fs";
-import { createServer } from "node:net";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type Check, collectChecks, doctor } from "../src/cli/commands/doctor.js";
@@ -8,18 +7,10 @@ import { main } from "../src/cli/main.js";
 import { securityChecks } from "../src/cli/security.js";
 import { tokenSyncCheck } from "../src/mcpd/health.js";
 import { fakeCommand, fakeIo } from "./helpers/cli.js";
+import { freePort } from "./helpers/net.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 let sb: Sandbox;
-
-/** A port nothing listens on, so the gateway checks never meet a real mcpd. */
-async function freePort(): Promise<number> {
-  const server = createServer();
-  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
-  const { port } = server.address() as { port: number };
-  await new Promise((r) => server.close(r));
-  return port;
-}
 
 beforeEach(async () => {
   sb = sandbox();

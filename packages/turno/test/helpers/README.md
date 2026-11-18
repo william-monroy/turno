@@ -21,6 +21,9 @@ Other helpers:
 - `fake-secret-store.ts`: `fakeSecretStore(sb)` puts file-backed `security` and `secret-tool`
   stand-ins first on the sandbox `PATH` (items under `<sandbox>/fake-secrets/`), with
   `failWrites(true)` to act like a Keychain that refuses writes. Never the real Keychain.
+- `net.ts`: `freePort()` asks the system for a port nothing listens on; `withFreePort(use)` runs
+  `use` again with another port when something took the first one (EADDRINUSE). Never pick a
+  random port number.
 - `oauth-fakes.ts`: an in-process OAuth authorization server and an MCP server it protects, on
   127.0.0.1, and `approve(url)`, which plays the browser for `turno mcp login` (ADR 0029).
 - `wait.ts`: `waitFor(check)` polls instead of sleeping a guessed time; `killAndWait(child)`

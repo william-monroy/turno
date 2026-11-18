@@ -20,6 +20,7 @@ import { type Tuning, type TuningFlags, resolveTuning } from "./tuning.js";
 import {
   type BrowserBackendInstance,
   type ClientInfo,
+  type IdleTimerLike,
   type McpConfig,
   type ServerBackend,
   type ServerBackendFactory,
@@ -136,6 +137,43 @@ function errorResult(message: string, json: boolean): ToolResult {
  * can serve it as well as turno's stdio server.
  */
 /** A session's running browser, as the host drives it. */
+/**
+ * The idle limit as a session sees it: it counts from the end of the last tool call and never
+ * while one runs. Upstream's `BrowserBackend` pokes the timer at the start of a call only, so a
+ * call that took longer than the limit (a slow page, a busy machine, a short `TURNO_BROWSER_IDLE`)
+ * had Chrome closed under it and failed with "Target page, context or browser has been closed".
+ */
+export class CallIdleTimer implements IdleTimerLike {
+  private calls = 0;
+  constructor(
+    private readonly inner: IdleTimerLike,
+    /** False once the browser closed: counting again would only close it a second time. */
+    private readonly open: () => boolean,
+  ) {}
+
+  /** Upstream's poke at the start of a call: ignored while a call holds the timer. */
+  poke(): void {
+    if (this.calls === 0 && this.open()) this.inner.poke();
+  }
+
+  /** Stops the countdown until the returned function runs (once) at the end of the call. */
+  begin(): () => void {
+    this.calls++;
+    this.inner.dispose();
+    let ended = false;
+    return () => {
+      if (ended) return;
+      ended = true;
+      this.calls--;
+      this.poke();
+    };
+  }
+
+  dispose(): void {
+    this.inner.dispose();
+  }
+}
+
 interface Running {
   backend: BrowserBackendInstance;
   /** The config this browser's `BrowserBackend` reads on every call (a copy per launch). */
@@ -143,6 +181,8 @@ interface Running {
   launched: LaunchedBrowser;
   governor: TabGovernor;
   tuning: Tuning;
+  /** The idle limit, held by every call in flight. */
+  idle?: CallIdleTimer;
 }
 
 class SessionBackend extends EventEmitter implements ServerBackend {
@@ -220,8 +260,9 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         }
       };
       const sessionConfig = configForSession(config, cliOptions, tuning);
+      const idle = launched.idleTimer ? new CallIdleTimer(launched.idleTimer, () => launched.isOpen()) : undefined;
       const backend = new BrowserBackend(sessionConfig, launched.context, stock, {
-        ...(launched.idleTimer ? { idleTimer: launched.idleTimer } : {}),
+        ...(idle ? { idleTimer: idle } : {}),
         dispose: async () => {
           gone();
           await launched.close();
@@ -250,7 +291,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         this.live = backend;
         this.launched = launched;
       }
-      return { backend, config: sessionConfig, launched, governor, tuning };
+      return { backend, config: sessionConfig, launched, governor, tuning, ...(idle ? { idle } : {}) };
     })();
     promise.catch(() => {
       if (this.current === promise) this.current = undefined;
@@ -272,9 +313,10 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     const clientInfo = this.info();
     let browserContext: LaunchedBrowser["context"] | undefined;
     let stock: StockAccess | undefined;
+    let endCall: (() => void) | undefined;
     if (tool.browser !== false) {
       const running = await this.browser();
-      running.launched.idleTimer?.poke();
+      endCall = running.idle?.begin();
       browserContext = running.launched.context;
       stock = this.stockAccess(running, signal);
     }
@@ -290,6 +332,8 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       return await tool.handle(context, parsed.params);
     } catch (error) {
       return errorResult(String(error), json);
+    } finally {
+      endCall?.();
     }
   }
 
@@ -300,7 +344,8 @@ class SessionBackend extends EventEmitter implements ServerBackend {
    * wait for its timeout).
    */
   private async callStock(name: string, args: Record<string, unknown>, signal?: AbortSignal, options: { snapshot?: boolean } = {}): Promise<ToolResult> {
-    const { backend, config, governor, tuning } = await this.browser();
+    const { backend, config, governor, tuning, idle } = await this.browser();
+    const endCall = idle?.begin();
     const json = !!(args._meta as { json?: boolean } | undefined)?.json;
     const snapshot = config.snapshot ?? {};
     const mode = snapshot.mode;
@@ -314,6 +359,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       if (result.isError) result = await explainFailure(backendContext(backend)?.currentTab()?.page, name, args, result, json);
       await governor.afterCall();
     } finally {
+      endCall?.();
       governor.endCall();
       if (options.snapshot === false) config.snapshot = { ...snapshot, ...(mode === undefined ? {} : { mode }) };
     }
