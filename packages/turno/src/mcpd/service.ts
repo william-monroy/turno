@@ -9,7 +9,7 @@ import { realOr } from "../core/fsutil.js";
 const exec = promisify(execFile);
 
 /**
- * How mcpd is kept alive across logins (ADR 0017): a LaunchAgent on macOS, a `systemd --user`
+ * How mcpd is kept alive across logins: a LaunchAgent on macOS, a `systemd --user`
  * unit on Linux, nothing elsewhere. Every backend writes one file (journaled, so `turno undo`
  * restores it) and drives the service manager through its command-line tool.
  */

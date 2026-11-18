@@ -7,7 +7,7 @@ import { type VaultInput, terminalInput } from "./browser-vault.js";
 import type { BrowserApi, BrowserDeps } from "./browser.js";
 
 /**
- * `turno browser export` and `turno browser import` (ADR 0055): an identity's signed-in session
+ * `turno browser export` and `turno browser import`: an identity's signed-in session
  * (cookies, localStorage, IndexedDB) as one file encrypted under a passphrase, with an expiry
  * inside. The passphrase comes from a hidden prompt (asked twice on export) or the first line
  * of stdin, never from a flag.

@@ -1,5 +1,5 @@
 /**
- * The `--json` contract (ADR 0045): every JSON a command prints goes through `emit` (one
+ * The `--json` contract: every JSON a command prints goes through `emit` (one
  * indented document) or `emitLine` (one compact line, NDJSON for `--watch`, `--follow` and the
  * machine outputs status lines read). Each object carries `schemaVersion`; each element of a
  * list does, since a list has no room for it. `--json=fields` lists a command's fields and

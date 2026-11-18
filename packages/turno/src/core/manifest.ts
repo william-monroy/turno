@@ -6,7 +6,7 @@ import { paths } from "./paths.js";
 type Scope = "shared" | "project" | "session";
 
 /**
- * Which tools of a server a session sees (ADR 0023): glob patterns (`*` any run of characters,
+ * Which tools of a server a session sees: glob patterns (`*` any run of characters,
  * `?` one character) matched against the whole tool name. With `allow`, only matching tools are
  * kept; `deny` then removes matching ones. Unset keys filter nothing.
  */
@@ -57,7 +57,7 @@ export interface StdioServer {
 }
 
 /**
- * `auth = "oauth"` on a remote server (ADR 0029): mcpd is the OAuth client and keeps the tokens
+ * `auth = "oauth"` on a remote server: mcpd is the OAuth client and keeps the tokens
  * in the secret store, one login per variant. Every key is optional; discovery fills the rest.
  */
 export interface OAuthSettings {
@@ -376,12 +376,12 @@ export function variantKey(server: { variants: Record<string, unknown> }, profil
 /** Effective launch settings for a variant. */
 /** The MCP SDK's fixed wait between closing stdin and SIGTERM, in seconds. */
 const SDK_STOP_GRACE = 2;
-/** turno-browser-mcp closes Chrome within about 2.5 s of stdin closing (ADR 0042); 5 s leaves room. */
+/** turno-browser-mcp closes Chrome within about 2.5 s of stdin closing; 5 s leaves room. */
 const BROWSER_STOP_GRACE = 5;
 const MAX_STOP_GRACE = 60;
 
 /**
- * Seconds mcpd gives a stdio server between closing its stdin and SIGTERM (ADR 0044): its
+ * Seconds mcpd gives a stdio server between closing its stdin and SIGTERM: its
  * `stop_grace`, else 5 for turno-browser-mcp however it is started (a path, npx), else the
  * SDK's 2.
  */

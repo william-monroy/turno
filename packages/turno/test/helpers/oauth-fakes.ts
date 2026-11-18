@@ -7,7 +7,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 
 /**
  * An in-process OAuth 2.1 authorization server and an MCP resource server that it protects,
- * both on 127.0.0.1, for the tests of ADR 0029. The authorization server approves every
+ * both on 127.0.0.1, for the OAuth tests of remote servers. The authorization server approves every
  * request at once as `account` (no user, no browser): `approve(url)` plays the browser.
  */
 

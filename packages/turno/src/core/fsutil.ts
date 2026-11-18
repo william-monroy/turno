@@ -37,5 +37,5 @@ export function parseJsonObject(text: string, file: string): Record<string, unkn
   return v;
 }
 
-/** Whether a process is alive; shared with turno-browser (ADR 0053). */
+/** Whether a process is alive; shared with turno-browser. */
 export { pidAlive } from "turno-core/process";

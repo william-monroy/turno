@@ -44,7 +44,7 @@ export function listIdentities(env: NodeJS.ProcessEnv = process.env): IdentityIn
 /**
  * Create the identity dir (mode 700) and return its info. A new identity also gets its
  * identity.json, pinned to the system time zone plus the settings given, so it keeps the same
- * zone and languages from then on (ADR 0044). Adding an existing identity changes nothing,
+ * zone and languages from then on. Adding an existing identity changes nothing,
  * unless settings are given: then they are written to its identity.json.
  */
 export function addIdentity(

@@ -37,7 +37,7 @@ describe("profileServers", () => {
     const m = parseManifest(MANIFEST);
     const personal = profileServers(m, "personal", 47821, "tok");
     expect(Object.keys(personal).sort()).toEqual(["calc", "docs", "vault"]);
-    // The entry carries the profile's own token, derived from the master (ADR 0023).
+    // The entry carries the profile's own token, derived from the master.
     expect(personal.calc).toEqual(gatewayEntry("calc", 47821, profileToken("tok", "personal"), "personal"));
     expect(JSON.stringify(personal)).not.toContain('"Bearer tok"');
     expect(personal.docs).toEqual({ type: "http", url: "https://docs.example.com/mcp" });

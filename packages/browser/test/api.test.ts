@@ -3,7 +3,7 @@ import * as pkg from "../src/index.js";
 import { API_VERSION, SESSION_META_KEY, api } from "../src/index.js";
 
 /**
- * The public API object turno-cli drives (ADR 0047). The CLI types it with `import type` and
+ * The public API object turno-cli drives. The CLI types it with `import type` and
  * checks `API_VERSION` when it loads the package, so this list is the contract: adding a member
  * raises the minor version, removing or changing one raises the major version.
  */
@@ -28,14 +28,14 @@ const MEMBERS = [
   "runBench",
   "runDoctor",
   "writeIdentitySettings",
-  // 1.1: the credential vault (ADR 0054).
+  // 1.1: the credential vault.
   "parseTotpSecret",
   "vaultAdd",
   "vaultClear",
   "vaultList",
   "vaultRemove",
   "vaultSetSubmit",
-  // 1.2: session export and import (ADR 0055).
+  // 1.2: session export and import.
   "exportSession",
   "importSession",
   "readSessionExport",

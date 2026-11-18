@@ -13,7 +13,7 @@ import { fakeIo } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
- * The identity module of turno-browser 0.3 through the CLI (ADR 0044): identity.json with
+ * The identity module of turno-browser 0.3 through the CLI: identity.json with
  * `identity add/show/set`, `browser doctor` and `browser reputation`. The real package from the
  * workspace runs against the sandbox HOME; doctor's Chrome checks come from a fake module.
  */
@@ -125,7 +125,7 @@ describe("turno identity add/show/set for browser identities", () => {
     expect(readFileSync(settingsFile("school"), "utf8")).toBe(before);
   });
 
-  it("sets the tab governor, throttling, settle, blocking and cache keys (ADRs 0048, 0051, 0052)", async () => {
+  it("sets the tab governor, throttling, settle, blocking and cache keys", async () => {
     prev = setBrowserDeps(deps(real));
     await identity.run(["add", "browser:school"], fakeIo(sb.env));
     const file = () => JSON.parse(readFileSync(settingsFile("school"), "utf8"));
@@ -270,7 +270,7 @@ describe("turno identity add/show/set for browser identities", () => {
     await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(
       "turno-browser is too old for this turno (it has no API_VERSION, this turno needs 1.2 or a later 1.x); update it: npm install --global turno-browser@latest",
     );
-    // 1.1 has no session export and import (ADR 0055).
+    // 1.1 has no session export and import.
     setBrowserDeps(
       deps(() => loadBrowser({ importer: async () => ({ ...pkg, API_VERSION: { major: 1, minor: 1 } }) })),
     );

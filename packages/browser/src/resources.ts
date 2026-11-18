@@ -5,7 +5,7 @@ import { join } from "node:path";
 import type { BrowserContext, Request, Route } from "patchright-core";
 
 /**
- * Opt-in resource blocking and an opt-in on-disk resource cache, per identity (ADR 0052). Both
+ * Opt-in resource blocking and an opt-in on-disk resource cache, per identity. Both
  * are off by default; identity.json `block` and `cache` turn them on.
  *
  * One context route sees every request. Blocking aborts it (`blockedbyclient`), as an ad

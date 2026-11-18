@@ -2,7 +2,7 @@ import { createHmac } from "node:crypto";
 
 /**
  * Time-based one-time passwords (RFC 6238, on HOTP of RFC 4226), with node:crypto only, for the
- * credential vault (ADR 0054). A secret comes as the base32 text a site shows next to its QR
+ * credential vault. A secret comes as the base32 text a site shows next to its QR
  * code, or as the `otpauth://totp/...` URI the QR code holds.
  */
 

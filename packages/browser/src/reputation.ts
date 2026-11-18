@@ -5,7 +5,7 @@ import { IdentityError, identityStateDir } from "./ids.js";
 import { identityExists, listIdentities } from "./identities.js";
 
 /**
- * The reputation log (ADR 0044): every challenge a page of an identity showed, one JSON line in
+ * The reputation log: every challenge a page of an identity showed, one JSON line in
  * `<state>/browser/identities/<id>/reputation.jsonl`:
  *
  *     {"ts":"2026-11-17T16:00:00.000Z","site":"mail.example.com","kind":"verify","markers":["verify it's you"]}

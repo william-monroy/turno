@@ -3,7 +3,7 @@ import type { IdentitySettings } from "./settings.js";
 import { parseDuration, parseSize } from "./units.js";
 
 /**
- * How the host runs one session's Chrome (ADRs 0048, 0051 and 0052): the tab governor, background tab
+ * How the host runs one session's Chrome: the tab governor, background tab
  * throttling, the wait after each action, and resource blocking and caching. Each value comes from, in order of precedence, a `turno-browser-mcp` flag, the
  * identity's identity.json, then the defaults below. identity.json is read at every launch,
  * like the rest of it.
@@ -33,11 +33,11 @@ export interface Tuning {
    * identity.json `settle`; undefined keeps Playwright's (500 ms, or the user's own setting).
    */
   settleMs?: number;
-  /** Opt-in resource blocking and cache, from identity.json `block` and `cache` (ADR 0052). */
+  /** Opt-in resource blocking and cache, from identity.json `block` and `cache`. */
   resources: ResourcePolicy;
 }
 
-/** The defaults, documented in ADR 0048 and the browser identities page. */
+/** The defaults, documented on the browser identities page. */
 export const DEFAULT_TABS: Readonly<TabPolicy> = Object.freeze({
   max: 8,
   popups: "close",

@@ -23,7 +23,7 @@ import { CliError, type Io, colors, columns, fail, paint } from "../io.js";
 import { parseColor } from "./profile.js";
 
 /**
- * `turno config path --json`: one entry per file, each {path, exists} (ADR 0045); with --all,
+ * `turno config path --json`: one entry per file, each {path, exists}; with --all,
  * `all` lists every path turno uses, each {name, path, exists, about}.
  */
 const PATH_JSON = jsonOutput(["config", "mcp", "accounts", "state", "backups", "all"]);
@@ -128,7 +128,7 @@ async function path(args: string[], io: Io): Promise<number> {
 
 async function get(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, JSON_FLAG, 1);
-  // A config value has config.toml's shape, not a schema of fields (ADR 0045).
+  // A config value has config.toml's shape, not a schema of fields.
   if (p.json) fail("config get --json takes no fields: it prints the value as config.toml holds it");
   const key = p.positionals[0];
   const text = readConfigText(io.env);

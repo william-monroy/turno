@@ -10,7 +10,7 @@ import {
 import { parseSingletonLock } from "./identities.js";
 
 /**
- * The life of the Chrome behind one profile (ADR 0042).
+ * The life of the Chrome behind one profile.
  *
  * Playwright launches Chrome as the leader of its own process group and only kills that group
  * from exit handlers, which never run when the server is killed with SIGKILL. So

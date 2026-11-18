@@ -7,7 +7,7 @@ import { type Tuning, launchTuning } from "./tuning.js";
 import { type ClientInfo, type IdleTimerLike, type McpConfig, playwright, upstream } from "./upstream.js";
 
 /**
- * Where the browser context behind an MCP session comes from (ADR 0043). The host asks an
+ * Where the browser context behind an MCP session comes from. The host asks an
  * engine for a context when a session first needs the browser, and again after the browser
  * closed (idle limit, `browser_close`); it never launches a browser any other way.
  *
@@ -50,7 +50,7 @@ export interface LaunchRequest {
   title: string;
   /** The identity whose profile this is (`--identity`), for its settings and runtime lock. */
   identity?: IdentityRef;
-  /** How to run this browser (ADR 0048); the chrome engine applies `backgroundThrottling`. */
+  /** How to run this browser; the chrome engine applies `backgroundThrottling`. */
   tuning?: Tuning;
 }
 
@@ -157,10 +157,10 @@ function profileInUse(identity: IdentityRef | undefined, userDataDir: string): E
  * of Playwright's own (the host's shutdown guard and upstream's exit watchdog close it), and
  * extensions allowed. It is bound like upstream's browser, so `playwright-cli` sees it too.
  *
- * For an identity (ADR 0044) it also takes the identity's runtime lock before Chrome starts,
+ * For an identity it also takes the identity's runtime lock before Chrome starts,
  * records Chrome's PID and process group in it, gives it back when Chrome closes, and applies
  * identity.json: languages and locale as Chrome flags, the time zone as `timezoneId`. With
- * `backgroundThrottling` (ADR 0048) it drops Playwright's three anti-throttling switches and
+ * `backgroundThrottling` it drops Playwright's three anti-throttling switches and
  * turns off its focus emulation (`launchTuning`).
  */
 const chromeEngine: Engine = {

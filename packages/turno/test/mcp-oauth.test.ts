@@ -170,7 +170,7 @@ afterEach(async () => {
   sb.cleanup();
 });
 
-describe('mcp.toml: auth = "oauth" (ADR 0029)', () => {
+describe('mcp.toml: auth = "oauth"', () => {
   it("proxies the server through mcpd and keeps auth keys out of the agent entry", () => {
     const m = parseManifest(
       `[server.lin]\nurl = "https://mcp.example.com/mcp"\nauth = "oauth"\n[server.lin.oauth]\nscope = "read"\ncallback_port = 33418\n[server.lin.variant.work]\n`,

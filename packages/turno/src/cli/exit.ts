@@ -1,5 +1,5 @@
 /**
- * The exit codes turno promises (ADR 0045), for scripts, hooks and status lines. Keep this file
+ * The exit codes turno promises, for scripts, hooks and status lines. Keep this file
  * free of imports: io.ts and every command load it.
  */
 export const Exit = {

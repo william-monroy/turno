@@ -5,7 +5,7 @@ import { JSON_FLAG, bool, flagsOf, parseFlags } from "../args.js";
 import type { Command } from "../io.js";
 import { emitLine, jsonOutput } from "../output.js";
 
-/** `turno resolve --json`: one line, read by status lines (ADR 0045). */
+/** `turno resolve --json`: one line, read by status lines. */
 const RESOLVE_JSON = jsonOutput(["chosen", "assigned", "reason", "note", "exhaustedUntil"]);
 
 /** Field separator of the machine output read by status lines. */

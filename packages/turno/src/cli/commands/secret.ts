@@ -41,7 +41,7 @@ export function keychainRefs(text: string): string[] {
   return [...new Set([...text.matchAll(/"keychain:([^"\\]+)"/g)].map((m) => m[1]!))].sort();
 }
 
-/** `turno secret list --json`: one element per keychain: reference in mcp.toml (ADR 0045). */
+/** `turno secret list --json`: one element per keychain: reference in mcp.toml. */
 const LIST_JSON = jsonOutput(["service", "stored"]);
 
 async function list(args: string[], io: Io): Promise<number> {

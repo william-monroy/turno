@@ -1,6 +1,6 @@
 /**
  * Optional packages: installed apart from turno-cli and loaded only by the commands that need
- * them (ADR 0019, ADR 0045). turno-browser today; a turno-tui later goes in OPTIONAL the same way.
+ * them. turno-browser today; a turno-tui later goes in OPTIONAL the same way.
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, realpathSync } from "node:fs";
@@ -21,7 +21,7 @@ export const OPTIONAL = {
 } as const satisfies Record<string, OptionalPackage>;
 
 /**
- * The version of an optional package's API (ADR 0047): `minor` grows when something is added,
+ * The version of an optional package's API: `minor` grows when something is added,
  * `major` when something is removed or changes. The package exports it as `API_VERSION`.
  */
 export interface ApiVersion {

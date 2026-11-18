@@ -147,7 +147,7 @@ export function takeColor(argv: string[]): { argv: string[]; color?: ColorMode }
   return at({ argv: [...lead, head, ...kept, ...(end < 0 ? [] : tail.slice(end))] });
 }
 
-/** Whether this run asked for --json: then an error is a JSON line on stderr (ADR 0045). */
+/** Whether this run asked for --json: then an error is a JSON line on stderr. */
 function wantsJson(argv: string[]): boolean {
   const [head, ...tail] = argv;
   if (!head || head.startsWith("-") || head === "help") return false;

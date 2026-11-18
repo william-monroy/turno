@@ -2,7 +2,7 @@ import { createCipheriv, createDecipheriv, randomBytes, scrypt as scryptCb } fro
 import { promisify } from "node:util";
 
 /**
- * The encrypted envelope of a session export (ADR 0055): a passphrase stretched with scrypt
+ * The encrypted envelope of a session export: a passphrase stretched with scrypt
  * (random salt) into an AES-256-GCM key. The header (format, KDF parameters, cipher, IV) is the
  * GCM additional data, so a changed header fails to decrypt like a changed ciphertext. The
  * expiry lives inside the encrypted payload, where it cannot be edited without the passphrase.

@@ -39,7 +39,7 @@ export interface GatewayOptions {
   manager: InstanceManager;
   manifest: () => Manifest;
   /**
-   * The master token (ADR 0023). It opens only the admin endpoints (/status, /refresh); MCP
+   * The master token. It opens only the admin endpoints (/status, /refresh); MCP
    * sessions authenticate with a profile token derived from it.
    */
   token: string;
@@ -52,15 +52,15 @@ export interface GatewayOptions {
   clientRequestTimeoutMs?: number;
   /** Largest request body accepted, in bytes (default 32 MiB; the SDK default is 4 MiB). */
   maxRequestBodyBytes?: number;
-  /** The `[[projects]]` rules of config.toml, read on every use: their `mcp` sets hide servers per folder (ADR 0031). */
+  /** The `[[projects]]` rules of config.toml, read on every use: their `mcp` sets hide servers per folder. */
   folderRules?: () => ProjectRule[];
   /** Home folder, to show rule paths with `~` in messages. */
   home?: string;
   /** Client names by PID, so sessions rebuilt after a restart keep their agent's name. */
   clientNames?: ClientNames;
-  /** Where tool call events go while the call log is on (ADR 0026); read per call. */
+  /** Where tool call events go while the call log is on; read per call. */
   callLog?: () => ((event: CallEvent) => void) | undefined;
-  /** Opt-in stages of the call middleware (ADR 0047), in order; none by default. */
+  /** Opt-in stages of the call middleware, in order; none by default. */
   callStages?: readonly CallStage[];
 }
 
@@ -149,7 +149,7 @@ const EMPTY_LISTS: Record<string, string> = {
 };
 
 /**
- * What a session gets for a server its folder's set leaves out (ADR 0031): an initialize with
+ * What a session gets for a server its folder's set leaves out: an initialize with
  * no capabilities and an instructions line that says why, empty lists, and an error naming
  * the rule for anything else. The session stays open, so the agent shows the server as
  * connected with nothing in it rather than as a failure it may retry.
@@ -257,7 +257,7 @@ class ClientSession implements ClientHandle {
     const state = { cancelled: false };
     this.handling.set(id, state);
     try {
-      // Outside the folder's server set (ADR 0031): answer from mcpd, never start the server.
+      // Outside the folder's server set: answer from mcpd, never start the server.
       const hidden = this.gw.hiddenBySet(this);
       if (hidden) {
         const agent =
@@ -304,7 +304,7 @@ class ClientSession implements ClientHandle {
         return;
       }
       if (method === "tools/call") {
-        // The call middleware (ADR 0047): tool filter, call log, session id, then the relay.
+        // The call middleware: tool filter, call log, session id, then the relay.
         this.reply(id, await this.gw.calls.call(this, m.params ?? {}, id, () => state.cancelled));
         return;
       }
@@ -362,13 +362,13 @@ class ClientSession implements ClientHandle {
  */
 export class Gateway {
   readonly manager: InstanceManager;
-  /** Every tools/call of both protocol paths goes through it (ADR 0047). */
+  /** Every tools/call of both protocol paths goes through it. */
   readonly calls: CallPipeline;
   readonly clientRequestTimeoutMs: number;
   private sessions = new Map<string, ClientSession>();
   private recreating = new Map<string, Promise<ClientSession | undefined>>();
   private http?: HttpServer;
-  /** MCP 2026-07-28 stateless requests (ADR 0028). */
+  /** MCP 2026-07-28 stateless requests. */
   private readonly front: StatelessFront;
 
   constructor(private readonly opts: GatewayOptions) {
@@ -456,7 +456,7 @@ export class Gateway {
 
   /**
    * Call before a config.toml or mcp.toml change: notes what each open session sees (its
-   * folder's server set, ADR 0031, and its tool filter, ADR 0023). The returned function, called
+   * folder's server set and its tool filter). The returned function, called
    * after the change, sends list_changed to the sessions whose view changed, so their agents
    * list again without reconnecting, and returns how many it told. Stateless 2026-07-28 clients
    * are not told: they see the change when their list results expire (`ttlMs`).
@@ -503,7 +503,7 @@ export class Gateway {
   }
 
   /**
-   * Why a session's folder hides its server (ADR 0031), or undefined when the server is
+   * Why a session's folder hides its server, or undefined when the server is
    * shown. Read on every use, so a changed config.toml applies to open sessions on their next
    * list or call. A session whose folder mcpd could not learn is never hidden.
    */
@@ -583,7 +583,7 @@ export class Gateway {
       json(res, 403, { error: `session ${sid} belongs to another profile` });
       return;
     }
-    // MCP 2026-07-28: the version header names a newer revision (ADR 0028).
+    // MCP 2026-07-28: the version header names a newer revision.
     let parsed: unknown;
     if (wantsModern(req)) {
       const body = await readJsonBody(req, this.opts.maxRequestBodyBytes ?? DEFAULT_MAX_REQUEST_BODY);

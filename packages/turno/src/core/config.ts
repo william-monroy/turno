@@ -7,7 +7,7 @@ import { expandHome, paths, tildify } from "./paths.js";
 type BrowserMode = "chrome" | "default";
 
 interface ProfileConfig {
-  /** The coding agent this profile runs (ADR 0013); Claude Code when unset. */
+  /** The coding agent this profile runs; Claude Code when unset. */
   agent: AgentId;
   /** How `turno open` shows claude.ai links: an isolated Chrome profile or the default browser. */
   browser: BrowserMode;
@@ -23,7 +23,7 @@ interface AgentRoles {
 
 /**
  * A folder rule. `profile` picks the account for the folder; `mcp` and `mcp_deny` pick which
- * MCP servers mcpd shows to sessions in it (ADR 0031). A rule has a profile, a server set, or both.
+ * MCP servers mcpd shows to sessions in it. A rule has a profile, a server set, or both.
  */
 export interface ProjectRule {
   path: string;
@@ -57,9 +57,9 @@ export interface Config {
   projects: ProjectRule[];
   open: { chromeDir: string };
   /**
-   * `port` of the gateway; whether mcpd keeps the call log (ADR 0026); `maxRequestBody`, the
+   * `port` of the gateway; whether mcpd keeps the call log; `maxRequestBody`, the
    * largest request body mcpd accepts in bytes (unset: the gateway default, 32 MiB);
-   * `idleUnderPressure`, the idle limit in seconds while memory is tight (ADR 0028; 0 is off).
+   * `idleUnderPressure`, the idle limit in seconds while memory is tight (0 is off).
    */
   mcpd: { port: number; callLog: boolean; maxRequestBody?: number; idleUnderPressure: number };
   /** Keys turno does not know (likely typos), with a suggestion when one is close. */

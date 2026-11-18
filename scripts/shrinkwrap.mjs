@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // Writes npm-shrinkwrap.json for a published package, so `npm install --global` and Homebrew
-// install exactly the dependency tree that pnpm installed and CI tested (ADR 0019).
+// install exactly the dependency tree that pnpm installed and CI tested.
 //   node scripts/shrinkwrap.mjs <package dir>...          write <dir>/npm-shrinkwrap.json
 //   node scripts/shrinkwrap.mjs --check <package dir>...  exit 1 if a file is missing or stale
 // Offline: versions come from the pnpm install (node_modules), integrity from pnpm-lock.yaml.
 // The layout is npm's: every package as high as it fits, nested only on a version conflict.
-// A dependency on another package of this workspace (`workspace:*`, ADR 0053) is published as
+// A dependency on another package of this workspace (`workspace:*`) is published as
 // its exact version, the way pnpm pack writes it; its entry has no integrity, because the
 // tarball of a sibling released in the same run does not exist yet when this file is written.
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";

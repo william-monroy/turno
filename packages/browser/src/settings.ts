@@ -6,7 +6,7 @@ import { parseDuration, parseSize } from "./units.js";
 
 /**
  * identity.json: what stays fixed for one browser identity, so a site sees the same person in
- * the same place every time (ADR 0044). It sits next to the Chrome profile directory
+ * the same place every time. It sits next to the Chrome profile directory
  * (`<data>/browser/identities/<id>.json`), never inside it, so Chrome never reads or rewrites it
  * and copying a profile does not copy it by accident.
  *
@@ -23,9 +23,9 @@ import { parseDuration, parseSize } from "./units.js";
  *   health, `health.ts`).
  * - `tabs`, `backgroundThrottling`, `settle`, `block`, `cache` (format 2): how the host runs this
  *   identity's Chrome
- *   (ADR 0048, `tuning.ts`): the tab governor and background tab throttling.
- * - `keychain` (format 3): where Chrome gets the key that encrypts the profile's cookies
- *   (ADR 0059). `"mock"` (the default, also when the key is missing) keeps Playwright's
+ *   (`tuning.ts`): the tab governor and background tab throttling.
+ * - `keychain` (format 3): where Chrome gets the key that encrypts the profile's cookies.
+ *   `"mock"` (the default, also when the key is missing) keeps Playwright's
  *   `--use-mock-keychain` and `--password-store=basic`, a fixed public key; `"system"` drops
  *   them, so Chrome uses the macOS Keychain or the Linux Secret Service.
  *
@@ -34,7 +34,7 @@ import { parseDuration, parseSize } from "./units.js";
 
 /**
  * The newest format version of identity.json this package reads, in its `version` key: turno's
- * state-file convention (ADR 0045), where a file without `version` is format 1 and a newer one
+ * state-file convention, where a file without `version` is format 1 and a newer one
  * is refused. Format 2 adds the browser keys (`FORMAT_2_KEYS`); a file is written as format 2
  * only when it uses one of them, so an older turno-browser keeps reading every other file and
  * refuses one it would misread with "update turno-browser".
@@ -47,7 +47,7 @@ const FORMAT_2_KEYS = ["tabs", "backgroundThrottling", "settle", "block", "cache
 /** The keys format 3 added. */
 const FORMAT_3_KEYS = ["keychain"] as const;
 
-/** Where Chrome gets its cookie encryption key (ADR 0059). */
+/** Where Chrome gets its cookie encryption key. */
 type KeychainMode = "mock" | "system";
 
 /** Playwright's switches that give Chrome a fixed key instead of the OS store's. */
@@ -57,7 +57,7 @@ const MOCK_KEYCHAIN_SWITCHES = ["--use-mock-keychain", "--password-store=basic"]
 const BLOCKABLE_TYPES = ["image", "media", "font"] as const;
 type BlockableType = (typeof BLOCKABLE_TYPES)[number];
 
-/** Opt-in resource blocking (`resources.ts`, ADR 0052). */
+/** Opt-in resource blocking (`resources.ts`). */
 interface BlockSettings {
   /** The built-in list of ad and tracker hosts. */
   trackers?: boolean;
@@ -66,7 +66,7 @@ interface BlockSettings {
   patterns?: string[];
 }
 
-/** Opt-in on-disk resource cache (`resources.ts`, ADR 0052). */
+/** Opt-in on-disk resource cache (`resources.ts`). */
 interface CacheSettings {
   /** Size cap, like `"100MB"` (default 100MB). */
   maxSize?: string;
@@ -112,7 +112,7 @@ export interface IdentitySettings {
   settle?: string;
   block?: BlockSettings;
   cache?: CacheSettings;
-  /** `"system"`: Chrome encrypts cookies with the OS store's key (ADR 0059); default `"mock"`. */
+  /** `"system"`: Chrome encrypts cookies with the OS store's key; default `"mock"`. */
   keychain?: KeychainMode;
   /** ISO dates. */
   created: string;

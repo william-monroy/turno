@@ -8,7 +8,7 @@ import { parseDuration } from "./units.js";
 
 /**
  * Turns `turno-browser-mcp [--identity <id>] [playwright-mcp flags]` into the argv for the
- * Patchright MCP program, adding the defaults of ADR 0005 that the user did not set:
+ * Patchright MCP program, adding turno's defaults that the user did not set:
  *
  * - `--browser chrome`: the installed Google Chrome, not a bundled Chromium.
  * - `--user-data-dir <dir>`: the identity's persistent profile, or a fresh temporary one.
@@ -17,19 +17,18 @@ import { parseDuration } from "./units.js";
  *
  * - `--config <file>`: a generated Playwright MCP config whose `timeouts.idle` closes Chrome
  *   after `TURNO_BROWSER_IDLE` (default 15 minutes) without a tool call, headed included; the
- *   next call opens it again with the same profile (ADR 0042). `--idle-timeout` and
+ *   next call opens it again with the same profile. `--idle-timeout` and
  *   `PLAYWRIGHT_MCP_IDLE_TIMEOUT` still win, and a `--config` of the user's own replaces it.
  *
  * Headed mode and `viewport: null` are already the program's defaults for headed runs, so
  * nothing is added for them; no init scripts are ever added.
  *
- * The tab governor and background throttling flags of ADR 0048 (`TUNING_FLAGS`) are turno's: they
- * are taken out here and win over identity.json.
+ * The tab governor and background throttling flags (`TUNING_FLAGS`) are turno's: they are
+ * taken out here and win over identity.json.
  *
  * An identity holds saved logins, so serving it over HTTP (`--port`, `--host`) lets any local
  * process drive a signed-in browser without the stdio pipe or mcpd's token. That needs
- * `--allow-http-identity`, and even then the server binds to 127.0.0.1 and keeps the Host check
- * (ADR 0019).
+ * `--allow-http-identity`, and even then the server binds to 127.0.0.1 and keeps the Host check.
  */
 
 export interface BuiltArgv {
@@ -42,7 +41,7 @@ export interface BuiltArgv {
   tempDir?: string;
   /** The Playwright MCP config to write before the program starts, when turno passes one. */
   config?: { path: string; data: PlaywrightMcpConfig };
-  /** turno's own flags for the host (ADR 0048), when any was given. */
+  /** turno's own flags for the host, when any was given. */
   tuning?: TuningFlags;
 }
 

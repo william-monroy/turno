@@ -24,7 +24,7 @@ afterEach(() => sb.cleanup());
 const ESC = "\x1b[";
 const tty = () => ({ ...fakeIo({ ...sb.env, COLUMNS: "100" }), isTty: true });
 
-describe("--color and TURNO_COLOR (ADR 0037)", () => {
+describe("--color and TURNO_COLOR", () => {
   const on = (env: NodeJS.ProcessEnv, isTty: boolean, color?: "auto" | "always" | "never") =>
     colors({ env, isTty, ...(color ? { color } : {}) });
 

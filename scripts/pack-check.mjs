@@ -3,7 +3,7 @@
 // the tarball, nothing that should stay home is, and no file carries a local path. Published
 // dependencies are exact versions, a package with dependencies ships an npm-shrinkwrap.json
 // that matches pnpm-lock.yaml and the installed tree, and nothing in that tree runs an install
-// script (ADR 0019).
+// script.
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -85,7 +85,7 @@ process.exit(failed ? 1 : 0);
 
 /** Exact versions, zero install scripts, and a shrinkwrap that npm itself accepts. */
 function checkTree(cwd, source, packed) {
-  // What pnpm publishes: workspace:* dependencies (turno-core, ADR 0053) become exact versions.
+  // What pnpm publishes: workspace:* dependencies (turno-core) become exact versions.
   const pkg = publishedManifest(source, workspaceVersions(cwd));
   for (const d of inexactDependencies(pkg)) fail(pkg.name, `${d} is not an exact version`);
   for (const s of installScripts(pkg, cwd)) fail(pkg.name, `runs an install script (${s})`);

@@ -66,7 +66,7 @@ async function mcpdAnswers(env: NodeJS.ProcessEnv): Promise<boolean> {
 
 const LIST_FLAGS: FlagSpec = { ...JSON_FLAG };
 
-/** `turno mcp list --json`: one element per server; remote and stdio servers fill different fields (ADR 0045). */
+/** `turno mcp list --json`: one element per server; remote and stdio servers fill different fields. */
 const LIST_JSON = jsonOutput([
   "name",
   "kind",
@@ -89,7 +89,7 @@ const CONFIG_JSON = jsonOutput(["agent", "profile", "servers", "file", "notes", 
 /** `turno mcp doctor --json`. */
 const DOCTOR_JSON = jsonOutput(["ok", "plugins", "direct", "logins"]);
 
-/** "allow get_*, list_*, deny *_delete": a tool filter (ADR 0023) as text, or "" when it filters nothing. */
+/** "allow get_*, list_*, deny *_delete": a tool filter as text, or "" when it filters nothing. */
 function filterText(f: ToolFilter | undefined): string {
   if (!f) return "";
   return [f.allow ? `allow ${f.allow.join(", ")}` : "", f.deny ? `deny ${f.deny.join(", ")}` : ""]
@@ -340,7 +340,7 @@ export async function syncProfiles(io: Io, opts: SyncOptions = {}): Promise<{ ch
   const { ensureToken, mcpdPort, readToken } = await import("../../mcpd/state.js");
   const manifest = loadManifest(io.env);
   // A dry run never creates the token; without one, entries show a placeholder. Entries get
-  // each profile's own token derived from this master token (ADR 0023), never the master.
+  // each profile's own token derived from this master token, never the master.
   const token = dryRun ? (readToken(io.env) ?? "<token>") : ensureToken(io.env);
   const port = mcpdPort(io.env);
   const p = paths(io.env);
@@ -426,7 +426,7 @@ export async function syncProfiles(io: Io, opts: SyncOptions = {}): Promise<{ ch
 
 /**
  * Agents that read the gateway token from the environment (Codex, Copilot, Cursor) get it from
- * a private file per profile that their launcher reads (ADR 0023). Written even for profiles
+ * a private file per profile that their launcher reads. Written even for profiles
  * with open sessions: those already hold their token, and the next launch needs the new one.
  */
 async function syncTokenFiles(io: Io, config: Config, only: string[], master: string, dryRun: boolean): Promise<void> {
@@ -461,7 +461,7 @@ async function syncTokenFiles(io: Io, config: Config, only: string[], master: st
       ),
     );
   // A full sync removes the token files it wrote for profiles that are gone. The token itself
-  // stays valid until a rotation (ADR 0023); the file is just no longer needed.
+  // stays valid until a rotation; the file is just no longer needed.
   const gone = only.length ? [] : [...synced].filter((n) => !profiles.includes(n)).sort();
   for (const name of gone) {
     synced.delete(name);
@@ -890,7 +890,7 @@ async function doctor(args: string[], io: Io): Promise<number> {
     return code;
   }
   if (missing.length) {
-    io.out(paint(io, "Remote OAuth servers that need a login (ADR 0029):", "1"));
+    io.out(paint(io, "Remote OAuth servers that need a login:", "1"));
     for (const l of missing)
       io.out(`  ${l.server}${l.variant === "default" ? "" : `@${l.variant}`}: ${describeLogin(l)}`);
   }

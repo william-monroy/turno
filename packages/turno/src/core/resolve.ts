@@ -137,7 +137,7 @@ function covers(root: string, folder: string): boolean {
 }
 
 /**
- * The MCP server set of a folder (ADR 0031): among the rules that have `mcp` or `mcp_deny` and
+ * The MCP server set of a folder: among the rules that have `mcp` or `mcp_deny` and
  * cover one of `roots` (the folder, and the main repository of a worktree), the one with the
  * longest path. On a tie, the rule of `profile`, else the first one in the file. A rule without
  * a set says nothing about servers, so a nested profile rule does not clear a parent's set.

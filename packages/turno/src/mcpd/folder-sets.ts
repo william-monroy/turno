@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 const run = promisify(execFile);
 
 /**
- * The folders a session's server set is matched against (ADR 0031): the session folder, and
+ * The folders a session's server set is matched against: the session folder, and
  * for a git worktree the main repository it belongs to, the same candidates `turno auto` uses
  * for profile rules. Async (mcpd must not block on git) and cached for 10 s, because an agent
  * opens one session per server at the same time.

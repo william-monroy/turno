@@ -13,7 +13,7 @@ import { chromeUnavailable, killSandboxProcesses } from "./helpers/chrome.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
- * The browser tools of ADR 0048 against a real Google Chrome, through the built server: the tab
+ * The browser tools against a real Google Chrome, through the built server: the tab
  * governor (popups, cap, parking), background throttling, the click diagnosis, browser_batch
  * and the settle setting. Every Chrome runs on a profile in
  * the test's sandbox HOME; cleanup only signals processes whose command line names it.
@@ -41,7 +41,7 @@ async function start(id: string, args: string[] = []): Promise<Client> {
   const transport = new StdioClientTransport({
     command: process.execPath,
     // Headless: on CI runners a headed Chrome stalls on new windows (a click on a target=_blank
-    // link waits out its timeout). ADR 0048 has the headed measurements.
+    // link waits out its timeout).
     args: [bin, "--identity", id, "--headless", ...args],
     env: sb.env as Record<string, string>,
     cwd: sb.home,

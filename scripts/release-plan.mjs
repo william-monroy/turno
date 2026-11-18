@@ -6,7 +6,7 @@
 // plan.json: [{ "name", "version", "tag", "tarball" }]. The dist-tag is "latest", or the
 // prerelease id ("next" for 1.2.0-next.0) so a prerelease never becomes the default install.
 // The plan lists a package after the workspace packages it depends on (turno-core before
-// turno-cli and turno-browser, ADR 0053), and the publish job publishes in that order.
+// turno-cli and turno-browser), and the publish job publishes in that order.
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -75,7 +75,7 @@ function main() {
     const report = execFileSync("pnpm", ["pack", "--pack-destination", out, "--json"], { cwd, encoding: "utf8" });
     const { filename } = JSON.parse(report.slice(report.indexOf("{")));
     const tarball = filename.split("/").pop();
-    // prepack wrote npm-shrinkwrap.json (ADR 0019); a tarball with dependencies must carry it.
+    // prepack wrote npm-shrinkwrap.json; a tarball with dependencies must carry it.
     const hasDeps = Object.keys({ ...pkg.dependencies, ...pkg.optionalDependencies }).length > 0;
     const listing = execFileSync("tar", ["-tzf", join(out, tarball)], { encoding: "utf8" }).split("\n");
     if (hasDeps && !listing.includes("package/npm-shrinkwrap.json")) {

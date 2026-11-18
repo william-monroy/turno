@@ -79,7 +79,7 @@ async function daemon(config = ""): Promise<RunningDaemon> {
 async function connect(d: RunningDaemon, headers: Record<string, string> = {}): Promise<Client> {
   const client = new Client({ name: "observer-test", version: "1" }, { capabilities: {} });
   const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${d.port}/mcp/fx`), {
-    // Sessions authenticate with a profile token (ADR 0023); the master token only opens /status.
+    // Sessions authenticate with a profile token; the master token only opens /status.
     requestInit: {
       headers: {
         Authorization: `Bearer ${profileToken(readToken(sb.env)!, headers["X-Turno-Profile"] ?? "default")}`,
@@ -92,7 +92,7 @@ async function connect(d: RunningDaemon, headers: Record<string, string> = {}): 
   return client;
 }
 
-describe("call records (ADR 0026)", () => {
+describe("call records", () => {
   it("keeps who, what, how long and how big, never the arguments or the result", () => {
     const r = toRecord(event())!;
     expect(r).toEqual({
@@ -379,7 +379,7 @@ describe("turno mcp log, top and savings", () => {
     expect(t.instances[0]).toMatchObject({ server: "fx", variant: "default", sessions: 1, inflight: 0, restarts: 0 });
     if (t.memoryKnown) expect(t.instances[0].rssBytes).toBeGreaterThan(1024 * 1024);
 
-    // The memory pressure mcpd reads (ADR 0028): the real probe, so any level; the default limit.
+    // The memory pressure mcpd reads: the real probe, so any level; the default limit.
     expect(t.memoryPressure).toMatchObject({ idleUnderPressureSeconds: 300 });
     expect([null, "normal", "warn", "critical"]).toContain(t.memoryPressure.level);
 
@@ -496,7 +496,7 @@ describe("turno mcp log, top and savings", () => {
     sb.write(".config/turno/config.toml", "[mcpd]\nport = 47999\n");
     for (const sub of ["top", "savings"]) {
       const r = await run(["mcp", sub, "--json"]);
-      // Exit 5 when mcpd is down (ADR 0045; it was 1).
+      // Exit 5 when mcpd is down (it was 1).
       expect(r.code, sub).toBe(5);
       expect(JSON.parse(r.out)).toEqual({ schemaVersion: 1, running: false });
       expect((await run(["mcp", sub])).out).toContain("mcpd is not running");

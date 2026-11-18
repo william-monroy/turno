@@ -121,7 +121,7 @@ async function connect(o: ConnectOpts = {}): Promise<Client> {
       roots: roots.map((r) => ({ uri: pathToFileURL(r).href })),
     }));
   }
-  // Sessions authenticate with their profile's token (ADR 0023).
+  // Sessions authenticate with their profile's token.
   const headers: Record<string, string> = { Authorization: `Bearer ${profileToken(TOKEN, o.profile ?? "default")}` };
   if (o.profile) headers["X-Turno-Profile"] = o.profile;
   if (o.cwd) headers["X-Turno-Cwd"] = o.cwd;

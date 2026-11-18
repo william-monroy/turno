@@ -91,7 +91,7 @@ function delegationPrompt(account: Account, task: string, write: boolean, tools:
 /**
  * Environment variables the delegated run keeps (plus every `LC_*`). Everything else in
  * mcpd's environment is dropped: another profile's `CLAUDE_CONFIG_DIR`, API keys, the session
- * variables of whoever started mcpd (ADR 0024).
+ * variables of whoever started mcpd.
  */
 const ENV_ALLOW = [
   "HOME",
@@ -228,7 +228,7 @@ export function prepareRun(profile: string, tools: string[], env: NodeJS.Process
 }
 
 /**
- * The enforced command line (ADR 0004, decision 3; ADR 0024): headless, `dontAsk` so a global
+ * The enforced command line: headless, `dontAsk` so a global
  * `bypassPermissions` default cannot leak in, no settings files (their allow rules, hooks and
  * plugins would widen the run), no built-in tools, only the decided tools allowed, the bridge
  * itself disallowed, and only the account's servers when the folder has an MCP config.

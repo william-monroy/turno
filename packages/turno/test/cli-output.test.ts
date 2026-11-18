@@ -44,7 +44,7 @@ async function run(args: string[]) {
 
 const OUT = jsonOutput(["name", "email"]);
 
-describe("the output layer (ADR 0045)", () => {
+describe("the output layer", () => {
   it("puts schemaVersion first on an object and on each element of a list", () => {
     expect(shape({ name: "work", email: null }, OUT)).toEqual({ schemaVersion: 1, name: "work", email: null });
     expect(Object.keys(shape({ name: "w" }, OUT) as object)[0]).toBe(SCHEMA_KEY);

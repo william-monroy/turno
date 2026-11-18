@@ -7,7 +7,7 @@ name: release
 #            (prepack writes its npm-shrinkwrap.json; pack:check verifies it and that nothing
 #            in the published tree has an install script), writes an SBOM per package,
 #            uploads them as an artifact. No id-token, no secrets.
-#   Every job runs Harden-Runner in block mode with its own allow list (ADR 0058).
+#   Every job runs Harden-Runner in block mode with its own allow list.
 #   publish  downloads the tarballs, attests them and publishes with npm trusted publishing.
 #            No checkout, no install, no cache, runs in the protected "npm" environment,
 #            with Harden-Runner blocking every host outside its allow list (as in tag).
@@ -33,7 +33,7 @@ jobs:
     outputs:
       has-changesets: ${{ steps.changesets.outputs.has-changesets }}
     steps:
-      # Block mode (ADR 0058): checkout and the changesets push (github.com), the version pull
+      # Block mode: checkout and the changesets push (github.com), the version pull
       # request (api.github.com), pnpm and the lockfile refresh (registry.npmjs.org), from the
       # Harden-Runner audit of release runs. The rest are where pnpm/action-setup and
       # setup-node download a tool that is not in the runner's cache.
@@ -75,7 +75,7 @@ jobs:
     outputs:
       count: ${{ steps.plan.outputs.count }}
     steps:
-      # Block mode (ADR 0058): checkout (github.com), pnpm, the install and release-plan's
+      # Block mode: checkout (github.com), pnpm, the install and release-plan's
       # `npm view` (registry.npmjs.org), and tool downloads as in the version job. Tests use only
       # 127.0.0.1; a real Chrome's own calls to Google are blocked, which the tests do not need.
       - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
@@ -124,7 +124,7 @@ jobs:
     steps:
       # Block mode: only the hosts this job uses (from the Harden-Runner log of the 0.1.1
       # release). Harden-Runner itself allows the Actions service hosts
-      # (*.actions.githubusercontent.com, the artifact blob storage). ADR 0019.
+      # (*.actions.githubusercontent.com, the artifact blob storage).
       - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: block
@@ -153,7 +153,7 @@ jobs:
         with:
           subject-path: release/*.tgz
       # plan.json lists each package after the workspace packages it depends on (turno-core
-      # first, ADR 0053), and the step stops at the first failure. A package published for the
+      # first), and the step stops at the first failure. A package published for the
       # first time needs its trusted publisher set up by hand first (RELEASING.md, "A new package").
       - name: Publish the tarballs (dependencies first)
         working-directory: release

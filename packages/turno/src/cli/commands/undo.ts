@@ -14,7 +14,7 @@ import { type Command, type Io, fail, paint } from "../io.js";
 import { emit, jsonOutput } from "../output.js";
 import { duration, style } from "../style.js";
 
-/** `undo --list --json` (one element per change) and `undo --prune --json` (ADR 0045). */
+/** `undo --list --json` (one element per change) and `undo --prune --json`. */
 const LIST_JSON = jsonOutput(["stamp", "command", "files", "undoneBy"]);
 const PRUNE_JSON = jsonOutput(["dryRun", "pruned", "kept"]);
 

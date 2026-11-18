@@ -347,7 +347,7 @@ export async function startDaemon(
   const { config, error: firstConfigError } = loadConfigSafe(env);
   let configError = firstConfigError;
   if (configError) log(`config.toml is invalid, using defaults: ${configError}`);
-  // Folder server sets (ADR 0031): the last good [[projects]] rules, reloaded with config.toml.
+  // Folder server sets: the last good [[projects]] rules, reloaded with config.toml.
   let folderRules = config.projects;
   const wanted = opts.port ?? config.mcpd.port;
   const fail = async (err: Error): Promise<never> => {

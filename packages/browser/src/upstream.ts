@@ -3,7 +3,7 @@ import type { Browser, BrowserContext, Page } from "patchright-core";
 
 /**
  * The parts of the Playwright MCP tool backend in patchright-core that turno-browser uses as a
- * library (ADR 0043). They come from the package's own `exports` (`lib/coreBundle`,
+ * library. They come from the package's own `exports` (`lib/coreBundle`,
  * `lib/utilsBundle`), not from a file path, but they are not documented API: the exact version
  * is pinned and `test/upstream-contract.test.ts` checks every name and signature used here.
  *
@@ -101,7 +101,7 @@ export interface UpstreamContext {
 }
 
 /**
- * The tabs of a `BrowserBackend`, for the tab governor (ADR 0048): `initialize` builds the
+ * The tabs of a `BrowserBackend`, for the tab governor: `initialize` builds the
  * `Context` and keeps it in `_context` (pinned by the contract test). Undefined before that.
  */
 export function backendContext(backend: BrowserBackendInstance): UpstreamContext | undefined {

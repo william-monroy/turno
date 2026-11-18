@@ -28,7 +28,7 @@ import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 const FIXTURE = fileURLToPath(new URL("./fixtures/fixture-server.mjs", import.meta.url));
 const TOKEN = "test-token";
-/** Sessions authenticate with a profile token (ADR 0023); "default" unless a test names one. */
+/** Sessions authenticate with a profile token; "default" unless a test names one. */
 const sessionAuth = (headers: Record<string, string> = {}) =>
   `Bearer ${profileToken(TOKEN, headers["X-Turno-Profile"] ?? "default")}`;
 
@@ -294,7 +294,7 @@ describe("mcpd gateway", () => {
   });
 });
 
-describe("call lifecycle (ADR 0016)", () => {
+describe("call lifecycle", () => {
   it("settles a cancelled call, so the instance can idle out", async () => {
     await boot(fixtureToml("fx", 'idle = "0.2s"'));
     const a = await connect("fx");
@@ -439,7 +439,7 @@ describe("call lifecycle (ADR 0016)", () => {
   });
 });
 
-describe("server-to-client routing (ADR 0016)", () => {
+describe("server-to-client routing", () => {
   it("refuses an elicitation it cannot tie to one session instead of guessing", async () => {
     await boot(fixtureToml("fx"));
     const asked: string[] = [];
@@ -508,7 +508,7 @@ describe("server-to-client routing (ADR 0016)", () => {
   });
 });
 
-describe("session folder (ADR 0016)", () => {
+describe("session folder", () => {
   it("decodes a base64url folder with characters outside Latin-1", async () => {
     await boot(fixtureToml("fx", 'scope = "project"'));
     const dir = join(sb.home, "日本 Café 🚀");
@@ -541,7 +541,7 @@ describe("session folder (ADR 0016)", () => {
   });
 });
 
-describe("descriptions (ADR 0016)", () => {
+describe("descriptions", () => {
   it("relists after a real start and tells clients when the tools changed", async () => {
     await boot(fixtureToml("fx"));
     const a = await connect("fx");
@@ -676,7 +676,7 @@ async function remote(
   return handle;
 }
 
-describe("remote proxies (ADR 0016)", () => {
+describe("remote proxies", () => {
   it("reconnects once when the remote server forgot the session", async () => {
     const r = await remote("http");
     await boot(`[server.rem]\nurl = ${JSON.stringify(r.url)}\nheaders = { Authorization = "keychain:rem-token" }\n`);

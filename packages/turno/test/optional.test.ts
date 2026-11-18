@@ -30,7 +30,7 @@ function globalPackage(name: string, body: string): string {
   return root;
 }
 
-describe("loadOptional (ADR 0045)", () => {
+describe("loadOptional", () => {
   it("names each optional package and how to install it", () => {
     expect(notInstalled(OPTIONAL.browser)).toBe("turno-browser is not installed: npm install --global turno-browser");
     expect(OPTIONAL.tui.name).toBe("turno-tui");

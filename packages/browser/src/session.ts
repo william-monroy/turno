@@ -1,5 +1,5 @@
 /**
- * The client session mcpd relays a call for (ADR 0047). mcpd puts an opaque id, stable for one
+ * The client session mcpd relays a call for. mcpd puts an opaque id, stable for one
  * client session and different for every other, in the `_meta` of each `tools/call` it
  * forwards, under this key. The host reads it and hands it to turno tools; nothing else
  * depends on it yet (a later stage keys per-tab locks on it).

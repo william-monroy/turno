@@ -16,7 +16,7 @@ export interface LoginOptions {
  * server (Chrome channel, no fixed viewport, the identity's languages and time zone), and
  * resolves when the user closes the last window or quits Chrome. Used once per site so the user
  * signs in by hand. It holds the identity's runtime lock while the window is open, and clears
- * the last session health result, so the next launch checks the sign-in again (ADR 0044).
+ * the last session health result, so the next launch checks the sign-in again.
  */
 export async function loginIdentity(id: string, options: LoginOptions = {}): Promise<void> {
   const env = options.env ?? process.env;

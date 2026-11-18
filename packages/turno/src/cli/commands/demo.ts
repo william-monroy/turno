@@ -24,7 +24,7 @@ import { setupProfiles } from "./setup.js";
 import { pidAlive } from "../../core/fsutil.js";
 
 /**
- * `turno demo` (ADR 0030): turno in a throwaway HOME under the OS temp folder, with two Claude
+ * `turno demo`: turno in a throwaway HOME under the OS temp folder, with two Claude
  * Code profiles, a folder rule, two MCP servers behind an mcpd on a free port, and the status
  * line. It never reads or writes the person's own HOME, never signs in, needs no global install
  * (it works from npx's cache), and always stops mcpd and removes the folder when it ends.

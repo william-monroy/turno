@@ -2,7 +2,7 @@ import type { BrowserContext, Frame, Page } from "patchright-core";
 import type { TabPolicy } from "./tuning.js";
 
 /**
- * The tab governor (ADR 0048). Chrome keeps every page an agent or a site opened, and each one
+ * The tab governor. Chrome keeps every page an agent or a site opened, and each one
  * keeps running scripts, timers and network until somebody closes it; after a long session that
  * is most of the browser's memory and CPU. Per session's browser context it:
  *

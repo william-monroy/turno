@@ -17,10 +17,10 @@ import { SealError, seal, unseal } from "./sealed.js";
 import { chromeEnv, keychainArgs, launchSettings, readIdentitySettings, systemTimezone } from "./settings.js";
 
 /**
- * Session export and import (ADR 0055): an identity's cookies, localStorage and IndexedDB, as
+ * Session export and import: an identity's cookies, localStorage and IndexedDB, as
  * Playwright's storageState, sealed under a passphrase (sealed.ts) with an expiry inside the
  * encrypted payload. For moving a signed-in identity to another machine or account, or keeping
- * a short-lived backup. The vault (ADR 0054) is never part of it: its values live in the secret
+ * a short-lived backup. The vault is never part of it: its values live in the secret
  * store, which the export does not read.
  */
 

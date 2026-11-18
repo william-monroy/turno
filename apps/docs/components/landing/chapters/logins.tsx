@@ -11,7 +11,7 @@ import s from "./logins.module.css";
 /*
  * Chapter 2: remote MCP logins and secrets, as docs/concepts/gateway.mdx describes them ("Remote
  * servers", "One server, two accounts", "Secrets"). mcpd is the OAuth client of a server with
- * auth = "oauth", one login per variant (ADR 0029, cli/commands/mcp-oauth.ts); without variants
+ * auth = "oauth", one login per variant (cli/commands/mcp-oauth.ts); without variants
  * `turno mcp login linear` is the login every profile uses, kept in the secret store as
  * turno/oauth/linear@default (mcpd/oauth.ts, oauthService). A variant runs as its own process
  * with its own env, so a profile reaches another account; its keychain: value is read from the

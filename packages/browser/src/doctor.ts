@@ -11,7 +11,7 @@ import { inUseMessage, readRuntimeLock, runtimeLockAlive, runtimeLockPath } from
 import { type IdentitySettings, acceptLanguages, checkIdentitySettings, systemTimezone } from "./settings.js";
 
 /**
- * `turno browser doctor` (ADR 0044): what a browser identity needs to work, one check per row,
+ * `turno browser doctor`: what a browser identity needs to work, one check per row,
  * each problem with the command that fixes it, like `turno doctor`.
  *
  * - Chrome: found, its version, and a smoke launch on a throwaway profile (headless).
@@ -20,7 +20,7 @@ import { type IdentitySettings, acceptLanguages, checkIdentitySettings, systemTi
  *   health, and challenges in the last 7 days.
  *
  * `--fix` removes runtime locks whose process is gone and stops a Chrome an earlier run left
- * behind on an identity's profile (the same sweep a server start does, ADR 0042).
+ * behind on an identity's profile (the same sweep a server start does).
  */
 
 export interface DoctorCheck {

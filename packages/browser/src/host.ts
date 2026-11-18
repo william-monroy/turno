@@ -45,7 +45,7 @@ import {
 } from "./upstream.js";
 
 /**
- * turno-browser as the MCP server host (ADR 0043).
+ * turno-browser as the MCP server host.
  *
  * The command line is parsed by upstream's own option definitions (`decorateMCPCommand`), so
  * every Playwright MCP flag, its help text and its errors stay as they were; only the action
@@ -58,7 +58,7 @@ import {
  *   wraps the context in upstream's `BrowserBackend`, which runs every stock tool;
  * - after the browser closes (idle limit, `browser_close`, a crash) launches it again on the
  *   next call, with the same profile;
- * - runs the tab governor on that browser and wraps each stock call with it (ADR 0048): a parked
+ * - runs the tab governor on that browser and wraps each stock call with it: a parked
  *   tab loads again before a call uses it, and what the governor did since the last call is
  *   added to the result; a click or type that fails because of the element gets an error that
  *   says what is in the way (`diagnose.ts`);
@@ -86,7 +86,7 @@ export interface HostOptions {
   engine?: Engine;
   /** The identity served (`--identity`): its runtime lock, settings, session health and reputation log. */
   identity?: IdentityRef;
-  /** The `turno-browser-mcp` flags of ADR 0048; they win over identity.json. */
+  /** The `turno-browser-mcp` tab governor and throttling flags; they win over identity.json. */
   tuning?: TuningFlags;
   /** The secret store the vault reads (tests inject a fake); default: this machine's. */
   vaultStore?: SecretStore;
@@ -97,7 +97,7 @@ export interface Host {
   /** Stock tools first, in upstream's order, then turno's. */
   listTools(): ToolSchemaJson[];
   factory: ServerBackendFactory;
-  /** Hides vault values in a text this server is about to send (ADR 0054). */
+  /** Hides vault values in a text this server is about to send. */
   redact(text: string): string;
 }
 
@@ -344,7 +344,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
   }
 
   /**
-   * `session` is the client session mcpd put in the call's `_meta` (ADR 0047). Only turno tools
+   * `session` is the client session mcpd put in the call's `_meta`. Only turno tools
    * see it; stock tools run exactly as before. Upstream's HTTP server (`--port`) never passes it.
    */
   async callTool(
@@ -353,7 +353,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     signal?: AbortSignal,
     session?: string,
   ): Promise<ToolResult> {
-    // Every result and error of this server leaves through the redactor (ADR 0054).
+    // Every result and error of this server leaves through the redactor.
     return this.host.redactor.result(await this.callAny(name, args, signal, session));
   }
 
@@ -447,7 +447,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
   }
 
   /**
-   * The script tools near the vault (ADR 0054): `browser_evaluate` and `browser_run_code_unsafe`
+   * The script tools near the vault: `browser_evaluate` and `browser_run_code_unsafe`
    * are refused on a page browser_login filled, until it navigates; `browser_run_code_unsafe`
    * runs code in this process, which can read the secret store, so it is refused for an
    * identity that has vault credentials at all.
@@ -492,7 +492,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
 
 /**
  * The config of one launch: a copy, so a change for this session (a batch's snapshot-free
- * steps) does not reach another, with the identity's `settle` (ADR 0048) unless the user set
+ * steps) does not reach another, with the identity's `settle` unless the user set
  * Playwright's own `--timeout-settle`, `PLAYWRIGHT_MCP_TIMEOUT_SETTLE` or `timeouts.settle` in a
  * config file, which win.
  */
@@ -528,7 +528,7 @@ function refuseWhileNeedsAuth(identity: IdentityRef): void {
 }
 
 /**
- * Once an identity's Chrome runs (ADR 0044): watch its pages for challenges (the reputation
+ * Once an identity's Chrome runs: watch its pages for challenges (the reputation
  * log) and, when identity.json has a health check that is due, run it; a page without the
  * proof of a signed-in session throws NEEDS_AUTH, and the call fails with that message.
  */

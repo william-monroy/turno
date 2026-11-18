@@ -253,7 +253,7 @@ function nextLines(s: Style, next: NextStep | null): string[] {
   return [s.wrap(`${label}  `, s.bold(next.command)), s.wrap(pad, s.muted(next.why))];
 }
 
-/** `turno status --json` (ADR 0045). */
+/** `turno status --json`. */
 const STATUS_JSON = jsonOutput([
   "version",
   "update",

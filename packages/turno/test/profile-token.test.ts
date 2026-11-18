@@ -118,7 +118,7 @@ describe("profile tokens", () => {
   });
 });
 
-describe("gateway authentication (ADR 0023)", () => {
+describe("gateway authentication", () => {
   const MASTER = "k".repeat(64);
   const bearer = (profile: string) => ({ Authorization: `Bearer ${profileToken(MASTER, profile)}` });
 
@@ -322,7 +322,7 @@ describe("turno mcp sync writes each profile its own token", () => {
     expect(tokenSyncCheck(sb.env)).toBeUndefined();
   });
 
-  it("doctor flags configs that still send the master token (an upgrade from before ADR 0023)", async () => {
+  it("doctor flags configs that still send the master token (an upgrade from before per-profile tokens)", async () => {
     const master = masterToken(sb.env, "ensure")!;
     const file = sb.write(
       ".claude-a/.claude.json",

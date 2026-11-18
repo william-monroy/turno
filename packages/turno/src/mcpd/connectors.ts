@@ -42,7 +42,7 @@ export interface ConnectorOptions {
   /** Bytes a server log may reach before it is rotated to `<name>.log.1`. */
   maxLogBytes?: number;
   /**
-   * Logins of `auth = "oauth"` servers (ADR 0029). Defaults to sessions on the secret store
+   * Logins of `auth = "oauth"` servers. Defaults to sessions on the secret store
    * found on the PATH of `vars`, logging to each server's log file.
    */
   oauth?: OAuthSessions;
@@ -55,7 +55,7 @@ const SDK_STEP_MS = 2000;
 
 /**
  * Replaces the SDK's close of a stdio server (stdin closed, 2 s, SIGTERM, 2 s, SIGKILL) with one
- * that waits `graceMs` before SIGTERM (`stop_grace`, ADR 0044). The rest is the SDK's: SIGTERM,
+ * that waits `graceMs` before SIGTERM (`stop_grace`). The rest is the SDK's: SIGTERM,
  * 2 s, SIGKILL. It reads the transport's child process, a private field of the SDK; if that
  * ever changes, the SDK's own close runs unchanged.
  */
@@ -213,7 +213,7 @@ export class DefaultConnector implements Connector {
       const headers = await resolveRecord(server.headers, this.opts.resolve);
       let fetchOpt: { fetch?: ReturnType<typeof oauthFetch> } = {};
       if (server.oauth) {
-        // mcpd is the OAuth client (ADR 0029). Asking for a token now fails fast with the login
+        // mcpd is the OAuth client. Asking for a token now fails fast with the login
         // hint instead of a failed initialize; every request then gets a current token.
         const session = this.sessions().get(server.name, variant);
         await session.accessToken(server);

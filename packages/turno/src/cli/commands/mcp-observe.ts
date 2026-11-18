@@ -7,7 +7,7 @@ import { emit, emitLine, jsonOutput } from "../output.js";
 import { type IconName, duration as elapsed, padEnd, style } from "../style.js";
 
 /**
- * Observability subcommands of `turno mcp` (ADR 0026): `log` reads the call log mcpd keeps,
+ * Observability subcommands of `turno mcp`: `log` reads the call log mcpd keeps,
  * `top` shows what each running server costs, `savings` compares mcpd's memory with what the
  * same agent sessions would use without the gateway.
  */
@@ -22,7 +22,7 @@ export const LOG_FLAGS: FlagSpec = {
 export const TOP_FLAGS: FlagSpec = { once: { type: "boolean" }, ...WATCH, ...JSON_FLAG };
 export const SAVINGS_FLAGS: FlagSpec = { ...JSON_FLAG };
 
-/** `turno mcp log --json`: one call record per line (ADR 0045). */
+/** `turno mcp log --json`: one call record per line. */
 export const LOG_JSON = jsonOutput([
   "time",
   "agent",
@@ -253,7 +253,7 @@ interface StatusAgent {
   servers: string[];
 }
 
-/** `/status` `memoryPressure` (ADR 0028); absent from an mcpd older than 0.2. */
+/** `/status` `memoryPressure`; absent from an mcpd older than 0.2. */
 interface StatusPressure {
   level: "normal" | "warn" | "critical" | null;
   checkedAt: number | null;
@@ -286,7 +286,7 @@ async function measure(env: NodeJS.ProcessEnv): Promise<ProcTable | undefined> {
   return processTable({ env });
 }
 
-/** mcpd does not answer: exit 5 (ADR 0045). */
+/** mcpd does not answer: exit 5. */
 function notRunning(io: Io, json: Parameters<typeof emit>[1] | false, out = TOP_JSON): number {
   if (json !== false) emit(io, json, out, { running: false });
   else io.out("mcpd is not running (turno mcp daemon start)");

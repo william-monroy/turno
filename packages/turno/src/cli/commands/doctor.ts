@@ -20,7 +20,7 @@ import { MARKER, isGenerated, launcherName, launcherText } from "../launchers.js
 import { duration, padEnd, profileColor, style, visibleWidth } from "../style.js";
 import { nerdHere } from "../../ui/terminal-id.js";
 
-/** `turno doctor --json` (ADR 0045). */
+/** `turno doctor --json`. */
 const DOCTOR_JSON = jsonOutput(["ok", "counts", "ms", "next", "checks"]);
 
 export type Level = "ok" | "warn" | "fail" | "info";
@@ -173,7 +173,7 @@ function lexists(path: string): boolean {
   }
 }
 
-/** Launcher, folder, hub links and agent checks of one profile (ADR 0013, ADR 0032). */
+/** Launcher, folder, hub links and agent checks of one profile. */
 function profileChecks(name: string, agent: AgentId, env: NodeJS.ProcessEnv): Check[] {
   const a = adapter(agent);
   const area = `profile ${name}`;
@@ -348,7 +348,7 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
     try {
       const reg = loadRegistry(env);
       add("config", "ok", `${tildify(p.accountsFile, env)} parses`);
-      // Without read_tools a delegated read is a write (ADR 0024): confirmed, with every tool.
+      // Without read_tools a delegated read is a write: confirmed, with every tool.
       const noReads = Object.values(reg.accounts)
         .filter((a) => !a.readTools?.length)
         .map((a) => a.id)
@@ -445,7 +445,7 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
   return checks;
 }
 
-// ---- mcpd section (ADR 0017): service file, token mode, port owner, start errors, synced ports.
+// ---- mcpd section: service file, token mode, port owner, start errors, synced ports.
 // The checks live in mcpd/health.ts; keep this section separate from the rest of doctor.
 async function mcpdSection(env: NodeJS.ProcessEnv): Promise<Check[]> {
   const { mcpdChecks } = await import("../../mcpd/health.js");
@@ -453,13 +453,13 @@ async function mcpdSection(env: NodeJS.ProcessEnv): Promise<Check[]> {
 }
 // ---- end of the mcpd section
 
-// ---- security section (ADR 0027): `turno doctor --security` runs only these checks.
+// ---- security section: `turno doctor --security` runs only these checks.
 async function securitySection(env: NodeJS.ProcessEnv): Promise<Check[]> {
   return (await import("../security.js")).securityChecks(env);
 }
 // ---- end of the security section
 
-/** Screen sections in order, and the check areas each one holds (ADR 0035). */
+/** Screen sections in order, and the check areas each one holds. */
 const SECTIONS: readonly (readonly [string, (area: string) => boolean])[] = [
   ["System", (a) => a === "system" || a === "turno"],
   ["Config", (a) => a === "config"],
