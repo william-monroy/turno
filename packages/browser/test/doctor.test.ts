@@ -122,9 +122,9 @@ describe("browser doctor: identities", () => {
 
   it("checks a healthy identity: settings, free, signed in", async () => {
     addIdentity("school", sb.env, {
-      timezone: "America/Monterrey",
-      languages: ["es-MX", "es"],
-      region: "MX",
+      timezone: "Europe/Madrid",
+      languages: ["es-ES", "es"],
+      region: "ES",
       health: { url: "https://mail.example.com/", text: "Inbox" },
     });
     writeHealth("school", sb.env, {
@@ -137,7 +137,7 @@ describe("browser doctor: identities", () => {
       {
         area: "identity school",
         level: "ok",
-        text: "identity.json: time zone America/Monterrey, languages es-MX, es, region MX",
+        text: "identity.json: time zone Europe/Madrid, languages es-ES, es, region ES",
       },
       { area: "identity school", level: "ok", text: "free: no process holds it" },
       {
@@ -172,7 +172,7 @@ describe("browser doctor: identities", () => {
     const { checks } = await doctor();
     expect(find(checks, "identity bad", /identity\.json/)).toMatchObject({
       level: "fail",
-      text: 'identity.json is invalid: timezone "Nowhere/City" is not an IANA time zone (for example "America/Monterrey")',
+      text: 'identity.json is invalid: timezone "Nowhere/City" is not an IANA time zone (for example "Europe/Madrid")',
       fix: "turno identity set browser:bad --timezone <zone>",
     });
   });

@@ -34,10 +34,10 @@ through a rename, keys in a fixed order:
 ```json
 {
   "version": 1,
-  "timezone": "America/Monterrey",
-  "locale": "es-MX",
-  "languages": ["es-MX", "es", "en"],
-  "region": "MX",
+  "timezone": "Europe/Madrid",
+  "locale": "es-ES",
+  "languages": ["es-ES", "es", "en"],
+  "region": "ES",
   "health": { "url": "https://mail.example.com/", "text": "Inbox" },
   "created": "2026-11-17T16:00:00.000Z",
   "updated": "2026-11-17T16:00:00.000Z"

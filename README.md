@@ -441,7 +441,7 @@ Design: [docs/design](docs/design/2026-11-12-claudio-ecosystem-design.md). Decis
 
 Apache License 2.0 ([LICENSE](LICENSE), [NOTICE](NOTICE)). The bundled fonts keep their own
 licenses ([packages/fonts/LICENSE.txt](packages/fonts/LICENSE.txt)); dependencies are listed in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Made in Monterrey, Mexico.
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Documentation
 

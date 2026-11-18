@@ -42,7 +42,7 @@ describe("turno identity add/show/set for browser identities", () => {
     const add = fakeIo(sb.env);
     expect(
       await identity.run(
-        ["add", "browser:school", "--timezone", "America/Monterrey", "--languages", "es-MX, es", "--region", "mx"],
+        ["add", "browser:school", "--timezone", "Europe/Madrid", "--languages", "es-ES, es", "--region", "es"],
         add,
       ),
     ).toBe(0);
@@ -51,9 +51,9 @@ describe("turno identity add/show/set for browser identities", () => {
     );
     expect(JSON.parse(readFileSync(settingsFile("school"), "utf8"))).toMatchObject({
       version: 1,
-      timezone: "America/Monterrey",
-      languages: ["es-MX", "es"],
-      region: "MX",
+      timezone: "Europe/Madrid",
+      languages: ["es-ES", "es"],
+      region: "ES",
     });
 
     const set = fakeIo(sb.env);
@@ -82,8 +82,8 @@ describe("turno identity add/show/set for browser identities", () => {
       id: "browser:school",
       settingsFile: "~/.local/share/turno/browser/identities/school.json",
       settings: {
-        timezone: "America/Monterrey",
-        languages: ["es-MX", "es"],
+        timezone: "Europe/Madrid",
+        languages: ["es-ES", "es"],
         health: { url: "https://mail.example.com/", text: "Inbox" },
       },
       problems: [],

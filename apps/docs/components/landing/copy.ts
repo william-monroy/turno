@@ -188,7 +188,7 @@ const en: LandingCopy = {
   footer: {
     disclaimer:
       "turno is an independent open-source project. It is not affiliated with, endorsed by or sponsored by any vendor of the tools it works with.",
-    madeBy: "Made in Monterrey, Mexico, by",
+    madeBy: "Made by",
     site: "wimodev",
   },
 };
@@ -327,7 +327,7 @@ const es: LandingCopy = {
   footer: {
     disclaimer:
       "turno es un proyecto independiente de código abierto. No está afiliado, respaldado ni patrocinado por ningún proveedor de las herramientas con las que funciona.",
-    madeBy: "Hecho en Monterrey, México, por",
+    madeBy: "Hecho por",
     site: "wimodev",
   },
 };

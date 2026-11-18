@@ -295,7 +295,7 @@ Each identity also has (ADR 0044):
 - **identity.json** next to its profile (`~/.local/share/turno/browser/identities/<id>.json`): the
   time zone, languages, locale and region that stay fixed for it, applied at every Chrome start.
   `turno identity add browser:<id>` pins a new identity to the current time zone; change it with
-  `turno identity set browser:<id> --timezone America/Monterrey --languages es-MX,es,en`, look
+  `turno identity set browser:<id> --timezone Europe/Madrid --languages es-ES,es,en`, look
   at it with `turno identity show browser:<id>`. Without the file Chrome uses the machine's.
 - **A runtime lock** while its Chrome runs. A second session on the same identity gets a tool
   error that names the process holding it and how to stop it (`kill <pid>`), instead of Chrome's
