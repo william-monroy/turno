@@ -61,8 +61,8 @@ body:
   - type: textarea
     id: doctor
     attributes:
-      label: Output of `turno doctor` and relevant logs
-      render: text
+      label: Output of `turno doctor --report` and relevant logs
+      description: "`turno doctor --report` prints versions, agents, paths, mcpd and the findings as Markdown, without tokens or secret values. Paste it as it is."
   - type: checkboxes
     id: redacted
     attributes:

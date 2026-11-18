@@ -39,6 +39,14 @@ pass a profile: personal, work
 
 For scripts, read commands take `--json` and the [exit codes](/docs/reference/exit-codes) are stable.
 
+## A command run from a session uses another account. Why?
+
+Every process a session starts inherits its account (`CLAUDE_CONFIG_DIR` for Claude Code), and Claude Code's subagents run inside the same process, so they share it. Two cases lose it: `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which makes Claude Code remove the variable from the commands it runs, and commands that rebuild their environment (`env -i`, `sudo`, containers). Then a `claude -p` falls back to the plain agent's account. Leave the scrub off, or name the profile in the command (`turno work -p ...`). `turno config set system ""` tells turno the plain agent has no account of yours, so `turno auto` stops instead of falling back to it. Details: [Accounts](https://github.com/wimo-dev/turno/blob/main/docs/accounts.md).
+
+## How do I tell whether a problem comes from turno?
+
+Open the same account without turno's gateway: `turno run work --no-gateway` (or `TURNO_SAFE=1 turno work`). The agent gets the profile's account and settings, but no mcpd entries, no gateway token and, in Claude Code, no status line or hooks. If the problem goes away, it comes from turno's gateway or status line; `turno doctor --report` prints a block to paste in an issue, without tokens or secret values.
+
 ## How do I undo it?
 
 Every command that writes keeps a copy of each file it changes: `turno undo --list` shows them and `turno undo <stamp>` puts them back (backups older than 30 days are pruned, keeping the newest 10).
