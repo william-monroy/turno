@@ -4,7 +4,7 @@
   "description": "Browser MCP server that drives your installed Chrome with a persistent profile per identity, built on patchright-core.",
   "license": "Apache-2.0",
   "author": "William Frank Monroy Mamani (https://github.com/william-monroy)",
-  "homepage": "https://github.com/wimo-dev/turno#readme",
+  "homepage": "https://turno.wimo.dev",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wimo-dev/turno.git",
