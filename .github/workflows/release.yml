@@ -7,6 +7,7 @@ name: release
 #            (prepack writes its npm-shrinkwrap.json; pack:check verifies it and that nothing
 #            in the published tree has an install script), writes an SBOM per package,
 #            uploads them as an artifact. No id-token, no secrets.
+#   Every job runs Harden-Runner in block mode with its own allow list (ADR 0058).
 #   publish  downloads the tarballs, attests them and publishes with npm trusted publishing.
 #            No checkout, no install, no cache, runs in the protected "npm" environment,
 #            with Harden-Runner blocking every host outside its allow list (as in tag).
@@ -32,9 +33,21 @@ jobs:
     outputs:
       has-changesets: ${{ steps.changesets.outputs.has-changesets }}
     steps:
+      # Block mode (ADR 0058): checkout and the changesets push (github.com), the version pull
+      # request (api.github.com), pnpm and the lockfile refresh (registry.npmjs.org), from the
+      # Harden-Runner audit of release runs. The rest are where pnpm/action-setup and
+      # setup-node download a tool that is not in the runner's cache.
       - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
-          egress-policy: audit
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            registry.npmjs.org:443
+            objects.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            raw.githubusercontent.com:443
+            nodejs.org:443
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -62,9 +75,20 @@ jobs:
     outputs:
       count: ${{ steps.plan.outputs.count }}
     steps:
+      # Block mode (ADR 0058): checkout (github.com), pnpm, the install and release-plan's
+      # `npm view` (registry.npmjs.org), and tool downloads as in the version job. Tests use only
+      # 127.0.0.1; a real Chrome's own calls to Google are blocked, which the tests do not need.
       - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
-          egress-policy: audit
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            registry.npmjs.org:443
+            objects.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            raw.githubusercontent.com:443
+            nodejs.org:443
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
