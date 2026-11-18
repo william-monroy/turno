@@ -121,13 +121,13 @@ importers:
 
   packages/browser:
     dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: 1.32.2
+        version: 1.32.2(zod@4.6.7)
       patchright-core:
         specifier: 1.64.3
         version: 1.64.3
     devDependencies:
-      '@modelcontextprotocol/sdk':
-        specifier: 1.32.2
-        version: 1.32.2(zod@4.6.7)
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6

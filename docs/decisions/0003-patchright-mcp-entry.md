@@ -1,6 +1,7 @@
 # 0003. Reuse the Playwright MCP program shipped inside patchright-core
 
-Date: 2026-11-12. Status: accepted.
+Date: 2026-11-12. Status: accepted; since ADR 0043 the tools run from turno's own host through
+the library exports of `patchright-core`, not by running `lib/entry/mcp.js`.
 
 ## Context
 

@@ -1,0 +1,225 @@
+import { createRequire } from "node:module";
+import type { Browser, BrowserContext } from "patchright-core";
+
+/**
+ * The parts of the Playwright MCP tool backend in patchright-core that turno-browser uses as a
+ * library (ADR 0043). They come from the package's own `exports` (`lib/coreBundle`,
+ * `lib/utilsBundle`), not from a file path, but they are not documented API: the exact version
+ * is pinned and `test/upstream-contract.test.ts` checks every name and signature used here.
+ *
+ * The types below describe only what turno touches. Everything else stays opaque.
+ */
+
+/** Resolved Playwright MCP config (`resolveCLIConfigForMCP`). Only the keys turno reads. */
+export interface McpConfig {
+  browser: {
+    browserName: "chromium" | "firefox" | "webkit";
+    isolated?: boolean;
+    userDataDir?: string;
+    launchOptions: Record<string, unknown> & { headless?: boolean; channel?: string; ignoreDefaultArgs?: boolean | string[] };
+    contextOptions?: Record<string, unknown>;
+    cdpEndpoint?: string;
+    remoteEndpoint?: string | ({ endpoint: string; headers?: Record<string, string> } & Record<string, unknown>);
+    remoteHeaders?: Record<string, string>;
+  };
+  extension?: boolean;
+  sharedBrowserContext?: boolean;
+  capabilities?: string[];
+  outputDir?: string;
+  skillMode?: boolean;
+  timeouts?: { idle?: number };
+  server: { port?: number; host?: string; allowedHosts?: string[] };
+  configFile?: string;
+}
+
+/** What the server learns about the client on its first tool call. */
+export interface ClientInfo {
+  /** First workspace root of the client, or the process cwd. */
+  cwd: string;
+  clientName: string;
+}
+
+/** A tool schema as upstream defines it: `inputSchema` is a zod object of the bundled zod. */
+export interface ToolSchema {
+  name: string;
+  title: string;
+  description: string;
+  inputSchema: ZodObject;
+  type: "input" | "assertion" | "action" | "readOnly";
+}
+
+/** The subset of a zod v4 object schema turno calls. */
+export interface ZodObject extends ZodType {
+  parse(value: unknown): Record<string, unknown>;
+  safeParse(value: unknown): { success: true; data: Record<string, unknown> } | { success: false; error: unknown };
+}
+
+export interface UpstreamTool {
+  capability: string;
+  schema: ToolSchema;
+  skillOnly?: boolean;
+}
+
+export interface ToolResult {
+  content: ({ type: "text"; text: string } | { type: string; [key: string]: unknown })[];
+  isError?: boolean;
+  [key: string]: unknown;
+}
+
+export interface IdleTimerLike {
+  poke(): void;
+  dispose(): void;
+}
+
+/** One MCP session's view of a browser context: upstream's `BrowserBackend`. */
+export interface BrowserBackendInstance {
+  initialize(clientInfo: ClientInfo): Promise<void>;
+  callTool(name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<ToolResult>;
+  dynamicTools(): ToolSchemaJson[];
+  dispose(): Promise<void>;
+  on(event: "dynamictoolschange" | "disconnected", listener: () => void): unknown;
+  once(event: "disconnected", listener: () => void): unknown;
+}
+
+/** A tool as it goes out in `tools/list`. */
+export interface ToolSchemaJson {
+  name: string;
+  description?: string;
+  inputSchema: Record<string, unknown>;
+  annotations?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+interface BrowserBackendCtor {
+  new (
+    config: McpConfig,
+    browserContext: BrowserContext,
+    tools: UpstreamTool[],
+    options?: { idleTimer?: IdleTimerLike; dispose?: () => Promise<void> },
+  ): BrowserBackendInstance;
+}
+
+/** What upstream's `createBrowserWithInfo` returns. */
+interface UpstreamBrowserInfo {
+  browser: Browser;
+  endpoint: string;
+  ownership: "own" | "attached";
+  idleTimer?: IdleTimerLike;
+}
+
+/** The server backend factory upstream's `start` serves (one backend per MCP session). */
+export interface ServerBackendFactory {
+  name: string;
+  nameInConfig: string;
+  version: string;
+  toolSchemas: ToolSchema[];
+  create(clientInfo: ClientInfo): Promise<ServerBackend>;
+}
+
+export interface ServerBackend {
+  initialize?(clientInfo: ClientInfo): Promise<void>;
+  callTool(name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<ToolResult>;
+  dynamicTools?(): ToolSchemaJson[];
+  dispose?(): Promise<void>;
+  on?(event: "dynamictoolschange", listener: () => void): unknown;
+  once(event: "disconnected", listener: () => void): unknown;
+}
+
+/** A commander `Command` (the bundled commander), only the calls turno makes. */
+interface Command {
+  version(text: string): Command;
+  name(text: string): Command;
+  action(fn: (options: Record<string, unknown>) => Promise<void> | void): Command;
+  parseAsync(argv: string[], options: { from: "user" }): Promise<Command>;
+}
+
+export interface UpstreamTools {
+  BrowserBackend: BrowserBackendCtor;
+  browserTools: UpstreamTool[];
+  filteredTools(config: McpConfig): UpstreamTool[];
+  decorateMCPCommand(command: Command): void;
+  resolveCLIConfigForMCP(options: Record<string, unknown>, env?: NodeJS.ProcessEnv): Promise<McpConfig>;
+  createBrowserWithInfo(
+    config: McpConfig,
+    clientInfo: ClientInfo,
+    cliOptions: Record<string, unknown>,
+    bindOptions: { title: string; workspaceDir: string },
+  ): Promise<UpstreamBrowserInfo>;
+  setupExitWatchdog(): void;
+  start(factory: ServerBackendFactory, options: McpConfig["server"]): Promise<void>;
+  isProfileLocked(userDataDir: string): boolean;
+  outputDir(options: { config: McpConfig; cwd: string }): string;
+}
+
+interface CoreBundle {
+  tools: UpstreamTools;
+  utils: { gracefullyProcessExitDoNotHang(code: number): void };
+}
+
+/** A zod schema of the bundled zod, as far as turno tools build one. */
+interface ZodType {
+  describe(text: string): ZodType;
+  optional(): ZodType;
+}
+
+/** The bundled zod v4: the constructors a turno tool uses, and what the host needs. */
+export interface Zod {
+  object(shape: Record<string, ZodType>): ZodObject;
+  string(): ZodType;
+  number(): ZodType;
+  boolean(): ZodType;
+  toJSONSchema(schema: ZodObject): Record<string, unknown>;
+  ZodError: new (...args: never[]) => Error;
+  prettifyError(error: unknown): string;
+}
+
+interface UtilsBundle {
+  program: Command & { constructor: new () => Command };
+  z: Zod;
+}
+
+interface PackageJson {
+  version: string;
+}
+
+const require = createRequire(import.meta.url);
+
+let loaded: { core: CoreBundle; utils: UtilsBundle; version: string } | undefined;
+
+/** Loads the library once. `patchright-core` itself first: its entry runs `lib/bootstrap`. */
+export function upstream(): { tools: UpstreamTools; core: CoreBundle; utils: UtilsBundle; version: string } {
+  if (!loaded) {
+    require("patchright-core");
+    loaded = {
+      core: require("patchright-core/lib/coreBundle") as CoreBundle,
+      utils: require("patchright-core/lib/utilsBundle") as UtilsBundle,
+      version: (require("patchright-core/package.json") as PackageJson).version,
+    };
+  }
+  return { tools: loaded.core.tools, ...loaded };
+}
+
+/** The in-process Playwright object of the same bundle (so upstream's exit hooks see it). */
+export function playwright(): Record<McpConfig["browser"]["browserName"], typeof import("patchright-core").chromium> {
+  upstream();
+  return require("patchright-core") as Record<McpConfig["browser"]["browserName"], typeof import("patchright-core").chromium>;
+}
+
+/**
+ * A tool schema as it goes out in `tools/list`, built the way upstream's `toMcpTool` builds it
+ * (the contract test compares the whole list with the stock program's).
+ */
+export function toMcpTool(schema: ToolSchema): ToolSchemaJson {
+  const readOnly = schema.type === "readOnly" || schema.type === "assertion";
+  return {
+    name: schema.name,
+    description: schema.description,
+    inputSchema: upstream().utils.z.toJSONSchema(schema.inputSchema),
+    annotations: {
+      title: schema.title,
+      readOnlyHint: readOnly,
+      destructiveHint: !readOnly,
+      openWorldHint: true,
+    },
+  };
+}
