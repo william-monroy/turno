@@ -4,6 +4,7 @@ import { Exit } from "../exit.js";
 import { type Io, fail } from "../io.js";
 import { emit, jsonOutput } from "../output.js";
 import { style } from "../style.js";
+import type { BrowserApi } from "./browser.js";
 
 /** `turno browser show --json` and `turno identity show browser:<id> --json` (ADR 0045). */
 export const SHOW_JSON = jsonOutput(["id", "dir", "settingsFile", "settings", "problems", "inUse", "holder", "health"]);
@@ -13,78 +14,15 @@ export const DOCTOR_JSON = jsonOutput(["ok", "counts", "checks", "fixed"]);
 export const REPUTATION_JSON = jsonOutput(["id", "file", "total", "sites"]);
 
 /**
- * The identity module of turno-browser 0.3 in the CLI (ADR 0044): identity.json (`show`,
- * `set`, the settings flags of `add`), `turno browser doctor` and `turno browser reputation`.
- * The module is typed here, apart from the package: an older turno-browser lacks these
- * functions, and each command then says to update it.
+ * The identity module of turno-browser in the CLI (ADR 0044): identity.json (`show`, `set`, the
+ * settings flags of `add`), `turno browser doctor` and `turno browser reputation`. The types
+ * come from the package itself (`import type`, ADR 0046); `loadBrowser` refuses a package whose
+ * API_VERSION does not fit, so every function used here is there.
  */
-
-interface HealthCheck {
-  url: string;
-  text?: string;
-  selector?: string;
-}
-
-export interface IdentitySettings {
-  version?: number;
-  timezone?: string;
-  locale?: string;
-  languages?: string[];
-  region?: string;
-  health?: HealthCheck;
-  created: string;
-  updated: string;
-}
-
-export type SettingsPatch = { [K in "timezone" | "locale" | "languages" | "region" | "health"]?: IdentitySettings[K] | null };
-
-interface HealthRecord {
-  status: "ok" | "needs_auth" | "error";
-  url: string;
-  checkedAt: string;
-  detail?: string;
-}
-
-interface DoctorCheck {
-  area: string;
-  level: "ok" | "warn" | "fail" | "info";
-  text: string;
-  fix?: string;
-  auto?: boolean;
-  manual?: string;
-}
-
-interface SiteSummary {
-  site: string;
-  total: number;
-  captcha: number;
-  verify: number;
-  block: number;
-  last7d: number;
-  prev7d: number;
-  trend: "up" | "down" | "flat";
-  lastSeen: string;
-}
-
-/** The functions of turno-browser 0.3 this file uses; all optional for older versions. */
-export interface IdentityModule {
-  identityDir?(id: string, env: NodeJS.ProcessEnv): string;
-  identitySettingsPath?(id: string, env: NodeJS.ProcessEnv): string;
-  checkIdentitySettings?(id: string, env: NodeJS.ProcessEnv): { path: string; settings?: IdentitySettings; problems: string[] };
-  writeIdentitySettings?(id: string, patch: SettingsPatch, env: NodeJS.ProcessEnv): IdentitySettings;
-  identityExists?(id: string, env: NodeJS.ProcessEnv): boolean;
-  inUseBy?(id: string, env: NodeJS.ProcessEnv): string | undefined;
-  readHealth?(id: string, env: NodeJS.ProcessEnv): HealthRecord | undefined;
-  runDoctor?(options: { env: NodeJS.ProcessEnv; fix?: boolean; launch?: boolean }): Promise<{ checks: DoctorCheck[]; fixed: string[] }>;
-  reputationReport?(env: NodeJS.ProcessEnv, ids?: string[]): { identities: { id: string; file: string; total: number; sites: SiteSummary[] }[] };
-}
-
-const UPDATE = "this needs turno-browser 0.3 or later: npm install --global turno-browser";
-
-function need<K extends keyof IdentityModule>(mod: IdentityModule, ...names: K[]): Required<Pick<IdentityModule, K>> {
-  for (const n of names) if (typeof mod[n] !== "function") fail(UPDATE);
-  return mod as Required<Pick<IdentityModule, K>>;
-}
+type IdentitySettings = NonNullable<ReturnType<BrowserApi["checkIdentitySettings"]>["settings"]>;
+type HealthCheck = NonNullable<IdentitySettings["health"]>;
+export type SettingsPatch = Parameters<BrowserApi["writeIdentitySettings"]>[1];
+type DoctorCheck = Awaited<ReturnType<BrowserApi["runDoctor"]>>["checks"][number];
 
 /** Flags that write identity.json, shared by `add` and `set`. An empty value removes the key. */
 export const SETTINGS_FLAGS: FlagSpec = {
@@ -141,9 +79,8 @@ function describeHealth(h: HealthCheck): string {
   return [h.url, h.text ? `shows "${h.text}"` : "", h.selector ? `has ${h.selector}` : ""].filter(Boolean).join(" ");
 }
 
-export function show(mod: IdentityModule, id: string, args: string[], io: Io): number {
+export function show(m: BrowserApi, id: string, args: string[], io: Io): number {
   const p = parseFlags(args, JSON_FLAG, 1);
-  const m = need(mod, "checkIdentitySettings", "identityDir", "identityExists", "inUseBy", "readHealth");
   if (!m.identityExists(id, io.env)) return fail(`identity "${id}" does not exist (turno identity add browser:${id})`);
   const { path, settings, problems } = m.checkIdentitySettings(id, io.env);
   const holder = m.inUseBy(id, io.env);
@@ -190,9 +127,8 @@ export function show(mod: IdentityModule, id: string, args: string[], io: Io): n
 
 const SET_FLAGS: FlagSpec = { ...SETTINGS_FLAGS, "dry-run": { type: "boolean" } };
 
-export function set(mod: IdentityModule, id: string, args: string[], io: Io): number {
+export function set(m: BrowserApi, id: string, args: string[], io: Io): number {
   const p = parseFlags(args, SET_FLAGS, 1);
-  const m = need(mod, "checkIdentitySettings", "writeIdentitySettings", "identityExists");
   if (!m.identityExists(id, io.env)) return fail(`identity "${id}" does not exist (turno identity add browser:${id})`);
   const patch = settingsPatch(p, m.checkIdentitySettings(id, io.env).settings);
   if (!hasSettings(patch)) return fail(`nothing to set: pass ${SETTINGS_FLAG_NAMES.join(", ")} (an empty value removes one)`);
@@ -202,7 +138,7 @@ export function set(mod: IdentityModule, id: string, args: string[], io: Io): nu
   }
   m.writeIdentitySettings(id, patch, io.env);
   io.out(`updated identity.json of "${id}"; the next Chrome start of browser-${id} uses it\n`);
-  return show(mod, id, [], io);
+  return show(m, id, [], io);
 }
 
 const DOCTOR_FLAGS: FlagSpec = { fix: { type: "boolean" }, "no-launch": { type: "boolean" }, ...JSON_FLAG };
@@ -213,9 +149,8 @@ const SECTIONS: [string, (area: string) => boolean][] = [
   ["Identities", (a) => a === "identities" || a.startsWith("identity ")],
 ];
 
-export async function doctor(mod: IdentityModule, args: string[], io: Io): Promise<number> {
+export async function doctor(m: BrowserApi, args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, DOCTOR_FLAGS, 0);
-  const m = need(mod, "runDoctor");
   const json = bool(p, "json");
   const report = await m.runDoctor({ env: io.env, fix: bool(p, "fix"), launch: !bool(p, "no-launch") });
   const failed = report.checks.some((c) => c.level === "fail");
@@ -268,9 +203,8 @@ export async function doctor(mod: IdentityModule, args: string[], io: Io): Promi
   return exit;
 }
 
-export function reputation(mod: IdentityModule, args: string[], io: Io, checkId: (id: string) => string): number {
+export function reputation(m: BrowserApi, args: string[], io: Io, checkId: (id: string) => string): number {
   const p = parseFlags(args, JSON_FLAG, 1);
-  const m = need(mod, "reputationReport");
   const id = p.positionals[0] === undefined ? undefined : checkId(p.positionals[0].replace(/^browser:/, ""));
   let report: ReturnType<typeof m.reputationReport>;
   try {

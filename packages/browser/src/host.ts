@@ -8,6 +8,7 @@ import { CallToolRequestSchema, type CallToolResult, ListToolsRequestSchema } fr
 import { type Engine, type IdentityRef, type LaunchedBrowser, createUpstreamEngine, selectEngine } from "./engine.js";
 import { type HealthContext, NEEDS_AUTH_HOLD_MS, healthDue, needsAuthMessage, readHealth, runHealthCheck, writeHealth } from "./health.js";
 import { recordChallenge, watchChallenges } from "./reputation.js";
+import { sessionFromMeta } from "./session.js";
 import { readIdentitySettings } from "./settings.js";
 import { TURNO_TOOLS, type TurnoTool, checkTurnoTools, parseArguments } from "./tools.js";
 import {
@@ -196,7 +197,11 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     return promise;
   }
 
-  async callTool(name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<ToolResult> {
+  /**
+   * `session` is the client session mcpd put in the call's `_meta` (ADR 0046). Only turno tools
+   * see it; stock tools run exactly as before. Upstream's HTTP server (`--port`) never passes it.
+   */
+  async callTool(name: string, args: Record<string, unknown>, signal?: AbortSignal, session?: string): Promise<ToolResult> {
     const tool = this.host.turno.get(name);
     if (!tool) {
       const { backend } = await this.browser();
@@ -213,7 +218,8 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       browserContext = launched.context;
     }
     try {
-      return await tool.handle({ config: this.host.config, clientInfo, ...(browserContext ? { browserContext } : {}), ...(signal ? { signal } : {}) }, parsed.params);
+      const context = { config: this.host.config, clientInfo, ...(browserContext ? { browserContext } : {}), ...(signal ? { signal } : {}), ...(session ? { session } : {}) };
+      return await tool.handle(context, parsed.params);
     } catch (error) {
       return errorResult(String(error), json);
     }
@@ -334,7 +340,8 @@ function createServer(host: Host): Server {
   server.setRequestHandler(CallToolRequestSchema, async (request, extra): Promise<CallToolResult> => {
     try {
       const b = await session();
-      const result = await b.callTool(request.params.name, (request.params.arguments ?? {}) as Record<string, unknown>, extra.signal);
+      const args = (request.params.arguments ?? {}) as Record<string, unknown>;
+      const result = await b.callTool(request.params.name, args, extra.signal, sessionFromMeta(request.params._meta));
       return mergeTextParts(result) as CallToolResult;
     } catch (error) {
       return { content: [{ type: "text", text: `### Error\n${String(error)}` }], isError: true };

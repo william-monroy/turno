@@ -19,6 +19,34 @@ export const OPTIONAL = {
   tui: { name: "turno-tui", install: "npm install --global turno-tui" },
 } as const satisfies Record<string, OptionalPackage>;
 
+/**
+ * The version of an optional package's API (ADR 0046): `minor` grows when something is added,
+ * `major` when something is removed or changes. The package exports it as `API_VERSION`.
+ */
+export interface ApiVersion {
+  readonly major: number;
+  readonly minor: number;
+}
+
+function isApiVersion(v: unknown): v is ApiVersion {
+  const o = v as Partial<ApiVersion> | null | undefined;
+  return typeof o === "object" && o !== null && [o.major, o.minor].every((n) => Number.isInteger(n) && (n as number) >= 0);
+}
+
+/**
+ * Why an installed package's `API_VERSION` does not fit the one this turno was built against,
+ * or undefined when it does: the same major and at least the minor. One line that names the
+ * command to run: update the package when it is older, update turno when it is newer.
+ */
+export function apiMismatch(pkg: OptionalPackage, found: unknown, wanted: ApiVersion): string | undefined {
+  const needs = `this turno needs ${wanted.major}.${wanted.minor} or a later ${wanted.major}.x`;
+  const update = `update it: ${pkg.install}@latest`;
+  if (!isApiVersion(found)) return `${pkg.name} is too old for this turno (it has no API_VERSION, ${needs}); ${update}`;
+  if (found.major > wanted.major) return `${pkg.name} is too new for this turno (its API is ${found.major}.${found.minor}, this turno speaks ${wanted.major}.x); update turno: turno upgrade`;
+  if (found.major < wanted.major || found.minor < wanted.minor) return `${pkg.name} is too old for this turno (its API is ${found.major}.${found.minor}, ${needs}); ${update}`;
+  return undefined;
+}
+
 /** "turno-browser is not installed: npm install --global turno-browser". */
 export function notInstalled(pkg: OptionalPackage): string {
   return `${pkg.name} is not installed: ${pkg.install}`;
@@ -48,6 +76,11 @@ export interface LoadOptions<T> {
    * it is an error that says to update the package, not a TypeError later.
    */
   guard?: (mod: unknown) => mod is T;
+  /**
+   * The `API_VERSION` this turno was built against. The module's own is compared first
+   * (`apiMismatch`); a module that does not fit is a CliError that says what to update.
+   */
+  api?: ApiVersion;
   /** For tests: how to import a specifier or a file URL. */
   importer?: (specifier: string) => Promise<unknown>;
   /** For tests: the global npm folder. */
@@ -57,11 +90,16 @@ export interface LoadOptions<T> {
 /**
  * Load an optional package: next to this install first, then (with `global`) from the global
  * npm folder. Undefined when it is not installed; any other import error is thrown, as is a
- * module the guard rejects (a CliError naming the update command).
+ * module whose API_VERSION does not fit or that the guard rejects (a CliError naming the
+ * update command).
  */
 export async function loadOptional<T>(pkg: OptionalPackage, options: LoadOptions<T> = {}): Promise<T | undefined> {
   const load = options.importer ?? ((s: string) => import(s));
   const checked = (mod: unknown): T => {
+    if (options.api) {
+      const problem = apiMismatch(pkg, (mod as { API_VERSION?: unknown } | null | undefined)?.API_VERSION, options.api);
+      if (problem) throw new CliError(problem);
+    }
     if (options.guard && !options.guard(mod)) throw new CliError(`this ${pkg.name} is too old or not a ${pkg.name} for this turno; update it: ${pkg.install}@latest`);
     return mod as T;
   };

@@ -352,7 +352,6 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
       }),
       home: p.home,
       log,
-      onCall: (e) => calls?.record(e),
       pressure: memoryPressureProbe(),
       idleUnderPressure: config.mcpd.idleUnderPressure,
     });
@@ -365,6 +364,7 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
       folderRules: () => folderRules,
       home: p.home,
       clientNames: new ClientNames(join(p.state, "mcpd-clients.json"), pidAlive),
+      callLog: () => (calls ? (e) => calls?.record(e) : undefined),
       ...(config.mcpd.maxRequestBody ? { maxRequestBodyBytes: config.mcpd.maxRequestBody } : {}),
     };
     const gateway = new DaemonGateway(gwOpts, () => ({

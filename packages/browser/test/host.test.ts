@@ -7,6 +7,7 @@ import { type Engine, type IdentityRef, type LaunchRequest, type LaunchedBrowser
 import { readHealth } from "../src/health.js";
 import { writeIdentitySettings } from "../src/settings.js";
 import { SERVER_INFO, createHost, mergeTextParts, serve } from "../src/host.js";
+import { SESSION_META_KEY } from "../src/session.js";
 import { TURNO_TOOLS, type TurnoTool, checkTurnoTools, turnoZod } from "../src/tools.js";
 import { type McpConfig, upstream } from "../src/upstream.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -85,6 +86,30 @@ describe("host", () => {
     const client = await connect(await config(), [echoTool()], engine);
     const res = await client.callTool({ name: "turno_test_echo", arguments: { text: "hi" } });
     expect(res).toEqual({ content: [{ type: "text", text: "echo: hi\nclient: host-test" }] });
+    expect(engine.launches).toEqual([]);
+    await client.close();
+  });
+
+  it("hands a turno tool the client session mcpd put in _meta, and nothing when it is missing or malformed", async () => {
+    const seen: (string | undefined)[] = [];
+    const z = turnoZod();
+    const sessionTool: TurnoTool = {
+      schema: { name: "turno_test_session", title: "Session (test)", description: "Reports the session.", inputSchema: z.object({}), type: "readOnly" },
+      browser: false,
+      async handle(ctx) {
+        seen.push(ctx.session);
+        return { content: [{ type: "text", text: `session: ${ctx.session ?? "none"}` }] };
+      },
+    };
+    const engine = failingEngine();
+    const client = await connect(await config(), [sessionTool], engine);
+    const call = (meta?: Record<string, unknown>) => client.callTool({ name: "turno_test_session", arguments: {}, ...(meta ? { _meta: meta } : {}) });
+    expect(await call({ [SESSION_META_KEY]: "0b6f5c1e-2a43-4d4c-9b0e-5d7a1f3c2e11" })).toEqual({ content: [{ type: "text", text: "session: 0b6f5c1e-2a43-4d4c-9b0e-5d7a1f3c2e11" }] });
+    await call();
+    await call({ [SESSION_META_KEY]: 42 });
+    await call({ [SESSION_META_KEY]: "has space" });
+    await call({ [SESSION_META_KEY]: "x".repeat(129) });
+    expect(seen).toEqual(["0b6f5c1e-2a43-4d4c-9b0e-5d7a1f3c2e11", undefined, undefined, undefined, undefined]);
     expect(engine.launches).toEqual([]);
     await client.close();
   });

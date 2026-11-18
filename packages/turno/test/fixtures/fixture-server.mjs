@@ -30,6 +30,7 @@ const tools = [
   { name: "sample", description: "Ask the client's model", inputSchema: { type: "object", properties: {} } },
   { name: "roots", description: "List the client's roots", inputSchema: { type: "object", properties: {} } },
   { name: "touch", description: "Report a resource update", inputSchema: { type: "object", properties: { uri: { type: "string" } } } },
+  { name: "meta", description: "The _meta of this call", inputSchema: { type: "object", properties: {} } },
 ];
 // Extra tools named in a file, read at start: lets a test change the tool list without changing the definition.
 if (process.env.FIXTURE_TOOLS_FILE) {
@@ -127,6 +128,8 @@ server.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
         return text({ error: err.message });
       }
     }
+    case "meta":
+      return text(req.params._meta ?? null);
     case "touch": {
       await server.sendResourceUpdated({ uri: String(req.params.arguments?.uri ?? "") });
       return text("touched");

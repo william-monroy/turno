@@ -2,7 +2,8 @@ import { paths, tildify } from "../../core/paths.js";
 import { DRY_RUN, type FlagSpec, JSON_FLAG, bool, parseFlags, str } from "../args.js";
 import { type Sub, group } from "../group.js";
 import { type Command, type Io, fail, needsAnswer, paint } from "../io.js";
-import { OPTIONAL, loadOptional, notInstalled } from "../optional.js";
+import type { API_VERSION, BrowserApi } from "turno-browser";
+import { type LoadOptions, OPTIONAL, loadOptional, notInstalled } from "../optional.js";
 import { emit, jsonOutput } from "../output.js";
 import * as ident from "./browser-identity.js";
 
@@ -11,54 +12,45 @@ const BENCH_JSON = jsonOutput(["version", "startedAt", "finishedAt", "engines", 
 /** `turno browser identities --json`: one element per identity. */
 const IDENTITIES_JSON = jsonOutput(["id", "inUse", "dir"]);
 
-/** The part of turno-browser this command uses. Typed locally: the package is installed apart. */
-interface IdentityInfo {
-  id: string;
-  dir: string;
-  inUse: boolean;
-}
+/**
+ * turno-browser's public API (ADR 0046). The types come from the package with `import type`,
+ * which the build erases: turno-browser stays an optional package, loaded at run time.
+ */
+export type { BrowserApi };
 
-export interface BrowserModule extends ident.IdentityModule {
-  ENGINES: readonly string[];
-  /** The current id for an engine name, old ids included (turno-browser 0.2 and later). */
-  engineId?: (name: string) => string | undefined;
-  listIdentities(env: NodeJS.ProcessEnv): IdentityInfo[];
-  /** Settings are written to identity.json by turno-browser 0.3 and later; older ones ignore them. */
-  addIdentity(id: string, env: NodeJS.ProcessEnv, settings?: ident.SettingsPatch): IdentityInfo;
-  removeIdentity(id: string, env: NodeJS.ProcessEnv): void;
-  isInUse(id: string, env: NodeJS.ProcessEnv): boolean;
-  assertIdentityId(id: string): void;
-  manifestSnippet(id: string): string;
-  loginIdentity(id: string, options: { env: NodeJS.ProcessEnv; url?: string }): Promise<void>;
-  runBench(options: {
-    engines?: string[];
-    urls?: string[];
-    detectors?: boolean;
-    env: NodeJS.ProcessEnv;
-    onProgress?: (message: string) => void;
-  }): Promise<{ file?: string } & Record<string, unknown>>;
-  formatBenchTable(report: unknown): string;
+/**
+ * The API version this turno was built against. Typed by the package's own constant, so a
+ * change of its API_VERSION in the workspace fails the typecheck until this line follows.
+ */
+export const BROWSER_API: typeof API_VERSION = { major: 1, minor: 0 };
+
+/** What the package exports that the loader looks at. */
+interface BrowserPackage {
+  API_VERSION: unknown;
+  api: BrowserApi;
 }
 
 export const INSTALL_HINT = OPTIONAL.browser.install;
 export const NOT_INSTALLED = notInstalled(OPTIONAL.browser);
 
-/** A turno-browser this command can drive: the calls every subcommand needs are there. */
-function isBrowserModule(mod: unknown): mod is BrowserModule {
-  const m = mod as Partial<BrowserModule> | undefined;
-  return Boolean(m) && Array.isArray(m!.ENGINES) && typeof m!.listIdentities === "function" && typeof m!.runBench === "function";
+/** A turno-browser this command can drive: its API object has the calls every subcommand needs. */
+function isBrowserPackage(mod: unknown): mod is BrowserPackage {
+  const api = (mod as Partial<BrowserPackage> | undefined)?.api as Partial<BrowserApi> | undefined;
+  return typeof api === "object" && api !== null && Array.isArray(api.ENGINES) && typeof api.listIdentities === "function" && typeof api.runBench === "function";
 }
 
 /**
- * Load turno-browser: next to this install first, then (with `global`) from the global npm
- * folder, which a Homebrew or npx install of turno cannot see on its own (loadOptional).
+ * Load turno-browser's API: next to this install first, then (with `global`) from the global
+ * npm folder, which a Homebrew or npx install of turno cannot see on its own (loadOptional). A
+ * package whose API_VERSION does not fit is refused with one message that says what to update.
  */
-export function loadBrowser(options: { global?: boolean; env?: NodeJS.ProcessEnv } = {}): Promise<BrowserModule | undefined> {
-  return loadOptional(OPTIONAL.browser, { ...options, guard: isBrowserModule });
+export async function loadBrowser(options: Pick<LoadOptions<BrowserPackage>, "global" | "env" | "importer" | "globalRoot"> = {}): Promise<BrowserApi | undefined> {
+  const mod = await loadOptional(OPTIONAL.browser, { ...options, api: BROWSER_API, guard: isBrowserPackage });
+  return mod?.api;
 }
 
 export interface BrowserDeps {
-  load(io: Io): Promise<BrowserModule | undefined>;
+  load(io: Io): Promise<BrowserApi | undefined>;
   /** True when a person can answer a question (a terminal, and no --no-input or agent session). */
   interactive(io: Io): boolean;
   /** Ask a yes/no question; true only for an explicit yes. */
@@ -81,7 +73,7 @@ export const defaultDeps: BrowserDeps = {
   confirm: (question) => askOnTerminal(question),
 };
 
-function checkId(mod: BrowserModule, id: string | undefined, sub: string): string {
+function checkId(mod: BrowserApi, id: string | undefined, sub: string): string {
   if (!id) return fail(`browser ${sub} needs an identity id (for example: turno browser ${sub} school)`);
   try {
     mod.assertIdentityId(id);
@@ -104,16 +96,15 @@ const BENCH_FLAGS: FlagSpec = {
 export const BENCH_PROMPT = "This opens Chrome and visits third-party test pages. Continue? [y/N] ";
 const URLS_PROMPT = "This opens Chrome and visits the URLs you gave. Continue? [y/N] ";
 
-async function bench(mod: BrowserModule, args: string[], io: Io, deps: BrowserDeps): Promise<number> {
+async function bench(mod: BrowserApi, args: string[], io: Io, deps: BrowserDeps): Promise<number> {
   const p = parseFlags(args, BENCH_FLAGS, 0);
   const list = (name: string) => ((p.values[name] as string[] | undefined) ?? []).flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean);
   const given = list("engine");
   const urls = (p.values.url as string[] | undefined) ?? [];
   const onlyUrls = bool(p, "only-urls") || bool(p, "no-detectors");
-  const engines: string[] = [];
+  const engines: NonNullable<ReturnType<BrowserApi["engineId"]>>[] = [];
   for (const e of given) {
-    // An older turno-browser has no engineId: its ENGINES list is the whole truth.
-    const id = mod.engineId ? mod.engineId(e) : mod.ENGINES.includes(e) ? e : undefined;
+    const id = mod.engineId(e);
     if (!id) return fail(`unknown engine "${e}" (known: ${mod.ENGINES.join(", ")})`);
     engines.push(id);
   }
@@ -148,7 +139,7 @@ async function bench(mod: BrowserModule, args: string[], io: Io, deps: BrowserDe
   return 0;
 }
 
-function identities(mod: BrowserModule, args: string[], io: Io): number {
+function identities(mod: BrowserApi, args: string[], io: Io): number {
   const p = parseFlags(args, JSON_FLAG, 0);
   const list = mod.listIdentities(io.env);
   if (bool(p, "json")) {
@@ -172,25 +163,24 @@ function identities(mod: BrowserModule, args: string[], io: Io): number {
   return 0;
 }
 
-function add(mod: BrowserModule, args: string[], io: Io): number {
+function add(mod: BrowserApi, args: string[], io: Io): number {
   const p = parseFlags(args, { ...DRY_RUN, ...ident.SETTINGS_FLAGS }, 1);
   const id = checkId(mod, p.positionals[0], "add");
   const settings = ident.settingsPatch(p);
-  if (ident.hasSettings(settings) && typeof mod.writeIdentitySettings !== "function") return fail("identity settings need turno-browser 0.3 or later: npm install --global turno-browser");
   if (bool(p, "dry-run")) {
     io.out(`(dry run) would create browser identity "${id}"`);
     return 0;
   }
   const info = ident.hasSettings(settings) ? mod.addIdentity(id, io.env, settings) : mod.addIdentity(id, io.env);
   io.out(`identity "${id}" ready at ${tildify(info.dir, io.env)}`);
-  if (mod.identitySettingsPath) io.out(`settings (time zone, languages, health check) in ${tildify(mod.identitySettingsPath(id, io.env), io.env)}`);
+  io.out(`settings (time zone, languages, health check) in ${tildify(mod.identitySettingsPath(id, io.env), io.env)}`);
   io.out(`\nAdd this to ${tildify(paths(io.env).mcpFile, io.env)}, then run \`turno mcp sync\`:\n`);
   io.out(mod.manifestSnippet(id));
   io.out(`Sign in to your sites once with \`turno identity login browser:${id}\`.`);
   return 0;
 }
 
-function remove(mod: BrowserModule, args: string[], io: Io): number {
+function remove(mod: BrowserApi, args: string[], io: Io): number {
   const p = parseFlags(args, DRY_RUN, 1);
   const id = checkId(mod, p.positionals[0], "remove");
   if (bool(p, "dry-run")) {
@@ -203,12 +193,12 @@ function remove(mod: BrowserModule, args: string[], io: Io): number {
   return 0;
 }
 
-async function login(mod: BrowserModule, args: string[], io: Io): Promise<number> {
+async function login(mod: BrowserApi, args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, { url: { type: "string" } }, 1);
   const id = checkId(mod, p.positionals[0], "login");
   const url = str(p, "url");
   if (url !== undefined && !/^https?:\/\//.test(url)) return fail(`--url must start with http:// or https://: ${url}`);
-  const holder = mod.inUseBy?.(id, io.env);
+  const holder = mod.inUseBy(id, io.env);
   if (holder) return fail(holder);
   if (mod.isInUse(id, io.env)) {
     return fail(`identity "${id}" is in use by a running Chrome (probably an MCP session through mcpd). Close that session or wait for its lease to end, then retry.`);
@@ -222,7 +212,7 @@ async function login(mod: BrowserModule, args: string[], io: Io): Promise<number
 }
 
 /** Run one browser subcommand with a loaded module. `identity` uses it for browser:<id>. */
-export async function dispatch(mod: BrowserModule, sub: string, rest: string[], io: Io, deps: BrowserDeps = defaultDeps): Promise<number> {
+export async function dispatch(mod: BrowserApi, sub: string, rest: string[], io: Io, deps: BrowserDeps = defaultDeps): Promise<number> {
   try {
     switch (sub) {
       case "identities":
