@@ -39,6 +39,13 @@ Usage:
   turno browser vault add|list|remove|submit <id> ...
                                      credentials browser_login fills without
                                      showing them to the agent
+  turno browser export <id> --out <file> [--expires 7d] [--force]
+                                     write an identity's cookies and site
+                                     storage to a file encrypted with a
+                                     passphrase
+  turno browser import <file> [--as <id>] [--yes] [--dry-run]
+                                     replace an identity's session with an
+                                     export (asks first), or create it
   turno browser remove <id> [--dry-run]
                                      delete an identity, its saved logins and
                                      its vault
@@ -68,6 +75,8 @@ Examples:
   $ turno browser doctor --fix
   $ turno browser reputation school --json
   $ turno browser vault add school mail --url https://mail.example.com --username alice
+  $ turno browser export school --out school.session --expires 2d
+  $ turno browser import school.session --as school-laptop
   $ turno browser remove school --dry-run
   $ turno browser bench --only-urls --url https://example.com --yes
 ```
@@ -202,6 +211,29 @@ Examples:
   $ turno browser vault list work --json
   $ turno browser vault submit work auto
   $ turno browser vault remove work github --dry-run
+```
+
+### turno browser export
+
+```text
+Usage:
+  turno browser export <id> --out <file> [--expires 7d] [--force]
+    write an identity's cookies and site storage to a file encrypted with a
+    passphrase
+
+Examples:
+  $ turno browser export school --out school.session --expires 2d
+```
+
+### turno browser import
+
+```text
+Usage:
+  turno browser import <file> [--as <id>] [--yes] [--dry-run]
+    replace an identity's session with an export (asks first), or create it
+
+Examples:
+  $ turno browser import school.session --as school-laptop
 ```
 
 ### turno browser remove

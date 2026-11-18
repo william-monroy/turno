@@ -24,6 +24,10 @@ import { parseDuration, parseSize } from "./units.js";
  * - `tabs`, `backgroundThrottling`, `settle`, `block`, `cache` (format 2): how the host runs this
  *   identity's Chrome
  *   (ADR 0048, `tuning.ts`): the tab governor and background tab throttling.
+ * - `keychain` (format 3): where Chrome gets the key that encrypts the profile's cookies
+ *   (ADR 0059). `"mock"` (the default, also when the key is missing) keeps Playwright's
+ *   `--use-mock-keychain` and `--password-store=basic`, a fixed public key; `"system"` drops
+ *   them, so Chrome uses the macOS Keychain or the Linux Secret Service.
  *
  * A missing file means Chrome's own defaults, as before identity.json existed.
  */
@@ -35,10 +39,19 @@ import { parseDuration, parseSize } from "./units.js";
  * only when it uses one of them, so an older turno-browser keeps reading every other file and
  * refuses one it would misread with "update turno-browser".
  */
-export const IDENTITY_FORMAT_VERSION = 2;
+export const IDENTITY_FORMAT_VERSION = 3;
 
 /** The keys format 2 added. */
 const FORMAT_2_KEYS = ["tabs", "backgroundThrottling", "settle", "block", "cache"] as const;
+
+/** The keys format 3 added. */
+const FORMAT_3_KEYS = ["keychain"] as const;
+
+/** Where Chrome gets its cookie encryption key (ADR 0059). */
+type KeychainMode = "mock" | "system";
+
+/** Playwright's switches that give Chrome a fixed key instead of the OS store's. */
+const MOCK_KEYCHAIN_SWITCHES = ["--use-mock-keychain", "--password-store=basic"] as const;
 
 /** Resource types `block.types` may name: the heavy ones a page usually works without. */
 const BLOCKABLE_TYPES = ["image", "media", "font"] as const;
@@ -99,6 +112,8 @@ export interface IdentitySettings {
   settle?: string;
   block?: BlockSettings;
   cache?: CacheSettings;
+  /** `"system"`: Chrome encrypts cookies with the OS store's key (ADR 0059); default `"mock"`. */
+  keychain?: KeychainMode;
   /** ISO dates. */
   created: string;
   updated: string;
@@ -106,10 +121,28 @@ export interface IdentitySettings {
 
 /** A change to identity.json: a value sets the key, `null` removes it. */
 export type SettingsPatch = {
-  [K in "timezone" | "locale" | "languages" | "region" | "health" | (typeof FORMAT_2_KEYS)[number]]?: IdentitySettings[K] | null;
+  [K in "timezone" | "locale" | "languages" | "region" | "health" | (typeof FORMAT_2_KEYS)[number] | (typeof FORMAT_3_KEYS)[number]]?: IdentitySettings[K] | null;
 };
 
-const KEYS = new Set(["version", "timezone", "locale", "languages", "region", "health", ...FORMAT_2_KEYS, "created", "updated"]);
+const KEYS = new Set(["version", "timezone", "locale", "languages", "region", "health", ...FORMAT_2_KEYS, ...FORMAT_3_KEYS, "created", "updated"]);
+
+/**
+ * The Chrome switches to drop for this identity's keychain setting, as Playwright launch
+ * options: nothing for the default mock keychain.
+ */
+export function keychainArgs(settings: Pick<IdentitySettings, "keychain"> | undefined): { ignoreDefaultArgs?: string[] } {
+  return settings?.keychain === "system" ? { ignoreDefaultArgs: [...MOCK_KEYCHAIN_SWITCHES] } : {};
+}
+
+/**
+ * The environment for a Chrome this process launches for an identity: the caller's, so HOME
+ * and the XDG folders follow the identity's environment instead of this process's.
+ */
+export function chromeEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(env)) if (v !== undefined) out[k] = v;
+  return out;
+}
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
@@ -150,6 +183,7 @@ function browserProblems(v: Record<string, unknown>, out: string[]): void {
       unknownKeys(b, ["trackers", "types", "patterns"], "block", out);
     }
   }
+  if (v.keychain !== undefined && v.keychain !== "mock" && v.keychain !== "system") out.push('keychain must be "mock" (the default) or "system"');
   if (v.cache !== undefined) {
     const c = v.cache;
     if (!isObject(c)) out.push('cache must be an object, like {} or { "maxSize": "100MB" }');
@@ -283,7 +317,7 @@ export function writeIdentitySettings(id: string, patch: SettingsPatch, env: Nod
     if (value === null) delete next[key];
     else next[key] = value;
   }
-  next.version = FORMAT_2_KEYS.some((k) => next[k] !== undefined) ? 2 : 1;
+  next.version = FORMAT_3_KEYS.some((k) => next[k] !== undefined) ? 3 : FORMAT_2_KEYS.some((k) => next[k] !== undefined) ? 2 : 1;
   if (typeof next.locale === "string") next.locale = canonicalLocale(next.locale) ?? next.locale;
   if (Array.isArray(next.languages)) next.languages = (next.languages as string[]).map((l) => canonicalLocale(l) ?? l);
   if (typeof next.region === "string" && /^[a-z]{2}$/i.test(next.region)) next.region = next.region.toUpperCase();

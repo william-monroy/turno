@@ -52,6 +52,8 @@ export {
 export { CHALLENGE_MARKERS, type ChallengeKind, classifyChallenge, detectChallenge, parseRebrowser, parseSannysoft } from "./detectors.js";
 export { type LoginOptions, loginIdentity } from "./login.js";
 export { type TotpParams, TotpError, parseTotpSecret, totp } from "./totp.js";
+export { SealError } from "./sealed.js";
+export { type ExportOptions, type ImportOptions, type SessionSummary, exportSession, importSession, readSessionExport } from "./session-export.js";
 export {
   type SubmitPolicy,
   type VaultAddInput,

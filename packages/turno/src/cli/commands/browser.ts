@@ -6,6 +6,7 @@ import type { API_VERSION, BrowserApi } from "turno-browser";
 import { type LoadOptions, OPTIONAL, loadOptional, notInstalled } from "../optional.js";
 import { emit, jsonOutput } from "../output.js";
 import * as ident from "./browser-identity.js";
+import * as session from "./browser-session.js";
 import { vaultCommand } from "./browser-vault.js";
 
 /** `turno browser bench --json`: turno-browser's report (ADR 0045). */
@@ -23,7 +24,7 @@ export type { BrowserApi };
  * The API version this turno was built against. Typed by the package's own constant, so a
  * change of its API_VERSION in the workspace fails the typecheck until this line follows.
  */
-export const BROWSER_API: typeof API_VERSION = { major: 1, minor: 1 };
+export const BROWSER_API: typeof API_VERSION = { major: 1, minor: 2 };
 
 /** What the package exports that the loader looks at. */
 interface BrowserPackage {
@@ -232,6 +233,10 @@ export async function dispatch(mod: BrowserApi, sub: string, rest: string[], io:
         return await login(mod, rest, io);
       case "bench":
         return await bench(mod, rest, io, deps);
+      case "export":
+        return await session.exportSession(mod, rest, io);
+      case "import":
+        return await session.importSession(mod, rest, io, deps);
       case "show":
         return ident.show(mod, checkId(mod, rest.find((a) => !a.startsWith("-")), "show"), rest, io);
       case "set":
@@ -245,7 +250,7 @@ export async function dispatch(mod: BrowserApi, sub: string, rest: string[], io:
     }
   } catch (err) {
     const name = (err as Error).name;
-    if (name === "IdentityError" || name === "VaultError") return fail((err as Error).message);
+    if (name === "IdentityError" || name === "VaultError" || name === "SealError") return fail((err as Error).message);
     throw err;
   }
 }
@@ -306,6 +311,18 @@ export function browserCommand(deps: BrowserDeps = defaultDeps): Command {
       ownHelp: true,
       run: (args, io) => vaultCommand(deps).run(args, io),
     },
+    export: {
+      summary: "write an identity's cookies and site storage to a file encrypted with a passphrase",
+      synopsis: "<id> --out <file> [--expires 7d] [--force]",
+      flags: ["--out", "--expires", "--force"],
+      run: withModule("export"),
+    },
+    import: {
+      summary: "replace an identity's session with an export (asks first), or create it",
+      synopsis: "<file> [--as <id>] [--yes] [--dry-run]",
+      flags: ["--as", "--yes", "--dry-run"],
+      run: withModule("import"),
+    },
     remove: { summary: "delete an identity, its saved logins and its vault", synopsis: "<id> [--dry-run]", flags: ["--dry-run"], run: withModule("remove") },
     rm: { summary: "same as remove", hidden: true, run: withModule("remove") },
     login: { summary: "open the identity's Chrome to sign in by hand once", synopsis: "<id> [--url <url>]", flags: ["--url"], run: withModule("login") },
@@ -330,6 +347,8 @@ export function browserCommand(deps: BrowserDeps = defaultDeps): Command {
       "turno browser doctor --fix",
       "turno browser reputation school --json",
       "turno browser vault add school mail --url https://mail.example.com --username alice",
+      "turno browser export school --out school.session --expires 2d",
+      "turno browser import school.session --as school-laptop",
       "turno browser remove school --dry-run",
       "turno browser bench --only-urls --url https://example.com --yes",
     ],

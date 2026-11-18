@@ -3,7 +3,7 @@ import { clearHealth } from "./health.js";
 import { IdentityError, identityDir, inUseBy, isInUse } from "./identities.js";
 import { readLockPid } from "./lifecycle.js";
 import { acquireRuntimeLock } from "./runtime-lock.js";
-import { launchSettings, readIdentitySettings, systemTimezone } from "./settings.js";
+import { chromeEnv, keychainArgs, launchSettings, readIdentitySettings, systemTimezone } from "./settings.js";
 
 export interface LoginOptions {
   env?: NodeJS.ProcessEnv;
@@ -36,6 +36,9 @@ export async function loginIdentity(id: string, options: LoginOptions = {}): Pro
       viewport: null,
       ...(applied.args.length ? { args: applied.args } : {}),
       ...(applied.timezoneId ? { timezoneId: applied.timezoneId } : {}),
+      ...keychainArgs(settings),
+      // Chrome gets the caller's environment (HOME, XDG dirs), not this process's.
+      env: chromeEnv(env),
     });
     const pid = readLockPid(dir);
     if (pid !== undefined) held.update({ chromePid: pid, pgid: pid });
