@@ -7,7 +7,6 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { Manifest, ServerDef, StdioServer } from "../core/manifest.js";
 import { effectiveLaunch, variantKey } from "../core/manifest.js";
 import { type DescriptionCache, type ServerDescription, fingerprint } from "./cache.js";
-import type { CallEvent } from "./calllog.js";
 import { ErrorCode, type Id, rpcError, type Outcome } from "./jsonrpc.js";
 import { LoginRequiredError } from "./oauth.js";
 import { type PressureLevel, type PressureProbe, effectiveIdle } from "./pressure.js";
@@ -102,8 +101,6 @@ export interface ManagerOptions {
   breakerThreshold?: number;
   /** First backoff once the breaker is open, doubled on each further failure (default 5 s, max 5 min). */
   breakerBaseMs?: number;
-  /** Called after every relayed request settles (the call log, ADR 0026). Must not throw. */
-  onCall?: (event: CallEvent) => void;
   /** Reads memory pressure before each reap (ADR 0028); without it the pressure is always normal. */
   pressure?: PressureProbe;
   /** Idle limit in seconds while memory is tight (`[mcpd] idle_under_pressure`); 0 or unset turns it off. */
@@ -355,6 +352,8 @@ export class InstanceManager {
    * and retry once on a fresh instance when a remote server forgot our session. `cancelled`
    * says whether the client cancelled the request while the instance was still starting: the
    * upstream has no call to cancel yet, so the request is dropped here instead of sent.
+   * `onVariant` learns the variant of the instance that serves it (the call log's, ADR 0026).
+   * A tools/call comes here through the call middleware (middleware.ts, ADR 0047), never directly.
    */
   async forward(
     client: ClientHandle,
@@ -362,24 +361,14 @@ export class InstanceManager {
     params: Record<string, unknown> | undefined,
     originId: Id,
     cancelled?: () => boolean,
+    onVariant?: (variant: string) => void,
   ): Promise<Outcome> {
-    const startedAt = Date.now();
-    const t0 = performance.now();
-    let variant: string | undefined;
-    const done = (outcome: Outcome): Outcome => {
-      try {
-        this.opts.onCall?.({ ctx: client.ctx, method, params, ...(variant ? { variant } : {}), outcome, startedAt, durationMs: performance.now() - t0 });
-      } catch {
-        /* observing a call never fails it */
-      }
-      return outcome;
-    };
     for (let attempt = 0; ; attempt++) {
       const inst = await this.acquire(client);
-      if ("error" in inst || "result" in inst) return done(inst as Outcome);
-      variant = inst.variant;
+      if ("error" in inst || "result" in inst) return inst as Outcome;
+      onVariant?.(inst.variant);
       // Nothing awaits between this check and the call below, so a later cancellation finds it upstream.
-      if (cancelled?.()) return done(rpcError(ErrorCode.RequestCancelled, "cancelled by the client"));
+      if (cancelled?.()) return rpcError(ErrorCode.RequestCancelled, "cancelled by the client");
       const timeout = inst.server.callTimeout ? inst.server.callTimeout * 1000 : undefined;
       const out = await inst.upstream.call(method, params, client, originId, timeout);
       if ("error" in out && inst.upstream.sessionLost && attempt === 0) {
@@ -387,7 +376,7 @@ export class InstanceManager {
         if (this.instances.get(inst.key) === inst) this.instances.delete(inst.key);
         continue;
       }
-      return done(out);
+      return out;
     }
   }
 

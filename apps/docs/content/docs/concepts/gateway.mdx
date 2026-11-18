@@ -43,6 +43,7 @@ scope = "shared"                     # one process for every session
 - **Cancels a call upstream** when the client cancels it or goes away, so an interrupted tool does not keep the server alive.
 - **Backs off a server that fails to start**: after 3 failed starts in a row it answers at once with the last lines of the server's log, and retries with a growing delay.
 - **Reloads `mcp.toml` when it changes**, and tells open sessions when what they see changed.
+- **Sends every tool call through one pipeline**: the profile's tool filter, then the call log, then a session id. Each relayed call carries `_meta["io.turno/session"]`, an opaque id that is the same for every call of one agent session and different for every other, so a shared server can tell sessions apart.
 
 It speaks MCP 2025-11-25 and 2026-07-28 on the same endpoint.
 

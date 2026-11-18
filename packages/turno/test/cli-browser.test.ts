@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BENCH_PROMPT, type BrowserDeps, type BrowserModule, NOT_INSTALLED, browserCommand, command as browser } from "../src/cli/commands/browser.js";
+import { BENCH_PROMPT, type BrowserDeps, type BrowserApi, NOT_INSTALLED, browserCommand, command as browser } from "../src/cli/commands/browser.js";
 import { command as identity, setBrowserDeps } from "../src/cli/commands/identity.js";
 import { fakeIo } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -16,29 +16,34 @@ interface Calls {
   login: unknown[];
 }
 
-function fakeModule(calls: Calls): BrowserModule {
-  return {
+/** A fake of the parts of turno-browser's API these commands call; the rest are never reached. */
+function fakeModule(calls: Calls): BrowserApi {
+  const fake = {
     ENGINES: ["engine-a", "engine-b"],
+    engineId: (name: string) => (["engine-a", "engine-b"].includes(name) ? name : undefined),
+    inUseBy: () => undefined,
+    identitySettingsPath: (id: string) => `/x/${id}.json`,
     listIdentities: () => [],
-    addIdentity: (id) => {
+    addIdentity: (id: string) => {
       calls.added.push(id);
       return { id, dir: `/x/${id}`, inUse: false };
     },
     removeIdentity: () => undefined,
     isInUse: () => false,
-    assertIdentityId: (id) => {
+    assertIdentityId: (id: string) => {
       if (!/^[a-z0-9][a-z0-9_-]*$/.test(id)) throw new Error(`invalid identity id "${id}"`);
     },
-    manifestSnippet: (id) => `[server.browser-${id}]\n`,
-    loginIdentity: async (id, options) => {
+    manifestSnippet: (id: string) => `[server.browser-${id}]\n`,
+    loginIdentity: async (id: string, options: { url?: string }) => {
       calls.login.push({ id, url: options.url });
     },
-    runBench: async (options) => {
+    runBench: async (options: unknown) => {
       calls.bench.push(options);
       return { version: 1, results: [] };
     },
     formatBenchTable: () => "TABLE",
   };
+  return fake as unknown as BrowserApi;
 }
 
 function setup(over: Partial<BrowserDeps> = {}, answer = false) {
@@ -140,7 +145,7 @@ describe("turno browser", () => {
 
   it("passes an engine's current id when the package knows an older name for it", async () => {
     const calls: Calls = { bench: [], added: [], login: [] };
-    const mod: BrowserModule = { ...fakeModule(calls), engineId: (name) => ({ "engine-a": "engine-a", "old-a": "engine-a" })[name] };
+    const mod = { ...fakeModule(calls), engineId: (name: string) => ({ "engine-a": "engine-a", "old-a": "engine-a" })[name] } as unknown as BrowserApi;
     const cmd = browserCommand({ load: async () => mod, interactive: () => false, confirm: async () => false });
     expect(await cmd.run(["bench", "--engine", "old-a", "--yes"], fakeIo(sb.env))).toBe(0);
     expect(calls.bench[0]).toMatchObject({ engines: ["engine-a"] });

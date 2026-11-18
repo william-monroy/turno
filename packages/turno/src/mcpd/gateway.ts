@@ -4,15 +4,16 @@ import { isAbsolute } from "node:path";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
 import type { ProjectRule } from "../core/config.js";
-import { type Manifest, type ToolFilter, filtersTools, servesProfile, toolAllowed, toolFilterFor } from "../core/manifest.js";
+import { type Manifest, type ToolFilter, servesProfile, toolAllowed } from "../core/manifest.js";
 import { tildify } from "../core/paths.js";
 import { folderMcpSet, mcpSetAllows } from "../core/resolve.js";
 import type { ServerDescription } from "./cache.js";
-import { cleanAgentName } from "./calllog.js";
+import { type CallEvent, cleanAgentName } from "./calllog.js";
 import type { ClientNames } from "./client-names.js";
 import { folderRoots } from "./folder-sets.js";
 import { type ClientContext, type ClientHandle, type InstanceManager, isDirectory, processCwd, projectRoot, scopeOf } from "./instances.js";
 import { ErrorCode, type Id, type Message, type Outcome, isNotification, isRequest, isResponse, rpcError, toResponse } from "./jsonrpc.js";
+import { type CallPipeline, type CallStage, createCallPipeline, toolFilterOf } from "./middleware.js";
 import { StatelessFront, isInitialize, readJsonBody, wantsModern } from "./modern.js";
 import { tokenProfile } from "./tokens.js";
 
@@ -39,6 +40,10 @@ export interface GatewayOptions {
   home?: string;
   /** Client names by PID, so sessions rebuilt after a restart keep their agent's name. */
   clientNames?: ClientNames;
+  /** Where tool call events go while the call log is on (ADR 0026); read per call. */
+  callLog?: () => ((event: CallEvent) => void) | undefined;
+  /** Opt-in stages of the call middleware (ADR 0047), in order; none by default. */
+  callStages?: readonly CallStage[];
 }
 
 const DEFAULT_MAX_REQUEST_BODY = 32 * 1024 * 1024;
@@ -270,12 +275,9 @@ class ClientSession implements ClientHandle {
         return;
       }
       if (method === "tools/call") {
-        const filter = this.gw.toolFilter(this.ctx);
-        const tool = typeof m.params?.name === "string" ? m.params.name : "";
-        if (filter && !toolAllowed(filter, tool)) {
-          this.reply(id, rpcError(ErrorCode.InvalidParams, `tool ${tool} of ${this.ctx.serverName} is not available to profile ${this.ctx.profile ?? "default"} (tools.allow / tools.deny in mcp.toml)`));
-          return;
-        }
+        // The call middleware (ADR 0047): tool filter, call log, session id, then the relay.
+        this.reply(id, await this.gw.calls.call(this, m.params ?? {}, id, () => state.cancelled));
+        return;
       }
       if (method === "logging/setLevel" && !manager.existing(this)) {
         this.reply(id, { result: {} });
@@ -325,6 +327,8 @@ class ClientSession implements ClientHandle {
  */
 export class Gateway {
   readonly manager: InstanceManager;
+  /** Every tools/call of both protocol paths goes through it (ADR 0047). */
+  readonly calls: CallPipeline;
   readonly clientRequestTimeoutMs: number;
   private sessions = new Map<string, ClientSession>();
   private recreating = new Map<string, Promise<ClientSession | undefined>>();
@@ -336,8 +340,15 @@ export class Gateway {
     this.manager = opts.manager;
     this.manager.useManifest(opts.manifest);
     this.clientRequestTimeoutMs = opts.clientRequestTimeoutMs ?? 10 * 60_000;
+    this.calls = createCallPipeline({
+      manager: this.manager,
+      manifest: opts.manifest,
+      ...(opts.callLog ? { callLog: opts.callLog } : {}),
+      ...(opts.callStages ? { stages: opts.callStages } : {}),
+    });
     this.front = new StatelessFront({
       manager: this.manager,
+      calls: this.calls,
       toolFilter: (ctx) => this.toolFilter(ctx),
       context: (req, name, profile) => this.sessionContext(req, name, profile),
       capabilities: announcedCapabilities,
@@ -438,10 +449,7 @@ export class Gateway {
 
   /** The tool filter for a session, or undefined when its server filters nothing. */
   toolFilter(ctx: ClientContext): ToolFilter | undefined {
-    const server = this.opts.manifest().servers[ctx.serverName];
-    if (!server) return undefined;
-    const f = toolFilterFor(server, ctx.profile);
-    return filtersTools(f) ? f : undefined;
+    return toolFilterOf(this.opts.manifest(), ctx);
   }
 
   /**

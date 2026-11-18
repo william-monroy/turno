@@ -1,6 +1,8 @@
 import { fileURLToPath } from "node:url";
-import { assertIdentityId } from "./ids.js";
 
+export { API_VERSION, type ApiVersion, type BrowserApi, api } from "./api.js";
+export { SESSION_META_KEY } from "./session.js";
+export { manifestSnippet } from "./snippet.js";
 export {
   IdentityError,
   type IdentityInfo,
@@ -57,17 +59,3 @@ export function mcpBinPath(): string {
   return fileURLToPath(new URL("./bin/mcp.js", import.meta.url));
 }
 
-/** The mcp.toml block that serves one identity through mcpd (one session at a time). */
-export function manifestSnippet(id: string): string {
-  assertIdentityId(id);
-  return [
-    `[server.browser-${id}]`,
-    `command = "turno-browser-mcp"`,
-    `args = ["--identity", "${id}"]`,
-    `scope = "shared"`,
-    `exclusive = true`,
-    `lease = "10m"`,
-    `idle = "30m"`,
-    "",
-  ].join("\n");
-}

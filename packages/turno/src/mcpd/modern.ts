@@ -6,6 +6,7 @@ import type { ServerDescription } from "./cache.js";
 import { cleanAgentName } from "./calllog.js";
 import type { ClientContext, ClientHandle, InstanceManager } from "./instances.js";
 import { ErrorCode, type Id, type Message, type Outcome, rpcError } from "./jsonrpc.js";
+import type { CallPipeline } from "./middleware.js";
 
 /**
  * MCP revision 2026-07-28 on mcpd's HTTP endpoint (ADR 0028): stateless requests that carry
@@ -332,6 +333,9 @@ export class StatelessClient implements ClientHandle {
 
 export interface FrontOptions {
   manager: InstanceManager;
+  /** The call middleware every tools/call goes through (ADR 0047), the gateway's. */
+  calls: CallPipeline;
+  /** The tool filter of a client, for the lists (calls are filtered by the middleware). */
   toolFilter: (ctx: ClientContext) => ToolFilter | undefined;
   /** Identity and folder of a new client (the gateway's session context). */
   context: (req: IncomingMessage, name: string, profile: string) => Promise<ClientContext>;
@@ -561,12 +565,9 @@ export class StatelessFront {
   private async forward(req: IncomingMessage, res: ServerResponse, id: Id, method: string, params: Json, meta: Json, client: StatelessClient): Promise<void> {
     const manager = this.opts.manager;
     if (method === "tools/call") {
+      // The Mcp-Param-* headers are this revision's transport check, so they come before the
+      // call middleware (whose first stage is the tool filter).
       const tool = typeof params.name === "string" ? params.name : "";
-      const filter = this.opts.toolFilter(client.ctx);
-      if (filter && !toolAllowed(filter, tool)) {
-        this.reply(res, id, method, rpcError(ErrorCode.InvalidParams, `tool ${tool} of ${client.ctx.serverName} is not available to profile ${client.ctx.profile ?? "default"} (tools.allow / tools.deny in mcp.toml)`));
-        return;
-      }
       const d = await manager.describe(client);
       const def = (d.tools ?? []).find((t) => isObject(t) && t.name === tool);
       const problem = def ? paramHeaderProblem(def, params.arguments, req.headers) : undefined;
@@ -599,7 +600,7 @@ export class StatelessFront {
     });
     let outcome: Outcome;
     try {
-      outcome = await manager.forward(client, method, upParams, internal, () => closed);
+      outcome = method === "tools/call" ? await this.opts.calls.call(client, upParams, internal, () => closed) : await manager.forward(client, method, upParams, internal, () => closed);
     } finally {
       settled = true;
       client.calls.delete(internal);

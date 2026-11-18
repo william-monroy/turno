@@ -256,6 +256,11 @@ Each identity also has (ADR 0044):
   the site's host name only. `turno browser reputation [<id>]` shows the counts per site and
   whether they go up or down.
 
+turno-browser and turno-cli are installed apart. When `turno browser` or `turno identity`
+loads turno-browser it compares the package's `API_VERSION` with the one it was built for, and
+a package that is too old or too new stops the command with one line naming what to update
+(`npm install --global turno-browser@latest`, or `turno upgrade`).
+
 `turno browser doctor` checks Chrome, a test launch and every identity (settings, who holds it,
 sign-in, recent challenges) and names the fix for each problem; `--fix` clears stale locks and a
 Chrome left running with no server.
@@ -307,6 +312,22 @@ stays in the secret store, and `tools` filters and folder server sets apply to i
   2026-07-28 clients see the change when their list results expire.
 - Drops a call that the client cancels while its server is still starting, instead of sending
   it once the server is up.
+- Sends every `tools/call`, from both protocol revisions, through one call middleware before
+  relaying it: the profile's tool filter (`tools.allow` / `tools.deny`), then the call log, then
+  the session id below. See [ADR 0047](decisions/0047-cross-package-contracts.md).
+
+### The session id in `_meta`
+
+Every `tools/call` mcpd relays carries `_meta["io.turno/session"]`: an opaque id (a UUID) that
+is the same for every call of one agent session on one server and different for every other
+session. A 2025-11-25 session gets one per `Mcp-Session-Id`; a 2026-07-28 client gets one per
+profile, client process and folder. The id is not the `Mcp-Session-Id` and says nothing about
+the agent; a new one is made after mcpd restarts. A value the client sent under the same key is
+replaced, and every other `_meta` key (`progressToken` included) passes through unchanged.
+
+A server can use it to tell agent sessions apart on a shared instance and ignore it otherwise.
+`turno-browser-mcp` reads it and gives it to its own tools (`session` in their context, for the
+per-tab locks to come); its Playwright tools are unaffected.
 
 `POST /refresh/<server>` (or `POST /refresh` for all servers) on the gateway, with the master
 token, relists running instances and forgets the cached description of the others, without a

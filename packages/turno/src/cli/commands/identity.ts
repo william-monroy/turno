@@ -10,7 +10,7 @@ import { type Io, fail } from "../io.js";
 import { profileColor, style } from "../style.js";
 import * as accounts from "./accounts.js";
 import { policyLine } from "./accounts.js";
-import { type BrowserDeps, type BrowserModule, NOT_INSTALLED, defaultDeps, dispatch } from "./browser.js";
+import { type BrowserDeps, type BrowserApi, NOT_INSTALLED, defaultDeps, dispatch } from "./browser.js";
 import { SETTINGS_FLAGS, SETTINGS_FLAG_NAMES, SHOW_JSON } from "./browser-identity.js";
 
 /**
@@ -22,7 +22,7 @@ const BROWSER = "browser:";
 
 let deps: BrowserDeps = defaultDeps;
 
-async function browserModule(io: Io): Promise<BrowserModule> {
+async function browserModule(io: Io): Promise<BrowserApi> {
   const mod = await deps.load(io);
   if (!mod) {
     io.err(`turno: ${NOT_INSTALLED}`);

@@ -10,8 +10,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type Manifest, parseManifest } from "../src/core/manifest.js";
 import { DescriptionCache } from "../src/mcpd/cache.js";
 import { DefaultConnector } from "../src/mcpd/connectors.js";
-import { Gateway } from "../src/mcpd/gateway.js";
+import type { CallEvent } from "../src/mcpd/calllog.js";
+import { Gateway, type GatewayOptions } from "../src/mcpd/gateway.js";
 import { InstanceManager } from "../src/mcpd/instances.js";
+import { ErrorCode } from "../src/mcpd/jsonrpc.js";
+import { type CallStage, SESSION_META } from "../src/mcpd/middleware.js";
 import { MODERN_PROTOCOL_VERSION, StatelessClient, decodeHeaderValue, modernErrorCode, paramHeaderProblem, readJsonBody } from "../src/mcpd/modern.js";
 import { profileToken } from "../src/mcpd/tokens.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -37,7 +40,7 @@ function fixtureToml(name: string, extra = ""): string {
   return `[server.${name}]\ncommand = ${JSON.stringify(process.execPath)}\nargs = [${JSON.stringify(FIXTURE)}]\nenv = ${env}\n${extra}\n`;
 }
 
-async function boot(toml: string): Promise<void> {
+async function boot(toml: string, extra: Partial<GatewayOptions> = {}): Promise<void> {
   manifest = parseManifest(toml);
   skew = 0;
   manager = new InstanceManager({
@@ -51,7 +54,7 @@ async function boot(toml: string): Promise<void> {
     }),
     home: sb.home,
   });
-  gw = new Gateway({ manager, manifest: () => manifest, token: TOKEN, clientRequestTimeoutMs: 5000, processCwd: async () => undefined });
+  gw = new Gateway({ manager, manifest: () => manifest, token: TOKEN, clientRequestTimeoutMs: 5000, processCwd: async () => undefined, ...extra });
   port = await gw.listen(0);
 }
 
@@ -460,6 +463,70 @@ describe("MCP 2026-07-28 (stateless) requests", () => {
     gw?.pruneSessions((pid) => pid !== process.pid);
     const after = await rpc("fx", "tools/call", { name: "counter", arguments: {} }, { headers: { "X-Turno-Pid": String(other.pid) } });
     expect(after.last.result.content[0].text).toBe("3");
+  });
+});
+
+describe("the call middleware on both protocol paths (ADR 0047)", () => {
+  /** A test-only stage: records the tool of every call that reaches it. */
+  const probe = (seen: string[]): CallStage => ({ name: "test-probe", run: (call, next) => (seen.push(call.tool), next(call)) });
+  const metaOf = (text: string) => JSON.parse(text) as Record<string, unknown> | null;
+
+  it("sends every tools/call through one pipeline: filter first, then the opt-in stages, the call log and the session id", async () => {
+    const seen: string[] = [];
+    const logged: CallEvent[] = [];
+    await boot(fixtureToml("fx", 'tools = { deny = ["hang"] }'), { callStages: [probe(seen)], callLog: () => (e) => logged.push(e) });
+    expect(gw?.calls.names()).toEqual(["filter", "test-probe", "calllog", "session"]);
+
+    const old = await connectLegacy("fx");
+    await old.callTool({ name: "echo", arguments: { text: "a" } });
+    await expect(old.callTool({ name: "hang", arguments: {} })).rejects.toThrow(/tool hang of fx is not available to profile default \(tools.allow \/ tools.deny in mcp.toml\)/);
+    expect((await rpc("fx", "tools/call", { name: "echo", arguments: { text: "b" } })).last.result.content[0].text).toBe("b");
+    const refused = await rpc("fx", "tools/call", { name: "hang", arguments: {} });
+    expect(refused.last.error).toMatchObject({ code: ErrorCode.InvalidParams, message: expect.stringMatching(/not available to profile default/) });
+
+    expect(seen).toEqual(["echo", "echo"]);
+    expect(logged.map((e) => [e.method, e.params?.name, e.variant])).toEqual([
+      ["tools/call", "echo", "default"],
+      ["tools/call", "echo", "default"],
+    ]);
+    // The call log keeps the arguments as the client sent them, without the session id.
+    expect(logged.every((e) => !JSON.stringify(e.params).includes(SESSION_META))).toBe(true);
+    // Other methods do not go through it.
+    await old.listTools();
+    await rpc("fx", "tools/list");
+    expect(seen).toHaveLength(2);
+  });
+
+  it("puts one stable id per client session in _meta for the server, on both paths", async () => {
+    await boot(fixtureToml("fx"));
+    const a = await connectLegacy("fx");
+    const b = await connectLegacy("fx");
+    const callMeta = async (c: Client, meta?: Record<string, unknown>) =>
+      metaOf(((await c.callTool({ name: "meta", arguments: {}, ...(meta ? { _meta: meta } : {}) })) as { content: { text: string }[] }).content[0]!.text);
+    const a1 = await callMeta(a);
+    const a2 = await callMeta(a, { [SESSION_META]: "forged", progressToken: "p1" });
+    const b1 = await callMeta(b);
+    const id = a1?.[SESSION_META];
+    expect(id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(a2?.[SESSION_META]).toBe(id);
+    expect(a2).toHaveProperty("progressToken");
+    expect(b1?.[SESSION_META]).not.toBe(id);
+    // Not the Mcp-Session-Id of either session.
+    const sessionIds = [(a as unknown as { transport: { sessionId?: string } }).transport.sessionId, (b as unknown as { transport: { sessionId?: string } }).transport.sessionId];
+    expect(sessionIds).not.toContain(id);
+
+    const modern = async (pid: number) => metaOf((await rpc("fx", "tools/call", { name: "meta", arguments: {} }, { headers: { "X-Turno-Pid": String(pid) } })).last.result.content[0].text);
+    const m1 = await modern(process.pid);
+    const m2 = await modern(process.pid);
+    const other = spawn("sleep", ["30"]);
+    children.push(other);
+    const m3 = await modern(other.pid!);
+    expect(m1?.[SESSION_META]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(m2?.[SESSION_META]).toBe(m1?.[SESSION_META]);
+    expect(m3?.[SESSION_META]).not.toBe(m1?.[SESSION_META]);
+    expect([id, b1?.[SESSION_META]]).not.toContain(m1?.[SESSION_META]);
+    // The protocol fields of 2026-07-28 stay in mcpd; only turno's key reaches the server.
+    expect(Object.keys(m1 ?? {})).toEqual([SESSION_META]);
   });
 });
 

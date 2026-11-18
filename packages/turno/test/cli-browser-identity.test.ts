@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type BrowserDeps, type BrowserModule, browserCommand } from "../src/cli/commands/browser.js";
+import { BROWSER_API, type BrowserApi, type BrowserDeps, browserCommand, loadBrowser } from "../src/cli/commands/browser.js";
 import { command as identity, setBrowserDeps } from "../src/cli/commands/identity.js";
 import { fakeIo } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -22,9 +22,9 @@ afterEach(() => {
   sb.cleanup();
 });
 
-const real = async () => (await import("turno-browser")) as unknown as BrowserModule;
+const real = async (): Promise<BrowserApi> => (await import("turno-browser")).api;
 
-function deps(load: () => Promise<BrowserModule | undefined>): BrowserDeps {
+function deps(load: () => Promise<BrowserApi | undefined>): BrowserDeps {
   return { load, interactive: () => false, confirm: async () => false };
 }
 
@@ -80,15 +80,22 @@ describe("turno identity add/show/set for browser identities", () => {
     expect(readFileSync(settingsFile("school"), "utf8")).toBe(before);
   });
 
-  it("asks for a newer turno-browser when the installed one has no identity settings", async () => {
-    const old = { ...(await real()) } as Partial<BrowserModule>;
-    delete old.checkIdentitySettings;
-    delete old.writeIdentitySettings;
-    delete old.identitySettingsPath;
-    prev = setBrowserDeps(deps(async () => old as BrowserModule));
-    await identity.run(["add", "browser:school"], fakeIo(sb.env));
-    await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow("this needs turno-browser 0.3 or later: npm install --global turno-browser");
-    await expect(identity.run(["add", "browser:bank", "--timezone", "UTC"], fakeIo(sb.env))).rejects.toThrow(/turno-browser 0\.3 or later/);
+  it("refuses an installed turno-browser whose API_VERSION does not fit, with one message", async () => {
+    const pkg = await import("turno-browser");
+    const old = { ...pkg, API_VERSION: undefined };
+    const newer = { ...pkg, API_VERSION: { major: pkg.API_VERSION.major + 1, minor: 0 } };
+    prev = setBrowserDeps(deps(() => loadBrowser({ importer: async () => old })));
+    await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(
+      "turno-browser is too old for this turno (it has no API_VERSION, this turno needs 1.0 or a later 1.x); update it: npm install --global turno-browser@latest",
+    );
+    setBrowserDeps(deps(() => loadBrowser({ importer: async () => newer })));
+    await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(/^turno-browser is too new for this turno \(its API is 2\.0, this turno speaks 1\.x\); update turno: turno upgrade$/);
+  });
+
+  it("is built against the API_VERSION of the workspace turno-browser", async () => {
+    const pkg = await import("turno-browser");
+    expect(BROWSER_API).toEqual(pkg.API_VERSION);
+    expect(await loadBrowser()).toBe(pkg.api);
   });
 });
 
@@ -101,13 +108,13 @@ describe("turno browser doctor", () => {
     { area: "identity bank", level: "fail", text: "NEEDS_AUTH: not signed in at https://bank.example.com/", fix: "turno browser login bank" },
   ] as const;
 
-  function doctorModule(seen: unknown[]): BrowserModule {
+  function doctorModule(seen: unknown[]): BrowserApi {
     return {
       runDoctor: async (o: unknown) => {
         seen.push(o);
         return { checks: checks.map((c) => ({ ...c })), fixed: [] };
       },
-    } as unknown as BrowserModule;
+    } as unknown as BrowserApi;
   }
 
   it("prints sections, fix lines and counts, and exits 1 on a failure", async () => {
