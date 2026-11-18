@@ -105,7 +105,8 @@ describe.skipIf(reason !== undefined)(reason ? `browser tools on real Chrome (sk
   it("closes a popup that opens after the tool call ended, and keeps the window a click opened", async () => {
     const web = await site();
     onTestFinished(() => web.close());
-    const client = await start("popups");
+    // New windows can take seconds on CI runners: give the clicks that open one time.
+    const client = await start("popups", ["--timeout-action", "20000"]);
     await call(client, "browser_navigate", { url: `${web.url}/link` });
     const opened = await call(client, "browser_click", { target: "a", element: "Open B link" });
     expect(opened).toMatch(/^- 1: /m);
@@ -114,7 +115,7 @@ describe.skipIf(reason !== undefined)(reason ? `browser tools on real Chrome (sk
     await call(client, "browser_click", { target: "button", element: "Download button" });
     const ended = Date.now();
     // Wait for the popup's request without a tool call (a call would make it the agent's).
-    const deadline = ended + 15_000;
+    const deadline = ended + 30_000;
     while (!web.requested.has("/plain?ad") && Date.now() < deadline) await sleep(100);
     const at = web.requested.get("/plain?ad");
     expect(at, "the page opened its popup").toBeDefined();
@@ -129,7 +130,7 @@ describe.skipIf(reason !== undefined)(reason ? `browser tools on real Chrome (sk
       // agent's and stays.
       expect(list).toContain("?ad");
     }
-  }, 60_000);
+  }, 120_000);
 
   it("keeps at most --max-tabs pages, closing the least recently used", async () => {
     const web = await site();
@@ -180,9 +181,9 @@ describe.skipIf(reason !== undefined)(reason ? `browser tools on real Chrome (sk
     await call(client, "browser_tabs", { action: "select", index: 0 });
     const state = await call(client, "browser_evaluate", { function: "() => JSON.stringify(document.documentElement.dataset)" });
     // Focus emulation keeps it visible, and its timers at full speed: about 200 ticks a second
-    // locally, 40 and up on CI runners.
+    // locally, 18 and up on slow CI runners (throttled it is 1 or 2).
     expect(state).not.toContain("hidden");
-    expect(Number(/rate\\":\\"(\d+)/.exec(state)?.[1])).toBeGreaterThan(20);
+    expect(Number(/rate\\":\\"(\d+)/.exec(state)?.[1])).toBeGreaterThan(10);
   }, 60_000);
 
   it("with --background-throttling, slows a tab in the background and still acts at once on the current tab", async () => {

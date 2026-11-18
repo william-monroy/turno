@@ -152,7 +152,9 @@ describe.skipIf(reason !== undefined)(reason ? `real Chrome (skipped: ${reason})
     process.kill(r.pid, "SIGKILL");
     const next = await start("killed");
     await navigate(next);
-    expect(alive(pid)).toBe(false);
+    // The old Chrome was signalled before the new one started; on a busy runner its exit can
+    // still be on its way.
+    expect(await waitFor(() => !alive(pid), 5_000)).toBe(true);
     expect(chromePid("killed")).not.toBe(pid);
   }, 60_000);
 
@@ -169,7 +171,9 @@ describe.skipIf(reason !== undefined)(reason ? `real Chrome (skipped: ${reason})
 
     const next = await start("orphan");
     await navigate(next);
-    expect(alive(pid)).toBe(false);
+    // The old Chrome was signalled before the new one started; on a busy runner its exit can
+    // still be on its way.
+    expect(await waitFor(() => !alive(pid), 5_000)).toBe(true);
     expect(sandboxProcesses(sb.home).filter((p) => p.pgid === pid)).toEqual([]);
     expect(next.stderr()).toMatch(new RegExp(`closed a Chrome .*pid ${pid}`));
   }, 60_000);
