@@ -13,7 +13,7 @@ const BENCH_JSON = jsonOutput(["version", "startedAt", "finishedAt", "engines", 
 const IDENTITIES_JSON = jsonOutput(["id", "inUse", "dir"]);
 
 /**
- * turno-browser's public API (ADR 0046). The types come from the package with `import type`,
+ * turno-browser's public API (ADR 0047). The types come from the package with `import type`,
  * which the build erases: turno-browser stays an optional package, loaded at run time.
  */
 export type { BrowserApi };

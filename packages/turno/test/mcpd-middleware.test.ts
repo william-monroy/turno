@@ -6,7 +6,7 @@ import { ErrorCode, type Outcome } from "../src/mcpd/jsonrpc.js";
 import { type CallStage, CallPipeline, SESSION_META, type ToolCall, createCallPipeline } from "../src/mcpd/middleware.js";
 
 /**
- * The call middleware (ADR 0046): every tools/call of both protocol paths goes through one
+ * The call middleware (ADR 0047): every tools/call of both protocol paths goes through one
  * pipeline before the instance manager relays it. Here with a fake relay; the gateway tests
  * (mcpd-protocol.test.ts) run it end to end on both paths.
  */

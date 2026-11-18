@@ -42,7 +42,7 @@ export interface GatewayOptions {
   clientNames?: ClientNames;
   /** Where tool call events go while the call log is on (ADR 0026); read per call. */
   callLog?: () => ((event: CallEvent) => void) | undefined;
-  /** Opt-in stages of the call middleware (ADR 0046), in order; none by default. */
+  /** Opt-in stages of the call middleware (ADR 0047), in order; none by default. */
   callStages?: readonly CallStage[];
 }
 
@@ -275,7 +275,7 @@ class ClientSession implements ClientHandle {
         return;
       }
       if (method === "tools/call") {
-        // The call middleware (ADR 0046): tool filter, call log, session id, then the relay.
+        // The call middleware (ADR 0047): tool filter, call log, session id, then the relay.
         this.reply(id, await this.gw.calls.call(this, m.params ?? {}, id, () => state.cancelled));
         return;
       }
@@ -327,7 +327,7 @@ class ClientSession implements ClientHandle {
  */
 export class Gateway {
   readonly manager: InstanceManager;
-  /** Every tools/call of both protocol paths goes through it (ADR 0046). */
+  /** Every tools/call of both protocol paths goes through it (ADR 0047). */
   readonly calls: CallPipeline;
   readonly clientRequestTimeoutMs: number;
   private sessions = new Map<string, ClientSession>();

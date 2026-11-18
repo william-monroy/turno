@@ -333,7 +333,7 @@ export class StatelessClient implements ClientHandle {
 
 export interface FrontOptions {
   manager: InstanceManager;
-  /** The call middleware every tools/call goes through (ADR 0046), the gateway's. */
+  /** The call middleware every tools/call goes through (ADR 0047), the gateway's. */
   calls: CallPipeline;
   /** The tool filter of a client, for the lists (calls are filtered by the middleware). */
   toolFilter: (ctx: ClientContext) => ToolFilter | undefined;

@@ -314,7 +314,7 @@ stays in the secret store, and `tools` filters and folder server sets apply to i
   it once the server is up.
 - Sends every `tools/call`, from both protocol revisions, through one call middleware before
   relaying it: the profile's tool filter (`tools.allow` / `tools.deny`), then the call log, then
-  the session id below. See [ADR 0046](decisions/0046-cross-package-contracts.md).
+  the session id below. See [ADR 0047](decisions/0047-cross-package-contracts.md).
 
 ### The session id in `_meta`
 

@@ -149,7 +149,7 @@ Last updated: 2026-11-17.
   small guards and format versions for turno's state files; `loadOptional` for turno-browser and
   a future turno-tui; `turno help environment` and `json`, examples in every help, `CLICOLOR`,
   `CLICOLOR_FORCE`, `TERM=dumb` and `TURNO_NO_UPDATE_NOTIFIER`.
-- **Wave 7, stage 3: cross-package contracts** (ADR 0046): turno-browser exports a typed `api`
+- **Wave 7, stage 3: cross-package contracts** (ADR 0047): turno-browser exports a typed `api`
   object and `API_VERSION`, which the CLI types with `import type` (the hand-typed
   `BrowserModule` is gone) and checks at load, with one message for a package that is too old or
   too new; one call middleware in mcpd for every `tools/call` of both protocol paths (tool

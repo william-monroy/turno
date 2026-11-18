@@ -16,7 +16,7 @@ export const REPUTATION_JSON = jsonOutput(["id", "file", "total", "sites"]);
 /**
  * The identity module of turno-browser in the CLI (ADR 0044): identity.json (`show`, `set`, the
  * settings flags of `add`), `turno browser doctor` and `turno browser reputation`. The types
- * come from the package itself (`import type`, ADR 0046); `loadBrowser` refuses a package whose
+ * come from the package itself (`import type`, ADR 0047); `loadBrowser` refuses a package whose
  * API_VERSION does not fit, so every function used here is there.
  */
 type IdentitySettings = NonNullable<ReturnType<BrowserApi["checkIdentitySettings"]>["settings"]>;

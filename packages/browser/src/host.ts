@@ -198,7 +198,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
   }
 
   /**
-   * `session` is the client session mcpd put in the call's `_meta` (ADR 0046). Only turno tools
+   * `session` is the client session mcpd put in the call's `_meta` (ADR 0047). Only turno tools
    * see it; stock tools run exactly as before. Upstream's HTTP server (`--port`) never passes it.
    */
   async callTool(name: string, args: Record<string, unknown>, signal?: AbortSignal, session?: string): Promise<ToolResult> {

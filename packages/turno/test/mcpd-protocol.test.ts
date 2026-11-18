@@ -466,7 +466,7 @@ describe("MCP 2026-07-28 (stateless) requests", () => {
   });
 });
 
-describe("the call middleware on both protocol paths (ADR 0046)", () => {
+describe("the call middleware on both protocol paths (ADR 0047)", () => {
   /** A test-only stage: records the tool of every call that reaches it. */
   const probe = (seen: string[]): CallStage => ({ name: "test-probe", run: (call, next) => (seen.push(call.tool), next(call)) });
   const metaOf = (text: string) => JSON.parse(text) as Record<string, unknown> | null;

@@ -20,7 +20,7 @@ export const OPTIONAL = {
 } as const satisfies Record<string, OptionalPackage>;
 
 /**
- * The version of an optional package's API (ADR 0046): `minor` grows when something is added,
+ * The version of an optional package's API (ADR 0047): `minor` grows when something is added,
  * `major` when something is removed or changes. The package exports it as `API_VERSION`.
  */
 export interface ApiVersion {

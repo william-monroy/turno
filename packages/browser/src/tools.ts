@@ -22,7 +22,7 @@ interface TurnoToolContext {
   browserContext?: BrowserContext;
   signal?: AbortSignal;
   /**
-   * The client session mcpd relays this call for (`_meta["io.turno/session"]`, ADR 0046): an
+   * The client session mcpd relays this call for (`_meta["io.turno/session"]`, ADR 0047): an
    * opaque id, the same for every call of one agent session and different for every other.
    * Undefined when the call did not come through mcpd.
    */

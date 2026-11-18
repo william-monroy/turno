@@ -6,7 +6,7 @@ import type { ClientContext, ClientHandle, InstanceManager } from "./instances.j
 import { ErrorCode, type Id, type Outcome, rpcError } from "./jsonrpc.js";
 
 /**
- * The call middleware (ADR 0046). Every `tools/call` mcpd relays, from a 2025-11-25 session
+ * The call middleware (ADR 0047). Every `tools/call` mcpd relays, from a 2025-11-25 session
  * (gateway.ts) or a 2026-07-28 stateless request (modern.ts), goes through one pipeline of
  * named stages before `InstanceManager.forward`:
  *

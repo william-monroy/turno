@@ -353,7 +353,7 @@ export class InstanceManager {
    * says whether the client cancelled the request while the instance was still starting: the
    * upstream has no call to cancel yet, so the request is dropped here instead of sent.
    * `onVariant` learns the variant of the instance that serves it (the call log's, ADR 0026).
-   * A tools/call comes here through the call middleware (middleware.ts, ADR 0046), never directly.
+   * A tools/call comes here through the call middleware (middleware.ts, ADR 0047), never directly.
    */
   async forward(
     client: ClientHandle,

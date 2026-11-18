@@ -1,4 +1,4 @@
-# 0046. Cross-package contracts: a versioned browser API, one call middleware, a session id in `_meta`
+# 0047. Cross-package contracts: a versioned browser API, one call middleware, a session id in `_meta`
 
 Date: 2026-11-17. Status: accepted. Stage 3 of the wave 7 architecture review; builds on
 ADR 0019 (turno-browser is optional), ADR 0023 (tool filters), ADR 0026 (call log), ADR 0043
