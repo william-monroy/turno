@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+
 import { writeFileSync } from "node:fs";
 import { type Server, createServer } from "node:http";
 import { readdirSync, statSync } from "node:fs";
@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { POPUP_GRACE_MS } from "../src/governor.js";
 import { identityStateDir } from "../src/ids.js";
 import { writeIdentitySettings } from "../src/settings.js";
@@ -27,10 +27,6 @@ const pkg = fileURLToPath(new URL("..", import.meta.url));
 const bin = join(pkg, "dist", "bin", "mcp.js");
 const reason = chromeUnavailable();
 
-beforeAll(() => {
-  if (reason) return;
-  execFileSync(join(pkg, "node_modules", ".bin", "tsc"), ["-p", "tsconfig.build.json"], { cwd: pkg, stdio: "inherit" });
-}, 120_000);
 
 let sb: Sandbox;
 const running: StdioClientTransport[] = [];

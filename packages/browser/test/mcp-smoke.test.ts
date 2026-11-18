@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
@@ -16,9 +16,6 @@ import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 const pkg = fileURLToPath(new URL("..", import.meta.url));
 const bin = join(pkg, "dist", "bin", "mcp.js");
 
-beforeAll(() => {
-  execFileSync(join(pkg, "node_modules", ".bin", "tsc"), ["-p", "tsconfig.build.json"], { cwd: pkg, stdio: "inherit" });
-}, 120_000);
 
 let sb: Sandbox;
 beforeEach(() => {

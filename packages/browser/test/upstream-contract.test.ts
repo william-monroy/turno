@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { TUNING_FLAGS, buildArgv } from "../src/argv.js";
 import { mcpEntryPath } from "../src/patchright.js";
 import { TURNO_TOOLS, checkTurnoTools } from "../src/tools.js";
@@ -85,9 +85,6 @@ const TOOL_NAMES = [
   "browser_wait_for",
 ];
 
-beforeAll(() => {
-  execFileSync(join(pkg, "node_modules", ".bin", "tsc"), ["-p", "tsconfig.build.json"], { cwd: pkg, stdio: "inherit" });
-}, 120_000);
 
 let sb: Sandbox;
 beforeEach(() => {
