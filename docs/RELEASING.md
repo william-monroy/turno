@@ -1,6 +1,7 @@
 # Versions and releases
 
-turno follows semantic versioning per package (`turno`, `turno-browser`, `turno-fonts`).
+turno follows semantic versioning per package (`turno-cli`, `turno-browser`, `turno-core`,
+`turno-fonts`).
 Why this setup: [ADR 0007](decisions/0007-versions-and-updates.md) and, for the release
 pipeline, [ADR 0011](decisions/0011-release-pipeline-and-supply-chain.md).
 
@@ -50,7 +51,9 @@ to `main`, in four jobs:
    has no `id-token` and no secrets.
 3. **publish**: in the protected `npm` environment, downloads the tarballs, attests them
    (`actions/attest-build-provenance`) and runs `npm publish <tarball> --provenance` for each,
-   dependencies first. It does not check out the repository, install anything or use a cache,
+   dependencies first: `release-plan.mjs` lists a package after the workspace packages it
+   depends on (turno-core before turno-browser and turno-cli, ADR 0053), and the job stops at
+   the first failure, so a dependent is never published without its dependency. It does not check out the repository, install anything or use a cache,
    so no project or dependency code runs where the publish token lives.
 4. **tag**: creates the `name@version` git tags and GitHub releases, with the SBOM attached.
 
@@ -67,6 +70,36 @@ organization roles, and the namespace `io.github.wimo-dev` needs an organization
 `pnpm pack:check` runs the tarball check locally. Prereleases: `pnpm changeset pre enter next`,
 then releases go to the `next` dist-tag (`turno upgrade --channel next` follows them);
 `pnpm changeset pre exit` ends it.
+
+## A new package
+
+npmjs.com offers the trusted publisher settings only for a package that already exists, so the
+first version of a new package (turno-core, ADR 0053) is published by the owner, by hand, and
+the workflow takes over from the second. Until that is done, a release that includes the new
+package fails in the publish job at that package, before any package that depends on it.
+
+For turno-core, when the "chore(release): version packages" pull request first bumps it (to
+0.1.0), before merging that pull request:
+
+1. From a clean checkout of the pull request branch (`changeset-release/main`), signed in with
+   `npm login`:
+
+   ```sh
+   pnpm install --frozen-lockfile && pnpm build
+   cd packages/core && pnpm publish --access public --no-git-checks --provenance=false
+   ```
+
+   turno-core has no dependencies, so there is no shrinkwrap to write. This first version has
+   no provenance; every later one does.
+2. On npmjs.com, package `turno-core`, Settings:
+   - Trusted publisher: GitHub Actions, organization `wimo-dev`, repository `turno`, workflow
+     `release.yml`, environment `npm` (the same as the other packages).
+   - Publishing access: "Require two-factor authentication and disallow tokens".
+3. Check that it worked: `npm view turno-core@0.1.0 version`.
+4. Merge the pull request. The build job skips turno-core (already on npm) and the publish job
+   publishes turno-browser and turno-cli, whose shrinkwraps lock turno-core at 0.1.0.
+
+Releases after that need nothing by hand. The same steps apply to any other new package.
 
 ## Supply chain
 

@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { paths } from "./paths.js";
+import { browserPaths as paths } from "turno-core/paths";
 
 /**
  * Identity ids and where each identity lives. A browser identity is a persistent Chrome user

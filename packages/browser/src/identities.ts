@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readdirSync, readlinkSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { browserPaths as paths } from "turno-core/paths";
+import { pidAlive } from "turno-core/process";
 import { IdentityError, assertIdentityId, identityDir, identityStateDir, isValidIdentityId } from "./ids.js";
-import { paths } from "./paths.js";
 import { inUseMessage, readRuntimeLock, runtimeLockAlive } from "./runtime-lock.js";
 import { type SettingsPatch, identitySettingsPath, systemTimezone, writeIdentitySettings } from "./settings.js";
 
@@ -83,15 +84,6 @@ export function parseSingletonLock(target: string): number | undefined {
   if (!m) return undefined;
   const pid = Number(m[1]);
   return Number.isSafeInteger(pid) && pid > 0 ? pid : undefined;
-}
-
-function pidAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return (err as NodeJS.ErrnoException).code === "EPERM";
-  }
 }
 
 /** Who holds the identity right now (its runtime lock), as a message; undefined when nobody does. */

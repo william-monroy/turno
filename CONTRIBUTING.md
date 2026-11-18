@@ -34,12 +34,13 @@ real agents (a signed-in `claude`, Codex, Cursor) when they are installed; set
 `TURNO_SKIP_E2E=1` to skip them. The Cursor one needs the network, so `pnpm check` skips it and
 `pnpm test:e2e` runs it.
 
-The three packages:
+The four packages:
 
 | Package | Path | What |
 |---|---|---|
 | `turno` | `packages/turno` | the CLI, the MCP gateway (`mcpd`), the status line, the accounts bridge |
 | `turno-browser` | `packages/browser` | the persistent-profile browser MCP server (a separate package, not installed with `turno-cli`) |
+| `turno-core` | `packages/core` | what both share: paths, the secret store (Keychain, Secret Service), process helpers (ADR 0053); `pnpm build` builds it first |
 | `turno-fonts` | `packages/fonts` | the status line font (not installed with `turno-cli`: `turno ui install` downloads the same files and checks their SHA-256) |
 
 The documentation site is a fourth workspace project, `apps/docs` (private, never published):

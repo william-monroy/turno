@@ -161,6 +161,14 @@ Last updated: 2026-11-18.
   `turno <profile>` and `turno auto`, per agent through the adapter's `safeMode`; Copilot CLI
   and Cursor CLI gateway entries send the session folder header; `system = ""` reads as "no
   account" in status, which, sessions and the hub's gateway token.
+- **Wave 7, stage 5: turno-core** (ADR 0053): a new published package, `packages/core`, holds
+  the paths (HOME, XDG, `TURNO_*_DIR`, the browser's folders, private folders and files), the
+  secret store (Keychain, Secret Service; tests only ever see a fake one) and the
+  process helpers (`pidAlive`, signals, the process table with groups). turno-cli and
+  turno-browser depend on it with `workspace:*`; the browser's copies of the paths and
+  `pidAlive` are gone. The shrinkwrap locks the sibling at its exact version without
+  integrity, the release plan publishes it first, and its first version is published by hand
+  (RELEASING.md, "A new package").
 - **Export, import and hints** (ADR 0050): `turno mcp export` (mcp.toml with secrets by name
   only) and `turno mcp import <file>` (merges an export or another agent's config, keeping
   comments); `auth = "oauth"` for remotes that answer with an OAuth challenge on `--write`; Codex

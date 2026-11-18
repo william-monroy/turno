@@ -37,12 +37,5 @@ export function parseJsonObject(text: string, file: string): Record<string, unkn
   return v;
 }
 
-/** Whether a process is alive. EPERM means it exists but belongs to someone else. */
-export function pidAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return (err as NodeJS.ErrnoException).code === "EPERM";
-  }
-}
+/** Whether a process is alive; shared with turno-browser (ADR 0053). */
+export { pidAlive } from "turno-core/process";

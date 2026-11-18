@@ -53,7 +53,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
-    "smol-toml": "1.9.1"
+    "smol-toml": "1.9.1",
+    "turno-core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

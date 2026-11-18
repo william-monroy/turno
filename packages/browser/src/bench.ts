@@ -2,8 +2,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { browserPaths as paths } from "turno-core/paths";
 import { detectChallenge, parseRebrowser, parseSannysoft } from "./detectors.js";
-import { paths } from "./paths.js";
 import { resolveFrom } from "./patchright.js";
 
 /**

@@ -8,7 +8,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { FILE, collectGraph, inexactDependencies, installScripts, shrinkwrapProblems, shrinkwrapText } from "./shrinkwrap.mjs";
+import { FILE, collectGraph, inexactDependencies, installScripts, publishedManifest, shrinkwrapProblems, shrinkwrapText, workspaceVersions } from "./shrinkwrap.mjs";
 
 const root = new URL("..", import.meta.url).pathname;
 const MAX_BYTES = 20 * 1024 * 1024;
@@ -56,7 +56,9 @@ for (const dir of readdirSync(join(root, "packages"))) {
 process.exit(failed ? 1 : 0);
 
 /** Exact versions, zero install scripts, and a shrinkwrap that npm itself accepts. */
-function checkTree(cwd, pkg, packed) {
+function checkTree(cwd, source, packed) {
+  // What pnpm publishes: workspace:* dependencies (turno-core, ADR 0053) become exact versions.
+  const pkg = publishedManifest(source, workspaceVersions(cwd));
   for (const d of inexactDependencies(pkg)) fail(pkg.name, `${d} is not an exact version`);
   for (const s of installScripts(pkg, cwd)) fail(pkg.name, `runs an install script (${s})`);
   const hasDeps = Object.keys({ ...pkg.dependencies, ...pkg.optionalDependencies }).length > 0;

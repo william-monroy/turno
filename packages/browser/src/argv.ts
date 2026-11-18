@@ -1,8 +1,8 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { browserPaths as paths } from "turno-core/paths";
 import { assertIdentityId, identityDir } from "./identities.js";
-import { paths } from "./paths.js";
 import type { TuningFlags } from "./tuning.js";
 import { parseDuration } from "./units.js";
 

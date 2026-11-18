@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { browserPaths as paths } from "turno-core/paths";
 import { IdentityError, assertIdentityId } from "./ids.js";
-import { paths } from "./paths.js";
 import { parseDuration, parseSize } from "./units.js";
 
 /**
