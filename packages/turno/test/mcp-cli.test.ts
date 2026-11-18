@@ -83,7 +83,7 @@ describe("turno mcp flags", () => {
     const list = await run(["mcp", "list", "--json"]);
     expect(JSON.parse(list.out).map((s: { name: string }) => s.name)).toEqual(["calc", "docs"]);
     const doctor = await run(["mcp", "doctor", "--json"]);
-    expect(JSON.parse(doctor.out)).toEqual({ ok: true, plugins: [], direct: [] });
+    expect(JSON.parse(doctor.out)).toEqual({ schemaVersion: 1, ok: true, plugins: [], direct: [] });
     const config = await run(["mcp", "config", "--agent", "opencode", "--json"]);
     expect(JSON.parse(config.out).servers).toEqual(["calc"]);
   });

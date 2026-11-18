@@ -10,13 +10,14 @@ import { type StdioServer, type ToolFilter, loadManifest, parseManifest, servesP
 import { PRIVATE_DIR_MODE, PRIVATE_FILE_MODE, ensurePrivateDir, paths, tildify } from "../../core/paths.js";
 import { agentOf, listProfiles } from "../../core/profiles.js";
 import { liveSessions } from "../../core/sessions.js";
-import { DRY_RUN, FORCE, type FlagSpec, JSON_FLAG, bool, parseFlags, printJson, str } from "../args.js";
+import { DRY_RUN, FORCE, type FlagSpec, JSON_FLAG, bool, parseFlags, str } from "../args.js";
 import { type Sub, group } from "../group.js";
 import { highlightJson, highlightToml } from "../highlight.js";
 import { type Io, colors, fail, paint, plural } from "../io.js";
 import { duration, profileColor, style } from "../style.js";
-import { LOG_FLAGS, SAVINGS_FLAGS, TOP_FLAGS } from "./mcp-observe.js";
-import { LOGIN_FLAGS, LOGOUT_FLAGS, type LoginRow, describeLogin, oauthLogins } from "./mcp-oauth.js";
+import { emit, jsonOutput } from "../output.js";
+import { LOG_FLAGS, LOG_JSON, SAVINGS_FLAGS, SAVINGS_JSON, TOP_FLAGS, TOP_JSON } from "./mcp-observe.js";
+import { LOGIN_FLAGS, LOGIN_JSON, LOGOUT_FLAGS, type LoginRow, describeLogin, oauthLogins } from "./mcp-oauth.js";
 
 const run = promisify(execFile);
 
@@ -63,6 +64,29 @@ async function mcpdAnswers(env: NodeJS.ProcessEnv): Promise<boolean> {
 
 const LIST_FLAGS: FlagSpec = { ...JSON_FLAG };
 
+/** `turno mcp list --json`: one element per server; remote and stdio servers fill different fields (ADR 0045). */
+const LIST_JSON = jsonOutput([
+  "name",
+  "kind",
+  "url",
+  "proxy",
+  "auth",
+  "logins",
+  "command",
+  "scope",
+  "exclusive",
+  "idleSeconds",
+  "profiles",
+  "package",
+  "variants",
+  "tools",
+  "variantTools",
+]);
+/** `turno mcp config --json`. */
+const CONFIG_JSON = jsonOutput(["agent", "profile", "servers", "file", "notes", "text"]);
+/** `turno mcp doctor --json`. */
+const DOCTOR_JSON = jsonOutput(["ok", "plugins", "direct", "logins"]);
+
 /** "allow get_*, list_*, deny *_delete": a tool filter (ADR 0023) as text, or "" when it filters nothing. */
 function filterText(f: ToolFilter | undefined): string {
   if (!f) return "";
@@ -76,7 +100,7 @@ async function list(args: string[], io: Io): Promise<number> {
   const logins = await oauthLogins(io.env);
   const loginsOf = (name: string) => logins.filter((l) => l.server === name);
   if (bool(flags, "json")) {
-    printJson(io,
+    emit(io, flags, LIST_JSON,
       names.map((n) => {
         const s = m.servers[n]!;
         const tools = s.tools ?? null;
@@ -379,7 +403,7 @@ async function config(args: string[], io: Io): Promise<number> {
   if (isValidProfileName(profile)) writeProfileTokenFile(profile, ensureToken(io.env), io.env);
   const s = gatewaySnippet(agent, servers, mcpdPort(io.env), profile, tildify(profileTokenFile(profile, io.env), io.env));
   if (bool(p, "json")) {
-    printJson(io, { agent, profile, servers, file: s.file, notes: s.notes, text: s.text });
+    emit(io, p, CONFIG_JSON, { agent, profile, servers, file: s.file, notes: s.notes, text: s.text });
     return 0;
   }
   io.out(paint(io, `# ${s.file}`, "2"));
@@ -708,7 +732,7 @@ async function doctor(args: string[], io: Io): Promise<number> {
   const missing = logins.filter((l) => l.state === "not logged in" || l.state === "login required");
   const code = plugins.length + direct.length + missing.length ? 1 : 0;
   if (bool(flags, "json")) {
-    printJson(io, { ok: code === 0, ...found, ...(logins.length ? { logins: missing } : {}) });
+    emit(io, flags, DOCTOR_JSON, { ok: code === 0, ...found, ...(logins.length ? { logins: missing } : {}) });
     return code;
   }
   if (missing.length) {
@@ -732,7 +756,7 @@ async function doctor(args: string[], io: Io): Promise<number> {
 // command ------------------------------------------------------------------------------------
 
 const SUBS: Record<string, Sub> = {
-  list: { synopsis: "[--json]", summary: "servers in mcp.toml and where they run", flags: flagsOf(LIST_FLAGS), run: list },
+  list: { synopsis: "[--json]", summary: "servers in mcp.toml and where they run", flags: flagsOf(LIST_FLAGS), json: LIST_JSON, run: list },
   sync: {
     synopsis: "[profile...] [--dry-run] [--force]",
     summary: "write gateway entries into every profile config",
@@ -744,6 +768,7 @@ const SUBS: Record<string, Sub> = {
     synopsis: "--agent <a> [--profile <p>] [--json]",
     summary: "print gateway entries for other agents",
     flags: flagsOf(CONFIG_FLAGS),
+    json: CONFIG_JSON,
     run: config,
   },
   import: {
@@ -760,12 +785,13 @@ const SUBS: Record<string, Sub> = {
     run: install,
   },
   refresh: { synopsis: "[server...] [--dry-run]", summary: "make mcpd relearn tool lists", args: ["server"], flags: flagsOf(REFRESH_FLAGS), run: refresh },
-  doctor: { synopsis: "[--json]", summary: "find servers that bypass the gateway", flags: flagsOf(DOCTOR_FLAGS), run: doctor },
+  doctor: { synopsis: "[--json]", summary: "find servers that bypass the gateway", flags: flagsOf(DOCTOR_FLAGS), json: DOCTOR_JSON, run: doctor },
   login: {
     synopsis: "<server> [--profile <p>] [--scope <s>] [--no-browser] [--dry-run] [--json]",
     summary: "log mcpd in to a remote OAuth server, once per variant",
     args: ["server"],
     flags: flagsOf(LOGIN_FLAGS),
+    json: LOGIN_JSON,
     details:
       'For servers declared with auth = "oauth" in mcp.toml. mcpd keeps the tokens in the secret store\n(Keychain or Secret Service) and refreshes them; agents reach the server through mcpd.\n--profile logs in the variant of that profile ([server.<name>.variant.<profile>]); without one,\nthe login serves every profile that has no variant of its own.',
     run: async (rest, io) => (await import("./mcp-oauth.js")).login(rest, io),
@@ -781,20 +807,24 @@ const SUBS: Record<string, Sub> = {
     synopsis: "[-f] [-n N] [--server S] [--profile P] [--json]",
     summary: "tool calls mcpd relayed (no arguments or results)",
     flags: flagsOf(LOG_FLAGS),
+    json: LOG_JSON,
     details: "One line per tool call: time, outcome, duration, server, tool, profile, agent and sizes.\n-f keeps printing new calls; --json prints one JSON record per line.\nTurn the log off with call_log = false under [mcpd] in config.toml.",
     run: async (rest, io) => (await import("./mcp-observe.js")).log(rest, io),
   },
   top: {
-    synopsis: "[--once] [--json]",
+    synopsis: "[--once | --watch] [--json]",
     summary: "memory, sessions and calls of each running server",
     flags: flagsOf(TOP_FLAGS),
-    details: "Refreshes every 2 seconds in a terminal (Ctrl-C quits); prints one snapshot otherwise.",
+    json: TOP_JSON,
+    details:
+      "Refreshes every 2 seconds in a terminal (Ctrl-C quits); prints one snapshot otherwise.\n--watch keeps refreshing anywhere; with --json it prints one snapshot per line (NDJSON).\nExits 5 when mcpd is not running.",
     run: async (rest, io) => (await import("./mcp-observe.js")).top(rest, io),
   },
   savings: {
     synopsis: "[--json]",
     summary: "memory mcpd saves compared with no gateway",
     flags: flagsOf(SAVINGS_FLAGS),
+    json: SAVINGS_JSON,
     details: "Compares mcpd plus its servers now with an estimate where each live agent session\nstarts its own copy of every stdio server its profile uses.",
     run: async (rest, io) => (await import("./mcp-observe.js")).savings(rest, io),
   },
@@ -821,5 +851,21 @@ export const command = group("mcp", "MCP servers behind the lazy gateway, and th
 import reads ~/.claude.json, .mcp.json, ~/.codex, ~/.cursor and ~/.copilot.
 It only previews, with secrets hidden, until --write.
 Docs: docs/mcp.md in the turno repository.`,
+  examples: [
+    "turno mcp list --json=name,kind",
+    "turno mcp import --write --move-secrets",
+    "turno mcp install",
+    "turno mcp sync",
+    "turno mcp config --agent opencode",
+    "turno mcp refresh github",
+    "turno mcp doctor",
+    "turno mcp login linear --profile work",
+    "turno mcp logout linear --all",
+    "turno mcp log -f --server github",
+    "turno mcp top --watch --json  # one JSON line every 2 s",
+    "turno mcp savings",
+    "turno mcp daemon status",
+    "turno mcp token rotate",
+  ],
 });
 import { isObject, readJsonFile } from "../../core/fsutil.js";

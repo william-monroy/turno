@@ -1,7 +1,8 @@
 import { effectivePolicy } from "../../accounts/policy.js";
 import { loadRegistry } from "../../accounts/registry.js";
 import { tildify } from "../../core/paths.js";
-import { DRY_RUN, JSON_FLAG, bool, flagsOf, parseFlags, printJson, str } from "../args.js";
+import { DRY_RUN, JSON_FLAG, bool, flagsOf, parseFlags, str } from "../args.js";
+import { emit, jsonOutput } from "../output.js";
 import { group } from "../group.js";
 import { launcherExists } from "../../accounts/delegate.js";
 import { loadConfig } from "../../core/config.js";
@@ -34,13 +35,16 @@ function firstId(args: string[]): string | undefined {
   return args.find((a) => !a.startsWith("-"));
 }
 
+/** `turno identity list --json` (ADR 0045). */
+const LIST_JSON = jsonOutput(["services", "browser", "preferences"]);
+
 async function list(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, JSON_FLAG, 0);
   const reg = loadRegistry(io.env);
   const mod = await deps.load(io);
   const browsers = mod ? mod.listIdentities(io.env) : [];
   if (bool(p, "json")) {
-    printJson(io, {
+    emit(io, p, LIST_JSON, {
       services: Object.values(reg.accounts)
         .sort((a, b) => a.id.localeCompare(b.id))
         .map((a) => ({
@@ -141,7 +145,7 @@ export const command = group(
   "identity",
   "who acts on outside services: service accounts (linear:work) and browser identities (browser:school)",
   {
-    list: { summary: "service accounts, browser identities and folder preferences", synopsis: "[--json]", flags: ["--json"], run: list },
+    list: { summary: "service accounts, browser identities and folder preferences", synopsis: "[--json]", flags: ["--json"], json: LIST_JSON, run: list },
     add: {
       summary: "add a service account, or create a browser identity (browser:<id>)",
       synopsis: "<service:label> --profile <p> --tools <pattern>[,...] [--read-tools <pattern>[,...]] [--confirm always|writes|never] | browser:<id>  [--dry-run]",
@@ -162,8 +166,20 @@ export const command = group(
       summary: "recent calls to the accounts bridge; --verify checks the log's hash chain",
       synopsis: "[-n N] [--verify] [--json]",
       flags: flagsOf(accounts.LOG_SPEC),
+      json: accounts.LOG_JSON,
       run: async (a, io) => accounts.log(a, io),
     },
   },
-  { fallback: "list" },
+  {
+    fallback: "list",
+    examples: [
+      "turno identity list",
+      "turno identity add linear:work --profile work --tools 'mcp__linear__*'",
+      "turno identity add browser:school",
+      "turno identity login browser:school",
+      "turno identity prefer ~/code/acme linear=linear:work",
+      "turno identity remove linear:work --dry-run",
+      "turno identity log --verify",
+    ],
+  },
 );

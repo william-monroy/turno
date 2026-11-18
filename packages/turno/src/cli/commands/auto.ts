@@ -4,6 +4,7 @@ import { type Config, loadConfig } from "../../core/config.js";
 import { paths, tildify } from "../../core/paths.js";
 import { listProfiles } from "../../core/profiles.js";
 import { resolveProfile } from "../../core/resolve.js";
+import { Exit } from "../exit.js";
 import { CliError, type Command, type Io, fail } from "../io.js";
 import { execLauncher, findOnPath, launcherPath } from "../launch.js";
 import { launcherName } from "../launchers.js";
@@ -36,7 +37,7 @@ export function planAuto(argv: string[], io: Io, cwd: string = process.cwd()): A
   const hub = tildify(agentHub(agent, env), env);
   const plain = (): string => {
     const file = findOnPath(a.command, env);
-    if (!file) throw new CliError(`${a.command} is not installed (${a.install})`, 127);
+    if (!file) throw new CliError(`${a.command} is not installed (${a.install})`, Exit.notInstalled);
     return file;
   };
   let config: Config;
@@ -56,7 +57,7 @@ export function planAuto(argv: string[], io: Io, cwd: string = process.cwd()): A
     if (!launcher) {
       if (!listProfiles(config, env).includes(r.chosen)) {
         const add = `turno profile add ${r.chosen}${agent === DEFAULT_AGENT ? "" : ` --agent ${agent}`}`;
-        throw new CliError(`${where} uses the ${r.chosen} profile (${r.reason}), but there is no such profile. Run: ${add}, or change the rule (turno profile which)`);
+        throw new CliError(`${where} uses the ${r.chosen} profile (${r.reason}), but there is no such profile. Run: ${add}, or change the rule (turno profile which)`, Exit.noProfile);
       }
       const missing = tildify(join(paths(env).bin, launcherName(r.chosen, agent)), env);
       throw new CliError(`${where} uses the ${r.chosen} profile, but its launcher ${missing} is missing. Run: turno profile repair ${r.chosen}`);
@@ -68,7 +69,10 @@ export function planAuto(argv: string[], io: Io, cwd: string = process.cwd()): A
     };
   }
   if (config.system === "") {
-    throw new CliError(`${where} has no rule and no default profile, and system = "" says there is no default account. Assign one: turno profile assign ${where} <profile>`);
+    throw new CliError(
+      `${where} has no rule and no default profile, and system = "" says there is no default account. Assign one: turno profile assign ${where} <profile>`,
+      Exit.noProfile,
+    );
   }
   if (agent !== DEFAULT_AGENT && listProfiles(config, env, agent).length === 0) {
     return { file: plain(), args, notice: `turno: no ${a.label} profile yet, so this runs plain ${a.command} with ${hub} (turno profile add <name> --agent ${agent})`, always: true };
@@ -87,10 +91,16 @@ export const command: Command = {
     "Without a rule or a default, runs the agent's own command (claude, codex,",
     "copilot, cursor-agent).",
     "",
-    "It never switches accounts in silence: when the chosen profile or its launcher",
-    "is missing, or config.toml does not parse, it exits 1 and says how to fix it.",
+    "It never switches accounts in silence: it exits 3 when the folder's profile does",
+    "not exist (or there is no rule and system = \"\"), 1 when its launcher is missing",
+    "or config.toml does not parse, and says how to fix it (turno help exit-codes).",
     "TURNO_ALLOW_PLAIN=1 runs the plain agent despite a broken config.toml;",
     'system = "" in config.toml makes folders without a rule an error too.',
+    "",
+    "Examples:",
+    "  $ turno auto",
+    "  $ turno auto --resume",
+    "  $ turno auto --agent codex",
   ].join("\n"),
   async run(argv, io) {
     const plan = planAuto(argv, io);

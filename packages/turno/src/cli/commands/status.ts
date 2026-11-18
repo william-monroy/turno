@@ -9,7 +9,8 @@ import { packageInfo } from "../../core/version.js";
 import { FALLBACK, checkFonts, userFontDir } from "../../ui/fonts.js";
 import { currentStatusLine, isTurnoStatusLine, statusLineLabel } from "../../ui/settings.js";
 import { currentTerminal, nerdHere } from "../../ui/terminal-id.js";
-import { JSON_FLAG, bool, parseFlags, printJson } from "../args.js";
+import { JSON_FLAG, bool, parseFlags } from "../args.js";
+import { emit, jsonOutput } from "../output.js";
 import { type Command, type Io, plural } from "../io.js";
 import { type Style, profileColor, style, visibleWidth } from "../style.js";
 import { mcpdStatus } from "./doctor.js";
@@ -201,15 +202,19 @@ function nextLines(s: Style, next: NextStep | null): string[] {
   return [s.wrap(`${label}  `, s.bold(next.command)), s.wrap(pad, s.muted(next.why))];
 }
 
+/** `turno status --json` (ADR 0045). */
+const STATUS_JSON = jsonOutput(["version", "update", "migrationPending", "here", "profiles", "sessions", "mcpd", "look", "next"]);
+
 export const command: Command = {
   summary: "one screen with everything: this folder, profiles and usage, sessions, mcpd and the look",
-  usage: "Usage: turno status [--json]\n\nturno doctor checks each part in depth and can fix problems.",
+  usage: "Usage: turno status [--json]\n\nturno doctor checks each part in depth and can fix problems.\n\nExamples:\n  $ turno status\n  $ turno status --json=here,mcpd",
   flags: ["--json"],
+  json: STATUS_JSON,
   async run(args, io: Io) {
     const p = parseFlags(args, JSON_FLAG, 0);
     const d = await statusData(io.env);
     if (bool(p, "json")) {
-      printJson(io, d);
+      emit(io, p, STATUS_JSON, d);
       return 0;
     }
     let profiles: Record<string, { color?: string | number }> = {};

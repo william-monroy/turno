@@ -1,4 +1,5 @@
-import { type Command, type Completion, type Io, closest, columns, fail } from "./io.js";
+import { type Command, type Completion, type Io, closest, columns, examplesBlock, fail } from "./io.js";
+import { type JsonOutput, answerFields } from "./output.js";
 
 export interface Sub extends Completion {
   /** Arguments after the subcommand name, for the usage line. */
@@ -9,23 +10,38 @@ export interface Sub extends Completion {
   ownHelp?: boolean;
   /** More text for `turno <group> <sub> --help`. */
   details?: string;
+  /** Its `--json` output, so `--json=fields` answers before it runs (ADR 0045). */
+  json?: JsonOutput;
   run(args: string[], io: Io): Promise<number>;
 }
 
-/** Usage text of a group: one line per visible subcommand, then an optional footer. */
-function groupUsage(name: string, subs: Record<string, Sub>, footer?: string): string {
+/** Usage text of a group: one line per visible subcommand, then an optional footer and examples. */
+function groupUsage(name: string, subs: Record<string, Sub>, footer?: string, examples: readonly string[] = []): string {
   const rows = Object.entries(subs)
     .filter(([, s]) => !s.hidden)
     .map(([n, s]) => [`turno ${name} ${n}${s.synopsis ? ` ${s.synopsis}` : ""}`, s.summary] as const);
-  return `Usage:\n${columns(rows, 2, 36)}${footer ? `\n\n${footer}` : ""}`;
+  return `Usage:\n${columns(rows, 2, 36)}${footer ? `\n\n${footer}` : ""}${examples.length ? `\n\n${examplesBlock(examples)}` : ""}`;
+}
+
+/** The group's examples that run `turno <name> <sub>`, for that subcommand's help. */
+function subExamples(name: string, sub: string, examples: readonly string[]): string[] {
+  const head = `turno ${name} ${sub}`;
+  return examples.filter((e) => e === head || e.startsWith(`${head} `));
 }
 
 /**
  * A command made of subcommands: `turno <name> <sub> [args]`. `fallback` runs when no
- * subcommand is given (usually `list` or `show`). `--help` after a subcommand prints its usage.
+ * subcommand is given (usually `list` or `show`). `--help` after a subcommand prints its usage,
+ * with the group's examples for it.
  */
-export function group(name: string, summary: string, subs: Record<string, Sub>, opts: { fallback?: string; footer?: string } = {}): Command {
-  const usage = groupUsage(name, subs, opts.footer);
+export function group(
+  name: string,
+  summary: string,
+  subs: Record<string, Sub>,
+  opts: { fallback?: string; footer?: string; examples?: readonly string[] } = {},
+): Command {
+  const examples = opts.examples ?? [];
+  const usage = groupUsage(name, subs, opts.footer, examples);
   const subcommands = Object.fromEntries(
     Object.entries(subs)
       .filter(([, s]) => !s.hidden)
@@ -55,9 +71,10 @@ export function group(name: string, summary: string, subs: Record<string, Sub>, 
         return fail(near ? `unknown ${name} command '${sub}'. Did you mean 'turno ${name} ${near}'?` : `unknown ${name} command '${sub}'\n\n${usage}`);
       }
       if (!s.ownHelp && (rest.includes("--help") || rest.includes("-h"))) {
-        io.out(groupUsage(name, { [sub]: s }, s.details));
+        io.out(groupUsage(name, { [sub]: s }, s.details, subExamples(name, sub, examples)));
         return 0;
       }
+      if (answerFields(rest, s.json, io)) return 0;
       return s.run(rest, io);
     },
   };

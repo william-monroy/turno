@@ -12,6 +12,11 @@ export const command: Command = {
     "",
     "Without a profile, a terminal shows the profiles to choose from. When this",
     "folder resolves to a profile, auto comes first, named with it: auto (work).",
+    "",
+    "Examples:",
+    "  $ turno run work",
+    "  $ turno run work --resume  # arguments go to the agent",
+    "  $ turno run auto",
   ].join("\n"),
   args: ["profile-or-auto"],
   async run(args, io) {

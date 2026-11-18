@@ -10,6 +10,7 @@
  * The key handling is a pure state machine (`parseKeys`, `reduce`), so tests drive it without a
  * terminal. Loaded lazily by the commands that use it.
  */
+import { Exit } from "./exit.js";
 import { type AgentId, DEFAULT_AGENT, adapter } from "../agents/index.js";
 import { loadConfig } from "../core/config.js";
 import { exhaustedUntil } from "../core/exhausted.js";
@@ -471,7 +472,7 @@ export async function pickProfile(io: PickIo, opts: PickProfileOptions): Promise
   } else {
     value = await askByNumber(io, s, await withAccounts, opts.title, initial);
   }
-  if (value === undefined) throw new CliError("cancelled; nothing changed", 130);
+  if (value === undefined) throw new CliError("cancelled; nothing changed", Exit.cancelled);
   return value;
 }
 

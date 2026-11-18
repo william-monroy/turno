@@ -127,6 +127,14 @@ Last updated: 2026-11-17.
   - The agent adapter boundary (ADR 0032, refines ADR 0013): one adapter file per agent; Biome
     and knip in `pnpm check`; an agent JSON config that is valid JSON but not an object is
     reported instead of rewritten.
+- **Wave 7, stage 4: the output contract** (ADR 0045): one output layer for `--json` with
+  `schemaVersion` in every object (each element of a list), `--json=fields` and `--json=a,b`,
+  NDJSON for `limit show --watch --json`, `mcp top --watch --json` and `mcp log -f --json`, and
+  JSON errors on stderr; exit codes 0 to 5 (`turno help exit-codes`, `turno profile which
+  --check`; `turno auto` exits 3 and the mcp commands 5 where they exited 1); `readState` with
+  small guards and format versions for turno's state files; `loadOptional` for turno-browser and
+  a future turno-tui; `turno help environment` and `json`, examples in every help, `CLICOLOR`,
+  `CLICOLOR_FORCE`, `TERM=dumb` and `TURNO_NO_UPDATE_NOTIFIER`.
 
 ## Known gaps
 
@@ -237,5 +245,5 @@ Last updated: 2026-11-17.
      `turno mcp savings --json` number for the launch post. (Done: neutral bench engine ids and
      the VHS tape recorded from `turno demo` in an empty environment, ADR 0041.)
    - Code health (ADR 0032): the Biome formatter; `exactOptionalPropertyTypes` once the MCP SDK
-     allows it; `parseConfig` without its env default; `journal` `real()`; guards for the
-     `JSON.parse` casts on state files.
+     allows it; `parseConfig` without its env default; `journal` `real()`. (Done: guards for the
+     `JSON.parse` casts on state files, ADR 0045.)

@@ -3,6 +3,7 @@ import { paths, tildify } from "../../core/paths.js";
 import { SecretError, type SecretStore, requireSecretStore } from "../../core/secrets.js";
 import { JSON_FLAG, bool, flagsOf, parseFlags } from "../args.js";
 import { type Command, type Io, fail, needsAnswer, noInputReason } from "../io.js";
+import { answerFields, emit, jsonOutput } from "../output.js";
 
 const USAGE = `Usage:
   turno secret set <service>     read a value from stdin and store it
@@ -13,7 +14,12 @@ const USAGE = `Usage:
 Reference it in mcp.toml as "keychain:<service>". Values are never printed and never passed
 as a command argument. The store is the login Keychain on macOS and the Secret Service
 (libsecret's secret-tool, attributes service=turno account=<service>) on Linux. Without
-either, use "env:NAME" references.`;
+either, use "env:NAME" references.
+
+Examples:
+  $ printf %s "$TOKEN" | turno secret set github-token
+  $ turno secret has github-token
+  $ turno secret list --json`;
 
 async function readStdin(): Promise<string> {
   if (process.stdin.isTTY) {
@@ -61,8 +67,12 @@ export function keychainRefs(text: string): string[] {
   return [...new Set([...text.matchAll(/"keychain:([^"\\]+)"/g)].map((m) => m[1]!))].sort();
 }
 
+/** `turno secret list --json`: one element per keychain: reference in mcp.toml (ADR 0045). */
+const LIST_JSON = jsonOutput(["service", "stored"]);
+
 async function list(args: string[], io: Io): Promise<number> {
-  const json = bool(parseFlags(args, JSON_FLAG, 0), "json");
+  const p = parseFlags(args, JSON_FLAG, 0);
+  const json = bool(p, "json");
   let text = "";
   try {
     text = readFileSync(paths(io.env).mcpFile, "utf8");
@@ -73,7 +83,7 @@ async function list(args: string[], io: Io): Promise<number> {
   const s = refs.length ? store(io) : undefined;
   const found = s ? await Promise.all(refs.map((r) => s.has(r))) : [];
   if (json) {
-    io.out(JSON.stringify(refs.map((r, i) => ({ service: r, stored: found[i] })), null, 2));
+    emit(io, p, LIST_JSON, refs.map((r, i) => ({ service: r, stored: found[i] })));
     return 0;
   }
   if (!refs.length) io.out(`no keychain: references in ${tildify(paths(io.env).mcpFile, io.env)}`);
@@ -92,7 +102,7 @@ export const command: Command = {
       io.out(USAGE);
       return 0;
     }
-    if (sub === "list" || sub === undefined) return list(rest, io);
+    if (sub === "list" || sub === undefined) return answerFields(rest, LIST_JSON, io) ? 0 : list(rest, io);
     // One service name and no flags: an unknown flag must not become a service name.
     const service = parseFlags(rest, {}, 1).positionals[0];
     if (!service) return fail(USAGE);

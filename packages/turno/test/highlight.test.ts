@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { printJson } from "../src/cli/args.js";
+import { emit, jsonOutput } from "../src/cli/output.js";
 import { highlightJson, highlightToml } from "../src/cli/highlight.js";
 import { type Io, colors, paint } from "../src/cli/io.js";
 import { main } from "../src/cli/main.js";
@@ -157,10 +157,10 @@ describe("colors", () => {
     const lines = (env: NodeJS.ProcessEnv, isTty: boolean) => {
       const o = io(env, isTty);
       const got: string[] = [];
-      printJson({ ...o, out: (l?: string) => got.push(l ?? "") }, { a: 1 });
+      emit({ ...o, out: (l?: string) => got.push(l ?? "") }, "", jsonOutput(["a"]), { a: 1 });
       return got.join("\n");
     };
-    expect(lines({ FORCE_COLOR: "1" }, false)).toBe('{\n  "a": 1\n}');
+    expect(lines({ FORCE_COLOR: "1" }, false)).toBe('{\n  "schemaVersion": 1,\n  "a": 1\n}');
     expect(lines({}, true)).toContain("\x1b[");
   });
 });

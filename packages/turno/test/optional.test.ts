@@ -1,0 +1,89 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { loadBrowser } from "../src/cli/commands/browser.js";
+import { CliError } from "../src/cli/io.js";
+import { OPTIONAL, isMissingModule, loadOptional, notInstalled } from "../src/cli/optional.js";
+import { type Sandbox, sandbox } from "./helpers/sandbox.js";
+
+let sb: Sandbox;
+beforeEach(() => {
+  sb = sandbox();
+});
+afterEach(() => sb.cleanup());
+
+const missing = () => Object.assign(new Error("Cannot find package"), { code: "ERR_MODULE_NOT_FOUND" });
+const PKG = { name: "turno-example", install: "npm install --global turno-example" };
+const isExample = (m: unknown): m is { hello(): string } => typeof (m as { hello?: unknown }).hello === "function";
+
+/** A package `name` in a fake global npm folder, exporting `body`. */
+function globalPackage(name: string, body: string): string {
+  const root = join(sb.home, "global/lib/node_modules");
+  const dir = join(root, name);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "package.json"), JSON.stringify({ name, type: "module", main: "index.js", exports: "./index.js" }));
+  writeFileSync(join(dir, "index.js"), body);
+  return root;
+}
+
+describe("loadOptional (ADR 0045)", () => {
+  it("names each optional package and how to install it", () => {
+    expect(notInstalled(OPTIONAL.browser)).toBe("turno-browser is not installed: npm install --global turno-browser");
+    expect(OPTIONAL.tui.name).toBe("turno-tui");
+    expect(isMissingModule(missing())).toBe(true);
+    expect(isMissingModule(new Error("boom"))).toBe(false);
+  });
+
+  it("returns the module next to this install, checked by the guard", async () => {
+    const mod = await loadOptional(PKG, { importer: async () => ({ hello: () => "hi" }), guard: isExample });
+    expect(mod?.hello()).toBe("hi");
+  });
+
+  it("is undefined when the package is missing everywhere, and never asks npm without global", async () => {
+    let asked = false;
+    const opts = {
+      importer: async () => Promise.reject(missing()),
+      globalRoot: () => {
+        asked = true;
+        return undefined;
+      },
+    };
+    expect(await loadOptional(PKG, opts)).toBeUndefined();
+    expect(asked).toBe(false);
+    expect(await loadOptional(PKG, { ...opts, global: true })).toBeUndefined();
+    expect(asked).toBe(true);
+  });
+
+  it("falls back to the global npm folder", async () => {
+    const root = globalPackage("turno-example", "export const hello = () => 'from global';\n");
+    const seen: string[] = [];
+    const mod = await loadOptional(PKG, {
+      global: true,
+      guard: isExample,
+      globalRoot: () => root,
+      importer: async (s) => {
+        seen.push(s);
+        if (!s.startsWith("file:")) throw missing();
+        return import(s);
+      },
+    });
+    expect(mod?.hello()).toBe("from global");
+    expect(seen[1]).toBe(pathToFileURL(join(root, "turno-example/index.js")).href);
+  });
+
+  it("throws other import errors, and a module the guard rejects is a CliError with the update command", async () => {
+    await expect(loadOptional(PKG, { importer: async () => Promise.reject(new SyntaxError("bad")) })).rejects.toThrow(SyntaxError);
+    const old = loadOptional(PKG, { importer: async () => ({ other: 1 }), guard: isExample });
+    await expect(old).rejects.toThrow(CliError);
+    await expect(loadOptional(PKG, { importer: async () => ({}), guard: isExample })).rejects.toThrow(
+      "this turno-example is too old or not a turno-example for this turno; update it: npm install --global turno-example@latest",
+    );
+  });
+
+  it("loadBrowser finds the workspace turno-browser and checks its API", async () => {
+    const mod = await loadBrowser();
+    expect(mod && Array.isArray(mod.ENGINES)).toBe(true);
+    expect(typeof mod?.listIdentities).toBe("function");
+  });
+});

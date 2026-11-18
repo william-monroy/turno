@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readFileSync, statSync } from "node:fs";
+import { statSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig } from "../../core/config.js";
 import { exhaustedUntil } from "../../core/exhausted.js";
@@ -8,6 +8,7 @@ import { paths, profileDir, writePrivateFile } from "../../core/paths.js";
 import { listProfiles } from "../../core/profiles.js";
 import type { Command, Io } from "../io.js";
 import { profileColor, style } from "../style.js";
+import { isRecord, readState } from "../../core/state-file.js";
 
 /** What `claude auth status --json` reports for a profile. */
 export interface AuthStatus {
@@ -127,13 +128,11 @@ export interface UsageSnapshot {
   updated_at?: number;
 }
 
+/** The status line's usage snapshot: its windows are read field by field, so the shape check is light. */
+const isSnapshot = (v: unknown): v is UsageSnapshot => isRecord(v) && (v.rate_limits === undefined || isRecord(v.rate_limits));
+
 function readSnapshot(file: string): UsageSnapshot | undefined {
-  try {
-    const v = JSON.parse(readFileSync(file, "utf8")) as unknown;
-    return v && typeof v === "object" ? (v as UsageSnapshot) : undefined;
-  } catch {
-    return undefined;
-  }
+  return readState(file, isSnapshot);
 }
 
 /** The newer of the snapshot in the state dir and the one the bash tool's status line wrote. */

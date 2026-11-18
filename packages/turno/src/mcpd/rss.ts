@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { atomicWrite } from "../core/journal.js";
+import { hasFields, isRecord, readState } from "../core/state-file.js";
 
 const run = promisify(execFile);
 
@@ -133,12 +134,8 @@ export class RssSampler {
     private readonly file: string,
     private readonly opts: ProcTableOptions = {},
   ) {
-    try {
-      const v = JSON.parse(readFileSync(file, "utf8")) as Record<string, RssSample>;
-      for (const [k, s] of Object.entries(v ?? {})) if (typeof s?.bytes === "number" && typeof s.at === "string") this.known[k] = s;
-    } catch {
-      /* first run */
-    }
+    // None on the first run; entries of another shape are dropped.
+    for (const [k, s] of Object.entries(readState(file, isRecord) ?? {})) if (hasFields(s, { bytes: "number", at: "string" })) this.known[k] = s as unknown as RssSample;
   }
 
   samples(): Record<string, RssSample> {

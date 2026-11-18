@@ -3,6 +3,10 @@ import { loadConfig } from "../../core/config.js";
 import { resolveProfile } from "../../core/resolve.js";
 import { JSON_FLAG, bool, flagsOf, parseFlags } from "../args.js";
 import type { Command } from "../io.js";
+import { emitLine, jsonOutput } from "../output.js";
+
+/** `turno resolve --json`: one line, read by status lines (ADR 0045). */
+const RESOLVE_JSON = jsonOutput(["chosen", "assigned", "reason", "note", "exhaustedUntil"]);
 
 /** Field separator of the machine output read by status lines. */
 export const SEP = "\x1f";
@@ -18,12 +22,14 @@ export const command: Command = {
   hidden: true,
   args: ["dir"],
   flags: flagsOf(JSON_FLAG),
+  json: RESOLVE_JSON,
   async run(args, io) {
     const p = parseFlags(args, JSON_FLAG, 1);
     const json = bool(p, "json");
     const dir = p.positionals[0];
     const r = resolveProfile(resolvePath(dir ?? process.cwd()), loadConfig(io.env), io.env);
-    io.out(json ? JSON.stringify(r) : [r.chosen, r.assigned, r.reason, r.note].join(SEP));
+    if (json) emitLine(io, p, RESOLVE_JSON, r);
+    else io.out([r.chosen, r.assigned, r.reason, r.note].join(SEP));
     return 0;
   },
 };

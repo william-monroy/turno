@@ -272,5 +272,13 @@ export const command = group(
       run: install,
     },
   },
-  { fallback: "status", footer: "turno ui install --help explains each option." },
+  {
+    fallback: "status",
+    footer: "turno ui install --help explains each option.",
+    examples: [
+      "turno ui status",
+      "turno ui install --dry-run",
+      "turno ui install --terminal warp,vscode --no-font",
+    ],
+  },
 );

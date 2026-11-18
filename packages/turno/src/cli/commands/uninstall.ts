@@ -49,7 +49,11 @@ folders still stay.
   --dry-run      print the list and change nothing
   --yes          do not ask (needed when there is no terminal to ask in)
   --keep-config  keep ~/.config/turno
-  --purge        remove turno's state and caches too (no undo)`;
+  --purge        remove turno's state and caches too (no undo)
+
+Examples:
+  $ turno uninstall --dry-run
+  $ turno uninstall --yes --keep-config`;
 
 interface ConfigFiles {
   root: string;

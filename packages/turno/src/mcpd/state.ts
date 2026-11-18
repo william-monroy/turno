@@ -13,6 +13,7 @@ import { type Config, loadConfig, parseConfig } from "../core/config.js";
 import { pidAlive } from "../core/fsutil.js";
 import { atomicWrite } from "../core/journal.js";
 import { paths } from "../core/paths.js";
+import { hasFields, readState } from "../core/state-file.js";
 
 /** Files mcpd keeps in the state folder besides `mcpd.token` and `mcpd.port`. */
 export function daemonFiles(env: NodeJS.ProcessEnv = process.env): { lock: string; lastGood: string; error: string; log: string; calls: string; rss: string } {
@@ -101,13 +102,11 @@ export interface LockInfo {
   startedAt: string;
 }
 
+const isLockInfo = (v: unknown): v is LockInfo => hasFields(v, { pid: "number" }) && Number.isInteger(v.pid) && (v.pid as number) > 0;
+
+/** The lock file, or undefined when there is none or it is not a lock (state-file.ts). */
 export function readLock(env: NodeJS.ProcessEnv = process.env): LockInfo | undefined {
-  try {
-    const v = JSON.parse(readFileSync(daemonFiles(env).lock, "utf8")) as LockInfo;
-    return Number.isInteger(v.pid) && v.pid > 0 ? v : undefined;
-  } catch {
-    return undefined;
-  }
+  return readState(daemonFiles(env).lock, isLockInfo);
 }
 
 /** Whether `pid` runs mcpd: alive and, when ps can tell, its command line is `... mcp daemon run` (or `mcpd run`). */
@@ -170,12 +169,10 @@ export interface StartError {
   port?: number;
 }
 
+const isStartError = (v: unknown): v is StartError => hasFields(v, { at: "string", message: "string" });
+
 export function readStartError(env: NodeJS.ProcessEnv = process.env): StartError | undefined {
-  try {
-    return JSON.parse(readFileSync(daemonFiles(env).error, "utf8")) as StartError;
-  } catch {
-    return undefined;
-  }
+  return readState(daemonFiles(env).error, isStartError);
 }
 
 /** Whether our own mcpd answers /status on `port` with our token. */

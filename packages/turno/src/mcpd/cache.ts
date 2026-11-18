@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { PRIVATE_DIR_MODE, PRIVATE_FILE_MODE } from "../core/paths.js";
 import { join } from "node:path";
+import { hasFields, readState } from "../core/state-file.js";
 
 /**
  * What a server says about itself, enough to answer initialize and the schema-like list
@@ -23,6 +24,9 @@ export function fingerprint(parts: unknown): string {
   return createHash("sha256").update(JSON.stringify(parts)).digest("hex").slice(0, 16);
 }
 
+const isDescription = (v: unknown): v is ServerDescription =>
+  hasFields(v, { fingerprint: "string", serverInfo: "object", capabilities: "object", updatedAt: "number" });
+
 export class DescriptionCache {
   private memory = new Map<string, ServerDescription>();
 
@@ -41,12 +45,9 @@ export class DescriptionCache {
   peek(key: string): ServerDescription | undefined {
     let d = this.memory.get(key);
     if (!d) {
-      try {
-        d = JSON.parse(readFileSync(this.file(key), "utf8")) as ServerDescription;
-        this.memory.set(key, d);
-      } catch {
-        return undefined;
-      }
+      d = readState(this.file(key), isDescription);
+      if (!d) return undefined;
+      this.memory.set(key, d);
     }
     return d;
   }

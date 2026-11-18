@@ -12,12 +12,16 @@ import { availableUpdate } from "../../core/update.js";
 import { packageInfo } from "../../core/version.js";
 import { FALLBACK, checkFonts, userFontDir } from "../../ui/fonts.js";
 import { currentStatusLine, isTurnoStatusLine, statusLineLabel } from "../../ui/settings.js";
-import { JSON_FLAG, bool, parseFlags, printJson } from "../args.js";
+import { JSON_FLAG, type Parsed, bool, parseFlags } from "../args.js";
+import { emit, jsonOutput } from "../output.js";
 import { type Command, type Io, fail } from "../io.js";
 import { findOnPath } from "../launch.js";
 import { MARKER, isGenerated, launcherName, launcherText } from "../launchers.js";
 import { duration, padEnd, profileColor, style, visibleWidth } from "../style.js";
 import { nerdHere } from "../../ui/terminal-id.js";
+
+/** `turno doctor --json` (ADR 0045). */
+const DOCTOR_JSON = jsonOutput(["ok", "counts", "ms", "next", "checks"]);
 
 export type Level = "ok" | "warn" | "fail" | "info";
 
@@ -488,7 +492,7 @@ function renderDoctor(checks: readonly Check[], io: Pick<Io, "env" | "isTty">, o
   return out;
 }
 
-export async function doctor(io: Io, opts: { fix?: boolean; json?: boolean; security?: boolean; summary?: boolean } = {}): Promise<number> {
+export async function doctor(io: Io, opts: { fix?: boolean; json?: boolean; security?: boolean; summary?: boolean; parsed?: Parsed } = {}): Promise<number> {
   const start = Date.now();
   const collect = opts.security ? securitySection : collectChecks;
   const quiet = opts.json || opts.summary;
@@ -509,7 +513,7 @@ export async function doctor(io: Io, opts: { fix?: boolean; json?: boolean; secu
   const failed = checks.some((c) => c.level === "fail");
   const ms = Date.now() - start;
   if (opts.json) {
-    printJson(io, {
+    emit(io, opts.parsed, DOCTOR_JSON, {
       ok: !failed,
       counts: countChecks(checks),
       ms,
@@ -560,11 +564,18 @@ export const command: Command = {
     "holds the mcpd port, literal secrets in mcp.toml, agent configs and backups, MCP",
     "servers without an exact version, the age of the mcpd token and the audit log's",
     "hash chain. With --fix it narrows file modes under turno's folders.",
+    "",
+    "Examples:",
+    "  $ turno doctor",
+    "  $ turno doctor --fix",
+    "  $ turno doctor --summary",
+    "  $ turno doctor --security --json",
   ].join("\n"),
   flags: ["--security", "--fix", "--json", "--summary"],
+  json: DOCTOR_JSON,
   async run(args, io) {
     const p = parseFlags(args, { security: { type: "boolean" }, fix: { type: "boolean" }, summary: { type: "boolean" }, ...JSON_FLAG }, 0);
     if (bool(p, "json") && bool(p, "summary")) return fail("--json and --summary do not go together");
-    return doctor(io, { fix: bool(p, "fix"), json: bool(p, "json"), security: bool(p, "security"), summary: bool(p, "summary") });
+    return doctor(io, { fix: bool(p, "fix"), json: bool(p, "json"), security: bool(p, "security"), summary: bool(p, "summary"), parsed: p });
   },
 };

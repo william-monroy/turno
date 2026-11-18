@@ -417,8 +417,9 @@ describe("turno mcp log, top and savings", () => {
     sb.write(".config/turno/config.toml", "[mcpd]\nport = 47999\n");
     for (const sub of ["top", "savings"]) {
       const r = await run(["mcp", sub, "--json"]);
-      expect(r.code, sub).toBe(1);
-      expect(JSON.parse(r.out)).toEqual({ running: false });
+      // Exit 5 when mcpd is down (ADR 0045; it was 1).
+      expect(r.code, sub).toBe(5);
+      expect(JSON.parse(r.out)).toEqual({ schemaVersion: 1, running: false });
       expect((await run(["mcp", sub])).out).toContain("mcpd is not running");
     }
     for (const sub of ["log", "top", "savings"]) {

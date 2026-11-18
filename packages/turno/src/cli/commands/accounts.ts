@@ -5,8 +5,9 @@ import { effectivePolicy } from "../../accounts/policy.js";
 import { type Account, type Registry, isValidService, loadRegistry, makeAccount, parseAccountId, saveRegistry } from "../../accounts/registry.js";
 import { Journal } from "../../core/journal.js";
 import { expandHome, paths, tildify } from "../../core/paths.js";
-import { DRY_RUN, type FlagSpec, JSON_FLAG, bool, count, parseFlags, printJson, str } from "../args.js";
+import { DRY_RUN, type FlagSpec, JSON_FLAG, type Parsed, bool, count, parseFlags, str } from "../args.js";
 import { type Command, type Io, fail, paint } from "../io.js";
+import { emit, jsonOutput } from "../output.js";
 
 const USAGE = `Usage:
   turno accounts list                       accounts, owners and folder preferences
@@ -37,16 +38,22 @@ const ADD_SPEC: FlagSpec = {
 };
 export const LOG_SPEC: FlagSpec = { tail: { type: "string", short: "n" }, verify: { type: "boolean" }, ...JSON_FLAG };
 
+/** `log --json`: one element per audit line; `log --verify --json`: the chain check (ADR 0045). */
+const AUDIT_JSON = jsonOutput(["ts", "caller", "account", "owner", "write", "task", "outcome", "detail", "durationMs", "costUsd", "decision", "prev"]);
+const VERIFY_JSON = jsonOutput(["file", "ok", "lines", "legacy", "line", "reason"]);
+export const LOG_JSON = jsonOutput([...AUDIT_JSON.fields, ...VERIFY_JSON.fields.filter((f) => !AUDIT_JSON.fields.includes(f))]);
+
 /**
  * `log --verify`: check the hash chain of audit.jsonl (ADR 0018). It shows accidents and naive
  * edits (a changed, inserted, removed or reordered line), not a determined attacker who can
  * rewrite the whole file, and it cannot see lines cut from the end.
  */
-function verifyLog(io: Io, json: boolean): number {
+function verifyLog(io: Io, p: Parsed): number {
+  const json = bool(p, "json");
   const v = verifyAudit(io.env);
   const file = tildify(paths(io.env).auditLog, io.env);
   if (json) {
-    printJson(io, { file, ...v, line: v.line ?? null, reason: v.reason ?? null });
+    emit(io, p, VERIFY_JSON, { file, ...v, line: v.line ?? null, reason: v.reason ?? null });
     return v.ok ? 0 : 1;
   }
   if (!v.ok) {
@@ -196,11 +203,11 @@ export function prefer(rawArgs: string[], io: Io): number {
 
 export function log(args: string[], io: Io): number {
   const p = parseFlags(args, LOG_SPEC, 0);
-  if (bool(p, "verify")) return verifyLog(io, bool(p, "json"));
+  if (bool(p, "verify")) return verifyLog(io, p);
   const n = count(p, "tail", 20);
   const entries = readAudit(n, io.env);
   if (bool(p, "json")) {
-    printJson(io, entries);
+    emit(io, p, AUDIT_JSON, entries);
     return 0;
   }
   if (!entries.length) {

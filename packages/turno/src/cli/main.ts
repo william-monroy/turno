@@ -2,8 +2,9 @@
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { enableCompileCache } from "./compile-cache.js";
+import { Exit, exitName } from "./exit.js";
 import { CliError, type ColorMode, type Io, UsageError, closest, defaultIo, fail, isColorMode, noInputReason, paint, withoutAsk } from "./io.js";
-import { COMMANDS, HELP_SUMMARY, QUIET, SECTIONS, expand, visibleCommands } from "./registry.js";
+import { COMMANDS, HELP_SUMMARY, HELP_TOPICS, QUIET, SECTIONS, expand, visibleCommands } from "./registry.js";
 
 async function help(io: Io): Promise<number> {
   const sections = await Promise.all(
@@ -18,7 +19,7 @@ async function help(io: Io): Promise<number> {
 }
 
 /** Error classes whose message is the whole story: printed without a stack trace. */
-const ONE_LINE_ERRORS = new Set(["ConfigError", "SecretError"]);
+const ONE_LINE_ERRORS = new Set(["ConfigError", "SecretError", "StateError"]);
 
 /** Commands whose arguments belong to the agent they start: only a first --help is theirs. */
 const PASSTHROUGH = new Set(["run", "auto", "hook", "statusline", "__complete"]);
@@ -34,8 +35,13 @@ function unknownCommand(word: string): never {
   return fail(near ? `unknown command '${word}'. Did you mean 'turno ${near}'?` : `unknown command '${word}' (turno --help)`);
 }
 
-/** `turno help <command> [sub]`: the same text as `turno <command> [sub] --help`. */
+/** `turno help <command> [sub]`: the same text as `turno <command> [sub] --help`; or a topic. */
 async function helpFor(words: string[], io: Io): Promise<number> {
+  if (HELP_TOPICS.includes(words[0]!)) {
+    const { TOPICS } = await import("./topics.js");
+    for (const line of TOPICS[words[0]!]!.text()) io.out(line);
+    return 0;
+  }
   const [name, rest] = expand(words[0]!, words.slice(1));
   const load = COMMANDS[name];
   if (!load) return unknownCommand(words[0]!);
@@ -121,13 +127,37 @@ export function takeColor(argv: string[]): { argv: string[]; color?: ColorMode }
   return at({ argv: [...lead, head, ...kept, ...(end < 0 ? [] : tail.slice(end))] });
 }
 
+/** Whether this run asked for --json: then an error is a JSON line on stderr (ADR 0045). */
+function wantsJson(argv: string[]): boolean {
+  const [head, ...tail] = argv;
+  if (!head || head.startsWith("-") || head === "help") return false;
+  const [name, rest] = expand(head, tail);
+  if (!COMMANDS[name] || PASSTHROUGH.has(name)) return false;
+  const end = rest.indexOf("--");
+  return (end < 0 ? rest : rest.slice(0, end)).some((a) => a === "--json" || a.startsWith("--json="));
+}
+
+/** Print an error the way the run asked (a `turno:` line, or JSON under --json) and return its exit code. */
+async function report(err: unknown, io: Io, json: boolean): Promise<number> {
+  const e = err as Error;
+  const code = err instanceof UsageError ? Exit.usage : err instanceof CliError ? err.code : Exit.failure;
+  // Errors that explain themselves in one line; anything else is a bug and keeps its stack.
+  const known = err instanceof UsageError || err instanceof CliError || ONE_LINE_ERRORS.has(e?.name);
+  if (json) {
+    const { jsonError } = await import("./output.js");
+    const fields = (err as { fields?: unknown }).fields;
+    io.err(jsonError(e?.message ?? String(err), code, exitName(code), { ...(Array.isArray(fields) ? { fields } : {}), ...(known ? {} : { stack: e?.stack }) }));
+  } else io.err(`turno: ${known ? e.message : (e?.stack ?? e?.message ?? String(err))}`);
+  return code;
+}
+
 export async function main(args: string[], io: Io = defaultIo()): Promise<number> {
   let picked: ReturnType<typeof takeColor>;
   try {
     picked = takeColor(args);
   } catch (err) {
     io.err(`turno: ${(err as Error).message}`);
-    return 2;
+    return Exit.usage;
   }
   if (picked.color) io = { ...io, color: picked.color };
   const { argv, noInput } = takeNoInput(picked.argv);
@@ -135,7 +165,9 @@ export async function main(args: string[], io: Io = defaultIo()): Promise<number
   if (noInput) io = { ...withoutAsk(io), env: { ...io.env, TURNO_NO_INPUT: "1" } };
   else if (io.ask && noInputReason(io.env)) io = withoutAsk(io);
   const [head, ...tail] = argv;
+  let json = false;
   try {
+    json = wantsJson(argv);
     if (!head) {
       // Once turno is set up, bare `turno` is the status screen; before that, the help.
       const { homeScreen } = await import("./commands/status.js");
@@ -162,6 +194,10 @@ export async function main(args: string[], io: Io = defaultIo()): Promise<number
         io.out(command.usage);
         return 0;
       }
+      if (command.json && !PASSTHROUGH.has(first)) {
+        const { answerFields } = await import("./output.js");
+        if (answerFields(rest, command.json, io)) return 0;
+      }
       const code = await command.run(rest, io);
       await notice(first, io);
       return code;
@@ -171,18 +207,7 @@ export async function main(args: string[], io: Io = defaultIo()): Promise<number
     if (!launcherPath(first, io.env) && closest(first, visibleCommands())) unknownCommand(first);
     return await launchProfile(first, rest, io);
   } catch (err) {
-    if (err instanceof UsageError) {
-      io.err(`turno: ${err.message}`);
-      return 2;
-    }
-    if (err instanceof CliError) {
-      io.err(`turno: ${err.message}`);
-      return err.code;
-    }
-    const e = err as Error;
-    // Errors that explain themselves in one line; anything else is a bug and keeps its stack.
-    io.err(`turno: ${ONE_LINE_ERRORS.has(e.name) ? e.message : (e.stack ?? e.message)}`);
-    return 1;
+    return report(err, io, json);
   }
 }
 

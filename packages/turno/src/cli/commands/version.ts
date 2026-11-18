@@ -1,13 +1,17 @@
 import { tildify } from "../../core/paths.js";
 import { availableUpdate } from "../../core/update.js";
 import { detectInstall, packageInfo } from "../../core/version.js";
-import { JSON_FLAG, bool, flagsOf, parseFlags, printJson } from "../args.js";
+import { JSON_FLAG, bool, flagsOf, parseFlags } from "../args.js";
 import type { Command } from "../io.js";
+import { emit, jsonOutput } from "../output.js";
+
+const JSON_OUT = jsonOutput(["name", "version", "node", "method", "path", "latest"]);
 
 export const command: Command = {
   summary: "the turno version, how it was installed, and whether a newer one is known",
-  usage: "Usage: turno version [--json]\n\nturno --version prints only the number.",
+  usage: "Usage: turno version [--json]\n\nturno --version prints only the number.\n\nExamples:\n  $ turno version\n  $ turno version --json",
   flags: flagsOf(JSON_FLAG),
+  json: JSON_OUT,
   async run(args, io) {
     const p = parseFlags(args, JSON_FLAG, 0);
     const pkg = packageInfo();
@@ -17,7 +21,7 @@ export const command: Command = {
     const npx = install.root.includes("/_npx/");
     const data = { name: pkg.name, version: pkg.version, node: process.versions.node, method: npx ? "npx" : install.method, path: tildify(install.root, io.env), latest: latest ?? null };
     if (bool(p, "json")) {
-      printJson(io, data);
+      emit(io, p, JSON_OUT, data);
       return 0;
     }
     io.out(`turno ${pkg.version}`);

@@ -10,11 +10,15 @@ import { Journal } from "../../core/journal.js";
 import { loadManifest } from "../../core/manifest.js";
 import { paths, tildify } from "../../core/paths.js";
 import { type TomlValue, removeValue, setValue } from "../../core/toml-edit.js";
-import { DRY_RUN, JSON_FLAG, bool, flagsOf, parseFlags, printJson } from "../args.js";
+import { DRY_RUN, JSON_FLAG, bool, flagsOf, parseFlags } from "../args.js";
+import { emit, emitConfigValue, jsonOutput } from "../output.js";
 import { group } from "../group.js";
 import { highlightToml } from "../highlight.js";
-import { type Io, colors, columns, fail, paint } from "../io.js";
+import { CliError, type Io, colors, columns, fail, paint } from "../io.js";
 import { parseColor } from "./profile.js";
+
+/** `turno config path --json`: one entry per file, each {path, exists} (ADR 0045). */
+const PATH_JSON = jsonOutput(["config", "mcp", "accounts", "state", "backups"]);
 
 /** Keys `config set` may change; tables of their own have their own commands. */
 const KEYS: Record<string, string> = {
@@ -70,7 +74,7 @@ async function path(args: string[], io: Io): Promise<number> {
   const pp = paths(env);
   const files = { config: pp.configFile, mcp: pp.mcpFile, accounts: pp.accountsFile, state: pp.state, backups: pp.backupsDir };
   if (bool(p, "json")) {
-    printJson(io, Object.fromEntries(Object.entries(files).map(([k, v]) => [k, { path: tildify(v, env), exists: existsSync(v) }])));
+    emit(io, p, PATH_JSON, Object.fromEntries(Object.entries(files).map(([k, v]) => [k, { path: tildify(v, env), exists: existsSync(v) }])));
     return 0;
   }
   for (const [k, v] of Object.entries(files)) io.out(`${k.padEnd(9)} ${tildify(v, env)}${existsSync(v) ? "" : paint(io, "  (not there yet)", "2")}`);
@@ -79,6 +83,8 @@ async function path(args: string[], io: Io): Promise<number> {
 
 async function get(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, JSON_FLAG, 1);
+  // A config value has config.toml's shape, not a schema of fields (ADR 0045).
+  if (p.json) fail("config get --json takes no fields: it prints the value as config.toml holds it");
   const key = p.positionals[0];
   const text = readConfigText(io.env);
   loadConfig(io.env); // report a broken file before reading from it
@@ -86,10 +92,11 @@ async function get(args: string[], io: Io): Promise<number> {
   const v = key ? lookup(doc, key) : doc;
   if (v === undefined) {
     if (!key) return 0;
+    if (bool(p, "json")) throw new CliError(`${key} is not set`);
     io.err(`${key} is not set`);
     return 1;
   }
-  if (bool(p, "json") || typeof v === "object") printJson(io, v);
+  if (bool(p, "json") || typeof v === "object") emitConfigValue(io, v);
   else io.out(String(v));
   return 0;
 }
@@ -222,7 +229,7 @@ export const command = group(
   "config",
   "read and change config.toml without losing its comments; check every config file",
   {
-    path: { summary: "where each config and state file lives", synopsis: "[--json]", flags: ["--json"], run: path },
+    path: { summary: "where each config and state file lives", synopsis: "[--json]", flags: ["--json"], json: PATH_JSON, run: path },
     get: { summary: "print a value (the whole file as JSON without a key)", synopsis: "[key] [--json]", args: ["key"], flags: ["--json"], run: get },
     set: { summary: "set a value, checked like profile add checks it", synopsis: "<key> <value> [--dry-run]", args: ["key", "any"], flags: flagsOf(SET_SPEC), run: set },
     unset: { summary: "remove a value", synopsis: "<key> [--dry-run]", args: ["key"], flags: ["--dry-run"], run: unset },
@@ -233,6 +240,16 @@ export const command = group(
     fallback: "path",
     footer: `Keys:\n${columns(Object.entries(KEYS), 2, 26)}\n\nProjects use turno profile assign; MCP servers live in mcp.toml (turno mcp).
 A [[projects]] rule with mcp = [...] limits the servers of that folder.`,
+    examples: [
+      "turno config path --json",
+      "turno config get default",
+      "turno config get mcpd --json",
+      "turno config set default work",
+      "turno config set icons unicode --dry-run",
+      "turno config unset fallback",
+      "turno config edit",
+      "turno config check",
+    ],
   },
 );
 

@@ -1,7 +1,9 @@
 import type { CallRecord } from "../../mcpd/calllog.js";
 import type { ProcTable } from "../../mcpd/rss.js";
-import { type FlagSpec, JSON_FLAG, TAIL, bool, count, parseFlags, printJson, str } from "../args.js";
-import { type Io, paint } from "../io.js";
+import { type FlagSpec, JSON_FLAG, TAIL, WATCH, bool, count, parseFlags, str } from "../args.js";
+import { Exit } from "../exit.js";
+import { type Io, fail, paint } from "../io.js";
+import { emit, emitLine, jsonOutput } from "../output.js";
 import { type IconName, duration as elapsed, padEnd, style } from "../style.js";
 
 /**
@@ -11,8 +13,27 @@ import { type IconName, duration as elapsed, padEnd, style } from "../style.js";
  */
 
 export const LOG_FLAGS: FlagSpec = { follow: { type: "boolean", short: "f" }, ...TAIL, server: { type: "string" }, profile: { type: "string" }, ...JSON_FLAG };
-export const TOP_FLAGS: FlagSpec = { once: { type: "boolean" }, ...JSON_FLAG };
+export const TOP_FLAGS: FlagSpec = { once: { type: "boolean" }, ...WATCH, ...JSON_FLAG };
 export const SAVINGS_FLAGS: FlagSpec = { ...JSON_FLAG };
+
+/** `turno mcp log --json`: one call record per line (ADR 0045). */
+export const LOG_JSON = jsonOutput(["time", "agent", "profile", "pid", "server", "variant", "tool", "durationMs", "outcome", "error", "requestBytes", "responseBytes"]);
+/** `turno mcp top --json`; `{ running: false }` when mcpd is down. */
+export const TOP_JSON = jsonOutput(["running", "mcpd", "instances", "memoryKnown", "memoryPressure"]);
+/** `turno mcp savings --json`; `{ running: false }` or `{ running: true, error }` when it cannot tell. */
+export const SAVINGS_JSON = jsonOutput([
+  "running",
+  "agentSessions",
+  "unidentifiedSessions",
+  "withTurno",
+  "withoutTurnoBytes",
+  "savedBytes",
+  "savedPercent",
+  "servers",
+  "unmeasured",
+  "estimate",
+  "error",
+]);
 
 const MiB = 1024 * 1024;
 const GiB = 1024 * MiB;
@@ -165,7 +186,7 @@ export async function log(args: string[], io: Io, signal?: AbortSignal): Promise
   }
   const records = readCalls(file, n, filter);
   const layout = logLayout(io, records);
-  const print = (r: CallRecord) => io.out(json ? JSON.stringify(r) : formatCall(io, r, localTime, layout));
+  const print = (r: CallRecord) => (json ? emitLine(io, p, LOG_JSON, r) : io.out(formatCall(io, r, localTime, layout)));
   if (!records.length && !json && !bool(p, "follow")) {
     io.out("no tool calls logged yet (mcpd adds one line per tool call it relays)");
     return 0;
@@ -237,10 +258,11 @@ async function measure(env: NodeJS.ProcessEnv): Promise<ProcTable | undefined> {
   return processTable({ env });
 }
 
-function notRunning(io: Io, json: boolean): number {
-  if (json) printJson(io, { running: false });
+/** mcpd does not answer: exit 5 (ADR 0045). */
+function notRunning(io: Io, json: Parameters<typeof emit>[1] | false, out = TOP_JSON): number {
+  if (json !== false) emit(io, json, out, { running: false });
   else io.out("mcpd is not running (turno mcp daemon start)");
-  return 1;
+  return Exit.gatewayDown;
 }
 
 const MEMORY_UNKNOWN = "memory is unknown: ps is not available and there is no /proc";
@@ -362,22 +384,28 @@ export function renderTop(io: Io, t: TopSnapshot): string[] {
   return out;
 }
 
-/** `turno mcp top`: refreshes every 2 s in a terminal until Ctrl-C; one snapshot otherwise. */
+/**
+ * `turno mcp top`: refreshes every 2 s in a terminal until Ctrl-C; one snapshot otherwise.
+ * `--watch --json` prints one snapshot per line (NDJSON) every 2 s until Ctrl-C.
+ */
 export async function top(args: string[], io: Io, signal?: AbortSignal, everyMs = 2000): Promise<number> {
   const p = parseFlags(args, TOP_FLAGS, 0);
   const json = bool(p, "json");
-  const once = json || bool(p, "once") || !io.isTty;
+  const watch = bool(p, "watch");
+  if (watch && bool(p, "once")) return fail("--watch and --once do not go together");
+  const once = (json && !watch) || bool(p, "once") || (!io.isTty && !watch);
   const snap = async (): Promise<TopSnapshot | undefined> => {
     const s = await fetchStatus(io.env);
     return s ? topSnapshot(s, await measure(io.env)) : undefined;
   };
   if (once) {
     const t = await snap();
-    if (!t) return notRunning(io, json);
-    if (json) printJson(io, t);
+    if (!t) return notRunning(io, json ? p : false);
+    if (json) emit(io, p, TOP_JSON, t);
     else for (const l of renderTop(io, t)) io.out(l);
     return 0;
   }
+  if (json) return watchTop(io, p, snap, signal, everyMs);
   const stop = signal ? { signal, dispose() {} } : untilInterrupted();
   try {
     while (!stop.signal.aborted) {
@@ -400,6 +428,35 @@ export async function top(args: string[], io: Io, signal?: AbortSignal, everyMs 
     stop.dispose();
   }
   return 0;
+}
+
+/** `top --watch --json`: a snapshot per line, or `{ running: false }` while mcpd is down. */
+async function watchTop(io: Io, p: Parameters<typeof emit>[1], snap: () => Promise<TopSnapshot | undefined>, signal: AbortSignal | undefined, everyMs: number): Promise<number> {
+  const stop = signal ? { signal, dispose() {} } : untilInterrupted();
+  try {
+    while (!stop.signal.aborted) {
+      emitLine(io, p, TOP_JSON, (await snap()) ?? { running: false });
+      await sleep(everyMs, stop.signal);
+    }
+  } finally {
+    stop.dispose();
+  }
+  return 0;
+}
+
+/** Wait `ms`, or less when `signal` aborts. */
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise<void>((r) => {
+    const timer = setTimeout(r, ms);
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        r();
+      },
+      { once: true },
+    );
+  });
 }
 
 // savings ------------------------------------------------------------------------------------
@@ -503,10 +560,10 @@ export async function savings(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, SAVINGS_FLAGS, 0);
   const json = bool(p, "json");
   const status = await fetchStatus(io.env);
-  if (!status) return notRunning(io, json);
+  if (!status) return notRunning(io, json ? p : false, SAVINGS_JSON);
   const procs = await measure(io.env);
   if (!procs) {
-    if (json) printJson(io, { running: true, error: MEMORY_UNKNOWN });
+    if (json) emit(io, p, SAVINGS_JSON, { running: true, error: MEMORY_UNKNOWN });
     else io.err(`turno: ${MEMORY_UNKNOWN}`);
     return 1;
   }
@@ -515,7 +572,7 @@ export async function savings(args: string[], io: Io): Promise<number> {
   if (state.error && !json) io.err(`${paint(io, "warning", "33")}: mcp.toml is invalid, so the estimate uses the ${state.source}: ${state.error}`);
   const s = await computeSavings(status, procs, state.manifest);
   if (json) {
-    printJson(io, s);
+    emit(io, p, SAVINGS_JSON, s);
     return 0;
   }
   const w = s.withTurno;

@@ -1,8 +1,13 @@
 import { type JournalInfo, type UndoStep, PRUNE_DEFAULT_AGE_MS, PRUNE_DEFAULT_KEEP, listJournals, parseAge, pruneJournals, undoJournal } from "../../core/journal.js";
 import { tildify } from "../../core/paths.js";
-import { DRY_RUN, FORCE, JSON_FLAG, type Parsed, bool, count, parseFlags, printJson, str } from "../args.js";
+import { DRY_RUN, FORCE, JSON_FLAG, type Parsed, bool, count, parseFlags, str } from "../args.js";
 import { type Command, type Io, fail, paint } from "../io.js";
+import { emit, jsonOutput } from "../output.js";
 import { duration, style } from "../style.js";
+
+/** `undo --list --json` (one element per change) and `undo --prune --json` (ADR 0045). */
+const LIST_JSON = jsonOutput(["stamp", "command", "files", "undoneBy"]);
+const PRUNE_JSON = jsonOutput(["dryRun", "pruned", "kept"]);
 
 const USAGE = `Usage:
   turno undo --list [-n N] [--json]    recent changes, newest first
@@ -27,7 +32,13 @@ turno uninstall is recorded the same way, so undo puts back what it removed.
 Backups can hold secrets that were in those files, so they are private (folders
 0700, files 0600) and pruned: each new backup deletes those older than 30 days,
 keeping the newest 10. A backup that is still the only way back for a file it
-changed (the file is unchanged since) is kept.`;
+changed (the file is unchanged since) is kept.
+
+Examples:
+  $ turno undo --list
+  $ turno undo last --dry-run
+  $ turno undo 20261117-101500
+  $ turno undo --prune --older-than 30d`;
 
 function prune(p: Parsed, io: Io): number {
   let olderThanMs = PRUNE_DEFAULT_AGE_MS;
@@ -45,7 +56,7 @@ function prune(p: Parsed, io: Io): number {
   const dry = bool(p, "dry-run");
   const r = pruneJournals(io.env, { olderThanMs, keep, dryRun: dry });
   if (bool(p, "json")) {
-    printJson(io, { dryRun: dry, pruned: r.pruned, kept: r.kept.map((k) => ({ stamp: k.stamp, path: tildify(k.path, io.env) })) });
+    emit(io, p, PRUNE_JSON, { dryRun: dry, pruned: r.pruned, kept: r.kept.map((k) => ({ stamp: k.stamp, path: tildify(k.path, io.env) })) });
     return 0;
   }
   const verb = dry ? "would delete" : "deleted";
@@ -136,6 +147,7 @@ export const command: Command = {
   usage: USAGE,
   args: ["stamp"],
   flags: ["--list", "--verbose", "--dry-run", "--force", "--json", "--tail", "--prune", "--older-than", "--keep"],
+  json: jsonOutput([...LIST_JSON.fields, ...PRUNE_JSON.fields]),
   async run(args, io) {
     const p = parseFlags(
       args,
@@ -152,7 +164,7 @@ export const command: Command = {
     if (bool(p, "list") || !target) {
       const shown = all.slice(0, count(p, "tail", 10));
       if (bool(p, "json")) {
-        printJson(io, shown.map((j) => ({ stamp: j.stamp, command: j.manifest?.command ?? null, files: j.manifest?.entries.map((e) => tildify(e.path, io.env)) ?? null, undoneBy: j.manifest?.undoneBy ?? null })));
+        emit(io, p, LIST_JSON, shown.map((j) => ({ stamp: j.stamp, command: j.manifest?.command ?? null, files: j.manifest?.entries.map((e) => tildify(e.path, io.env)) ?? null, undoneBy: j.manifest?.undoneBy ?? null })));
         return 0;
       }
       if (!shown.length) io.out("No changes recorded yet.");

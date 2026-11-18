@@ -240,7 +240,11 @@ In a terminal it opens a shell in that HOME; exit the shell to end the demo. Wit
 --, it runs that command in the demo instead. With --keep it waits for Ctrl-C instead, so you can
 use the demo from another terminal. Without a terminal (a pipe, --no-input, an agent) and without
 --keep it prints what it set up and ends. Either way it stops mcpd and removes the folder when it
-ends. Works from npx: npx turno-cli demo`;
+ends. Works from npx: npx turno-cli demo
+
+Examples:
+  $ turno demo
+  $ turno demo -- turno status`;
 
 const KEEP_FLAG = { keep: { type: "boolean" } } as const;
 

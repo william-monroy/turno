@@ -7,10 +7,14 @@ import { paths, writePrivateFile } from "../../core/paths.js";
 import { listProfiles } from "../../core/profiles.js";
 import { fetchLatest, isSemver, updateChecksOff } from "../../core/update.js";
 import { compareVersions, detectInstall, packageInfo, upgradeCommand } from "../../core/version.js";
-import { DRY_RUN, JSON_FLAG, bool, parseFlags, printJson, str } from "../args.js";
+import { DRY_RUN, JSON_FLAG, bool, parseFlags, str } from "../args.js";
+import { emit, jsonOutput } from "../output.js";
 import { type Command, type Io, confirm, fail } from "../io.js";
 import { findOnPath, launcherPath } from "../launch.js";
 import { turnoCommand, isGenerated, writeHelperLaunchers, writeLauncher } from "../launchers.js";
+
+/** `turno upgrade --check --json` (ADR 0045). */
+const CHECK_JSON = jsonOutput(["current", "latest", "channel", "method", "updateAvailable", "error", "note"]);
 
 const USAGE = `Usage:
   turno upgrade [--channel latest|next] [--to <version>] [--dry-run] [--yes]
@@ -23,7 +27,12 @@ terminal it asks; --yes runs it without asking).
 
 turno knows how it was installed (npm, pnpm, yarn, bun, volta, or a git checkout) and runs the
 matching command. Once a day interactive commands look for a new release in the background and
-mention it once; set update_check = false in config.toml or TURNO_NO_UPDATE_CHECK=1 to stop that.`;
+mention it once; set update_check = false in config.toml or TURNO_NO_UPDATE_CHECK=1 to stop that.
+
+Examples:
+  $ turno upgrade --check
+  $ turno upgrade
+  $ turno upgrade --finish`;
 
 function versionFile(env: NodeJS.ProcessEnv): string {
   return join(paths(env).state, "version");
@@ -133,6 +142,7 @@ export const command: Command = {
   summary: "update turno to the newest release (or check for one)",
   usage: USAGE,
   flags: ["--check", "--channel", "--to", "--dry-run", "--json", "--finish", "--yes"],
+  json: CHECK_JSON,
   async run(args, io) {
     const p = parseFlags(
       args,
@@ -153,13 +163,13 @@ export const command: Command = {
     if (bool(p, "check")) {
       if (pkg.private || !fromRegistry) {
         const why = pkg.private ? "this copy is not published to a registry" : `installed from ${install.method}`;
-        if (bool(p, "json")) printJson(io, { current: pkg.version, latest: null, method: install.method, note: why });
+        if (bool(p, "json")) emit(io, p, CHECK_JSON, { current: pkg.version, latest: null, method: install.method, note: why });
         else io.out(`turno ${pkg.version} (${why}; turno upgrade pulls the source)`);
         return 0;
       }
       const s = await fetchLatest(io.env, channel);
       const newer = s.latest && compareVersions(s.latest, pkg.version) > 0;
-      if (bool(p, "json")) printJson(io, { current: pkg.version, latest: s.latest ?? null, channel, method: install.method, updateAvailable: Boolean(newer), error: s.error ?? null });
+      if (bool(p, "json")) emit(io, p, CHECK_JSON, { current: pkg.version, latest: s.latest ?? null, channel, method: install.method, updateAvailable: Boolean(newer), error: s.error ?? null });
       else if (s.error) io.out(`could not reach the registry: ${s.error}`);
       else io.out(newer ? `turno ${s.latest} is available (you have ${pkg.version}): turno upgrade` : `turno ${pkg.version} is the newest on ${channel}`);
       return s.error ? 1 : 0;
