@@ -1,7 +1,7 @@
 {
   "name": "turno-monorepo",
   "private": true,
-  "description": "One MCP gateway and per-folder accounts for Claude Code, Codex, Copilot CLI and Cursor CLI.",
+  "description": "Switch accounts in your coding agents and keep the conversation, the MCP sign-ins and the browser session.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {

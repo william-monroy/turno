@@ -2,9 +2,11 @@
 
 ## MCP server memory
 
-turno exists because of one measurement: 18 Claude Code sessions open on a 16 GB Mac held about
-11.7 GB in MCP server processes, most of them copies of the same few servers. This benchmark
-reproduces that effect with public servers so anyone can check the claim.
+turno is about switching accounts and keeping everything else; its MCP gateway is one part of
+that, and this page measures what the gateway does to memory. The measurement behind the
+gateway: 18 Claude Code sessions open on a 16 GB Mac held about 11.7 GB in MCP server processes,
+most of them copies of the same few servers. This benchmark reproduces that effect with public
+servers so anyone can check the claim.
 
 ### Method
 
