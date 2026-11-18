@@ -80,6 +80,8 @@ then releases go to the `next` dist-tag (`turno upgrade --channel next` follows 
   no-downgrade`) and refuses an unsupported Node (`engineStrict`). Dependabot opens one grouped
   pull request a week per ecosystem, with a three-day cooldown. `scripts/licenses.mjs` fails on
   licenses outside the allow list; the dependency review action does the same for pull requests.
+- Security fixes: the changeset names the GHSA and CVE (SECURITY.md, "Fixes and releases"),
+  so the release notes list every vulnerability a release fixes.
 - Commits: `pnpm hooks` installs a `commit-msg` hook that enforces Conventional Commits and
   rejects attribution trailers and the em dash.
 
