@@ -1,9 +1,25 @@
 # turno-fonts
 
+**The font the turno status line draws its icons with.** You do not install it yourself:
+`turno ui install` copies these files into your user font folder and can set the font in your
+terminal.
+
+![The turno status line with Nerd Font icons and with Unicode icons](https://raw.githubusercontent.com/wimo-dev/turno/main/docs/assets/statusline.png)
+
+```sh
+turno ui install                     # the font, and the status line in Claude Code
+turno ui install --terminal current  # also set the font in this terminal
+```
+
+Without the font the status line still works: it falls back to Unicode icons. More about the
+status line at [turno.wimo.dev](https://turno.wimo.dev/docs/concepts/profiles#the-status-line),
+and what each version changed in [Releases](https://turno.wimo.dev/docs/releases).
+
+## What is in it
+
 MesloLGS Nerd Font (Regular, Bold, Italic, Bold Italic) from Nerd Fonts 3.4.0: Meslo LG
 patched with the Nerd Fonts icons, drawn full size (they spill into the space the status line
-leaves after each icon). The turno status line draws its
-icons with it, and `turno ui install` copies these files into your user font folder.
+leaves after each icon).
 
 It is the same Nerd Fonts release Orca ships for its terminal, and Orca draws the icons at the
 same full size, so the status line looks the same in Orca and in any terminal set to this font.
