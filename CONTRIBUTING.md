@@ -23,6 +23,7 @@ Requirements: Node 22.11 or newer, pnpm (the version in `package.json` `packageM
 ```sh
 pnpm install
 pnpm hooks              # commit-msg hook: Conventional Commits, no attribution trailers
+git config blame.ignoreRevsFile .git-blame-ignore-revs   # blame skips formatting-only commits
 pnpm build
 pnpm test               # unit and integration tests, with a sandbox HOME
 pnpm format             # format the code with Biome (pnpm check fails on unformatted code)
