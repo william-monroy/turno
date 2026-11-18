@@ -8,7 +8,7 @@ description: "Check everything (system, config, profiles, MCP, look, mcpd) and f
 Check everything (system, config, profiles, MCP, look, mcpd) and fix what is safe to fix.
 
 ```text title="turno doctor --help"
-Usage: turno doctor [--security] [--fix] [--json | --summary]
+Usage: turno doctor [--security] [--fix] [--json | --summary | --report]
 
 One row per check, in sections. Under each problem: the command that fixes it
 (fix: ...) or the manual step. Exits 1 when a check fails; warnings exit 0.
@@ -20,6 +20,11 @@ status lines. --json gives each check a status (ok, warn, fail or skip), fix (a
 command or null), auto (whether --fix runs it) and manual, plus counts, ms and
 next (the fix commands, failures first).
 
+--report prints a Markdown block to paste in an issue: turno, Node and OS
+versions, each agent and its version, mcpd's state, the warnings and failures,
+and every path turno uses. It holds no tokens or secret values; profile and
+server names appear.
+
 --security runs the security checks instead: who can read turno's folders, who
 holds the mcpd port, literal secrets in mcp.toml, agent configs and backups, MCP
 servers without an exact version, the age of the mcpd token and the audit log's
@@ -30,4 +35,5 @@ Examples:
   $ turno doctor --fix
   $ turno doctor --summary
   $ turno doctor --security --json
+  $ turno doctor --report | pbcopy  # paste it in an issue
 ```

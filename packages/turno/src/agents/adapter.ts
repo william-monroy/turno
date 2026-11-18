@@ -19,6 +19,43 @@ export function gatewayUrl(name: string, port: number): string {
   return `http://127.0.0.1:${port}/mcp/${encodeURIComponent(name)}`;
 }
 
+/** What an agent's safe mode gets (cli/safe.ts): the MCP file it reads and where it runs. */
+export interface SafeStep {
+  /** The agent's MCP file: the profile's, or the hub's for the plain agent. */
+  file: string;
+  /** The folder the agent starts in. */
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  /** A private file the step may write, mode 600 (Claude Code's --mcp-config). */
+  scratch: string;
+}
+
+/** What safe mode adds to the agent's command line, and lines that say what it did. */
+export interface SafePlan {
+  args: string[];
+  notes: string[];
+}
+
+/** Whether an MCP entry points at mcpd: written by `turno mcp sync`, or by hand from `turno mcp config`. */
+export function isGatewayEntry(e: unknown): boolean {
+  if (typeof e !== "object" || e === null || Array.isArray(e)) return false;
+  const o = e as Record<string, unknown>;
+  const table = (v: unknown) => (typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+  const headers = { ...table(o.headers), ...table(o.http_headers), ...table(o.env_http_headers) };
+  if (Object.keys(headers).some((h) => h.toLowerCase() === "x-turno-profile" || h.toLowerCase() === "x-turno-pid")) return true;
+  if (o.bearer_token_env_var === "TURNO_MCPD_TOKEN") return true;
+  return typeof o.url === "string" && /^http:\/\/127\.0\.0\.1:\d+\/mcp\/[^/]+\/?$/.test(o.url);
+}
+
+/** The names of the gateway entries in one server map, sorted. */
+export function gatewayNames(map: unknown): string[] {
+  if (typeof map !== "object" || map === null || Array.isArray(map)) return [];
+  return Object.entries(map)
+    .filter(([, e]) => isGatewayEntry(e))
+    .map(([n]) => n)
+    .sort();
+}
+
 /** What an agent's profile setup steps get from `turno profile repair` (cli/commands/setup.ts). */
 export interface SetupStep {
   name: string;
@@ -107,6 +144,12 @@ export interface AgentAdapter {
     /** A line to print after `turno mcp sync` added servers to the agent's file. */
     afterSync?(added: string[]): string | undefined;
   };
+  /**
+   * Safe mode (`--no-gateway`, TURNO_SAFE=1): the arguments that leave the gateway entries out of
+   * one run, and for Claude Code the status line. The launcher's gateway variables are left out
+   * by cli/safe.ts for every agent.
+   */
+  safeMode(s: SafeStep): SafePlan;
   /** Agent steps of `turno profile repair`, around the shared links. */
   setup?: {
     /** Before anything is linked. */

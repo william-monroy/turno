@@ -68,7 +68,8 @@ port = 47821
 
 ```text
 Usage:
-  turno config path [--json]            where each config and state file lives
+  turno config path [--all] [--json]    where each config and state file lives
+                                        (--all: every path turno uses)
   turno config get [key] [--json]       print a value (the whole file as JSON
                                         without a key)
   turno config set <key> <value> [--dry-run]
@@ -109,6 +110,7 @@ A [[projects]] rule with mcp = [...] limits the servers of that folder.
 
 Examples:
   $ turno config path --json
+  $ turno config path --all
   $ turno config get default
   $ turno config get mcpd --json
   $ turno config set default work

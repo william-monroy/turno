@@ -8,7 +8,7 @@ description: "Open a profile with its agent (turno <profile> is the short form),
 Open a profile with its agent (turno &lt;profile&gt; is the short form), or auto.
 
 ```text title="turno run --help"
-Usage: turno run <profile|auto> [agent args]
+Usage: turno run <profile|auto> [--no-gateway] [agent args]
 
 Everything after the profile goes to its agent, for example:
   turno run work --resume
@@ -16,8 +16,18 @@ Everything after the profile goes to its agent, for example:
 Without a profile, a terminal shows the profiles to choose from. When this
 folder resolves to a profile, auto comes first, named with it: auto (work).
 
+Safe mode: --no-gateway (or TURNO_SAFE=1) opens the profile with its account
+but without turno's gateway: no mcpd entries, no gateway token, and for Claude
+Code no status line (and no hooks). If a problem goes away in safe mode, it
+comes from turno. Claude Code gets --strict-mcp-config with the profile's other
+servers, Codex -c mcp_servers.<name>.enabled=false and Copilot
+--disable-mcp-server for each gateway entry; Cursor has no switch for one run,
+so its entries start without the token and mcpd refuses them.
+
 Examples:
   $ turno run work
   $ turno run work --resume  # arguments go to the agent
   $ turno run auto
+  $ turno run work --no-gateway  # safe mode
+  $ TURNO_SAFE=1 turno work
 ```

@@ -84,10 +84,15 @@ function requireAgent(agent: AgentId): string {
  * `xdg-open` (Linux). Elsewhere the agent keeps its own browser handling.
  */
 function browserLines(env: NodeJS.ProcessEnv, platform: NodeJS.Platform, comment: boolean): string[] {
-  const works = platform === "darwin" || (platform === "linux" && Boolean(findOnPath("xdg-open", env)));
-  if (!works) return [];
+  if (!launcherBrowser(env, platform)) return [];
   const line = `export BROWSER=${shPath(join(paths(env).bin, "turno-open"), env)}`;
   return comment ? ["# claude.ai links (artifacts, login) open with this account: turno open.", line] : [line];
+}
+
+/** The BROWSER a launcher exports on this platform (turno-open), or undefined where it cannot work. */
+export function launcherBrowser(env: NodeJS.ProcessEnv, platform: NodeJS.Platform = process.platform): string | undefined {
+  const works = platform === "darwin" || (platform === "linux" && Boolean(findOnPath("xdg-open", env)));
+  return works ? join(paths(env).bin, "turno-open") : undefined;
 }
 
 /** Double-quoted POSIX shell word; a path under HOME is written as "$HOME/...". */

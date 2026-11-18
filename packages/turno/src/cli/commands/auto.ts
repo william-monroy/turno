@@ -6,12 +6,15 @@ import { listProfiles } from "../../core/profiles.js";
 import { resolveProfile } from "../../core/resolve.js";
 import { Exit } from "../exit.js";
 import { CliError, type Command, type Io, fail } from "../io.js";
-import { execLauncher, findOnPath, launcherPath } from "../launch.js";
+import { execLauncher, findOnPath, launcherPath, wantsSafe } from "../launch.js";
 import { launcherName } from "../launchers.js";
 
 /** What `turno auto` will exec, and the line it tells the person on stderr. */
 export interface AutoPlan {
   file: string;
+  /** The agent it opens, and the profile (none for the plain agent): what safe mode needs. */
+  agent: AgentId;
+  profile?: string;
   args: string[];
   notice?: string;
   /** Show the notice even when stderr is not a terminal. */
@@ -45,7 +48,7 @@ export function planAuto(argv: string[], io: Io, cwd: string = process.cwd()): A
     config = loadConfig(env);
   } catch (err) {
     const msg = (err as Error).message;
-    if (env.TURNO_ALLOW_PLAIN === "1") return { file: plain(), args, notice: `turno: ${msg}; running plain ${a.command} (TURNO_ALLOW_PLAIN=1)`, always: true };
+    if (env.TURNO_ALLOW_PLAIN === "1") return { file: plain(), agent, args, notice: `turno: ${msg}; running plain ${a.command} (TURNO_ALLOW_PLAIN=1)`, always: true };
     throw new CliError(
       `${msg}\nturno auto does not guess an account while config.toml is broken. Fix it (turno config edit), or run plain ${a.command} once with TURNO_ALLOW_PLAIN=1.`,
     );
@@ -64,6 +67,8 @@ export function planAuto(argv: string[], io: Io, cwd: string = process.cwd()): A
     }
     return {
       file: launcher,
+      agent,
+      profile: r.chosen,
       args,
       notice: r.note ? `turno: ${r.assigned} ${r.note} → using ${r.chosen} (${r.reason})` : `turno: account ${r.chosen} (${r.reason})`,
     };
@@ -75,15 +80,17 @@ export function planAuto(argv: string[], io: Io, cwd: string = process.cwd()): A
     );
   }
   if (agent !== DEFAULT_AGENT && listProfiles(config, env, agent).length === 0) {
-    return { file: plain(), args, notice: `turno: no ${a.label} profile yet, so this runs plain ${a.command} with ${hub} (turno profile add <name> --agent ${agent})`, always: true };
+    return { file: plain(), agent, args, notice: `turno: no ${a.label} profile yet, so this runs plain ${a.command} with ${hub} (turno profile add <name> --agent ${agent})`, always: true };
   }
-  return { file: plain(), args, notice: `turno: no rule or default for ${where}; running plain ${a.command} with ${hub}` };
+  return { file: plain(), agent, args, notice: `turno: no rule or default for ${where}; running plain ${a.command} with ${hub}` };
 }
 
 export const command: Command = {
   summary: "open the agent with the account assigned to this folder (turno-auto)",
   usage: [
-    "Usage: turno auto [--agent claude|codex|copilot|cursor] [agent args]",
+    "Usage: turno auto [--agent <agent>] [--no-gateway] [agent args]",
+    "",
+    "<agent> is claude (the default), codex, copilot or cursor.",
     "",
     "Resolves the profile of that agent (Claude Code by default) for the current",
     "folder (a git worktree counts as its main repository), switches to the fallback",
@@ -97,15 +104,22 @@ export const command: Command = {
     "TURNO_ALLOW_PLAIN=1 runs the plain agent despite a broken config.toml;",
     'system = "" in config.toml makes folders without a rule an error too.',
     "",
+    "--no-gateway (or TURNO_SAFE=1) opens the same account in safe mode: no mcpd",
+    "entries and no status line, to tell whether a problem comes from turno (turno",
+    "run --help).",
+    "",
     "Examples:",
     "  $ turno auto",
     "  $ turno auto --resume",
     "  $ turno auto --agent codex",
+    "  $ turno auto --no-gateway",
   ].join("\n"),
   async run(argv, io) {
-    const plan = planAuto(argv, io);
+    const safe = wantsSafe(argv, io.env);
+    const plan = planAuto(safe ? (await import("../safe.js")).takeSafeFlag(argv).args : argv, io);
     const quiet = plan.args[0] === "--version" || plan.args[0] === "-v";
     if (plan.notice && (plan.always || (process.stderr.isTTY && !quiet))) io.err(plan.notice);
+    if (safe) return (await import("../safe.js")).launchSafe(plan.agent, plan.profile, plan.args, io);
     return execLauncher(plan.file, plan.args, io.env);
   },
 };

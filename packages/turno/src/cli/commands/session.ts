@@ -12,7 +12,7 @@ export function sessionsData(env: NodeJS.ProcessEnv) {
   const config = loadConfig(env);
   return liveSessions(env, config).map((s) => ({
     name: displayName(s),
-    profile: s.source === "record" ? (s.profile ?? null) : s.source === "desktop" ? null : (config.system ?? null),
+    profile: s.source === "record" ? (s.profile ?? null) : s.source === "desktop" ? null : (config.system || null),
     source: s.source,
     status: s.status,
     cwd: s.cwd,

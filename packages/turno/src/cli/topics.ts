@@ -28,6 +28,7 @@ const ENVIRONMENT: readonly { title: string; rows: readonly (readonly [string, s
       ["TURNO_NO_INPUT", "1: never ask, exit 2 and name the flag instead (same as --no-input); 0: ask even inside an agent session"],
       ["TURNO_COLOR", "always, never or auto (same as --color); see the order below"],
       ["TURNO_ALLOW_PLAIN", "1: turno auto runs the plain agent when config.toml does not parse"],
+      ["TURNO_SAFE", "1: turno run, turno <profile> and turno auto open the agent in safe mode, without the gateway and the status line (same as --no-gateway)"],
       ["TURNO_NO_UPDATE_CHECK", "1: no daily update check and no notice"],
       ["TURNO_NO_UPDATE_NOTIFIER", "1: same as TURNO_NO_UPDATE_CHECK (the name gh uses)"],
       ["TURNO_REGISTRY", "npm registry for update checks (default: npm_config_registry, else registry.npmjs.org)"],
@@ -72,7 +73,12 @@ function environment(): string[] {
     "CLICOLOR_FORCE, then CLICOLOR=0 or TERM=dumb, then whether output is a terminal.",
     "--json output is colored only on a terminal.",
     "",
-    examplesBlock(["NO_COLOR=1 turno status", "TURNO_NO_INPUT=1 turno profile remove work  # fails fast instead of asking", "TURNO_CONFIG_DIR=/tmp/t turno doctor"]),
+    examplesBlock([
+      "NO_COLOR=1 turno status",
+      "TURNO_NO_INPUT=1 turno profile remove work  # fails fast instead of asking",
+      "TURNO_CONFIG_DIR=/tmp/t turno doctor",
+      "TURNO_SAFE=1 turno work  # without the gateway, to tell whether a problem is turno's",
+    ]),
   );
   return out;
 }
