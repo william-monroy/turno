@@ -53,11 +53,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # turno-cli compiles against turno-browser's types, so both are built before packing.
       - run: pnpm build
-      - name: Pack both packages as a release would (prepack builds and writes the shrinkwrap)
+      # turno-core too: both depend on it, and the smoke test installs it from this folder through
+      # a local registry (scripts/local-registry.mjs) while it is not on npm.
+      - name: Pack the packages as a release would (prepack builds and writes the shrinkwrap)
         id: pack
         run: |
           mkdir -p "$RUNNER_TEMP/tarballs"
-          for dir in browser turno; do (cd "packages/$dir" && pnpm pack --pack-destination "$RUNNER_TEMP/tarballs"); done
+          for dir in core browser turno; do (cd "packages/$dir" && pnpm pack --pack-destination "$RUNNER_TEMP/tarballs"); done
           ls -l "$RUNNER_TEMP/tarballs"
       - name: npm install --global
         if: ${{ !cancelled() && steps.pack.outcome == 'success' }}
