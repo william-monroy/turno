@@ -146,8 +146,8 @@ registros, uso, servidores MCP instalados), y después `turno undo` ya no tiene 
 
 Las preguntas en español son bienvenidas en
 [Discussions](https://github.com/wimo-dev/turno/discussions), en la categoría Español.
-Lee [CONTRIBUTING.md](CONTRIBUTING.md) antes de abrir un pull request. Hecho en Monterrey,
-México. Licencia Apache 2.0.
+Lee [CONTRIBUTING.md](CONTRIBUTING.md) antes de abrir un pull request.
+Licencia Apache 2.0.
 
 ## Documentación
 

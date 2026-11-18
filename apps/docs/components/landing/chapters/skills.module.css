@@ -1,0 +1,37 @@
+/* The bridge's question, asked inside the session that made the call, as the client asks it. */
+.ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 0 12px 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.askText {
+  margin-right: auto;
+  color: var(--ink);
+  font-weight: 600;
+}
+.answer {
+  min-height: 28px;
+  padding: 2px 10px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.answer:hover,
+.answer:focus-visible {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+  outline: none;
+}
+.allow {
+  border-color: var(--tone-keep);
+  color: var(--tone-keep);
+}

@@ -1,0 +1,134 @@
+/*
+ * Folders on the stage's lanes. They move the way the stage's own things move (stage.module.css:
+ * translate by --lane, eased over --travel, a small rise on the way, no transition on a cut),
+ * because the stage keeps that class to itself.
+ */
+
+.mover {
+  --acme-home: 0px;
+  --acme-ruled: 0px;
+  --blog-y: 96px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: 100%;
+  translate: calc(var(--lane, 0) * var(--dx)) calc(var(--lane, 0) * var(--dy) + var(--y, 0px));
+  transition: translate var(--travel) cubic-bezier(0.65, 0, 0.35, 1);
+}
+[data-cut] .mover {
+  transition: none;
+}
+
+@container (max-width: 519px) {
+  .mover {
+    --acme-home: 52px;
+    --blog-y: 0px;
+  }
+}
+
+@keyframes rise {
+  0%,
+  100% {
+    transform: none;
+  }
+  50% {
+    transform: translateY(-14px);
+  }
+}
+@keyframes rise-side {
+  0%,
+  100% {
+    transform: none;
+  }
+  50% {
+    transform: translateX(10px);
+  }
+}
+.mover[data-travel] > * {
+  animation: rise var(--travel) cubic-bezier(0.45, 0, 0.55, 1);
+}
+@container (max-width: 519px) {
+  .mover[data-travel] > * {
+    animation-name: rise-side;
+  }
+}
+
+/* A folder: its outline and its icon are the account it opens as. */
+.folder {
+  min-width: 15.5em;
+  border: 1.5px solid var(--tone);
+  background: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px 7px 10px;
+}
+.row[data-child] {
+  padding-top: 0;
+  margin-top: -2px;
+}
+.icon {
+  position: relative;
+  flex: none;
+  width: 16px;
+  height: 12px;
+  margin-top: 3px;
+  border: 1.5px solid var(--tone);
+}
+/* The folder's tab. */
+.icon::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: -1.5px;
+  width: 7px;
+  height: 4px;
+  border: 1.5px solid var(--tone);
+  border-bottom: 0;
+}
+.branch {
+  flex: none;
+  width: 16px;
+  overflow: hidden;
+  color: var(--dim);
+  letter-spacing: -0.1em;
+  white-space: nowrap;
+}
+.name {
+  color: var(--ink);
+  white-space: nowrap;
+}
+.open {
+  margin-left: auto;
+  padding-left: 14px;
+  color: var(--tone);
+  white-space: nowrap;
+}
+
+/* Drawing itself: the folders come in one per beat after the lanes, as the session's turns do. */
+@keyframes cut {
+  from {
+    visibility: hidden;
+  }
+  to {
+    visibility: visible;
+  }
+}
+[data-drawing] .folder {
+  animation: cut var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * (6 + var(--i, 0)));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mover {
+    transition: none;
+  }
+  .mover[data-travel] > * {
+    animation: none !important;
+  }
+}

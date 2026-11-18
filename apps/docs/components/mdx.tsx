@@ -3,6 +3,8 @@ import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 import defaultMdxComponents from "fumadocs-ui/mdx";
 import type { MDXComponents } from "mdx/types";
 import type { ComponentProps } from "react";
+import { Callout, Card, Cards } from "@/components/docs/cards";
+import { FindingFilter } from "@/components/docs/finding-filter";
 import { FolderTree } from "@/components/diagrams/folder-tree";
 import { GatewayDiagram } from "@/components/diagrams/gateway";
 import { ScopeTree } from "@/components/diagrams/scope-tree";
@@ -18,6 +20,11 @@ export function getMDXComponents(components?: MDXComponents) {
     // The site has a handful of images, so they load with the page: a lazy one stays blank in
     // print and in full-page captures until it is scrolled to.
     img: (props: ComponentProps<typeof MdxImage>) => <MdxImage {...props} loading="eager" />,
+    // Cards and callouts in the site's own look (components/docs/cards.tsx), same props.
+    Card,
+    Cards,
+    Callout,
+    FindingFilter,
     Tab,
     Tabs,
     Step,

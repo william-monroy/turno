@@ -1,0 +1,231 @@
+/*
+ * The gateway on the stage. The stage's own movers place a thing by lane; here a lane holds a row
+ * of sessions, and the servers sit on the bar across both lanes, because they are the gateway's,
+ * not an account's. The copies a session would start without it fall into the bar: the one thing
+ * that travels.
+ */
+
+/* A lane's row of sessions, and the copies under them. It ends where the bar starts, so the
+   copies disappear into it as they fall. */
+.lane {
+  --sink: calc(var(--slot) + var(--gap-y));
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  gap: clamp(6px, 1.4cqw, 10px);
+  width: 100%;
+  height: var(--sink);
+  overflow: hidden;
+  translate: calc(var(--lane, 0) * var(--dx)) calc(var(--lane, 0) * var(--dy));
+}
+@container (max-width: 519px) {
+  .lane {
+    --sink: var(--slot);
+  }
+}
+
+.column {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+/*
+ * A session. The page's own conversation is its card, small, with its id; the seven others are
+ * only marks, there to be counted. Blue, because every profile keeps a conversation.
+ */
+.session {
+  display: block;
+  width: 100%;
+  height: 12px;
+  border: 1px solid color-mix(in oklab, var(--tone-keep) 45%, var(--paper));
+  background: var(--paper);
+}
+.session[data-ours] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  border: 1.5px solid var(--tone-keep);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--tone-keep);
+  white-space: nowrap;
+}
+
+/* Its line to mcpd, down to the bar: faint while nothing needs it, drawn while a command does. */
+.wire {
+  position: absolute;
+  top: 12px;
+  bottom: 0;
+  left: 50%;
+  border-left: 1px solid color-mix(in oklab, var(--tone-keep) 22%, var(--paper));
+}
+.session[data-ours] + .wire {
+  top: 28px;
+}
+.lane[data-wires="shown"] .wire,
+.wire[data-calls] {
+  border-left-color: color-mix(in oklab, var(--tone-keep) 55%, var(--paper));
+}
+.lane[data-wires="hidden"] .wire {
+  visibility: hidden;
+}
+
+/* Its own copy of every server, as it would be without the gateway. */
+.copies {
+  position: absolute;
+  top: 42px;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-left: -5px;
+}
+.copies > i {
+  display: block;
+  width: 10px;
+  height: 10px;
+  background: color-mix(in oklab, var(--ink) 55%, var(--paper));
+}
+.lane[data-ghosts="hidden"] .copies {
+  visibility: hidden;
+}
+/* Session by session, on the beat, the way each one starts its servers. */
+.lane[data-ghosts="shown"] .copies {
+  animation: cut var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * var(--c, 0));
+}
+/* Into the bar, together: eased, because it travels. */
+.lane[data-ghosts="dropped"] .copies {
+  translate: 0 calc(var(--sink) - 42px);
+  transition: translate calc(var(--b) * 6) cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* The servers, on the bar, each once ---------------------------------------------------------- */
+
+.shelf {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  width: calc(200% + var(--gap-x));
+  translate: 0 var(--bar-y);
+}
+/*
+ * A phone stacks the lanes and has no room for six in a row: two rows of three stand on the bar,
+ * so the bar itself stays in sight.
+ */
+@container (max-width: 519px) {
+  .shelf {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    translate: 0 calc(var(--dy) + var(--slot) + var(--gap-y) - 60px);
+  }
+}
+.shelf[data-chips="hidden"] {
+  visibility: hidden;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--dim);
+  white-space: nowrap;
+}
+.mark {
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid currentColor;
+}
+.chip[data-on] {
+  border-color: color-mix(in oklab, var(--ink) 55%, var(--paper));
+  color: var(--ink);
+}
+.chip[data-on] .mark {
+  background: currentColor;
+}
+
+/* `turno mcp top` reads them one per beat. */
+@keyframes on {
+  from {
+    border-color: var(--line);
+    color: var(--dim);
+  }
+  to {
+    border-color: color-mix(in oklab, var(--ink) 55%, var(--paper));
+    color: var(--ink);
+  }
+}
+@keyframes fill {
+  from {
+    background: transparent;
+  }
+  to {
+    background: currentColor;
+  }
+}
+.shelf[data-chips="fill"] .chip {
+  animation: on var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * var(--i, 0));
+}
+.shelf[data-chips="fill"] .mark {
+  animation: fill var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * var(--i, 0));
+}
+
+/* The reading on the bar ----------------------------------------------------------------------- */
+
+.reading {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-end;
+  column-gap: 10px;
+  font-size: 12.5px;
+}
+.figure {
+  font-weight: 600;
+  color: var(--ink);
+}
+.reading[data-without] .figure {
+  color: var(--dim);
+  font-weight: 400;
+}
+.less {
+  font-weight: 600;
+  color: var(--tone-keep);
+}
+.lines {
+  color: var(--dim);
+}
+
+@keyframes cut {
+  from {
+    visibility: hidden;
+  }
+  to {
+    visibility: visible;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lane .copies,
+  .shelf .chip,
+  .shelf .mark {
+    animation: none !important;
+    transition: none !important;
+  }
+}

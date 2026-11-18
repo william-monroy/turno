@@ -1,0 +1,17 @@
+{
+  "title": "Docs",
+  "description": "Get started, guides and concepts",
+  "root": true,
+  "pages": [
+    "[Overview](/docs)",
+    "---Get started---",
+    "...get-started",
+    "---Guides---",
+    "...guides",
+    "---Concepts---",
+    "...concepts",
+    "---More---",
+    "comparison",
+    "faq"
+  ]
+}

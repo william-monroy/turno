@@ -1,5 +1,7 @@
 {
   "title": "Troubleshooting",
+  "description": "One page per doctor finding",
+  "root": true,
   "pages": [
     "index",
     "---turno doctor---",

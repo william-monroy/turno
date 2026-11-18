@@ -11,7 +11,7 @@ import { parseDuration, parseSize } from "./units.js";
  * and copying a profile does not copy it by accident.
  *
  * - `timezone`: an IANA zone. Chrome gets it as `timezoneId`, only when it differs from the
- *   system's (an identity made in Monterrey keeps that zone on a trip).
+ *   system's (an identity set up at home keeps that zone on a trip).
  * - `languages`: the Accept-Language order, passed as Chrome's own `--accept-lang`, so the
  *   header keeps Chrome's q-values and `navigator.languages` matches it. Without it, `locale`
  *   gives `[locale, base language]`.
@@ -277,7 +277,7 @@ function problemsOf(raw: unknown): string[] {
   if (v.timezone !== undefined) {
     if (typeof v.timezone !== "string") out.push("timezone must be a string");
     else if (!validTimezone(v.timezone))
-      out.push(`timezone "${v.timezone}" is not an IANA time zone (for example "America/Monterrey")`);
+      out.push(`timezone "${v.timezone}" is not an IANA time zone (for example "Europe/Madrid")`);
   }
   if (v.locale !== undefined) {
     if (typeof v.locale !== "string" || !canonicalLocale(v.locale))

@@ -270,7 +270,7 @@ export const command = group(
       "turno identity add browser:school",
       "turno identity login browser:school",
       "turno identity show browser:school",
-      "turno identity set browser:school --timezone America/Monterrey --languages es-MX,es,en",
+      "turno identity set browser:school --timezone Europe/Madrid --languages es-ES,es,en",
       "turno identity set browser:school --tabs-max 5 --tabs-park 10m --background-throttling true",
       "turno identity set browser:school --block-trackers true --block-types image,font --cache-max-size 200MB",
       "turno identity set browser:school --settle 500ms --dry-run --json",

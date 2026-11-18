@@ -1,0 +1,80 @@
+---
+title: Cambia de cuenta. Conserva todo lo demás.
+description: ¿Cambias de cuenta? La conversación sigue. La misma sesión continúa en tu otra cuenta, con todo su contexto, sus servidores MCP ya con sesión iniciada y su navegador todavía con la sesión abierta.
+---
+
+Esta página es la entrada: empieza por el problema que tienes, o lee qué se queda contigo cuando cambias de cuenta.
+
+## Empieza por tu problema
+
+<Cards>
+  <Card title="Tengo cuentas de trabajo y personales" href="/es/docs/guides/work-and-personal" description="Un perfil para cada una, y una conversación que pasa de una a otra." />
+  <Card title="Inicio sesión en cada servidor MCP una y otra vez" href="/es/docs/concepts/gateway#remote-servers" description="Inicias sesión una vez por cuenta. Todos los agentes de esa cuenta la usan." />
+  <Card title="Mi agente abre un navegador sin mi sesión" href="/es/docs/guides/signed-in-browser" description="Un perfil de Chrome por identidad, con la sesión iniciada una vez a mano." />
+  <Card title="Muchas sesiones se comen mi RAM" href="/es/docs/guides/many-sessions-ram" description="Una sola copia de cada servidor MCP, compartida por todas las sesiones." />
+</Cards>
+
+¿Algo no funciona? `turno doctor` te dice qué es, y [Solución de problemas](/es/docs/troubleshooting) tiene una página para cada hallazgo (en inglés).
+
+## Qué se queda cuando cambias de cuenta
+
+1. **La conversación.** Tus perfiles de Claude Code comparten conversaciones, skills y configuración, así que una sesión que empezó con una cuenta continúa con otra (`turno work --resume <id>`), o se bifurca para que las dos sigan. `turno session handoff work` te da el comando exacto. Mira [What profiles share](/es/docs/concepts/profiles#what-profiles-share).
+2. **Tus inicios de sesión MCP.** El gateway inicia sesión en cada servidor MCP remoto una vez por cuenta (`turno mcp login linear`) y guarda el token en el Llavero de macOS o en el Secret Service de Linux. Ningún agente inicia sesión por su cuenta, y cada perfil puede llegar a su propia cuenta del mismo servicio. Mira [The gateway](/es/docs/concepts/gateway#remote-servers).
+3. **Tu navegador.** Cada perfil abre los enlaces de claude.ai en su propio perfil de Chrome, así que un enlace que sale de una sesión se abre con la cuenta de esa sesión (`turno open work <url>` lo hace a mano). Con el paquete aparte `turno-browser`, cada identidad tiene un perfil de Chrome persistente en el que inicias sesión una vez a mano, y un agente trabaja dentro de las sesiones que ya tienes. Mira [Browser identities](/es/docs/concepts/browser-identities).
+4. **Los movimientos, desde la misma sesión.** El plugin de turno para Claude Code agrega `/switch-account`, `/fork-session` y `/copy-artifact`. Mira [Skills](/es/docs/concepts/skills).
+
+Cómo sabe turno qué cuenta usar: cada carpeta de proyecto tiene la suya. Corres `turno profile assign ~/code/acme work` una vez, y cada agente que abras ahí inicia sesión con esa cuenta; las carpetas sin regla usan tu cuenta por defecto. `turno auto` nunca cambia de cuenta sin avisarte. Mira [Folder rules](/es/docs/concepts/folder-rules).
+
+## Un gateway, menos memoria
+
+Cada sesión de un agente de código arranca su propia copia de cada servidor MCP. Ocho sesiones con seis servidores comunes ocupan 3,163 MiB en 56 procesos. turno arranca cada servidor una sola vez, solo cuando se llama una de sus herramientas, detrás de un gateway local que comparten todas las sesiones de todos los agentes: 847 MiB con los seis servidores corriendo y 103 MiB mientras están inactivos. El [benchmark](/es/docs/benchmarks) (en inglés) explica el método y sus salvedades.
+
+## Funciona con tus agentes
+
+Los mismos perfiles, reglas de carpeta y gateway sirven para Claude Code, Codex CLI, GitHub Copilot CLI y Cursor CLI. En Claude Code, una status line muestra la cuenta, su uso de 5 h y semanal, el contexto, la rama y el costo.
+
+## Pruébalo sin riesgo
+
+`turno demo` arma un HOME desechable con dos perfiles, un gateway y dos servidores MCP, abre una terminal ahí y borra todo cuando sales. No toca tu configuración.
+
+```sh
+npx turno-cli demo
+```
+
+Cuando lo instalas de verdad, cada cambio se puede deshacer con `turno undo`, y `turno uninstall --dry-run` lista todo lo que turno configuró antes de quitar nada. Con turno ya configurado, `turno` solo te muestra dónde estás (la salida de la CLI está en inglés):
+
+```text
+turno 0.2.0  ~ →  personal
+
+Here ───────────────────────────────────────────────────────────────────────────
+  claude   personal   folder without a rule
+
+Profiles ───────────────────────────────────────────────────────────────────────
+              5 hours    week    account
+   personal   -          -       you@personal.example · pro  default
+   work       -          -       you@work.example · max
+
+Machine ────────────────────────────────────────────────────────────────────────
+  gateway   ● running on port 52222
+  sessions  0 live sessions
+```
+
+## ¿Es para ti?
+
+turno es para cuando corres muchas sesiones de varios agentes con más de una cuenta. Si solo necesitas una de esas piezas, hay otras herramientas que la hacen bien: mira la [comparación](/es/docs/comparison) (en inglés).
+
+Funciona en macOS y Linux con Node 22.11 o más nuevo. Windows no está soportado. Nada sale de tu máquina: no hay cuenta, ni telemetría, ni proxy del tráfico con el modelo.
+
+<Callout title="Varias cuentas y tu plan">
+El uso pensado es separar cuentas de trabajo y personales. turno ejecuta la CLI oficial de cada proveedor sin modificarla, y cada cuenta sigue sujeta a los términos de su proveedor. No lo uses para sortear límites de uso ni salvaguardas. Lee [Vendor terms](/es/docs/security#vendor-terms) (en inglés).
+</Callout>
+
+## Qué sigue
+
+<Cards>
+  <Card title="Pruébalo" href="/es/docs/get-started/try-it" description="Dos perfiles y un gateway en un HOME desechable." />
+  <Card title="Instalación" href="/es/docs/get-started/install" description="npm, pnpm, bun, yarn o Homebrew." />
+  <Card title="Primeros cinco minutos" href="/es/docs/get-started/first-five-minutes" description="turno init, inicia sesión y abre una carpeta." />
+</Cards>
+
+Por ahora están en español los primeros pasos y las [preguntas frecuentes](/es/docs/faq). El resto de la documentación está en inglés.

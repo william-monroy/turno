@@ -1,0 +1,78 @@
+---
+title: Switch accounts. Keep everything else.
+description: Switching accounts? Keep talking. The same session continues on your other account, with all its context, its MCP servers already signed in and its browser still logged in.
+---
+
+This page is the way in: start from the problem you have, or read what stays with you when you switch accounts.
+
+## Start from your problem
+
+<Cards>
+  <Card title="I have work and personal accounts" href="/docs/guides/work-and-personal" description="A profile for each, and one conversation that moves between them." />
+  <Card title="I sign in to every MCP server again and again" href="/docs/concepts/gateway#remote-servers" description="Log in once per account. Every agent on that account uses the login." />
+  <Card title="My agent opens a browser that is not signed in" href="/docs/guides/signed-in-browser" description="One Chrome profile per identity, signed in once by hand." />
+  <Card title="Many sessions eat my RAM" href="/docs/guides/many-sessions-ram" description="One copy of each MCP server, shared by every session." />
+</Cards>
+
+Something does not work? `turno doctor` names the problem, and [Troubleshooting](/docs/troubleshooting) has a page for each finding.
+
+## What stays when you switch
+
+1. **The conversation.** Your Claude Code profiles share conversations, skills and settings, so a session started with one account continues with another (`turno work --resume <id>`), or forks so both keep going. `turno session handoff work` prints the exact command. See [What profiles share](/docs/concepts/profiles#what-profiles-share).
+2. **Your MCP logins.** The gateway signs in to each remote MCP server once per account (`turno mcp login linear`) and keeps the token in the macOS Keychain or the Linux Secret Service. No agent logs in on its own, and each profile can reach its own account of the same service. See [The gateway](/docs/concepts/gateway#remote-servers).
+3. **Your browser.** Each profile opens claude.ai links in its own Chrome profile, so a link from a session opens with that session's account (`turno open work <url>` does it by hand). With the separate package `turno-browser`, each identity gets a persistent Chrome profile that you sign in to once by hand, and an agent works inside the sessions you already have. See [Browser identities](/docs/concepts/browser-identities).
+4. **The moves, from inside the session.** The turno plugin for Claude Code adds `/switch-account`, `/fork-session` and `/copy-artifact`. See [Skills](/docs/concepts/skills).
+
+How turno knows which account to use: each project folder has its own. `turno profile assign ~/code/acme work` once, and every agent you open there signs in with that account; folders without a rule use your default. `turno auto` never switches accounts in silence. See [Folder rules](/docs/concepts/folder-rules).
+
+## One gateway, less memory
+
+Every agent session starts its own copy of every MCP server. Eight sessions with six common servers is 3,163 MiB in 56 processes. turno starts each server once, only when a tool is called, behind one local gateway that every session of every agent shares: 847 MiB while all six run, 103 MiB while they sit idle. The [benchmark](/docs/benchmarks) has the method and the caveats.
+
+## Works with your agents
+
+The same profiles, folder rules and gateway work for Claude Code, Codex CLI, GitHub Copilot CLI and Cursor CLI. In Claude Code, a status line shows the account, its 5 h and weekly usage, the context, the branch and the cost. See [I use Claude Code and Codex](/docs/guides/claude-code-and-codex).
+
+## Safe to try
+
+`turno demo` builds a throwaway HOME with two profiles, a gateway and two MCP servers, opens a shell there and removes everything when you leave. Your own setup is not touched.
+
+```sh
+npx turno-cli demo
+```
+
+When you install for real, every write can be put back with `turno undo`, and `turno uninstall --dry-run` lists everything turno set up before anything is removed. Once turno is set up, a bare `turno` shows where you stand:
+
+```text
+turno 0.2.0  ~ →  personal
+
+Here ───────────────────────────────────────────────────────────────────────────
+  claude   personal   folder without a rule
+
+Profiles ───────────────────────────────────────────────────────────────────────
+              5 hours    week    account
+   personal   -          -       you@personal.example · pro  default
+   work       -          -       you@work.example · max
+
+Machine ────────────────────────────────────────────────────────────────────────
+  gateway   ● running on port 52222
+  sessions  0 live sessions
+```
+
+## Is it for you?
+
+turno is for the case where you run many sessions of several agents with more than one account. If you only need one of those pieces, other tools do it well: see the [comparison](/docs/comparison).
+
+It runs on macOS and Linux with Node 22.11 or newer. Windows is not supported. Nothing leaves your machine: no account, no telemetry, no proxy for model traffic.
+
+<Callout title="Several accounts and your plan">
+The intended use is separate work and personal accounts. turno runs each vendor's own, unmodified CLI, and each account stays bound by its vendor's terms. Do not use it to get around usage limits or safeguards. See [Vendor terms](/docs/security#vendor-terms).
+</Callout>
+
+## Next
+
+<Cards>
+  <Card title="Try it" href="/docs/get-started/try-it" description="Two profiles and a gateway in a throwaway HOME." />
+  <Card title="Install" href="/docs/get-started/install" description="npm, pnpm, bun, yarn or Homebrew." />
+  <Card title="First five minutes" href="/docs/get-started/first-five-minutes" description="turno init, sign in, open a folder." />
+</Cards>

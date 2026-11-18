@@ -42,7 +42,7 @@ describe("identity.json location", () => {
       path: identitySettingsPath("plain", sb.env),
       problems: [],
     });
-    expect(launchSettings(undefined, [], "America/Monterrey")).toEqual({ args: [] });
+    expect(launchSettings(undefined, [], "Europe/Madrid")).toEqual({ args: [] });
   });
 });
 
@@ -50,15 +50,15 @@ describe("writeIdentitySettings", () => {
   it("creates the file with the schema version and timestamps, mode 600", () => {
     const s = writeIdentitySettings(
       "school",
-      { timezone: "America/Monterrey", languages: ["es-MX", "es", "en"], region: "mx" },
+      { timezone: "Europe/Madrid", languages: ["es-ES", "es", "en"], region: "es" },
       sb.env,
       T0,
     );
     expect(s).toEqual({
       version: 1,
-      timezone: "America/Monterrey",
-      languages: ["es-MX", "es", "en"],
-      region: "MX",
+      timezone: "Europe/Madrid",
+      languages: ["es-ES", "es", "en"],
+      region: "ES",
       created: T0.toISOString(),
       updated: T0.toISOString(),
     });
@@ -69,7 +69,7 @@ describe("writeIdentitySettings", () => {
   });
 
   it("merges a patch, keeps created, bumps updated and removes keys set to null", () => {
-    writeIdentitySettings("school", { timezone: "America/Monterrey", locale: "es-MX" }, sb.env, T0);
+    writeIdentitySettings("school", { timezone: "Europe/Madrid", locale: "es-ES" }, sb.env, T0);
     const s = writeIdentitySettings(
       "school",
       { locale: null, health: { url: "https://mail.example.com/", text: "Inbox" } },
@@ -78,7 +78,7 @@ describe("writeIdentitySettings", () => {
     );
     expect(s).toEqual({
       version: 1,
-      timezone: "America/Monterrey",
+      timezone: "Europe/Madrid",
       health: { url: "https://mail.example.com/", text: "Inbox" },
       created: T0.toISOString(),
       updated: T1.toISOString(),
@@ -277,11 +277,11 @@ describe("launch settings", () => {
   });
 
   it("emulates the time zone only when it differs from the system's", () => {
-    expect(launchSettings({ ...base, timezone: "Asia/Tokyo" }, [], "America/Monterrey")).toEqual({
+    expect(launchSettings({ ...base, timezone: "Asia/Tokyo" }, [], "Europe/Madrid")).toEqual({
       args: [],
       timezoneId: "Asia/Tokyo",
     });
-    expect(launchSettings({ ...base, timezone: "America/Monterrey" }, [], "America/Monterrey")).toEqual({ args: [] });
+    expect(launchSettings({ ...base, timezone: "Europe/Madrid" }, [], "Europe/Madrid")).toEqual({ args: [] });
   });
 
   it("never overrides flags or context options the user set", () => {

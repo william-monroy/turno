@@ -1,0 +1,419 @@
+/*
+ * The calmer section. One hairline at the top of the section and none around the picture:
+ * space and alignment do the grouping. The only inverted thing is the chosen command.
+ *
+ * Rhythm: the chapters alternate the side of their list (data-flip), and the two secondary ones
+ * (data-quiet) are tighter and smaller. The space before a chapter is one deliberate measure,
+ * shorter for a quiet one; after a pinned chapter the pin's own half step of rest adds to it.
+ */
+
+.chapter {
+  --b: var(--beat, 125ms);
+  --before: clamp(64px, 8vw, 112px);
+  --after: clamp(56px, 6.5vw, 96px);
+  border-top: 1px solid var(--line);
+  scroll-margin-top: 56px;
+}
+.chapter[data-quiet] {
+  --before: clamp(48px, 5.5vw, 80px);
+  --after: clamp(48px, 5vw, 72px);
+}
+
+/* The text column ----------------------------------------------------------------------------- */
+
+.head {
+  padding-top: var(--before);
+}
+.label {
+  position: relative;
+  display: block;
+}
+.n {
+  color: var(--tone-keep);
+}
+.headline {
+  margin-top: 20px;
+  max-width: 15em;
+}
+.lead {
+  margin-top: 22px;
+  max-width: 40em;
+}
+.chapter[data-quiet] .headline {
+  margin-top: 16px;
+  font-size: clamp(28px, 3vw, 42px);
+}
+.chapter[data-quiet] .lead {
+  margin-top: 16px;
+}
+
+/*
+ * The chapter's number, on the thread that runs down the left gutter (see thread.module.css):
+ * centered on the line, on a scrap of paper that cuts it. Lit while the chapter holds the middle
+ * of the screen. Without the thread (narrow screens) the number stays in the label.
+ */
+.knot {
+  display: none;
+}
+@media (min-width: 1200px) {
+  .knot {
+    position: absolute;
+    top: 50%;
+    left: calc(var(--gutter) / -2);
+    translate: -50% -50%;
+    display: block;
+    padding: 3px 4px;
+    background: var(--paper);
+    color: var(--tone-keep);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    line-height: 1;
+  }
+  .chapter[data-current] .knot {
+    background: var(--tone-keep);
+    color: #fff;
+  }
+  /* Hidden from sight, not from a screen reader: the label still reads "01 · ...". */
+  .num {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* The list and the picture -------------------------------------------------------------------- */
+
+.track {
+  position: relative;
+  padding-bottom: var(--after);
+}
+.track[data-pinned] {
+  height: calc(var(--body) + var(--room));
+  padding-bottom: 0;
+  margin-bottom: var(--after);
+}
+.track[data-pinned] .body {
+  position: sticky;
+  top: var(--pin-top);
+}
+/* Invisible: the scroll the pinned body stays for, one band per command. A band can be linked to. */
+.band {
+  position: absolute;
+  left: 0;
+  width: 1px;
+  pointer-events: none;
+}
+
+/*
+ * A phone reads down: the picture and its line first, then the commands right under them, so a
+ * tapped command plays just above the finger. Wide screens put the list beside the picture.
+ */
+.body {
+  display: grid;
+  grid-template-areas: "picture" "side";
+  gap: 28px;
+  padding-top: clamp(32px, 4vw, 56px);
+}
+.chapter[data-quiet] .body {
+  padding-top: clamp(28px, 3vw, 40px);
+}
+.side {
+  position: relative;
+  grid-area: side;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.picture {
+  grid-area: picture;
+  min-width: 0;
+}
+@media (min-width: 1024px) {
+  .body {
+    grid-template-columns: minmax(0, 9fr) minmax(0, 17fr);
+    grid-template-areas: "side picture";
+    column-gap: clamp(40px, 4.5vw, 80px);
+    align-items: start;
+  }
+  /* Every other chapter turns the page: the picture comes first, the list goes to the right. */
+  .chapter[data-flip] .body {
+    grid-template-columns: minmax(0, 17fr) minmax(0, 9fr);
+    grid-template-areas: "picture side";
+  }
+  .side {
+    padding-top: 6px;
+  }
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0 0 var(--note-pad, 0px);
+  list-style: none;
+}
+/* The notes, laid out unseen at the list's width to find the longest. */
+.measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.row {
+  display: flex;
+  flex-direction: column;
+}
+.rowLine {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+.choose {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 11px 12px;
+  border: 0;
+  background: none;
+  color: var(--dim);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: left;
+  cursor: pointer;
+  transition: none;
+}
+.token {
+  white-space: nowrap;
+}
+.prompt {
+  flex: none;
+  min-width: 1ch;
+  color: var(--dim);
+  user-select: none;
+}
+.cmd {
+  min-width: 0;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+}
+/* Hover names the command a reader is about to run: ink, at once, no fade. */
+.choose:hover {
+  color: var(--ink);
+}
+.choose:hover .prompt {
+  color: var(--tone-keep);
+}
+.choose:focus-visible {
+  outline: 2px solid var(--tone-keep);
+  outline-offset: -2px;
+}
+
+/* The chosen command: ink and paper trade places. */
+.row[data-chosen] .rowLine {
+  background: var(--ink);
+}
+.row[data-chosen] .choose {
+  color: var(--paper);
+}
+.row[data-chosen] .prompt {
+  color: color-mix(in oklab, var(--paper) 62%, var(--ink));
+}
+.row[data-chosen] .choose:focus-visible {
+  outline-color: var(--tone-keep);
+  outline-offset: 2px;
+}
+
+.copy {
+  flex: none;
+  align-self: stretch;
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  color: color-mix(in oklab, var(--paper) 62%, var(--ink));
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.copy:hover,
+.copy:focus-visible {
+  background: var(--tone-keep);
+  color: #fff;
+  outline: none;
+}
+
+.note {
+  margin: 0;
+  padding: 10px 12px 16px 36px;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--dim);
+  text-wrap: pretty;
+}
+
+.aside {
+  margin: 28px 0 0;
+  padding: 0 12px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--dim);
+  text-wrap: pretty;
+}
+.more {
+  align-self: flex-start;
+  display: inline-flex;
+  gap: 8px;
+  margin: 20px 0 0;
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.more:hover,
+.more:focus-visible {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* The line under the picture ----------------------------------------------------------------- */
+
+.figure {
+  position: relative;
+}
+.out {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 10px;
+  row-gap: 2px;
+  min-height: 3.2em;
+  margin: 20px 0 0;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+.outPrompt {
+  flex: none;
+  min-width: 1ch;
+  color: var(--dim);
+  user-select: none;
+}
+.outCmd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.outResult {
+  display: inline-flex;
+  gap: 10px;
+  min-width: 0;
+  color: var(--dim);
+}
+.outArrow {
+  flex: none;
+  color: var(--tone-keep);
+}
+.outRest {
+  color: var(--dim);
+}
+
+/* Entrance ------------------------------------------------------------------------------------ */
+
+/*
+ * Only after hydration, and never with reduced motion (data-state="still"), things wait for
+ * their turn. The headline sets line by line on the beat: each line comes in faint, then ink.
+ */
+@keyframes set {
+  0% {
+    opacity: 0;
+  }
+  1% {
+    opacity: 0.22;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes cut {
+  from {
+    visibility: hidden;
+  }
+  to {
+    visibility: visible;
+  }
+}
+@keyframes type {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.chapter[data-state="armed"] .head:not([data-play]) :is(.label, .word, .lead),
+.chapter[data-state="armed"] .side:not([data-play]) :is(.row, .aside, .more),
+.chapter[data-state="armed"] .out:not([data-play]) {
+  visibility: hidden;
+}
+.chapter[data-state="armed"] .head[data-play] .label {
+  animation: cut var(--b) steps(1, end) both;
+}
+.chapter[data-state="armed"] .head[data-play] .word {
+  animation: set var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * (var(--l, 0) + 1));
+}
+.chapter[data-state="armed"] .head[data-play] .lead {
+  animation: cut var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * (var(--lines, 3) + 2));
+}
+.chapter[data-state="armed"] .side[data-play] .row {
+  animation: cut var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * (var(--i) + 2));
+}
+.chapter[data-state="armed"] .side[data-play] :is(.aside, .more) {
+  animation: cut var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * 7);
+}
+.chapter[data-state="armed"] .outCmd {
+  animation: type calc(var(--b) * 3) steps(var(--n, 24), end) both;
+}
+.chapter[data-state="armed"] .outResult {
+  animation: cut var(--b) steps(1, end) both;
+}
+
+/*
+ * After the first chapter the reader knows the gesture: the same entrance in fewer beats. The
+ * lines still set one per beat, but at once from the first; the lead follows the last line, the
+ * whole list comes in one beat and the rest one beat later.
+ */
+.chapter[data-state="armed"][data-pace="brisk"] .head[data-play] .label {
+  animation-delay: 0s;
+}
+.chapter[data-state="armed"][data-pace="brisk"] .head[data-play] .word {
+  animation-delay: calc(var(--b) * var(--l, 0));
+}
+.chapter[data-state="armed"][data-pace="brisk"] .head[data-play] .lead {
+  animation-delay: calc(var(--b) * var(--lines, 3));
+}
+.chapter[data-state="armed"][data-pace="brisk"] .side[data-play] .row {
+  animation-delay: var(--b);
+}
+.chapter[data-state="armed"][data-pace="brisk"] .side[data-play] :is(.aside, .more) {
+  animation-delay: calc(var(--b) * 2);
+}
