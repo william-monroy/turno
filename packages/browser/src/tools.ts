@@ -54,7 +54,7 @@ export interface TurnoTool {
   handle(context: TurnoToolContext, params: Record<string, unknown>): Promise<ToolResult>;
 }
 
-/** The tools turno adds to every session (ADR 0049). */
+/** The tools turno adds to every session (ADR 0051). */
 export const TURNO_TOOLS: readonly TurnoTool[] = [batchTool()];
 
 /** The zod of the bundle, to build a turno tool's `inputSchema` with. */

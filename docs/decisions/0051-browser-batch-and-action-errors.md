@@ -1,4 +1,4 @@
-# 0049. browser_batch, action errors that say what is in the way, and settle
+# 0051. browser_batch, action errors that say what is in the way, and settle
 
 Date: 2026-11-18. Status: accepted. Builds on ADR 0043 (host and turno tool registry) and
 ADR 0048 (tab governor).

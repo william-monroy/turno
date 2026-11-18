@@ -277,7 +277,7 @@ of them in order in one call (stopping at the first failure) and returns one lin
 at most one snapshot. A click, hover, type, select or drag that fails because of the element says
 which element covers it, or whether it is hidden or disabled, and what to do next. `settle` in
 identity.json (like `"100ms"`) shortens Playwright's 500 ms wait after each action
-([ADR 0049](decisions/0049-browser-batch-and-action-errors.md)).
+([ADR 0051](decisions/0051-browser-batch-and-action-errors.md)).
 
 When mcpd stops a browser server it closes its stdin and waits 5 seconds (`stop_grace`) before
 SIGTERM, so the server closes Chrome and writes its profile on its own; other servers keep the

@@ -2,7 +2,7 @@ import type { TurnoTool } from "./tools.js";
 import { type ToolResult, type ToolSchema, upstream } from "./upstream.js";
 
 /**
- * `browser_batch` (ADR 0049): several stock actions in one tool call. Each action runs through
+ * `browser_batch` (ADR 0051): several stock actions in one tool call. Each action runs through
  * the same path as a call of its own (the tab governor, the click diagnosis), but without the
  * page snapshot a stock action adds to its result; the batch returns one line per action and,
  * when asked, one snapshot after the last. It stops at the first action that fails.
