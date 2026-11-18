@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Pack every public package whose version is not on npm yet, for the publish job of
-// release.yml. Writes the tarballs, a CycloneDX SBOM per package and plan.json to <out>.
+// release.yml. Writes the tarballs, a CycloneDX SBOM per package, the GitHub release notes of
+// each package (<name>-<version>.notes.md) and plan.json to <out>.
 // Packing runs each package's prepack, which writes its npm-shrinkwrap.json.
 //   node scripts/release-plan.mjs <out>
 // plan.json: [{ "name", "version", "tag", "tarball" }]. The dist-tag is "latest", or the
@@ -8,7 +9,7 @@
 // The plan lists a package after the workspace packages it depends on (turno-core before
 // turno-cli and turno-browser), and the publish job publishes in that order.
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -39,6 +40,42 @@ export function publishOrder(manifests) {
   return out;
 }
 
+const SITE = "https://turno.wimo.dev";
+
+/** The slug of a release page on the site: 0.3.0 -> v0-3-0. */
+export function releaseSlug(version) {
+  return `v${version.replace(/\+.*$/, "").replace(/[.]/g, "-")}`;
+}
+
+/**
+ * The section of a Changesets CHANGELOG.md for one version: the lines after its `## <version>`
+ * heading, up to the next `## ` heading, trimmed. Empty when the version has no section.
+ */
+export function changelogSection(changelog, version) {
+  const lines = changelog.split("\n");
+  const start = lines.findIndex((line) => line.trim() === `## ${version}`);
+  if (start === -1) return "";
+  let end = lines.findIndex((line, i) => i > start && line.startsWith("## "));
+  if (end === -1) end = lines.length;
+  return lines
+    .slice(start + 1, end)
+    .join("\n")
+    .trim();
+}
+
+/**
+ * The GitHub release notes of a package: a link to the release page of turno's version on the
+ * site (or to the list of releases when that version has no page), then the package's own
+ * CHANGELOG section.
+ */
+export function releaseNotes({ changelog, version, turnoVersion, hasPage }) {
+  const page = hasPage
+    ? `What's new in turno ${turnoVersion}: ${SITE}/docs/releases/${releaseSlug(turnoVersion)}`
+    : `Every release of turno: ${SITE}/docs/releases`;
+  const section = changelogSection(changelog, version) || "See CHANGELOG.md.";
+  return `${page}\n\n${section}\n\nA CycloneDX SBOM is attached.\n`;
+}
+
 const isMain = process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) main();
 
@@ -56,6 +93,8 @@ function main() {
     }
   }
 
+  const turnoVersion = JSON.parse(readFileSync(join(root, "packages/turno/package.json"), "utf8")).version;
+  const hasPage = existsSync(join(root, "apps/docs/content/docs/releases", `${releaseSlug(turnoVersion)}.mdx`));
   const plan = [];
   const folders = readdirSync(join(root, "packages")).map((dir) => ({
     dir,
@@ -86,6 +125,12 @@ function main() {
       encoding: "utf8",
     });
     writeFileSync(join(out, tarball.replace(/\.tgz$/, ".cdx.json")), sbom);
+    const changelogPath = join(cwd, "CHANGELOG.md");
+    const changelog = existsSync(changelogPath) ? readFileSync(changelogPath, "utf8") : "";
+    writeFileSync(
+      join(out, `${pkg.name}-${pkg.version}.notes.md`),
+      releaseNotes({ changelog, version: pkg.version, turnoVersion, hasPage }),
+    );
     const pre = /-([a-z]+)/.exec(pkg.version);
     plan.push({ name: pkg.name, version: pkg.version, tag: pre ? pre[1] : "latest", tarball });
     console.log(`pack ${pkg.name}@${pkg.version} -> ${tarball}`);

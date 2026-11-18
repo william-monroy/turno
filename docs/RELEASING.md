@@ -56,6 +56,20 @@ to `main`, in four jobs:
    the first failure, so a dependent is never published without its dependency. It does not check out the repository, install anything or use a cache,
    so no project or dependency code runs where the publish token lives.
 4. **tag**: creates the `name@version` git tags and GitHub releases, with the SBOM attached.
+   Each release's notes are its package's `CHANGELOG.md` section for that version, under a
+   link to the release page of turno's version on the site (or to the list of releases when
+   that version has no page).
+
+### The release page
+
+A minor release of turno (0.3, 0.4, ...) gets a page on the site that tells what is new and how
+to use it: `apps/docs/content/docs/releases/v<major>-<minor>-<patch>.mdx`, listed in that
+folder's `meta.json` and as a card in its `index.mdx`. Write it from the pending changesets
+while the "version packages" pull request is open: lead with what users notice, one section per
+feature with a command to try, a "Changed behavior" callout for anything that can break a
+script, and links to the changelogs. Merge it, with `_Released <Month> <day>, <year>._` under
+the title, just before merging the version pull request, so the site and the GitHub releases
+go live together. A patch release needs no page.
 
 The gate is the `npm` environment: the publish job waits until a required reviewer approves
 the deployment on GitHub. The trusted publishers allow `npm publish`, so an approved run

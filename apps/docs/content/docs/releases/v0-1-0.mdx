@@ -1,0 +1,19 @@
+---
+title: turno 0.1
+description: The first public release, with one MCP gateway for every agent session, profiles for four coding agents and the Claude Code status line.
+---
+
+_0.1.0 released November 16, 2026, and 0.1.1 the same day._
+
+The first public release of turno.
+
+- **One MCP gateway** (`mcpd`) for every agent session: tool lists from a cache, servers started on first use, shared between sessions where it is safe, stopped when idle, secrets in the OS secret store.
+- **Profiles** for Claude Code, Codex CLI, GitHub Copilot CLI and Cursor CLI, each with its own sign-in folder and launcher, and folder rules that pick the account (`turno profile assign`, `turno auto`). Claude Code profiles share conversations, skills and settings.
+- **Gateway entries** for opencode, Gemini CLI, Goose, Crush, Droid and Kiro.
+- **The Claude Code status line** with usage per account, its font and terminal setup (`turno ui install`).
+- **The accounts bridge**, which hands a task to a service account another profile is signed into, with confirmation for writes and an audit log.
+- `turno status`, `turno doctor --fix`, `--json` on reads, `--dry-run` and `turno undo` on writes, shell completion and `turno upgrade`.
+
+0.1.1 taught `turno upgrade` about Homebrew and moved the repository to `github.com/wimo-dev/turno`, with turno-browser listed in the MCP Registry.
+
+The full list: [turno-cli](https://github.com/wimo-dev/turno/blob/main/packages/turno/CHANGELOG.md#010).

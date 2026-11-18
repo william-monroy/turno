@@ -3,20 +3,22 @@ import type { ReactNode } from "react";
 import { localePath } from "@/lib/layout.shared";
 
 /**
- * The docs have three areas, each a root folder in content/docs with its own sidebar:
- * `(docs)` (a folder group, so its pages keep their URLs), `reference` and `troubleshooting`.
+ * The docs have four areas, each a root folder in content/docs with its own sidebar:
+ * `(docs)` (a folder group, so its pages keep their URLs), `reference`, `troubleshooting` and
+ * `releases`.
  */
-export type AreaId = "docs" | "reference" | "troubleshooting";
+export type AreaId = "docs" | "reference" | "troubleshooting" | "releases";
 
 const AREAS: { id: AreaId; path: string }[] = [
   { id: "docs", path: "/docs" },
   { id: "reference", path: "/docs/reference" },
   { id: "troubleshooting", path: "/docs/troubleshooting" },
+  { id: "releases", path: "/docs/releases" },
 ];
 
 const NAMES: Record<string, Record<AreaId, string>> = {
-  en: { docs: "Docs", reference: "Reference", troubleshooting: "Troubleshooting" },
-  es: { docs: "Documentación", reference: "Referencia", troubleshooting: "Solución de problemas" },
+  en: { docs: "Docs", reference: "Reference", troubleshooting: "Troubleshooting", releases: "Releases" },
+  es: { docs: "Documentación", reference: "Referencia", troubleshooting: "Solución de problemas", releases: "Versiones" },
 };
 
 export interface AreaLink {
