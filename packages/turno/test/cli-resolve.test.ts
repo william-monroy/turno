@@ -32,7 +32,7 @@ describe("resolve", () => {
   it("uses the default for a folder without a rule, and --json", async () => {
     const io = fakeIo(sb.env);
     await resolve.run([sb.home, "--json"], io);
-    expect(JSON.parse(io.lines[0]!)).toEqual({ chosen: "personal", assigned: "personal", reason: "folder without a rule", note: "" });
+    expect(JSON.parse(io.lines[0]!)).toEqual({ schemaVersion: 1, chosen: "personal", assigned: "personal", reason: "folder without a rule", note: "" });
   });
 
   it("switches to the fallback when the profile is exhausted", async () => {

@@ -1,8 +1,8 @@
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { paths, writePrivateFile } from "./paths.js";
 import { compareVersions, packageInfo } from "./version.js";
+import { hasFields, readState } from "./state-file.js";
 
 /** Cache of the last registry check, in the state folder. */
 export interface UpdateState {
@@ -27,12 +27,10 @@ function file(env: NodeJS.ProcessEnv): string {
   return join(paths(env).state, "update.json");
 }
 
+const isUpdateState = (v: unknown): v is UpdateState => hasFields(v, { checkedAt: "number", channel: "string" });
+
 function readUpdateState(env: NodeJS.ProcessEnv): UpdateState | undefined {
-  try {
-    return JSON.parse(readFileSync(file(env), "utf8")) as UpdateState;
-  } catch {
-    return undefined;
-  }
+  return readState(file(env), isUpdateState);
 }
 
 function writeUpdateState(env: NodeJS.ProcessEnv, s: UpdateState): void {
@@ -41,9 +39,12 @@ function writeUpdateState(env: NodeJS.ProcessEnv, s: UpdateState): void {
 
 const truthy = (v: string | undefined): boolean => v !== undefined && v !== "" && v !== "0" && v.toLowerCase() !== "false";
 
-/** Why the environment turns update checks off: TURNO_NO_UPDATE_CHECK, NO_UPDATE_NOTIFIER, DO_NOT_TRACK, CI. */
+/**
+ * Why the environment turns update checks off: TURNO_NO_UPDATE_CHECK, TURNO_NO_UPDATE_NOTIFIER
+ * (gh's GH_NO_UPDATE_NOTIFIER), NO_UPDATE_NOTIFIER, DO_NOT_TRACK, CI.
+ */
 export function envOptOut(env: NodeJS.ProcessEnv): string | undefined {
-  if (truthy(env.TURNO_NO_UPDATE_CHECK) || truthy(env.NO_UPDATE_NOTIFIER) || truthy(env.DO_NOT_TRACK)) {
+  if ([env.TURNO_NO_UPDATE_CHECK, env.TURNO_NO_UPDATE_NOTIFIER, env.NO_UPDATE_NOTIFIER, env.DO_NOT_TRACK].some(truthy)) {
     return "turned off by the environment";
   }
   if (truthy(env.CI)) return "running in CI";
@@ -52,7 +53,7 @@ export function envOptOut(env: NodeJS.ProcessEnv): string | undefined {
 
 /**
  * Why update checks are off, or undefined when they run. Off for unpublished (private)
- * copies, in CI, with TURNO_NO_UPDATE_CHECK, NO_UPDATE_NOTIFIER or DO_NOT_TRACK, and with
+ * copies, in CI, with TURNO_NO_UPDATE_CHECK, TURNO_NO_UPDATE_NOTIFIER, NO_UPDATE_NOTIFIER or DO_NOT_TRACK, and with
  * `update_check = false` in config.toml.
  */
 export function updateChecksOff(env: NodeJS.ProcessEnv, configured = true): string | undefined {

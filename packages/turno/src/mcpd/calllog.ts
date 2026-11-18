@@ -2,6 +2,7 @@ import { closeSync, existsSync, fstatSync, mkdirSync, openSync, readSync, rename
 import { dirname } from "node:path";
 import type { ClientContext } from "./instances.js";
 import { ErrorCode, type Outcome } from "./jsonrpc.js";
+import { hasFields, parseState } from "../core/state-file.js";
 
 /**
  * The call log (ADR 0026): one JSON line per tool call that mcpd relays, in
@@ -177,14 +178,13 @@ export interface CallFilter {
   profile?: string;
 }
 
+const isCallRecord = (v: unknown): v is CallRecord => hasFields(v, { server: "string", time: "string" });
+
+/** One line of the call log; a line cut short or of another shape is skipped. */
 function parseLine(line: string): CallRecord | undefined {
   if (!line.trim()) return undefined;
-  try {
-    const r = JSON.parse(line) as CallRecord;
-    return r && typeof r === "object" && typeof r.server === "string" && typeof r.time === "string" ? r : undefined;
-  } catch {
-    return undefined;
-  }
+  const r = parseState(line, isCallRecord, 1, "call log line");
+  return r.ok ? r.value : undefined;
 }
 
 function matches(r: CallRecord, f: CallFilter): boolean {

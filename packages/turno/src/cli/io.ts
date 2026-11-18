@@ -1,5 +1,8 @@
 /** Small helpers shared by command modules. Keep this file free of heavy imports. */
+import { Exit } from "./exit.js";
+import type { JsonOutput } from "./output.js";
 
+/** A wrong command line: main prints `turno: <message>` and exits 2 (Exit.usage). */
 export class UsageError extends Error {
   constructor(message: string) {
     super(message);
@@ -7,11 +10,11 @@ export class UsageError extends Error {
   }
 }
 
-/** A plain error with its exit code: main prints `turno: <message>` and returns `code`. */
+/** A plain error with its exit code (see exit.ts): main prints `turno: <message>` and returns `code`. */
 export class CliError extends Error {
   constructor(
     message: string,
-    readonly code = 1,
+    readonly code: number = Exit.failure,
   ) {
     super(message);
     this.name = "CliError";
@@ -115,6 +118,8 @@ export interface Command extends Completion {
   summary: string;
   usage: string;
   hidden?: boolean;
+  /** Its `--json` output, so `--json=fields` answers before the command runs (ADR 0045). */
+  json?: JsonOutput;
   /** Subcommand names (visible ones) with their completion data. */
   subcommands?: Record<string, Completion>;
   run(args: string[], io: Io): Promise<number>;
@@ -130,25 +135,30 @@ export function isColorMode(v: string | undefined): v is ColorMode {
 }
 
 /**
- * Whether output gets ANSI colors. The first rule that applies wins (ADR 0037):
+ * Whether output gets ANSI colors. The first rule that applies wins (ADR 0037, ADR 0045):
  *
  * 1. `--color always|never` on the command line;
  * 2. TURNO_COLOR=always|never (any other value counts as auto; --color auto sets it aside);
  * 3. NO_COLOR set and not empty: off (https://no-color.org, which lets a flag or a tool's own
  *    setting override it);
  * 4. FORCE_COLOR: 0 or false turns colors off, anything else turns them on, also in a pipe;
- * 5. auto: on when output is a terminal.
+ * 5. CLICOLOR_FORCE set and not 0: on, also in a pipe (https://bixense.com/clicolors);
+ * 6. CLICOLOR=0, or TERM=dumb: off;
+ * 7. auto: on when output is a terminal.
  *
- * `--json` output is never colored outside a terminal, whatever this says (printJson).
+ * `--json` output is never colored outside a terminal, whatever this says (output.ts).
  */
 export function colors(io: Pick<Io, "env" | "isTty" | "color">): boolean {
   // An explicit --color auto also sets TURNO_COLOR aside.
   const own = io.color ?? io.env.TURNO_COLOR;
   if (own === "always") return true;
   if (own === "never") return false;
-  if (io.env.NO_COLOR) return false;
-  const force = io.env.FORCE_COLOR;
+  const env = io.env;
+  if (env.NO_COLOR) return false;
+  const force = env.FORCE_COLOR;
   if (force !== undefined && force !== "") return force !== "0" && force !== "false";
+  if (env.CLICOLOR_FORCE && env.CLICOLOR_FORCE !== "0") return true;
+  if (env.CLICOLOR === "0" || env.TERM === "dumb") return false;
   return io.isTty;
 }
 
@@ -205,6 +215,14 @@ export function columns(rows: readonly (readonly [string, string])[], indent = 2
     for (const l of body.slice(1)) out.push(`${" ".repeat(col)}${l}`);
   }
   return out.join("\n");
+}
+
+/**
+ * The `Examples:` block that ends a command's help: one `$ command` per line, with an optional
+ * `  # why` after it.
+ */
+export function examplesBlock(examples: readonly string[]): string {
+  return ["Examples:", ...examples.map((e) => `  $ ${e}`)].join("\n");
 }
 
 /** Edit distance with adjacent transpositions (so "stauts" is 1 away from "status"). */

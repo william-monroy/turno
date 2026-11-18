@@ -10,6 +10,7 @@ import { servesProfile } from "../core/manifest.js";
 import { profileToken } from "./tokens.js";
 import { isObject, parseJsonObject } from "../core/fsutil.js";
 import { CliError } from "../cli/io.js";
+import { isStringArray, readState, recordOf, requireState } from "../core/state-file.js";
 
 /**
  * A gateway entry in the format of each agent (ADR 0013, ADR 0032). Claude Code gets the
@@ -51,12 +52,19 @@ export function profileServers(
 /** Which server names turno wrote into which config file, so it only ever removes its own. */
 export type ManagedState = Record<string, string[]>;
 
+const isManaged = recordOf(isStringArray);
+
+/**
+ * The entries turno wrote, before it removes any: a file that exists but cannot be read is a
+ * StateError (fix or remove it), never an empty list that would leave stale entries behind.
+ */
 export function readManaged(file: string): ManagedState {
-  try {
-    return JSON.parse(readFileSync(file, "utf8")) as ManagedState;
-  } catch {
-    return {};
-  }
+  return requireState(file, isManaged) ?? {};
+}
+
+/** The same, empty when the file cannot be used: for checks that only read (doctor, the status line). */
+export function peekManaged(file: string): ManagedState {
+  return readState(file, isManaged) ?? {};
 }
 
 export function writeManaged(file: string, state: ManagedState): void {

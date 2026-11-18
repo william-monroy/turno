@@ -1,11 +1,14 @@
-import { execFileSync } from "node:child_process";
-import { createRequire } from "node:module";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { paths, tildify } from "../../core/paths.js";
-import { DRY_RUN, type FlagSpec, JSON_FLAG, bool, parseFlags, printJson, str } from "../args.js";
+import { DRY_RUN, type FlagSpec, JSON_FLAG, bool, parseFlags, str } from "../args.js";
 import { type Sub, group } from "../group.js";
 import { type Command, type Io, fail, needsAnswer, paint } from "../io.js";
+import { OPTIONAL, loadOptional, notInstalled } from "../optional.js";
+import { emit, jsonOutput } from "../output.js";
+
+/** `turno browser bench --json`: turno-browser's report (ADR 0045). */
+const BENCH_JSON = jsonOutput(["version", "startedAt", "finishedAt", "engines", "results", "file"]);
+/** `turno browser identities --json`: one element per identity. */
+const IDENTITIES_JSON = jsonOutput(["id", "inUse", "dir"]);
 
 /** The part of turno-browser this command uses. Typed locally: the package is installed apart. */
 interface IdentityInfo {
@@ -35,45 +38,21 @@ export interface BrowserModule {
   formatBenchTable(report: unknown): string;
 }
 
-export const INSTALL_HINT = "npm install --global turno-browser";
-export const NOT_INSTALLED = `turno-browser is not installed: ${INSTALL_HINT}`;
+export const INSTALL_HINT = OPTIONAL.browser.install;
+export const NOT_INSTALLED = notInstalled(OPTIONAL.browser);
 
-const SPEC = "turno-browser";
-
-function isMissing(err: unknown): boolean {
-  const code = (err as NodeJS.ErrnoException).code;
-  return code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND" || code === "ERR_PACKAGE_PATH_NOT_EXPORTED";
-}
-
-/** The global npm folder, where `npm install --global turno-browser` puts the package. */
-function npmGlobalRoot(env: NodeJS.ProcessEnv): string | undefined {
-  try {
-    return execFileSync("npm", ["root", "--global"], { env, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000 }).trim() || undefined;
-  } catch {
-    return undefined;
-  }
+/** A turno-browser this command can drive: the calls every subcommand needs are there. */
+function isBrowserModule(mod: unknown): mod is BrowserModule {
+  const m = mod as Partial<BrowserModule> | undefined;
+  return Boolean(m) && Array.isArray(m!.ENGINES) && typeof m!.listIdentities === "function" && typeof m!.runBench === "function";
 }
 
 /**
  * Load turno-browser: next to this install first, then (with `global`) from the global npm
- * folder, which a Homebrew or npx install of turno cannot see on its own.
+ * folder, which a Homebrew or npx install of turno cannot see on its own (loadOptional).
  */
-export async function loadBrowser(options: { global?: boolean; env?: NodeJS.ProcessEnv } = {}): Promise<BrowserModule | undefined> {
-  try {
-    return (await import(SPEC)) as BrowserModule;
-  } catch (err) {
-    if (!isMissing(err)) throw err;
-  }
-  if (!options.global) return undefined;
-  const root = npmGlobalRoot(options.env ?? process.env);
-  if (!root) return undefined;
-  try {
-    const entry = createRequire(join(root, "noop.js")).resolve(SPEC);
-    return (await import(pathToFileURL(entry).href)) as BrowserModule;
-  } catch (err) {
-    if (isMissing(err)) return undefined;
-    throw err;
-  }
+export function loadBrowser(options: { global?: boolean; env?: NodeJS.ProcessEnv } = {}): Promise<BrowserModule | undefined> {
+  return loadOptional(OPTIONAL.browser, { ...options, guard: isBrowserModule });
 }
 
 export interface BrowserDeps {
@@ -159,7 +138,7 @@ async function bench(mod: BrowserModule, args: string[], io: Io, deps: BrowserDe
     onProgress: (m) => io.err(paint(io, m, "2")),
   });
   if (bool(p, "json")) {
-    printJson(io, report);
+    emit(io, p, BENCH_JSON, report);
   } else {
     io.out(mod.formatBenchTable(report));
     if (report.file) io.out(`\nreport: ${tildify(report.file, io.env)}`);
@@ -171,7 +150,10 @@ function identities(mod: BrowserModule, args: string[], io: Io): number {
   const p = parseFlags(args, JSON_FLAG, 0);
   const list = mod.listIdentities(io.env);
   if (bool(p, "json")) {
-    printJson(io,
+    emit(
+      io,
+      p,
+      IDENTITIES_JSON,
       list.map((i) => ({ id: i.id, inUse: i.inUse, dir: tildify(i.dir, io.env) })),
     );
     return 0;
@@ -276,7 +258,7 @@ export function browserCommand(deps: BrowserDeps = defaultDeps): Command {
       return dispatch(mod, sub, args, io, deps);
     };
   const subs: Record<string, Sub> = {
-    identities: { summary: "list browser identities and whether they are in use", synopsis: "[--json]", flags: ["--json"], run: withModule("identities") },
+    identities: { summary: "list browser identities and whether they are in use", synopsis: "[--json]", flags: ["--json"], json: IDENTITIES_JSON, run: withModule("identities") },
     list: { summary: "same as identities", hidden: true, run: withModule("identities") },
     add: { summary: "create an identity and print its mcp.toml block", synopsis: "<id> [--dry-run]", flags: ["--dry-run"], run: withModule("add") },
     remove: { summary: "delete an identity and its saved logins", synopsis: "<id> [--dry-run]", flags: ["--dry-run"], run: withModule("remove") },
@@ -286,10 +268,20 @@ export function browserCommand(deps: BrowserDeps = defaultDeps): Command {
       summary: "check how each browser engine loads reference test pages and your URLs (asks first)",
       synopsis: "[--engine <name>]... [--url <url>]... [--only-urls] [--yes] [--json]",
       flags: ["--engine", "--url", "--only-urls", "--yes", "--json"],
+      json: BENCH_JSON,
       run: withModule("bench"),
     },
   };
-  return group("browser", "developer tool: compare browser engines (needs turno-browser)", subs, { footer: FOOTER });
+  return group("browser", "developer tool: compare browser engines (needs turno-browser)", subs, {
+    footer: FOOTER,
+    examples: [
+      "turno browser identities",
+      "turno browser add school",
+      "turno browser login school --url https://example.com",
+      "turno browser remove school --dry-run",
+      "turno browser bench --only-urls --url https://example.com --yes",
+    ],
+  });
 }
 
 export const command: Command = browserCommand();

@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
 import { atomicWrite } from "../core/journal.js";
 import { PRIVATE_FILE_MODE } from "../core/paths.js";
+import { isRecord, readState } from "../core/state-file.js";
 
 /**
  * The client name (`clientInfo.name` from initialize) of each agent process, by PID, kept in a
@@ -16,14 +16,10 @@ export class ClientNames {
     private readonly isAlive: (pid: number) => boolean,
   ) {
     if (!file) return;
-    try {
-      const raw = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
-      for (const [pid, name] of Object.entries(raw)) {
-        const n = Number(pid);
-        if (Number.isInteger(n) && n > 0 && typeof name === "string") this.names.set(n, name);
-      }
-    } catch {
-      /* none yet, or unreadable: start empty */
+    // None yet, or unreadable: start empty.
+    for (const [pid, name] of Object.entries(readState(file, isRecord) ?? {})) {
+      const n = Number(pid);
+      if (Number.isInteger(n) && n > 0 && typeof name === "string") this.names.set(n, name);
     }
   }
 

@@ -3,7 +3,9 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Journal } from "../../core/journal.js";
 import { paths, tildify } from "../../core/paths.js";
-import { DRY_RUN, JSON_FLAG, TAIL, bool, count, parseFlags, printJson, str } from "../args.js";
+import { DRY_RUN, JSON_FLAG, TAIL, bool, count, parseFlags, str } from "../args.js";
+import { Exit } from "../exit.js";
+import { emit, jsonOutput } from "../output.js";
 import { type Sub, group } from "../group.js";
 import { type Command, type Io, fail, paint, plural } from "../io.js";
 import { duration, spinner, style } from "../style.js";
@@ -60,20 +62,38 @@ export async function downReasons(env: NodeJS.ProcessEnv): Promise<string[]> {
   return out;
 }
 
+/** `turno mcp daemon status --json`: mcpd's /status, or `{ running: false, problems }` (ADR 0045). */
+const STATUS_JSON = jsonOutput([
+  "running",
+  "problems",
+  "pid",
+  "version",
+  "port",
+  "startedAt",
+  "sessions",
+  "agents",
+  "memoryPressure",
+  "instances",
+  "manifest",
+  "config",
+  "callLog",
+  "serverRss",
+]);
+
 async function status(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, JSON_FLAG, 0);
   const s = await fetchStatus(io.env);
   if (!s) {
     const reasons = await downReasons(io.env);
-    if (bool(p, "json")) printJson(io, { running: false, problems: reasons });
+    if (bool(p, "json")) emit(io, p, STATUS_JSON, { running: false, problems: reasons });
     else {
       io.out("mcpd is not running (turno mcp daemon start)");
       for (const r of reasons) io.out(`  ${r}`);
     }
-    return 1;
+    return Exit.gatewayDown;
   }
   if (bool(p, "json")) {
-    printJson(io, s);
+    emit(io, p, STATUS_JSON, s);
     return 0;
   }
   const instances = (s.instances as Record<string, unknown>[]) ?? [];
@@ -372,7 +392,13 @@ const SUBS: Record<string, Sub> = {
   start: { synopsis: "[--dry-run]", summary: "install the service (LaunchAgent or systemd user unit) and start mcpd", flags: ["--dry-run"], run: start },
   stop: { synopsis: "[--dry-run]", summary: "stop mcpd and remove the service, so it does not start at login", flags: ["--dry-run"], run: stop },
   restart: { summary: "restart the service (open sessions reconnect)", run: restart },
-  status: { synopsis: "[--json]", summary: "running servers, their clients and memory; why mcpd is down", flags: ["--json"], run: status },
+  status: {
+    synopsis: "[--json]",
+    summary: "running servers, their clients and memory; why mcpd is down (exit 5)",
+    flags: ["--json"],
+    json: STATUS_JSON,
+    run: status,
+  },
   logs: { synopsis: "[-n N] [--utc]", summary: "last lines of the mcpd log, in local time", flags: ["--tail", "--utc"], run: logs },
   run: { synopsis: "[--port N]", summary: "run the gateway in the foreground (what the service runs)", flags: ["--port"], run: runDaemon },
   token: { synopsis: "rotate [--dry-run]", summary: "replace the gateway token (then turno mcp sync)", args: ["any"], flags: ["--dry-run"], run: token },
@@ -380,7 +406,8 @@ const SUBS: Record<string, Sub> = {
 
 export const tokenCommand: Command = {
   summary: "replace the gateway token",
-  usage: "Usage: turno mcp token rotate [--dry-run]\n\nWrites a new token (mode 600), restarts mcpd, and asks you to run turno mcp sync.",
+  usage:
+    "Usage: turno mcp token rotate [--dry-run]\n\nWrites a new token (mode 600), restarts mcpd, and asks you to run turno mcp sync.\n\nExamples:\n  $ turno mcp token rotate --dry-run\n  $ turno mcp token rotate && turno mcp sync",
   run: async (args, io) => {
     if (!args.includes("--help") && !args.includes("-h")) return token(args, io);
     io.out(tokenCommand.usage);
@@ -392,4 +419,13 @@ export const command: Command = group("mcp daemon", "run or manage the MCP gatew
   footer:
     "mcpd listens on 127.0.0.1 at mcpd.port (config.toml) and never moves to another port.\n" +
     "start keeps it alive with a LaunchAgent on macOS or a systemd user unit on Linux; stop removes it.",
+  examples: [
+    "turno mcp daemon start",
+    "turno mcp daemon status --json",
+    "turno mcp daemon restart",
+    "turno mcp daemon logs -n 50",
+    "turno mcp daemon stop --dry-run",
+    "turno mcp daemon run --port 47900",
+    "turno mcp daemon token rotate",
+  ],
 });

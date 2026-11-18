@@ -1,6 +1,5 @@
 import { parseArgs } from "node:util";
-import { highlightJson } from "./highlight.js";
-import { type Io, colors, fail } from "./io.js";
+import { fail } from "./io.js";
 
 export type FlagSpec = Record<string, { type: "boolean" | "string"; short?: string; multiple?: boolean }>;
 
@@ -22,16 +21,42 @@ export function flagsOf(...specs: FlagSpec[]): string[] {
 export interface Parsed {
   values: Record<string, string | boolean | string[] | undefined>;
   positionals: string[];
+  /** What followed `--json=` (field names, or "fields"); "" for a bare --json. */
+  json?: string;
+}
+
+/**
+ * Take `--json=<value>` out of `args` when the spec has a boolean --json (ADR 0045): it turns
+ * --json on and keeps the value for `emit`. Only a command's own flags count, not those after --.
+ */
+function takeJsonValue(args: string[], spec: FlagSpec): { args: string[]; json?: string } {
+  if (spec.json?.type !== "boolean") return { args };
+  let json: string | undefined;
+  const out: string[] = [];
+  let i = 0;
+  for (; i < args.length && args[i] !== "--"; i++) {
+    const a = args[i]!;
+    if (a.startsWith("--json=")) {
+      json = a.slice("--json=".length);
+      out.push("--json");
+    } else {
+      if (a === "--json") json ??= "";
+      out.push(a);
+    }
+  }
+  return { args: [...out, ...args.slice(i)], ...(json !== undefined ? { json } : {}) };
 }
 
 /**
  * Parse `args` against `spec` (long flags, `--flag=value`, short aliases). Unknown flags and
  * positionals beyond `max` are usage errors with a plain message.
  */
-export function parseFlags(args: string[], spec: FlagSpec, max = Number.POSITIVE_INFINITY): Parsed {
+export function parseFlags(given: string[], spec: FlagSpec, max = Number.POSITIVE_INFINITY): Parsed {
+  const { args, json } = takeJsonValue(given, spec);
   let parsed: Parsed;
   try {
     parsed = parseArgs({ args, options: spec, allowPositionals: true, strict: true }) as Parsed;
+    if (json !== undefined) parsed.json = json;
   } catch (err) {
     const msg = (err as Error).message.replace(/^Unknown option '(.+?)'.*$/s, "unknown option $1").replace(/\. To specify.*$/s, "");
     return fail(msg.replace(/^Option '(--[\w-]+)(?: <value>)?' argument missing$/, "$1 needs a value"));
@@ -56,16 +81,4 @@ export function count(p: Parsed, name: string, fallback: number): number {
   const n = Number.parseInt(v, 10);
   if (!Number.isInteger(n) || n < 1 || String(n) !== v.trim()) fail(`--${name} must be a positive integer`);
   return n;
-}
-
-/**
- * Print a value as indented JSON, colored on a terminal without NO_COLOR (never in a pipe,
- * even with FORCE_COLOR, since programs read it).
- * Given only an output function it prints plain JSON.
- */
-export function printJson(io: Pick<Io, "out" | "env" | "isTty"> | Io["out"], value: unknown): void {
-  const text: string | undefined = JSON.stringify(value, null, 2);
-  const out = typeof io === "function" ? io : io.out;
-  // Only on a real terminal: --json is read by programs, so FORCE_COLOR never colors a pipe here.
-  out(text !== undefined && typeof io !== "function" && io.isTty && colors(io) ? highlightJson(text) : text);
 }

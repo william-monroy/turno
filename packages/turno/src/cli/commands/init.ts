@@ -610,7 +610,13 @@ and the default; without one, --yes is required and flags give the answers.
 
 When there are MCP servers, init in a terminal also offers to start the gateway as a login
 service and point every profile at it (turno mcp daemon start, turno mcp sync), in the same
-journal. With --yes it does that only with --start.`;
+journal. With --yes it does that only with --start.
+
+Examples:
+  $ turno init
+  $ turno init --dry-run
+  $ turno init --yes --profile work --profile school:codex
+  $ turno init --yes --no-mcp`;
 
 export const command: Command = {
   summary: "set turno up in one step: find agents, profiles, folders and MCP servers, show the diff, write it (one undo)",

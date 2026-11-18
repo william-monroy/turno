@@ -1,5 +1,6 @@
 /** The main `turno help` screen: drawn from static rows, so it loads nothing but the style. */
 import { type Io, wrap } from "./io.js";
+import { HELP_TOPICS } from "./registry.js";
 import { padEnd, style } from "./style.js";
 
 export interface HelpSection {
@@ -84,6 +85,7 @@ export function renderHelp(io: Pick<Io, "env" | "isTty" | "color">, sections: re
     ),
   );
   out.push("", `Run ${s.bold("turno <command> --help")}, or ${s.bold("turno help <command>")}, for details.`);
+  out.push(`Topics: ${HELP_TOPICS.map((t) => s.bold(`turno help ${t}`)).join(", ")}.`);
   out.push(s.muted("Scripts and agents: --no-input or TURNO_NO_INPUT=1 never asks (exit 2 instead)."));
   out.push(s.muted("Colors: --color auto|always|never or TURNO_COLOR, then NO_COLOR and FORCE_COLOR."));
   return out;

@@ -3,6 +3,7 @@ import { chmodSync, closeSync, fstatSync, mkdirSync, openSync, readFileSync, rea
 import { dirname } from "node:path";
 import { PRIVATE_FILE_MODE, ensurePrivateDir, paths } from "../core/paths.js";
 import type { ConfirmPolicy } from "./policy.js";
+import { hasFields, parseState } from "../core/state-file.js";
 
 type AuditOutcome = "ok" | "error" | "refused" | "cancelled";
 
@@ -27,6 +28,11 @@ export interface AuditEntry {
    */
   prev?: string;
 }
+
+/** One line of audit.jsonl as `turno identity log` reads it (state-file.ts). */
+const isAuditEntry = (v: unknown): v is AuditEntry =>
+  hasFields(v, { ts: "string", caller: "object", account: "string", outcome: "string", task: "string", durationMs: "number" }) &&
+  (v.prev === undefined || typeof v.prev === "string");
 
 /** What the bridge decided for a call, and what the run did with it. */
 export interface AuditDecision {
@@ -162,11 +168,9 @@ export function readAudit(limit = 20, env: NodeJS.ProcessEnv = process.env): Aud
   const out: AuditEntry[] = [];
   for (const line of text.split("\n")) {
     if (!line.trim()) continue;
-    try {
-      out.push(JSON.parse(line) as AuditEntry);
-    } catch {
-      /* skip */
-    }
+    // A line that is not an audit entry (cut short, edited by hand) is skipped; --verify reports it.
+    const r = parseState(line, isAuditEntry, 1, "audit line");
+    if (r.ok) out.push(r.value);
   }
   return limit > 0 ? out.slice(-limit) : out;
 }
@@ -205,12 +209,9 @@ export function verifyAudit(env: NodeJS.ProcessEnv = process.env): AuditVerifica
     if (!line.trim()) continue;
     lines++;
     const fail = (reason: string): AuditVerification => ({ ok: false, lines, legacy, line: i + 1, reason });
-    let entry: AuditEntry;
-    try {
-      entry = JSON.parse(line) as AuditEntry;
-    } catch {
-      return fail("not valid JSON");
-    }
+    const parsed = parseState(line, isAuditEntry, 1, "line");
+    if (!parsed.ok) return fail(parsed.problem === "corrupt" ? "not valid JSON" : parsed.problem === "newer" ? "written by a newer turno" : "not an audit entry");
+    const entry = parsed.value;
     if (entry.prev === undefined) {
       if (chained) return fail("line without a hash after the chain started (added by hand?)");
       legacy++;

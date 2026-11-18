@@ -2,6 +2,7 @@ import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync
 import { createHash } from "node:crypto";
 import { basename, dirname, join } from "node:path";
 import { PRIVATE_FILE_MODE, ensurePrivateDir, isPrivatePath, paths } from "./paths.js";
+import { hasFields, readState } from "./state-file.js";
 
 /**
  * Every command that changes a file the user owns records it in a journal first:
@@ -288,6 +289,9 @@ export interface JournalInfo {
   manifest?: JournalManifest;
 }
 
+const isManifest = (v: unknown): v is JournalManifest =>
+  hasFields(v, { stamp: "string", command: "string", entries: "array" }) && (v.entries as unknown[]).every((e) => hasFields(e, { path: "string" }));
+
 /** Backup folders, newest first. */
 export function listJournals(env: NodeJS.ProcessEnv): JournalInfo[] {
   const root = paths(env).backupsDir;
@@ -303,11 +307,9 @@ export function listJournals(env: NodeJS.ProcessEnv): JournalInfo[] {
     .reverse()
     .map((n) => {
       const dir = join(root, n);
-      try {
-        return { stamp: n, dir, manifest: JSON.parse(readFileSync(join(dir, MANIFEST), "utf8")) as JournalManifest };
-      } catch {
-        return { stamp: n, dir };
-      }
+      // No manifest, or one that cannot be used: the folder is shown as restore-by-hand.
+      const manifest = readState(join(dir, MANIFEST), isManifest, 1);
+      return manifest ? { stamp: n, dir, manifest } : { stamp: n, dir };
     });
 }
 

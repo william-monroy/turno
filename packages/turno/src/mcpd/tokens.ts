@@ -3,6 +3,7 @@ import { readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { atomicWrite } from "../core/journal.js";
 import { ensurePrivateDir, paths } from "../core/paths.js";
+import { readState } from "../core/state-file.js";
 
 /**
  * Per-profile gateway tokens (ADR 0023). Each profile's agent config carries its own token,
@@ -68,12 +69,8 @@ function syncedListFile(env: NodeJS.ProcessEnv): string {
 }
 
 export function readSyncedTokenProfiles(env: NodeJS.ProcessEnv = process.env): string[] {
-  try {
-    const v = JSON.parse(readFileSync(syncedListFile(env), "utf8")) as unknown;
-    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
-  } catch {
-    return [];
-  }
+  const v = readState(syncedListFile(env), (x: unknown): x is unknown[] => Array.isArray(x));
+  return (v ?? []).filter((x): x is string => typeof x === "string");
 }
 
 export function writeSyncedTokenProfiles(names: string[], env: NodeJS.ProcessEnv = process.env): void {

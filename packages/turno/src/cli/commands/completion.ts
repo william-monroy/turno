@@ -50,6 +50,10 @@ export const command: Command = {
     "  zsh   echo 'source <(turno completion zsh)' >> ~/.zshrc",
     "  bash  echo 'source <(turno completion bash)' >> ~/.bashrc",
     "  fish  turno completion fish > ~/.config/fish/completions/turno.fish",
+    "",
+    "Examples:",
+    "  $ turno completion zsh",
+    "  $ turno completion fish > ~/.config/fish/completions/turno.fish",
   ].join("\n"),
   args: ["shell"],
   async run(args, io) {

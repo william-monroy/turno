@@ -1,7 +1,8 @@
 import { loadConfig } from "../../core/config.js";
 import { tildify } from "../../core/paths.js";
 import { displayName, liveSessions } from "../../core/sessions.js";
-import { JSON_FLAG, bool, parseFlags, printJson } from "../args.js";
+import { JSON_FLAG, bool, parseFlags } from "../args.js";
+import { emit, jsonOutput } from "../output.js";
 import { group } from "../group.js";
 import type { Io } from "../io.js";
 import { command as handoff } from "./handoff.js";
@@ -18,10 +19,12 @@ export function sessionsData(env: NodeJS.ProcessEnv) {
   }));
 }
 
+const LIST_JSON = jsonOutput(["name", "profile", "source", "status", "cwd"]);
+
 async function list(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, JSON_FLAG, 0);
   if (bool(p, "json")) {
-    printJson(io, sessionsData(io.env).map((s) => ({ ...s, cwd: tildify(s.cwd, io.env) })));
+    emit(io, p, LIST_JSON, sessionsData(io.env).map((s) => ({ ...s, cwd: tildify(s.cwd, io.env) })));
     return 0;
   }
   return sessions.run([], io);
@@ -31,7 +34,7 @@ export const command = group(
   "session",
   "live Claude Code sessions, and moving one to another account",
   {
-    list: { summary: "live sessions and the account of each", synopsis: "[--json]", flags: ["--json"], run: list },
+    list: { summary: "live sessions and the account of each", synopsis: "[--json]", flags: ["--json"], json: LIST_JSON, run: list },
     handoff: {
       summary: "print the command that continues or forks this session under another profile",
       synopsis: "[profile|auto] [--fork] [--copy]",
@@ -40,5 +43,12 @@ export const command = group(
       run: (args, io) => handoff.run(args, io),
     },
   },
-  { fallback: "list" },
+  {
+    fallback: "list",
+    examples: [
+      "turno session list",
+      "turno session handoff personal",
+      "turno session handoff work --fork --copy",
+    ],
+  },
 );

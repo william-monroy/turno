@@ -11,9 +11,11 @@ import { agentOf, listProfiles } from "../../core/profiles.js";
 import { candidateRoots, folderMcpSet, resolveProfile } from "../../core/resolve.js";
 import { type TomlValue, addArrayTable, ensureTable, removeArrayTables, removeTable, setValue } from "../../core/toml-edit.js";
 import { NAMED_COLORS } from "../../statusline/render.js";
-import { DRY_RUN, type FlagSpec, JSON_FLAG, bool, flagsOf, parseFlags, printJson, str } from "../args.js";
+import { DRY_RUN, type FlagSpec, JSON_FLAG, bool, flagsOf, parseFlags, str } from "../args.js";
+import { Exit, exitName } from "../exit.js";
 import { group } from "../group.js";
 import { type Io, confirm, fail, needsAnswer, plural } from "../io.js";
+import { emit, jsonOutput } from "../output.js";
 import { profileColor, style } from "../style.js";
 import { findOnPath, launcherPath } from "../launch.js";
 import { isGenerated, launcherName, refuseNpx } from "../launchers.js";
@@ -54,12 +56,15 @@ export async function profilesData(env: NodeJS.ProcessEnv, config: Config, withA
   });
 }
 
+/** `turno profile list --json`: one element per profile (ADR 0045). */
+const LIST_JSON = jsonOutput(["name", "agent", "dir", "setUp", "email", "plan", "color", "browser", "roles", "projects", "exhaustedUntil"]);
+
 async function list(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, JSON_FLAG, 0);
   const config = loadConfig(io.env);
   const rows = await profilesData(io.env, config);
   if (bool(p, "json")) {
-    printJson(io, rows);
+    emit(io, p, LIST_JSON, rows);
     return 0;
   }
   if (!rows.length) {
@@ -274,19 +279,66 @@ export function usingText(agent: AgentId, r: { chosen: string; assigned: string;
   return r.chosen ? `${r.chosen} (${r.reason})` : `plain ${adapter(agent).command} with ${tildify(agentHub(agent, env), env)} (${r.reason})`;
 }
 
+export const WHICH_SPEC: FlagSpec = { ...JSON_FLAG, check: { type: "boolean" }, agent: { type: "string" } };
+
+/** `turno profile which --json`; `check` only with --check (ADR 0045). */
+export const WHICH_JSON = jsonOutput(["dir", "assigned", "chosen", "reason", "note", "agents", "mcp", "check"]);
+
+/** What `profile which --check` found: its exit code and one line that says why. */
+export interface WhichCheck {
+  exitCode: number;
+  message: string;
+}
+
+/**
+ * Whether the folder has a profile ready to open (ADR 0045): 0 yes; 3 no rule and no default,
+ * or a rule naming a missing profile; 4 the profile's account is not signed in (agents turno
+ * reads an account for: Claude Code); 1 its launcher is missing or the sign-in is unknown.
+ */
+export async function checkFolder(where: string, agent: AgentId, r: { chosen: string; reason: string }, config: Config, env: NodeJS.ProcessEnv): Promise<WhichCheck> {
+  const a = adapter(agent);
+  const assign = `turno profile assign ${where} <profile>`;
+  if (!r.chosen) return { exitCode: Exit.noProfile, message: `${where} has no ${a.label} profile (${r.reason}); give it one: ${assign}` };
+  if (!listProfiles(config, env, agent).includes(r.chosen)) {
+    return { exitCode: Exit.noProfile, message: `${where} uses the ${r.chosen} profile (${r.reason}), but there is no such profile: turno profile add ${r.chosen}${agent === DEFAULT_AGENT ? "" : ` --agent ${agent}`}, or ${assign}` };
+  }
+  if (!launcherPath(r.chosen, env, agent)) return { exitCode: Exit.failure, message: `${r.chosen} is not set up (its launcher is missing): turno profile repair ${r.chosen}` };
+  if (a.accountDetails) {
+    const s = await authStatus(r.chosen, env);
+    if (!s) return { exitCode: Exit.failure, message: `could not tell whether ${r.chosen} is signed in (claude auth status gave no answer)` };
+    if (!s.loggedIn) return { exitCode: Exit.notSignedIn, message: `${r.chosen} is not signed in: run ${launcherName(r.chosen, agent)}, then /login` };
+  }
+  return { exitCode: Exit.ok, message: `${where} uses ${r.chosen} (${r.reason})` };
+}
+
 export async function whichCommand(args: string[], io: Io): Promise<number> {
-  const p = parseFlags(args, JSON_FLAG, 1);
+  const p = parseFlags(args, WHICH_SPEC, 1);
   const dir = folder(p.positionals[0], io);
   const config = loadConfig(io.env);
   const roots = candidateRoots(dir);
   const all = resolveAll(dir, config, io.env, roots);
   const r = all[0]!.r;
   const set = folderMcpSet(roots, config.projects, r.chosen || undefined);
+  const wanted = str(p, "agent");
+  if (wanted !== undefined && !bool(p, "check")) fail("--agent goes with --check");
+  if (wanted !== undefined && !isAgentId(wanted)) fail(`--agent must be ${AGENT_IDS.slice(0, -1).join(", ")} or ${AGENT_IDS.at(-1)}`);
+  let check: WhichCheck | undefined;
+  if (bool(p, "check")) {
+    const agent = (wanted ?? DEFAULT_AGENT) as AgentId;
+    const x = agent === DEFAULT_AGENT ? r : resolveProfile(dir, config, io.env, roots, agent);
+    check = await checkFolder(tildify(dir, io.env), agent, x, config, io.env);
+  }
   if (bool(p, "json")) {
     const one = (x: typeof r) => ({ assigned: x.assigned || null, chosen: x.chosen || null, reason: x.reason, note: x.note || null });
     const mcp = set ? { rule: tildify(set.path, io.env), allow: set.mcp ?? null, deny: set.mcpDeny ?? null } : null;
-    printJson(io, { dir: tildify(dir, io.env), ...one(r), agents: Object.fromEntries(all.map(({ agent, r: x }) => [agent, one(x)])), mcp });
-    return 0;
+    const checked = check ? { check: { ok: check.exitCode === Exit.ok, code: exitName(check.exitCode), exitCode: check.exitCode, message: check.message } } : {};
+    emit(io, p, WHICH_JSON, { dir: tildify(dir, io.env), ...one(r), agents: Object.fromEntries(all.map(({ agent, r: x }) => [agent, one(x)])), mcp, ...checked });
+    return check?.exitCode ?? 0;
+  }
+  if (check) {
+    // Quiet when ready, for hooks and scripts; one line on stderr when not.
+    if (check.exitCode !== Exit.ok) io.err(`turno: ${check.message}`);
+    return check.exitCode;
   }
   io.out(tildify(dir, io.env));
   io.out(`  assigned: ${r.assigned || "none"} (${r.reason})`);
@@ -353,7 +405,7 @@ export const command = group(
   "profile",
   "accounts (profiles) for each agent: list, add, repair, remove, and which folders use each",
   {
-    list: { summary: "each profile, its account and roles", synopsis: "[--json]", flags: ["--json"], run: list },
+    list: { summary: "each profile, its account and roles", synopsis: "[--json]", flags: ["--json"], json: LIST_JSON, run: list },
     add: {
       summary:
         "declare a profile in config.toml and set up its folder and launcher (claude-<name>, codex-<name>, ...); asks before moving your own files aside (--yes skips the question), -v lists every shared item; turno undo reverts all of it",
@@ -376,11 +428,37 @@ export const command = group(
       flags: ["--dry-run"],
       run: remove,
     },
-    which: { summary: "which profile auto uses in a folder for each agent, and why", synopsis: "[dir] [--json]", args: ["dir"], flags: ["--json"], run: whichCommand },
+    which: {
+      summary: "which profile auto uses in a folder for each agent, and why; --check answers with the exit code instead",
+      synopsis: "[dir] [--json] [--check [--agent <agent>]]",
+      args: ["dir"],
+      flags: flagsOf(WHICH_SPEC),
+      details: [
+        "--check prints nothing and exits 0 when the folder has a profile that is set up",
+        "and signed in; 3 when it has no profile, 4 when the account is not signed in, 1",
+        "when the launcher is missing, with one line on stderr that says why (turno help",
+        "exit-codes). It checks the Claude Code profile, or the one of --agent.",
+      ].join("\n"),
+      json: WHICH_JSON,
+      run: whichCommand,
+    },
     assign: {
       summary: "make a folder (and everything under it) use a profile; without a profile, choose one from a list",
       synopsis: "[dir] [profile] [--dry-run]", args: ["dir", "profile"], flags: ["--dry-run"], run: assign },
     unassign: { summary: "remove a folder's own rule", synopsis: "[dir] [--dry-run]", args: ["dir"], flags: ["--dry-run"], run: unassign },
   },
-  { fallback: "list" },
+  {
+    fallback: "list",
+    examples: [
+      "turno profile list --json=name,email",
+      "turno profile add work",
+      "turno profile add school --agent codex --color green",
+      "turno profile repair",
+      "turno profile remove old --dry-run",
+      "turno profile which ~/code/acme",
+      "turno profile which --check || turno profile assign . work",
+      "turno profile assign ~/code/acme work",
+      "turno profile unassign ~/code/acme",
+    ],
+  },
 );

@@ -14,6 +14,10 @@ const USAGE = [
   "always open in the default browser. Only http(s) and mailto links are accepted.",
   "Claude Code calls this through $BROWSER. Typed in a terminal outside a profile's session,",
   "a claude.ai link without a profile shows the profiles to choose from.",
+  "",
+  "Examples:",
+  "  $ turno open https://claude.ai/new",
+  "  $ turno open work https://claude.ai/new",
 ].join("\n");
 
 /** claude.ai and claude.com links (and their subdomains) open with the profile's account. */

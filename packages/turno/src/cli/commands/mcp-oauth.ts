@@ -5,8 +5,12 @@ import { type RemoteServer, loadManifest, servesProfile, variantKey } from "../.
 import { NO_SECRET_STORE, type SecretStore, keychainResolver, secretStore } from "../../core/secrets.js";
 // The OAuth client pulls in the MCP SDK: loaded when a login is used, not by every `turno mcp` command.
 import type { LoginState } from "../../mcpd/oauth.js";
-import { DRY_RUN, type FlagSpec, JSON_FLAG, bool, parseFlags, printJson, str } from "../args.js";
+import { DRY_RUN, type FlagSpec, JSON_FLAG, bool, parseFlags, str } from "../args.js";
 import { type Io, fail } from "../io.js";
+import { emit, jsonOutput } from "../output.js";
+
+/** `turno mcp login --json` (ADR 0045). */
+export const LOGIN_JSON = jsonOutput(["server", "variant", "issuer", "registration", "scope", "redirectUri", "expiresAt", "refreshToken", "service", "planned"]);
 
 /**
  * `turno mcp login` and `turno mcp logout` (ADR 0029): mcpd is the OAuth client of remote
@@ -97,7 +101,7 @@ export async function login(args: string[], io: Io, deps: OAuthDeps = {}): Promi
       },
     });
     if (json) {
-      printJson(io, { server: server.name, variant, ...result });
+      emit(io, flags, LOGIN_JSON, { server: server.name, variant, ...result });
       return 0;
     }
     if (result.planned) {

@@ -104,7 +104,7 @@ describe("turno browser", () => {
     const io = fakeIo(sb.env);
     expect(await cmd.run(["bench", "--json", "--yes"], io)).toBe(0);
     expect(calls.bench).toHaveLength(1);
-    expect(JSON.parse(io.lines.join("\n"))).toEqual({ version: 1, results: [] });
+    expect(JSON.parse(io.lines.join("\n"))).toEqual({ schemaVersion: 1, version: 1, results: [] });
   });
 
   it("asks only when main left a way to ask (a terminal, no --no-input, no agent session)", async () => {

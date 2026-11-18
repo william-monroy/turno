@@ -6,6 +6,7 @@ import { loadConfig } from "../core/config.js";
 import { paths, tildify } from "../core/paths.js";
 import { agentOf, listProfiles } from "../core/profiles.js";
 import { profileTokenFile, tokenProfile } from "./tokens.js";
+import { isRecord, readState } from "../core/state-file.js";
 
 /**
  * The mcpd part of `turno doctor` (ADR 0017): the service file and the paths it runs, the
@@ -130,12 +131,12 @@ async function portChecks(env: NodeJS.ProcessEnv): Promise<McpdCheck[]> {
 }
 
 async function syncedPortCheck(env: NodeJS.ProcessEnv): Promise<McpdCheck | undefined> {
-  const { readManaged } = await import("./sync.js");
+  const { peekManaged } = await import("./sync.js");
   const { mcpdPort } = await import("./state.js");
   const port = mcpdPort(env);
   const off: string[] = [];
   const seen = new Set<number>();
-  for (const file of Object.keys(readManaged(paths(env).mcpdManaged))) {
+  for (const file of Object.keys(peekManaged(paths(env).mcpdManaged))) {
     let text: string;
     try {
       text = readFileSync(file, "utf8");
@@ -165,12 +166,8 @@ const PROFILE_BEARER = /Bearer (tp1\.[a-z0-9][a-z0-9_-]*\.[A-Za-z0-9_-]{43})/g;
  */
 function syncedFiles(env: NodeJS.ProcessEnv): string[] {
   const files = new Set<string>();
-  try {
-    const managed = JSON.parse(readFileSync(paths(env).mcpdManaged, "utf8")) as unknown;
-    if (managed && typeof managed === "object") for (const f of Object.keys(managed)) files.add(f);
-  } catch {
-    /* no mcp-managed.json */
-  }
+  // No mcp-managed.json, or one that cannot be used: the profiles' configs are still checked.
+  for (const f of Object.keys(readState(paths(env).mcpdManaged, isRecord) ?? {})) files.add(f);
   try {
     const config = loadConfig(env);
     for (const name of listProfiles(config, env)) files.add(mcpFileFor(name, agentOf(name, config), env));

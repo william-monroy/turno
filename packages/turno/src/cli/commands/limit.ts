@@ -3,9 +3,10 @@ import { loadConfig } from "../../core/config.js";
 import { clearExhausted, exhaustedUntil, markExhausted } from "../../core/exhausted.js";
 import { agentOf, listProfiles } from "../../core/profiles.js";
 import { formatUntil } from "../../core/resolve.js";
-import { DRY_RUN, JSON_FLAG, WATCH, bool, flagsOf, parseFlags, printJson, str } from "../args.js";
+import { DRY_RUN, JSON_FLAG, WATCH, bool, flagsOf, parseFlags, str } from "../args.js";
 import { group } from "../group.js";
 import { type Io, fail } from "../io.js";
+import { emit, emitLines, jsonOutput } from "../output.js";
 import { launcherPath } from "../launch.js";
 import { parseLocalDateTime } from "./exhausted.js";
 import { command as usage, account, usageSnapshot } from "./usage.js";
@@ -42,11 +43,17 @@ export async function limitsData(env: NodeJS.ProcessEnv, withAccounts = true) {
 
 const SHOW_SPEC = { ...JSON_FLAG, ...WATCH };
 
+/** `turno limit show --json`: one element per profile (ADR 0045). */
+const SHOW_JSON = jsonOutput(["profile", "agent", "email", "plan", "exhaustedUntil", "fiveHour", "week", "updatedAt"]);
+
+/** How often `limit show --watch --json` prints the profiles again. */
+const WATCH_EVERY_MS = 30_000;
+
 async function show(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, SHOW_SPEC, 0);
   if (bool(p, "json")) {
-    if (bool(p, "watch")) fail("--json and --watch do not go together");
-    printJson(io, await limitsData(io.env));
+    if (bool(p, "watch")) return watchJson(io, p);
+    emit(io, p, SHOW_JSON, await limitsData(io.env));
     return 0;
   }
   const config = loadConfig(io.env);
@@ -59,6 +66,36 @@ async function show(args: string[], io: Io): Promise<number> {
     return 0;
   }
   return usage.run(bool(p, "watch") ? ["--watch"] : [], io);
+}
+
+/**
+ * `--watch --json`: every profile as one JSON line (NDJSON) now and every 30 s, until Ctrl-C or
+ * `signal`. A reader tells the rounds apart by `updatedAt` or by the profile coming back.
+ */
+export async function watchJson(io: Io, p: Parameters<typeof emit>[1], signal?: AbortSignal, everyMs = WATCH_EVERY_MS): Promise<number> {
+  const stop = signal ?? interrupted();
+  while (!stop.aborted) {
+    emitLines(io, p, SHOW_JSON, await limitsData(io.env));
+    await new Promise<void>((r) => {
+      const timer = setTimeout(r, everyMs);
+      stop.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer);
+          r();
+        },
+        { once: true },
+      );
+    });
+  }
+  return 0;
+}
+
+/** An abort signal for Ctrl-C. */
+function interrupted(): AbortSignal {
+  const c = new AbortController();
+  process.once("SIGINT", () => c.abort());
+  return c.signal;
 }
 
 async function profileArg(given: string | undefined, io: Io, verb: "set" | "clear"): Promise<string> {
@@ -106,7 +143,7 @@ export const command = group(
   "limit",
   "usage limits of each account, and the exhausted marks that move projects to the fallback",
   {
-    show: { summary: "5 h and weekly usage of each account, as bars", synopsis: "[--watch] [--json]", flags: flagsOf(SHOW_SPEC), run: show },
+    show: { summary: "5 h and weekly usage of each account, as bars", synopsis: "[--watch] [--json]", flags: flagsOf(SHOW_SPEC), json: SHOW_JSON, run: show },
     set: {
       summary: "mark a profile exhausted (default for 5 h); its projects open with the fallback, if one is set",
       synopsis: '<profile> [--until "YYYY-MM-DD HH:MM" | --for 2h] [--dry-run]',
@@ -116,5 +153,13 @@ export const command = group(
     },
     clear: { summary: "clear a profile's exhausted mark", synopsis: "<profile> [--dry-run]", args: ["profile"], flags: flagsOf(DRY_RUN), run: clear },
   },
-  { fallback: "show" },
+  {
+    fallback: "show",
+    examples: [
+      "turno limit show",
+      "turno limit show --watch --json  # one JSON line per profile, every 30 s",
+      "turno limit set work --for 2h",
+      "turno limit clear work",
+    ],
+  },
 );

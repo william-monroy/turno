@@ -97,13 +97,17 @@ full disk or a read-only state folder leaves that part empty and the rest of the
 ### Colors and `NO_COLOR`
 
 turno's own screens choose colors by one order, and the first rule that applies wins
-(ADR 0037):
+(ADR 0037, ADR 0045):
 
 1. `--color always|never` on the command line (before the command or among its flags);
 2. `TURNO_COLOR=always|never` (`--color auto` sets it aside);
 3. `NO_COLOR` set and not empty: no colors;
 4. `FORCE_COLOR`: `0` or `false` turns colors off, anything else turns them on, also in a pipe;
-5. otherwise colors only when the output is a terminal.
+5. `CLICOLOR_FORCE` set and not `0`: colors, also in a pipe;
+6. `CLICOLOR=0` or `TERM=dumb`: no colors;
+7. otherwise colors only when the output is a terminal.
+
+`turno help environment` lists these with every other variable turno reads.
 
 `--json` output is colored only on a terminal, whatever the flag says. Without colors the same
 screens come out as plain text with ASCII icons. On a terminal no line runs past its width: tables

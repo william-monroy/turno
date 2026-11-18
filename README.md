@@ -188,13 +188,13 @@ change, and print the `turno undo <stamp>` that puts them back. `turno mcp impor
 | `turno demo [--keep] [-- <command>]` | try turno in a throwaway HOME (also `npx turno-cli demo`); without a terminal it shows what it set up and ends, `--keep` waits for Ctrl-C |
 | `turno <profile> [args]`, `turno run <profile\|auto> [args]` | the profile's agent with that account (args pass through) |
 | `turno auto [--agent codex\|copilot\|cursor]` | the profile assigned to the current folder |
-| `turno profile list\|add\|repair\|remove\|which\|assign\|unassign` | the profiles, and which folders use each |
+| `turno profile list\|add\|repair\|remove\|which [--check]\|assign\|unassign` | the profiles, and which folders use each; `which --check` exits 0, 3 or 4 for scripts |
 | `turno mcp list\|sync\|config\|import\|install\|refresh\|doctor` | the MCP gateway's servers, and entries for other agents |
 | `turno mcp login\|logout <server>` | log mcpd in to an OAuth remote server, once per account |
 | `turno mcp log\|top\|savings` | the gateway's tool call log, memory per server, and what it saves |
 | `turno mcp daemon start\|stop\|restart\|status\|logs`, `turno mcp token rotate` | the gateway service, and its token |
 | `turno status [--json]` | one screen: this folder, profiles and usage, sessions, mcpd, and the next step |
-| `turno limit show [--watch]\|set\|clear` | usage windows per account, and exhausted marks |
+| `turno limit show [--watch] [--json]\|set\|clear` | usage windows per account, and exhausted marks; `--watch --json` prints NDJSON |
 | `turno session list\|handoff <p> [--fork]` | open sessions, and the command to continue this one under another profile |
 | `turno open [profile] <url>` | open an http(s) or mailto link; claude.ai links use that profile's Chrome profile |
 | `turno identity list\|add\|remove\|login\|prefer\|log [--verify]` | service accounts for the bridge, browser identities, the audit log |
@@ -207,6 +207,15 @@ change, and print the `turno undo <stamp>` that puts them back. `turno mcp impor
 | `turno uninstall [--dry-run] [--yes] [--keep-config] [--purge]` | remove what turno set up (profile folders stay); `--purge` also removes its state and caches |
 | `turno completion zsh\|bash\|fish` | shell completion, including profiles and config keys |
 | `turno browser bench` | developer diagnostic: browser engine compatibility (needs `turno-browser`) |
+
+For scripts and hooks: every `--json` object carries `schemaVersion`, `--json=fields` lists the
+fields and `--json=name,email` keeps only those, `--watch --json` prints one JSON record per
+line, and under `--json` an error is one JSON line on stderr (`turno help json`). Exit codes
+are 0 ok, 1 failure, 2 usage, 3 no profile for the folder, 4 not signed in, 5 mcpd down
+(`turno help exit-codes`); `turno profile which --check` answers with them, for example
+`turno profile which --check || turno profile assign . work`. `turno help environment` lists
+every variable turno reads, colors included (`NO_COLOR`, `FORCE_COLOR`, `CLICOLOR`,
+`CLICOLOR_FORCE`, `TERM=dumb`).
 
 ### Config
 
@@ -374,7 +383,7 @@ that `turno undo` restores, and `turno uninstall` removes what it set up.
 
 Interactive commands ask the npm registry for a newer version at most once a day, sending only
 the package name. Turn it off with `update_check = false` in config.toml, `DO_NOT_TRACK=1`,
-`NO_UPDATE_NOTIFIER=1` or `TURNO_NO_UPDATE_CHECK=1`; it is also off in CI and outside a
+`NO_UPDATE_NOTIFIER=1`, `TURNO_NO_UPDATE_CHECK=1` or `TURNO_NO_UPDATE_NOTIFIER=1`; it is also off in CI and outside a
 terminal. Apart from that, turno only goes online when you ask it to: `turno ui install`
 downloads the status line font, `turno mcp install` and `turno upgrade` fetch packages from npm,
 `turno mcp import --write` and `turno init` (once you confirm) ask npm for the command name of

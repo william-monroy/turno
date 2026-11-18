@@ -383,7 +383,8 @@ describe("turno mcp daemon", () => {
   it("status explains why mcpd is down", async () => {
     sb.write(".local/state/turno/mcpd.error.json", JSON.stringify({ at: "2026-01-02T03:04:05.000Z", message: "port 1 is in use by x" }));
     const io = fakeIo(sb.env);
-    expect(await main(["mcp", "daemon", "status"], io)).toBe(1);
+    // Exit 5: the gateway does not answer (ADR 0045; it was 1).
+    expect(await main(["mcp", "daemon", "status"], io)).toBe(5);
     expect(io.lines.join("\n")).toContain("last start failed");
   });
 

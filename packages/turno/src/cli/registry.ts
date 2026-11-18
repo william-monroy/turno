@@ -44,6 +44,9 @@ export const HELP_SUMMARY: Record<string, string> = {
   browser: "developer tool: compare browser engines (needs turno-browser)",
 };
 
+/** `turno help <topic>` (cli/topics.ts), listed here so `turno help` loads nothing. */
+export const HELP_TOPICS: readonly string[] = ["environment", "exit-codes", "json"];
+
 export const COMMANDS: Record<string, Loader> = {
   init: () => import("./commands/init.js"),
   demo: () => import("./commands/demo.js"),
