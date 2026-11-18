@@ -2,7 +2,7 @@
   "name": "turno-docs",
   "version": "0.0.0",
   "private": true,
-  "description": "The turno documentation site (turno.wimo.dev).",
+  "description": "The turno site: the landing page and the docs (turno.wimo.dev).",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {

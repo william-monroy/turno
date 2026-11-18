@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  English · <a href="README.es.md">Español</a>
+  <a href="https://turno.wimo.dev"><b>turno.wimo.dev</b></a> · <a href="https://turno.wimo.dev/docs">Docs</a> · English · <a href="README.es.md">Español</a>
 </p>
 
 **Switching accounts? Keep talking.** The same session continues on your other account, with
@@ -41,7 +41,8 @@ agents.
   `turno undo` puts back every file a command changed.
 
 The same gateway starts each MCP server once and shares it between sessions; the measured
-memory saving is in [Benchmark](#benchmark).
+memory saving is in [Benchmark](#benchmark). [turno.wimo.dev](https://turno.wimo.dev) tells the
+whole story, with a small working picture of each part.
 
 ![turno demo: two profiles, one gateway, the status line, the picker and turno doctor, in a throwaway HOME](docs/assets/demo.gif)
 
@@ -70,18 +71,34 @@ Linux. Nothing leaves your machine: no account, no telemetry, no proxy for model
 
 ## What it does
 
-- **Per-folder accounts and MCP server sets.** `turno profile assign ~/code/acme work` and every
-  agent you open in that repository uses your work login; `turno auto` picks it, and
-  `turno status` shows who is logged in where. The same folder rule can choose which MCP servers
-  sessions there see. Conversations, skills and settings stay shared between your Claude Code
-  profiles, so `turno work --resume <id>` continues a session started with another account.
+- **A conversation that continues on another account.** Your Claude Code profiles share
+  conversations, skills, commands, hooks, plugins and settings, and keep only their own login.
+  `turno work --resume <id>` continues a session that another account started, and
+  `turno session handoff work` prints the exact command (`--fork` keeps this session open and
+  starts a copy). [What profiles share](https://turno.wimo.dev/docs/concepts/profiles).
+- **MCP sign-ins, once per account.** The gateway logs in to each OAuth remote server once per
+  account (`turno mcp login <server>`) and every agent session of that account uses it; a
+  variant per profile lets work and personal reach two accounts of the same service. Secrets
+  live in the macOS Keychain or the Linux Secret Service, not in agent configs.
+  [The gateway](https://turno.wimo.dev/docs/concepts/gateway).
+- **A browser per identity** (separate package `turno-browser`): an MCP server that drives your
+  installed Chrome with one persistent profile per identity, so an agent works in the sessions
+  you signed into by hand, and `turno open <profile> <url>` opens a claude.ai link with the
+  account that owns it. See [Browser with real profiles](#browser-with-real-profiles).
+- **Skills that move work between accounts.** The Claude Code plugin adds `/switch-account`,
+  `/fork-session` and `/copy-artifact`, and the accounts bridge lets a session delegate a task to
+  a service only another profile is signed into, asking before it writes.
+  [Skills](https://turno.wimo.dev/docs/concepts/skills).
+- **The folder picks the account.** `turno profile assign ~/code/acme work` and every agent you
+  open in that repository uses your work login; `turno auto` picks it and says which account and
+  why, and `turno status` shows who is logged in where. The same folder rule can choose which
+  MCP servers sessions there see. [Folder rules](https://turno.wimo.dev/docs/concepts/folder-rules).
 - **One MCP gateway for every session.** `mcpd` listens on `127.0.0.1`, answers `initialize` and
   the tool lists from a cache, starts a server the first time one of its tools is called, shares
   that process between sessions where it is safe (`shared`, `project` or `session` scope) and
   stops it when idle, sooner when memory is low. It speaks MCP 2025-11-25 and 2026-07-28 on the
-  same endpoint, logs in to OAuth remote servers once per account (`turno mcp login`), and
-  `turno mcp log`, `top` and `savings` show its calls, memory and saving. Secrets live in the
-  macOS Keychain or the Linux Secret Service, not in agent configs. See [docs/mcp.md](docs/mcp.md).
+  same endpoint, and `turno mcp log`, `top` and `savings` show its calls, memory and saving. See
+  [docs/mcp.md](docs/mcp.md).
 - **Four agents, one setup.** The same profiles, folder rules and gateway for:
 
   | Agent | Profile | Gateway entries | Example |
@@ -91,13 +108,16 @@ Linux. Nothing leaves your machine: no account, no telemetry, no proxy for model
   | GitHub Copilot CLI | `~/.copilot-<p>`, `copilot-<p>` | `mcp-config.json` | `copilot-work` |
   | Cursor CLI | `~/.cursor-<p>`, `cursor-agent-<p>` | `~/.cursor/mcp.json`, routed by environment | `cursor-agent-work` |
 
-  opencode, Gemini CLI, Goose, Crush, Droid and Kiro can use the gateway too:
-  `turno mcp config --agent <name>` prints their entries. See [docs/agents.md](docs/agents.md).
+  A profile is one account of one agent. opencode, Gemini CLI, Goose, Crush, Droid and Kiro can
+  use the gateway too: `turno mcp config --agent <name>` prints their entries. See
+  [docs/agents.md](docs/agents.md).
 - **A status line** for Claude Code with the account, its 5 h and weekly usage, context, branch
   and cost, with Nerd Font icons it installs for you (or Unicode where there is none).
-- **A browser with real profiles** (separate package `turno-browser`): an MCP server that
-  drives your installed Chrome with one persistent profile per identity, so an agent works in
-  the sessions you signed into by hand.
+- **Easy to check, easy to undo.** `turno doctor` names each problem and its fix (`--fix`
+  repairs what is safe, `--report` prints a block for an issue with no secrets), `turno mcp call`
+  tries a tool the way a session would, `--no-gateway` opens the agent without turno's gateway to
+  tell whose problem it is, and `turno undo` puts back every file a command changed.
+  [Troubleshooting](https://turno.wimo.dev/docs/troubleshooting).
 
 ## Quick start
 
@@ -235,7 +255,11 @@ change, and print the `turno undo <stamp>` that puts them back. `turno mcp impor
 | `turno upgrade [--check]`, `turno version` | update turno the way it was installed |
 | `turno uninstall [--dry-run] [--yes] [--keep-config] [--purge]` | remove what turno set up (profile folders stay); `--purge` also removes its state and caches |
 | `turno completion zsh\|bash\|fish` | shell completion, including profiles and config keys |
-| `turno browser bench` | developer diagnostic: browser engine compatibility (needs `turno-browser`) |
+| `turno browser identities\|add\|show\|set\|login\|remove` | browser identities and their settings (needs `turno-browser`) |
+| `turno browser vault add\|list\|remove\|submit` | sign-in credentials per site in the OS secret store, filled by the `browser_login` tool |
+| `turno browser export <id> --out <file>`, `turno browser import <file>` | move an identity's session to another machine as one encrypted file |
+| `turno browser doctor [--fix]`, `turno browser reputation [<id>]` | check Chrome and every identity; how often each site challenged it |
+| `turno browser bench` | developer diagnostic: browser engine compatibility |
 
 For scripts and hooks: every `--json` object carries `schemaVersion`, `--json=fields` lists the
 fields and `--json=name,email` keeps only those, `--watch --json` prints one JSON record per
@@ -324,11 +348,30 @@ turno identity add browser:school    # an identity and its mcp.toml entry
 turno identity login browser:school  # sign in by hand once; cookies persist
 ```
 
-It drives the installed Google Chrome, headed, with a persistent profile per identity and no
-injected scripts. Why it is a separate package: [ADR 0019](docs/decisions/0019-lean-install-browser-framing-shrinkwrap.md).
-Chrome closes after 15 minutes without a tool call and opens again on the next one, and mcpd
-stops the server after 30 (the `shared`, `exclusive` block that `identity add` prints; see
-[Browsers](docs/mcp.md#browsers)).
+`turno-browser` is its own MCP server. It drives the installed Google Chrome, headed, with a
+persistent profile per identity and no injected scripts; each identity keeps its time zone,
+languages and locale fixed (`turno browser show|set <id>`).
+
+- **It cleans up after itself.** At most 8 tabs per session's browser, an unused tab is parked
+  after 5 minutes and closed after 15, and popups nobody asked for are closed. Chrome closes
+  after 15 minutes without a tool call and opens again on the next one, and mcpd stops the
+  server after 30 (see [Browsers](docs/mcp.md#browsers)). When the agent ends, Chrome closes with
+  it, and a Chrome that a killed run left open is closed on the next start.
+- **Fewer round trips.** `browser_batch` runs up to 20 actions in one call, and an action that
+  fails says which element covers the target, or that it is hidden, disabled or gone.
+- **Sign-ins the agent never sees.** `turno browser vault add` keeps a username, a password and
+  an optional TOTP secret per site in the OS secret store, and the `browser_login` tool fills
+  them into that site's sign-in page; results are redacted and values are bound to the site.
+- **Sessions you can move.** `turno browser export <id> --out <file>` writes an identity's
+  cookies and storage as one file encrypted with a passphrase, with an expiry, and
+  `turno browser import <file>` reads it on another machine. The vault never leaves.
+- **Lighter pages, when you want them.** Per identity and off by default: block trackers,
+  images, media or fonts, and keep static resources in a cache on disk.
+- **Health you can read.** `turno browser doctor [--fix]` checks Chrome and every identity, and
+  `turno browser reputation` shows how often each site challenged it.
+
+More in [Browser identities](https://turno.wimo.dev/docs/concepts/browser-identities) and
+[`turno browser`](https://turno.wimo.dev/docs/reference/cli/browser).
 
 **Acceptable use.** Use it with your own accounts, on sites whose terms allow automated access
 by you, and at a human pace. Do not use it to get around access controls, paywalls, CAPTCHAs or
@@ -434,9 +477,6 @@ pnpm check       # typecheck, lint (Biome, knip), tests (sandboxed HOME), text r
 pnpm test:e2e    # also the end-to-end test that needs the network (Cursor)
 ```
 
-Design: [docs/design](docs/design/2026-11-12-claudio-ecosystem-design.md). Decisions:
-[docs/decisions](docs/decisions/). Progress: [docs/STATUS.md](docs/STATUS.md).
-
 ## License
 
 Apache License 2.0 ([LICENSE](LICENSE), [NOTICE](NOTICE)). The bundled fonts keep their own
@@ -445,6 +485,7 @@ licenses ([packages/fonts/LICENSE.txt](packages/fonts/LICENSE.txt)); dependencie
 
 ## Documentation
 
-The documentation site is at [turno.wimo.dev](https://turno.wimo.dev): guides by problem, concepts,
-the reference generated from the code, and one troubleshooting page per `turno doctor` finding.
-Its source is in [apps/docs](apps/docs).
+[turno.wimo.dev](https://turno.wimo.dev) is the site: a landing page that tells the story in
+eight parts, and the [docs](https://turno.wimo.dev/docs) in three areas: guides by problem and
+concepts, the reference generated from the code, and one troubleshooting page per `turno doctor`
+finding, with a filter. English and Spanish. Its source is in [apps/docs](apps/docs).

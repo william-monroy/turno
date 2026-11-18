@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> · Español
+  <a href="https://turno.wimo.dev/es"><b>turno.wimo.dev</b></a> · <a href="https://turno.wimo.dev/es/docs">Documentación</a> · <a href="README.md">English</a> · Español
 </p>
 
 **¿Cambias de cuenta? La conversación sigue.** La misma sesión continúa en tu otra cuenta, con
@@ -34,7 +34,9 @@ sus agentes de código.
   `turno undo` regresa cada archivo que un comando cambió.
 
 El mismo gateway arranca cada servidor MCP una sola vez y lo comparte entre sesiones; el ahorro
-de memoria medido está en [BENCHMARKS.md](BENCHMARKS.md).
+de memoria medido está en [BENCHMARKS.md](BENCHMARKS.md). En
+[turno.wimo.dev](https://turno.wimo.dev/es) está la historia completa, con una imagen de cada
+parte que puedes probar.
 
 ![turno demo: dos perfiles, un gateway, la status line, el selector y turno doctor, en un HOME desechable](docs/assets/demo.gif)
 
@@ -106,6 +108,39 @@ Los detalles de cada agente están en [docs/agents.md](docs/agents.md), los del 
 [docs/mcp.md](docs/mcp.md), y la referencia completa de comandos y configuración, en el
 [README en inglés](README.md#reference).
 
+## Un navegador por identidad
+
+```sh
+npm install --global turno-browser   # paquete aparte, no se instala con turno
+turno identity add browser:escuela   # una identidad y su entrada en mcp.toml
+turno identity login browser:escuela # inicia sesión a mano una vez; las cookies se conservan
+```
+
+`turno-browser` es su propio servidor MCP. Maneja el Chrome que ya tienes instalado, con
+ventana, con un perfil persistente por identidad y sin inyectar scripts, así que un agente
+trabaja dentro de las sesiones que tú iniciaste a mano.
+
+- **Limpia lo que deja.** Mantiene 8 pestañas como máximo, pausa una pestaña sin uso a los 5
+  minutos y la cierra a los 15. Chrome se cierra tras 15 minutos sin llamadas y vuelve a abrir en
+  la siguiente; cuando el agente termina, Chrome se cierra con él.
+- **Menos idas y vueltas.** `browser_batch` corre hasta 20 acciones en una sola llamada, y una
+  acción que falla dice qué elemento tapa el objetivo, o si está oculto, deshabilitado o ya no
+  existe.
+- **Credenciales que el agente nunca ve.** `turno browser vault add` guarda usuario, contraseña
+  y un secreto TOTP opcional por sitio en el almacén de secretos del sistema, y la herramienta
+  `browser_login` los escribe en la página de inicio de sesión de ese sitio.
+- **Sesiones que se pueden mover.** `turno browser export <id> --out <archivo>` escribe las
+  cookies y el almacenamiento de una identidad en un archivo cifrado con una frase, con
+  vencimiento, y `turno browser import <archivo>` lo lee en otra máquina. La bóveda de
+  credenciales nunca sale.
+- **Páginas más ligeras, si quieres.** Por identidad y apagado por defecto: bloquear
+  rastreadores, imágenes, video o fuentes, y guardar recursos estáticos en una caché en disco.
+
+Úsalo con tus propias cuentas, en sitios cuyos términos te permitan el acceso automatizado, y a
+ritmo humano. No lo uses para sortear controles de acceso, muros de pago, CAPTCHAs o límites,
+para extraer datos a gran escala, ni para entrar a cuentas que no son tuyas. Más detalle en
+[Identidades del navegador](https://turno.wimo.dev/es/docs/concepts/browser-identities).
+
 ## Preguntas frecuentes
 
 **¿Está permitido usar varias cuentas?** Depende de tu plan, no de turno. turno ejecuta la CLI
@@ -151,5 +186,8 @@ Licencia Apache 2.0.
 
 ## Documentación
 
-El sitio de documentación está en [turno.wimo.dev](https://turno.wimo.dev): los primeros pasos y
-las preguntas frecuentes están en español ([turno.wimo.dev/es](https://turno.wimo.dev/es)).
+[turno.wimo.dev](https://turno.wimo.dev/es) es el sitio: una portada que cuenta la historia en
+ocho partes y la [documentación](https://turno.wimo.dev/es/docs), con guías por problema,
+conceptos, la referencia generada desde el código y una página de solución por cada hallazgo de
+`turno doctor`. Los primeros pasos y las preguntas frecuentes están en español; las demás
+páginas avisan cuando siguen en inglés.
