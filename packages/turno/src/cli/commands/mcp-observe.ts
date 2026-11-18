@@ -156,7 +156,7 @@ export async function log(args: string[], io: Io, signal?: AbortSignal): Promise
   const n = count(p, "tail", 20);
   const filter = { ...(str(p, "server") ? { server: str(p, "server") } : {}), ...(str(p, "profile") ? { profile: str(p, "profile") } : {}) };
   const json = bool(p, "json");
-  const { daemonFiles, loadConfigSafe } = await import("../../mcpd/daemon.js");
+  const { daemonFiles, loadConfigSafe } = await import("../../mcpd/state.js");
   const { followCalls, readCalls } = await import("../../mcpd/calllog.js");
   const { localTime } = await import("./mcpd.js");
   const file = daemonFiles(io.env).calls;

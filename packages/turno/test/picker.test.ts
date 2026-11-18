@@ -289,6 +289,43 @@ describe("commands without a profile", () => {
     expect(readFileSync(cfg(), "utf8")).toBe(before);
   });
 
+  it("run lists auto first, named with the profile this folder resolves to", async () => {
+    // No rule and no default: auto resolves to nothing, so it is not offered.
+    const none = fakeTerminal(["\x1b"]);
+    const plain = { ...fakeIo(sb.env), ask: async () => "", terminal: none };
+    expect(await main(["run"], plain)).toBe(130);
+    expect(stripAnsi(none.out)).not.toContain("auto");
+
+    sb.write(".config/turno/config.toml", 'system = "personal"\ndefault = "work"\n');
+    const term = fakeTerminal(["\x1b"]);
+    const io = { ...fakeIo(sb.env), ask: async () => "", terminal: term };
+    expect(await main(["run"], io)).toBe(130);
+    const rows = stripAnsi(term.out.slice(term.out.lastIndexOf("Profile to open")))
+      .split("\n")
+      .filter((l) => /auto|personal|work/.test(l));
+    expect(rows[0]).toMatch(/^ ❯ auto \(work\)\s+Claude Code\s+folder without a rule/);
+    expect(rows[1]).toMatch(/^ {4}personal\s/);
+    expect(rows[2]).toMatch(/^ {4}work\s/);
+
+    // Without a raw terminal the numbered list starts with it too, and the message for
+    // nobody to answer still names it.
+    const stdin = process.stdin as { isTTY?: boolean };
+    const was = stdin.isTTY;
+    stdin.isTTY = false;
+    try {
+      const asked = { ...fakeIo(sb.env), ask: vi.fn(async () => "nobody") };
+      expect(await main(["run"], asked)).toBe(2);
+      expect(asked.ask).toHaveBeenCalledWith("Number or name [1]: ");
+      expect(stripAnsi(asked.errors.join("\n"))).toMatch(/1\s+auto \(work\)\s+Claude Code/);
+      expect(asked.errors.at(-1)).toBe("turno: no profile 'nobody'; pass a profile: auto, personal, work");
+    } finally {
+      stdin.isTTY = was;
+    }
+    const nobody = fakeIo(sb.env);
+    expect(await main(["run"], nobody)).toBe(2);
+    expect(nobody.errors[0]).toContain("pass a profile: personal, work, auto");
+  });
+
   it("session handoff still prints the profiles and the current one for scripts", async () => {
     const io = fakeIo({ ...sb.env, CLAUDE_CONFIG_DIR: join(sb.home, ".claude-work") });
     expect(await main(["session", "handoff"], io)).toBe(2);

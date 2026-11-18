@@ -88,7 +88,9 @@ Inside other values, mcpd expands `${NAME}`, `${NAME:-default}` and `${env:NAME}
 environment, as Claude Code does in its config: in a stdio server's `args` and `env` values and
 in a proxied server's headers (`"--region=${REGION}"`, `"Bearer ${API_TOKEN}"`). A variable
 that is unset and has no default stops that server from starting with an error that names it.
-Cursor's placeholders such as `${workspaceFolder}` are left as written.
+Cursor's placeholders such as `${workspaceFolder}` are left as written. `turno doctor` lists the
+variables mcp.toml reads this way that are not set in the shell it runs in (names only, never a
+value); mcpd under the LaunchAgent or systemd has its own environment, so set them there too.
 
 ## Remote servers with OAuth
 

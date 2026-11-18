@@ -103,8 +103,9 @@ responde, por ejemplo `turno: init needs an answer; pass --yes (or run it in a t
 `TURNO_NO_INPUT=0` te deja responder en la terminal de un editor que define la variable de un
 agente. Un comando que necesita un perfil y no lo recibe (`turno profile assign`, `turno run`,
 `turno session handoff`, `turno limit set`) muestra una lista para elegir en una terminal
-(flechas o j/k, escribir para filtrar, Enter, Esc para cancelar); fuera de ella termina con
-código 2 y lista los perfiles: `pass a profile: personal, work`.
+(flechas o j/k, escribir para filtrar, Enter, Esc para cancelar); `turno run` muestra primero
+`auto`, con el perfil que le toca a esta carpeta (`auto (work)`). Fuera de una terminal termina
+con código 2 y lista los perfiles: `pass a profile: personal, work`.
 
 **¿Cómo lo deshago?** Cada comando que escribe guarda una copia de lo que cambia:
 `turno undo --list` las muestra y `turno undo <stamp>` las restaura (las copias de más de 30
@@ -112,7 +113,8 @@ días se borran, conservando las 10 más recientes). Para quitar turno, `turno u
 --dry-run` muestra lo que turno configuró (servicio, lanzadores, entradas MCP, status line,
 configuración) y `turno uninstall` lo quita; después, `npm uninstall --global turno-cli`. Las
 carpetas de los perfiles, que guardan tus credenciales y tu historial, se quedan hasta que tú
-las borres.
+las borres. `turno uninstall --purge` también borra el estado y las cachés de turno (copias,
+registros, uso, servidores MCP instalados), y después `turno undo` ya no tiene qué restaurar.
 
 ## Contribuir
 

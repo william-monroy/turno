@@ -1,7 +1,10 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { DEFAULT_AGENT, adapter, mcpFileFor } from "../agents/index.js";
 import type { Io } from "../cli/io.js";
+import { loadConfig } from "../core/config.js";
 import { paths, tildify } from "../core/paths.js";
+import { agentOf, listProfiles } from "../core/profiles.js";
 import { profileTokenFile, tokenProfile } from "./tokens.js";
 
 /**
@@ -66,7 +69,7 @@ function tokenCheck(env: NodeJS.ProcessEnv): McpdCheck | undefined {
       return {
         level: "warn",
         text: `mcpd: ${tildify(file, env)} is readable by others (mode ${(st.mode & 0o777).toString(8)})`,
-        fix: { label: `chmod 600 ${tildify(file, env)}`, run: async () => (await import("./daemon.js")).readToken(env, () => {}) },
+        fix: { label: `chmod 600 ${tildify(file, env)}`, run: async () => (await import("./state.js")).readToken(env, () => {}) },
       };
     }
     return undefined;
@@ -76,7 +79,7 @@ function tokenCheck(env: NodeJS.ProcessEnv): McpdCheck | undefined {
 }
 
 async function portChecks(env: NodeJS.ProcessEnv): Promise<McpdCheck[]> {
-  const { answersAsMcpd, daemonFiles, loadConfigSafe, mcpdPort, readLock, readStartError, readToken } = await import("./daemon.js");
+  const { answersAsMcpd, daemonFiles, loadConfigSafe, mcpdPort, readLock, readStartError, readToken } = await import("./state.js");
   const { describeOwner, portOwner } = await import("./peerpid.js");
   const out: McpdCheck[] = [];
   const port = mcpdPort(env);
@@ -128,7 +131,7 @@ async function portChecks(env: NodeJS.ProcessEnv): Promise<McpdCheck[]> {
 
 async function syncedPortCheck(env: NodeJS.ProcessEnv): Promise<McpdCheck | undefined> {
   const { readManaged } = await import("./sync.js");
-  const { mcpdPort } = await import("./daemon.js");
+  const { mcpdPort } = await import("./state.js");
   const port = mcpdPort(env);
   const off: string[] = [];
   const seen = new Set<number>();
@@ -156,24 +159,46 @@ async function syncedPortCheck(env: NodeJS.ProcessEnv): Promise<McpdCheck | unde
 const PROFILE_BEARER = /Bearer (tp1\.[a-z0-9][a-z0-9_-]*\.[A-Za-z0-9_-]{43})/g;
 
 /**
+ * The agent config files `turno mcp sync` writes: those mcp-managed.json lists, and every
+ * profile's config and the hub's, so a sync from before that file existed (or a lost one)
+ * is still checked.
+ */
+function syncedFiles(env: NodeJS.ProcessEnv): string[] {
+  const files = new Set<string>();
+  try {
+    const managed = JSON.parse(readFileSync(paths(env).mcpdManaged, "utf8")) as unknown;
+    if (managed && typeof managed === "object") for (const f of Object.keys(managed)) files.add(f);
+  } catch {
+    /* no mcp-managed.json */
+  }
+  try {
+    const config = loadConfig(env);
+    for (const name of listProfiles(config, env)) files.add(mcpFileFor(name, agentOf(name, config), env));
+  } catch {
+    /* a broken config.toml is reported elsewhere */
+  }
+  files.add(adapter(DEFAULT_AGENT).mcp.hubFile(env));
+  return [...files];
+}
+
+/**
  * Synced configs and launcher token files that mcpd would refuse (ADR 0023): configs written
  * before per-profile tokens still carry the master token, and every derived token dies with a
- * `turno mcp token rotate`. Both are fixed by `turno mcp sync`. Never prints a token.
+ * `turno mcp token rotate`. Both are fixed by `turno mcp sync`. Works without mcp-managed.json.
+ * Never prints a token.
  */
 export function tokenSyncCheck(env: NodeJS.ProcessEnv): McpdCheck | undefined {
   const p = paths(env);
   let master: string;
-  let managed: Record<string, unknown>;
   try {
     master = readFileSync(p.mcpdToken, "utf8").trim();
-    managed = JSON.parse(readFileSync(p.mcpdManaged, "utf8")) as Record<string, unknown>;
   } catch {
     return undefined;
   }
   if (!master) return undefined;
   const legacy: string[] = [];
   const stale: string[] = [];
-  for (const file of Object.keys(managed)) {
+  for (const file of syncedFiles(env)) {
     let text: string;
     try {
       text = readFileSync(file, "utf8");

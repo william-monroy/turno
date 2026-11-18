@@ -3,10 +3,11 @@ import { join } from "node:path";
 import { loadRegistry } from "../../accounts/registry.js";
 import { migrationPending } from "../../core/config-edit.js";
 import { type Config, loadConfig } from "../../core/config.js";
-import { loadManifest } from "../../core/manifest.js";
+import { type Manifest, effectiveLaunch, loadManifest, servesProfile } from "../../core/manifest.js";
 import { paths, tildify } from "../../core/paths.js";
+import { unsetVars } from "../../core/secrets.js";
 import { AGENT_IDS, type AgentId, DEFAULT_AGENT, adapter, agentHub, agentProfileDir } from "../../agents/index.js";
-import { agentOf, configProblems, listProfiles } from "../../core/profiles.js";
+import { agentOf, configFindings, listProfiles } from "../../core/profiles.js";
 import { availableUpdate } from "../../core/update.js";
 import { packageInfo } from "../../core/version.js";
 import { FALLBACK, checkFonts, userFontDir } from "../../ui/fonts.js";
@@ -89,6 +90,51 @@ export async function mcpdStatus(env: NodeJS.ProcessEnv, config: Config | undefi
   } catch {
     return { level: "info", running: false, port, text: `mcpd not reachable on port ${port} (turno mcp daemon start)` };
   }
+}
+
+/** `turno mcp sync`, which plans every agent config first and rewrites only those that change. */
+const syncFix: Fix = {
+  label: "turno mcp sync",
+  run: async (io) => (await import("./mcp.js")).command.run(["sync"], io),
+};
+
+/**
+ * Variables mcp.toml reads from mcpd's environment (`env:NAME`, `${NAME}`) that are not set in
+ * this one: in stdio servers' env and args (every profile variant), and in the headers and
+ * OAuth client secret of remotes mcpd proxies. Names only, never a value.
+ */
+function envRefChecks(manifest: Manifest, env: NodeJS.ProcessEnv): Check[] {
+  const out: Check[] = [];
+  let refs = 0;
+  for (const server of Object.values(manifest.servers)) {
+    const unset = new Set<string>();
+    const scan = (value: string, whole = true) => {
+      if (value.includes("${") || (whole && value.startsWith("env:"))) refs++;
+      for (const name of unsetVars(value, env, whole)) unset.add(name);
+    };
+    if (server.kind === "stdio") {
+      if (server.builtin) continue;
+      for (const variant of ["default", ...Object.keys(server.variants)]) {
+        const launch = effectiveLaunch(server, variant);
+        for (const v of Object.values(launch.env)) scan(v);
+        for (const a of launch.args) scan(a, false);
+      }
+    } else if (server.proxy) {
+      for (const v of Object.values(server.headers)) scan(v);
+      if (server.oauth?.clientSecret) scan(server.oauth.clientSecret);
+    }
+    if (!unset.size) continue;
+    const names = [...unset].sort();
+    const list = names.length === 1 ? names[0]! : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+    out.push({
+      area: "mcp",
+      level: "warn",
+      text: `${server.name} reads ${list} from mcpd's environment, and ${names.length === 1 ? "it is" : "they are"} not set here`,
+      manual: `set ${list} where mcpd starts, then turno mcp daemon restart; or store ${names.length === 1 ? "it" : "each"} with turno secret set <name> and write keychain:<name> instead`,
+    });
+  }
+  if (refs && !out.length) out.push({ area: "mcp", level: "ok", text: `mcp.toml: every environment reference is set here (${refs})` });
+  return out;
 }
 
 const repair = (name: string): Fix => ({
@@ -222,12 +268,14 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
     if (existsSync(p.configFile)) add("config", "ok", `${tildify(p.configFile, env)} parses`);
     else if (migrationPending(env)) add("config", "info", `no ${tildify(p.configFile, env)} yet, but a bash claudio config is there`, { hint: "turno migrate" });
     else add("config", "info", `no ${tildify(p.configFile, env)} (defaults)`);
-    for (const w of configProblems(config, env)) add("config", "warn", w, editConfig);
+    for (const f of configFindings(config, env)) add("config", "warn", f.text, f.manual ? { manual: f.manual } : { hint: f.hint ?? "turno config edit" });
   } catch (err) {
     add("config", "fail", (err as Error).message, editConfig);
   }
+  let manifest: Manifest | undefined;
   try {
     const m = loadManifest(env);
+    manifest = m;
     if (existsSync(p.mcpFile)) add("config", "ok", `${tildify(p.mcpFile, env)} parses (${Object.keys(m.servers).length} servers)`);
     else add("config", "info", `no ${tildify(p.mcpFile, env)} yet`, { hint: "turno mcp import" });
   } catch (err) {
@@ -263,7 +311,17 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
     const { bypassingServers } = await import("./mcp.js");
     const b = await bypassingServers(env);
     for (const s of b.plugins) add("mcp", "info", `plugin server ${s.plugin}/${s.name} starts in every session`, { hint: "turno mcp doctor" });
-    for (const d of b.direct) add("mcp", "warn", `${d.name} runs outside mcpd`, { hint: d.inManifest ? "turno mcp sync" : "turno mcp import" });
+    // turno mcp sync replaces a hub entry with the gateway's when mcp.toml serves it to the profile the hub belongs to.
+    const hubProfile = config?.system ?? "default";
+    for (const d of b.direct) {
+      const def = manifest?.servers[d.name];
+      const how = !d.inManifest
+        ? { hint: "turno mcp import" }
+        : def && servesProfile(def, hubProfile)
+          ? { fix: syncFix }
+          : { manual: `remove ${d.name} from ${tildify(p.hubConfig, env)}, or serve it to profile ${hubProfile} in mcp.toml` };
+      add("mcp", "warn", `${d.name} runs outside mcpd`, how);
+    }
     const { describeLogin, oauthLogins } = await import("./mcp-oauth.js");
     for (const l of await oauthLogins(env)) {
       const ok = l.state === "logged in" || l.state === "expired";
@@ -277,6 +335,7 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
   } catch {
     /* a broken mcp.toml is reported above */
   }
+  if (manifest) checks.push(...envRefChecks(manifest, env));
 
   const settings = join(p.hub, "settings.json");
   const line = currentStatusLine(settings);
@@ -436,7 +495,7 @@ export async function doctor(io: Io, opts: { fix?: boolean; json?: boolean; secu
   let checks = await collect(io.env);
   if (opts.fix) {
     const fixes = new Map<string, Fix>();
-    for (const c of checks) if (c.fix && isProblem(c)) fixes.set(c.fix.label, c.fix);
+    for (const c of checks) if (c.fix && isProblem(c) && !fixes.has(c.fix.label)) fixes.set(c.fix.label, c.fix);
     const s = quiet ? undefined : style(io);
     for (const f of fixes.values()) {
       if (s) io.out(s.bold(`$ ${f.label}`));

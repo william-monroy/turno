@@ -204,6 +204,25 @@ export function expandVars(value: string, env: NodeJS.ProcessEnv): string {
 }
 
 /**
+ * The variables a value reads from `env` that are unset there and have no default: `env:NAME`
+ * as the whole value (with `whole`, as mcpd resolves env values and headers) and `${NAME}`
+ * inside it. Names only; a value is never returned.
+ */
+export function unsetVars(value: string, env: NodeJS.ProcessEnv, whole = true): string[] {
+  if (whole && value.startsWith("env:")) {
+    const [name, fallback] = value.slice(4).split(/:-(.*)/s, 2) as [string, string | undefined];
+    return fallback === undefined && env[name] === undefined ? [name] : [];
+  }
+  if (whole && value.startsWith("keychain:")) return [];
+  const out: string[] = [];
+  for (const [, prefix, name, fallback] of value.matchAll(VAR_REF)) {
+    if (!prefix && EDITOR_PLACEHOLDERS.has(name!)) continue;
+    if (fallback === undefined && env[name!] === undefined && !out.includes(name!)) out.push(name!);
+  }
+  return out;
+}
+
+/**
  * Resolves whole-value references (`keychain:<name>`, `env:NAME`) and expands `${VAR}` inside any
  * other value. mcpd uses it for stdio env values and remote headers.
  */

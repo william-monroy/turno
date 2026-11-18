@@ -30,23 +30,7 @@ import { RssSampler } from "./rss.js";
 import { pidAlive } from "../core/fsutil.js";
 import { type StartError, answersAsMcpd, daemonFiles, ensureToken, isMcpdProcess, loadConfigSafe, readLock, readToken } from "./state.js";
 
-export {
-  type LockInfo,
-  type StartError,
-  type TokenMode,
-  answersAsMcpd,
-  daemonFiles,
-  ensureToken,
-  isMcpdProcess,
-  liveLock,
-  loadConfigSafe,
-  masterToken,
-  mcpdPort,
-  readLock,
-  readStartError,
-  readToken,
-  rotateToken,
-} from "./state.js";
+export { daemonFiles, loadConfigSafe, masterToken, mcpdPort, readStartError, readToken, rotateToken } from "./state.js";
 
 /** Another mcpd already holds the lock or answers on the port. Not a failure for a supervisor. */
 export class AlreadyRunningError extends Error {
@@ -236,7 +220,7 @@ export function installCrashGuards(log: (line: string) => void, stop: () => Prom
 // ---------------------------------------------------------------------------------------------
 // Manifest
 
-export type ManifestSource = "mcp.toml" | "last good copy" | "empty";
+type ManifestSource = "mcp.toml" | "last good copy" | "empty";
 
 export interface ManifestState {
   manifest: Manifest;
