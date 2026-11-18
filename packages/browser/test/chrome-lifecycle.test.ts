@@ -246,12 +246,17 @@ describe.skipIf(reason !== undefined)(reason ? `real Chrome (skipped: ${reason})
         return { content: [{ type: "text", text: `title: ${await browserContext!.pages()[0]!.title()}` }] };
       },
     };
-    // Upstream registers a bound browser under the home's cache dir (read once per process,
-    // and this is the only test here that launches Chrome in process): keep it in the sandbox.
-    const home = process.env.HOME;
+    // Upstream registers a bound browser under the cache dir (HOME on macOS, XDG_CACHE_HOME on
+    // Linux; read once per process, and this is the only test here that launches Chrome in
+    // process): keep it in the sandbox.
+    const saved = { HOME: process.env.HOME, XDG_CACHE_HOME: process.env.XDG_CACHE_HOME };
     process.env.HOME = sb.home;
+    process.env.XDG_CACHE_HOME = join(sb.home, ".cache");
     onTestFinished(() => {
-      process.env.HOME = home;
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
     });
     const config = await upstream().tools.resolveCLIConfigForMCP({ browser: "chrome", userDataDir: profileDir("inproc"), headless: !HEADED, outputDir: join(sb.home, "output") }, {});
     const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
