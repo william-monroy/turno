@@ -53,7 +53,8 @@ cwd = "/abs/path"                 # default: project root (project), session fol
 package = "server-pkg@1.2.3"      # optional: `turno mcp install` pins it to an exact version; until then npx runs it (with a warning in the logs)
 scope = "shared"                  # shared | project | session (default shared)
 idle = "30m"                      # stop after this long without calls (default 30m shared, 20m others;
-                                  # a session server stays while its session's process lives)
+                                  # a session server stays while its session's process lives,
+                                  # unless memory pressure is critical)
 call_timeout = "10m"              # optional: cancel a single request that runs longer (off by default;
                                   # it also cuts calls waiting for the user to answer a form)
 exclusive = false                 # one client session at a time (shared scope only)
@@ -198,7 +199,33 @@ files.
 |---|---|---|
 | `shared` | server and variant | stateless API clients, indexes that cover every repository |
 | `project` | git repository of the session | servers that read their working folder |
-| `session` | Claude session | servers that drive a browser or keep per-conversation state |
+| `session` | Claude session | servers that keep per-conversation state, such as a throwaway browser |
+
+### Browsers
+
+A browser with a saved identity (`turno-browser-mcp --identity <id>`) is a `shared` server with
+`exclusive = true`: one Chrome per identity, one session at a time. `turno identity add
+browser:<id>` prints the block:
+
+```toml
+[server.browser-school]
+command = "turno-browser-mcp"
+args = ["--identity", "school"]
+scope = "shared"
+exclusive = true
+lease = "10m"
+idle = "30m"
+```
+
+Two limits apply. Inside the server, Chrome closes after 15 minutes without a tool call (headed
+too) and opens again with the same profile on the next call; set `env = { TURNO_BROWSER_IDLE =
+"10m" }` to change it, `"0"` to keep it open. mcpd stops the server itself after `idle`, sooner
+under memory pressure. A browser without an identity (a temporary profile) can be a `session`
+server: Chrome still closes when idle, and mcpd stops the server when the session ends, or
+under critical memory pressure. Do not declare an identity as `session`: two sessions would
+share one profile, and the second would find it in use. A Chrome left running by a server that
+was killed is closed the next time the identity starts. See
+[ADR 0042](decisions/0042-browser-lifecycle.md).
 
 A remote server without secret headers or `auth = "oauth"` is written straight into each
 profile and never touches mcpd. With either it is proxied, so the secret or the OAuth token
@@ -225,7 +252,8 @@ stays in the secret store, and `tools` filters and folder server sets apply to i
   free memory), the idle limit shrinks to `idle_under_pressure` under `[mcpd]` in config.toml
   (default `"5m"`, a quarter of it when pressure is critical, `false` turns it off; a change in
   config.toml applies without a restart). A session server whose launcher still runs is kept
-  either way. `/status` reports it as `memoryPressure`: `level` (`normal`, `warn`, `critical`,
+  under `warn`; under `critical` it stops like any other once it has been quiet for the
+  critical limit, and the next call starts it again (ADR 0042). `/status` reports it as `memoryPressure`: `level` (`normal`, `warn`, `critical`,
   or null while the setting is off), `checkedAt`, `idleUnderPressure` and `idleCap` (the idle
   limit in seconds every server gets now, null when they keep their own).
 - Speaks two MCP revisions on the same endpoint: 2025-11-25 sessions (`initialize`,
@@ -278,8 +306,9 @@ off with `call_log = false` under `[mcpd]` in config.toml (mcpd applies it when 
 (`normal`, `warn` or `critical`, and the idle limit servers get while memory is tight; no line
 while `idle_under_pressure` is off); `--json` has it as `memoryPressure` (`level`,
 `idleUnderPressureSeconds`, `idleCapSeconds`). Memory is the resident size of each server process plus its children
-(`npx` and shell wrappers start the real server as a child), read with `ps`, or from `/proc` on
-Linux hosts without it.
+(`npx` and shell wrappers start the real server as a child) and the process groups they lead
+(a browser server's Chrome and every helper in its group), read with `ps`, or from `/proc` on
+Linux hosts without it (children only).
 
 `turno mcp savings` compares mcpd plus every server it runs now with an estimate of the same
 live agent sessions without the gateway: each session would start its own copy of every stdio

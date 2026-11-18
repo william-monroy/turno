@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-11-16.
+Last updated: 2026-11-17.
 
 ## Done
 
@@ -19,7 +19,11 @@ Last updated: 2026-11-16.
   `TURNO_SKIP_E2E=1` to skip it).
 - **Browser package** (`packages/browser`): `turno-browser-mcp` over Patchright's own MCP
   entry, identities, `login`, `bench`. Findings in ADR 0005; a separate package and a developer
-  diagnostic since ADR 0019.
+  diagnostic since ADR 0019. Lifecycle (ADR 0042, stage 0 of the browser plan): Chrome closes
+  after 15 idle minutes headed too (a generated `--config`), a Chrome left by a killed server is
+  swept on the next start, shutdown is bounded to fit mcpd's 4 seconds, one scope advice
+  (`shared` + `exclusive` for identities), session servers stop under critical memory pressure,
+  `mcp top` counts Chrome's process group; real Chrome tests and an upstream contract test.
 - **Accounts bridge**: registry, audit log, enforced headless delegation, the `accounts`
   builtin with elicitation for writes, `turno accounts` (now `turno identity`). Policy and
   isolation since ADR 0024, below.
@@ -141,6 +145,8 @@ Last updated: 2026-11-16.
 - Headless browsing is detectable from the user agent and storage partitioning (ADR 0005).
   Headed is the default.
 - `turno browser login` has not been exercised with a real sign-in yet.
+- Browser memory inside one Chrome is still unbounded while it is in use: no tab cap, popups
+  stay open, background tabs are not throttled (ADR 0042 leaves them to the later stages).
 - Copilot CLI profiles follow its documentation only (not installed here). Codex cross-account
   resume through the shared `sessions` folder is untested with two ChatGPT accounts. Cursor's
   per-profile login relies on the undocumented `AGENT_CLI_CREDENTIAL_STORE=file`.

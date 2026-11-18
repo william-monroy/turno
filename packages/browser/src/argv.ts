@@ -2,6 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assertIdentityId, identityDir } from "./identities.js";
+import { paths } from "./paths.js";
 
 /**
  * Turns `turno-browser-mcp [--identity <id>] [playwright-mcp flags]` into the argv for the
@@ -11,6 +12,11 @@ import { assertIdentityId, identityDir } from "./identities.js";
  * - `--user-data-dir <dir>`: the identity's persistent profile, or a fresh temporary one.
  *   Patchright recommends persistent contexts, and the upstream default (a profile shared by
  *   every server started in the same folder) is neither isolated nor per identity.
+ *
+ * - `--config <file>`: a generated Playwright MCP config whose `timeouts.idle` closes Chrome
+ *   after `TURNO_BROWSER_IDLE` (default 15 minutes) without a tool call, headed included; the
+ *   next call opens it again with the same profile (ADR 0042). `--idle-timeout` and
+ *   `PLAYWRIGHT_MCP_IDLE_TIMEOUT` still win, and a `--config` of the user's own replaces it.
  *
  * Headed mode and `viewport: null` are already the program's defaults for headed runs, so
  * nothing is added for them; no init scripts are ever added.
@@ -29,6 +35,26 @@ export interface BuiltArgv {
   userDataDir?: string;
   /** Temporary dir to delete on exit (only for runs without an identity). */
   tempDir?: string;
+  /** The Playwright MCP config to write before the program starts, when turno passes one. */
+  config?: { path: string; data: PlaywrightMcpConfig };
+}
+
+/** The keys of the Playwright MCP config file that turno sets (pinned by the contract test). */
+export interface PlaywrightMcpConfig {
+  timeouts: { idle: number };
+}
+
+/** How long Chrome stays open without a tool call, unless TURNO_BROWSER_IDLE says otherwise. */
+export const DEFAULT_BROWSER_IDLE_MS = 15 * 60_000;
+
+const UNITS: Record<string, number> = { ms: 1, s: 1000, m: 60_000, h: 3_600_000 };
+
+/** `"15m"`, `"90s"`, `"500ms"`, `"1h"` or `"0"` (never) in milliseconds. */
+export function parseIdle(value: string): number {
+  if (value.trim() === "0") return 0;
+  const m = /^(\d+)(ms|s|m|h)$/.exec(value.trim());
+  if (!m) throw new Error(`TURNO_BROWSER_IDLE must be a duration like "15m", "90s" or "0" (never), not "${value}"`);
+  return Number(m[1]) * UNITS[m[2]!]!;
 }
 
 export interface BuildOptions {
@@ -128,14 +154,21 @@ export function buildArgv(rawArgs: string[], options: BuildOptions = {}): BuiltA
 
   if (!external && !hasFlag(args, "--browser")) args.push("--browser", "chrome");
 
+  const makeTemp = () => {
+    out.tempDir ??= (options.makeTempDir ?? defaultTempDir)();
+    return out.tempDir;
+  };
+
   if (!external && !hasFlag(args, "--user-data-dir") && !hasFlag(args, "--isolated")) {
-    if (identity !== undefined) {
-      out.userDataDir = identityDir(identity, env);
-    } else {
-      out.tempDir = (options.makeTempDir ?? defaultTempDir)();
-      out.userDataDir = join(out.tempDir, "profile");
-    }
+    out.userDataDir = identity !== undefined ? identityDir(identity, env) : join(makeTemp(), "profile");
     args.push("--user-data-dir", out.userDataDir);
+  }
+
+  if (!external && !hasFlag(args, "--config") && !env.PLAYWRIGHT_MCP_CONFIG) {
+    const idle = env.TURNO_BROWSER_IDLE !== undefined ? parseIdle(env.TURNO_BROWSER_IDLE) : DEFAULT_BROWSER_IDLE_MS;
+    const path = identity !== undefined ? join(paths(env).identityStateDir, identity, "mcp-config.json") : join(makeTemp(), "mcp-config.json");
+    out.config = { path, data: { timeouts: { idle } } };
+    args.push("--config", path);
   }
   return out;
 }

@@ -22,6 +22,20 @@ Defaults: headed, the installed Chrome channel, a persistent user data dir per i
 injected init scripts. The reasons, and what these settings do and do not change, are in
 [ADR 0005](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0005-stealth-browser-defaults.md).
 
+## Lifecycle
+
+- Chrome closes after 15 minutes without a tool call, headed too, and opens again with the same
+  profile on the next call. `TURNO_BROWSER_IDLE` changes it (`"10m"`, `"90s"`, `"0"` keeps it
+  open); `--idle-timeout <ms>` or a `--config` file of your own take precedence.
+- A Chrome that an earlier run left open on the same profile (its server was killed) is closed
+  when the identity starts again. A Chrome that another live process drives is left alone.
+- When the client closes stdin or the server gets SIGTERM, Chrome is closed within about 2.5
+  seconds, forcefully if it does not answer.
+- Through mcpd, declare an identity as the `shared`, `exclusive` server that
+  `turno identity add` prints, so mcpd stops it after `idle` and sooner under memory pressure.
+
+Details: [ADR 0042](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0042-browser-lifecycle.md).
+
 ## Acceptable use
 
 Use it with your own accounts, on sites whose terms allow automated access by you, and at a

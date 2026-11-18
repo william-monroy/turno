@@ -5,13 +5,13 @@
  * the code under test ignored its sandbox, and the run fails with the list of paths.
  *
  * Variables of a live session (TURNO_*, CLAUDE*, CODEX_*, CURSOR_*, ANTHROPIC_*) are cleared too,
- * except the switches that select tests (TURNO_SKIP_E2E, TURNO_E2E_NETWORK).
+ * except the switches that select tests (TURNO_SKIP_E2E, TURNO_E2E_NETWORK, TURNO_SKIP_CHROME).
  */
 import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const KEEP = new Set(["TURNO_SKIP_E2E", "TURNO_E2E_NETWORK"]);
+const KEEP = new Set(["TURNO_SKIP_E2E", "TURNO_E2E_NETWORK", "TURNO_SKIP_CHROME"]);
 const LIVE = /^(TURNO_|CLAUDE|CODEX_|CURSOR_|ANTHROPIC_|XDG_)/;
 
 /** Paths written under the guard HOME, relative to it. */

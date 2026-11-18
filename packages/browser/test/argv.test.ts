@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { buildArgv, extractIdentity } from "../src/argv.js";
+import { DEFAULT_BROWSER_IDLE_MS, buildArgv, extractIdentity, parseIdle } from "../src/argv.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 let sb: Sandbox;
@@ -14,7 +14,14 @@ const fakeTemp = () => "/tmp/turno-browser-test";
 describe("buildArgv", () => {
   it("adds the chrome channel and a temporary profile without an identity", () => {
     const b = buildArgv([], { env: sb.env, makeTempDir: fakeTemp });
-    expect(b.args).toEqual(["--browser", "chrome", "--user-data-dir", "/tmp/turno-browser-test/profile"]);
+    expect(b.args).toEqual([
+      "--browser",
+      "chrome",
+      "--user-data-dir",
+      "/tmp/turno-browser-test/profile",
+      "--config",
+      "/tmp/turno-browser-test/mcp-config.json",
+    ]);
     expect(b.tempDir).toBe("/tmp/turno-browser-test");
     expect(b.identity).toBeUndefined();
   });
@@ -22,7 +29,8 @@ describe("buildArgv", () => {
   it("uses the identity dir under the data dir", () => {
     const b = buildArgv(["--identity", "school"], { env: sb.env, makeTempDir: fakeTemp });
     const dir = join(sb.home, ".local", "share", "turno", "browser", "identities", "school");
-    expect(b.args).toEqual(["--browser", "chrome", "--user-data-dir", dir]);
+    const config = join(sb.home, ".local", "state", "turno", "browser", "identities", "school", "mcp-config.json");
+    expect(b.args).toEqual(["--browser", "chrome", "--user-data-dir", dir, "--config", config]);
     expect(b.identity).toBe("school");
     expect(b.tempDir).toBeUndefined();
   });
@@ -40,8 +48,8 @@ describe("buildArgv", () => {
 
   it("keeps user flags and lets them win over defaults", () => {
     const b = buildArgv(["--browser", "msedge", "--user-data-dir", "/x/profile", "--headless"], { env: sb.env, makeTempDir: fakeTemp });
-    expect(b.args).toEqual(["--browser", "msedge", "--user-data-dir", "/x/profile", "--headless"]);
-    expect(b.tempDir).toBeUndefined();
+    expect(b.args.slice(0, 5)).toEqual(["--browser", "msedge", "--user-data-dir", "/x/profile", "--headless"]);
+    expect(b.userDataDir).toBeUndefined();
   });
 
   it("accepts the --flag=value form as an override", () => {
@@ -56,7 +64,9 @@ describe("buildArgv", () => {
 
   it("keeps --isolated in memory without a profile dir", () => {
     const b = buildArgv(["--isolated"], { env: sb.env, makeTempDir: fakeTemp });
-    expect(b.args).toEqual(["--isolated", "--browser", "chrome"]);
+    expect(b.args).toEqual(["--isolated", "--browser", "chrome", "--config", "/tmp/turno-browser-test/mcp-config.json"]);
+    expect(b.userDataDir).toBeUndefined();
+    expect(b.tempDir).toBe("/tmp/turno-browser-test");
   });
 
   it("rejects an identity combined with another profile source", () => {
@@ -95,5 +105,53 @@ describe("buildArgv", () => {
     const b = buildArgv(["--port", "8931"], { env: sb.env, makeTempDir: fakeTemp });
     expect(b.args.slice(0, 2)).toEqual(["--port", "8931"]);
     expect(() => buildArgv(["--port", "8931", "--allow-http-identity"], { env: sb.env, makeTempDir: fakeTemp })).toThrow(/only with --identity/);
+  });
+});
+
+describe("generated Playwright MCP config", () => {
+  it("closes the browser after 15 idle minutes by default, headed included", () => {
+    const b = buildArgv(["--identity", "school"], { env: sb.env });
+    expect(DEFAULT_BROWSER_IDLE_MS).toBe(15 * 60_000);
+    expect(b.config).toEqual({
+      path: join(sb.home, ".local", "state", "turno", "browser", "identities", "school", "mcp-config.json"),
+      data: { timeouts: { idle: DEFAULT_BROWSER_IDLE_MS } },
+    });
+    expect(b.args.join(" ")).not.toMatch(/--headless|--idle-timeout/);
+  });
+
+  it("takes the idle limit from TURNO_BROWSER_IDLE", () => {
+    expect(buildArgv(["--identity", "school"], { env: { ...sb.env, TURNO_BROWSER_IDLE: "2s" } }).config?.data).toEqual({ timeouts: { idle: 2000 } });
+    expect(buildArgv(["--identity", "school"], { env: { ...sb.env, TURNO_BROWSER_IDLE: "0" } }).config?.data).toEqual({ timeouts: { idle: 0 } });
+    expect(() => buildArgv(["--identity", "school"], { env: { ...sb.env, TURNO_BROWSER_IDLE: "soon" } })).toThrow(/TURNO_BROWSER_IDLE/);
+  });
+
+  it("follows TURNO_STATE_DIR for the identity's config", () => {
+    const b = buildArgv(["--identity", "school"], { env: { ...sb.env, TURNO_STATE_DIR: join(sb.home, "st") } });
+    expect(b.config?.path).toBe(join(sb.home, "st", "browser", "identities", "school", "mcp-config.json"));
+  });
+
+  it("leaves a config of the user's own alone", () => {
+    for (const flag of [["--config", "/x/pw.json"], ["--config=/x/pw.json"]]) {
+      const b = buildArgv(["--identity", "school", ...flag], { env: sb.env });
+      expect(b.config).toBeUndefined();
+      expect(b.args.filter((a) => a.startsWith("--config"))).toHaveLength(1);
+    }
+    const env = buildArgv(["--identity", "school"], { env: { ...sb.env, PLAYWRIGHT_MCP_CONFIG: "/x/pw.json" } });
+    expect(env.config).toBeUndefined();
+    expect(env.args).not.toContain("--config");
+  });
+
+  it("adds no config for a browser it does not launch", () => {
+    const b = buildArgv(["--cdp-endpoint", "http://127.0.0.1:9222"], { env: sb.env, makeTempDir: fakeTemp });
+    expect(b.config).toBeUndefined();
+  });
+
+  it("parses idle durations", () => {
+    expect(parseIdle("15m")).toBe(900_000);
+    expect(parseIdle("90s")).toBe(90_000);
+    expect(parseIdle("1h")).toBe(3_600_000);
+    expect(parseIdle("500ms")).toBe(500);
+    expect(parseIdle("0")).toBe(0);
+    for (const bad of ["", "5", "-1m", "1.5m", "m", "1d"]) expect(() => parseIdle(bad)).toThrow();
   });
 });
