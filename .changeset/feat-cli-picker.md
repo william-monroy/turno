@@ -1,5 +1,0 @@
----
-"turno-cli": minor
----
-
-Choose a profile from a list when a command needs one and you leave it out: `turno profile assign [dir]`, `turno profile remove` (then a y/N confirmation), `turno run`, `turno session handoff`, `turno limit set` and `clear`, and `turno open <claude.ai link>` outside a profile's session. The list shows each profile as its colored pill with its agent and account, marks the one this folder uses and the exhausted ones, and takes arrow keys or j/k, typing to filter, Enter, and Esc or Ctrl-C to cancel (exit 130, nothing changed). It draws on stderr and always puts the terminal back. Without a terminal, with `--no-input` or inside an agent session, those commands exit with 2 and list the valid values (`pass a profile: personal, work`). `turno profile list` and `turno session list` are restyled: pills in each profile's color, aligned columns, accounts, how many folders use each profile, and each session's age; plain output (a pipe, NO_COLOR) keeps one row per item starting with its name. `--json` output is unchanged.
