@@ -1,0 +1,51 @@
+$ turno demo
+turno demo  a throwaway HOME at /private/tmp/turno-demo-Xk3f9a
+
+Set up ─────────────────────────────────────────────────────────────────────────
+  profiles   work  for ~/code/acme,  personal  for every other folder (Claude Code)
+  gateway   ● mcpd on 127.0.0.1:52222 with docs and issues, synced into both profiles
+  status    the line Claude Code draws for each profile:
+
+ ◉ work · Max  │ ⧗ ▰▰▰▱▱▱▱▱ 38%  ↺ 1h59m │ ▦ ▰▱▱▱▱▱▱▱ 12%  ↺ 3d23h │ ◔ [##--------] 23%  46k/200k
+▣ acme │ ± +120 −18 │ ◈ Opus │ $0.42…
+ ◉ personal · Pro  │ ⧗ ▰▰▰▱▱▱▱▱ 38%  ↺ 1h59m │ ▦ ▰▱▱▱▱▱▱▱ 12%  ↺ 3d23h │ ◔ [##--------] 23%  46k/200k
+▣ personal-site │ ± +120 −18 │ ◈ Opus │ $0.42…
+
+Try ────────────────────────────────────────────────────────────────────────────
+  turno status                           the one-screen summary
+  turno profile which ~/code/acme        which account a folder opens with, and why
+  turno mcp list                         the servers behind the gateway
+  cat ~/.claude-work/.claude.json        the gateway entries turno mcp sync wrote
+  CLAUDE_CONFIG_DIR=~/.claude-work turno statusline < ~/statusline.json
+                                         draw the work status line yourself
+  turno undo --list                      every change turno made, each one undoable
+  cd ~/code/acme && turno auto mcp list  Claude Code connects to both servers through mcpd (no sign-in)
+
+Nothing here reads or changes your own HOME, and nothing signs in.
+
+Opening a shell in the demo HOME. Type exit to end the demo; it then stops mcpd and removes everything.
+turno demo ~ % turno
+turno 0.2.0  ~ →  personal
+
+Here ───────────────────────────────────────────────────────────────────────────
+  claude   personal   folder without a rule
+
+Profiles ───────────────────────────────────────────────────────────────────────
+              5 hours    week    account
+   personal   -          -       you@personal.example · pro  default
+   work       -          -       you@work.example · max
+
+Machine ────────────────────────────────────────────────────────────────────────
+  gateway   ● running on port 52222
+  sessions  0 live sessions
+  look      turno status line · font missing (turno ui install) · unicode icons here
+
+➜ Next  nothing to do: everything is set up
+
+turno doctor checks each part; turno limit, session and profile show more.
+turno help lists every command.
+turno demo ~ % turno mcp list
+MCP servers ────────────────────────────────────────────────────────────────────
+  server  kind   scope   idle  profiles  state      auth  details
+  docs    stdio  shared  30m   all       ○ stopped  -     /private/tmp/turno-vhs/bin/node
+  issues  stdio  shared  30m   all       ○ stopped  -     /private/tmp/turno-vhs/bin/node; variants: work

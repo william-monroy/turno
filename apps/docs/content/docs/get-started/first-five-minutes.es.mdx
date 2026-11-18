@@ -1,0 +1,105 @@
+---
+title: Primeros cinco minutos
+description: Configura turno con turno init, inicia sesión una vez por perfil y abre una carpeta con su cuenta.
+---
+
+Esta página te lleva de una instalación nueva a un agente que abre con la cuenta correcta, en cuatro comandos.
+
+```sh
+turno init                    # encuentra tus agentes, perfiles, carpetas y servidores MCP, muestra el diff,
+                              # arranca el gateway y apunta cada perfil a él
+claude-trabajo                # inicia sesión una vez por perfil (/login)
+cd ~/code/acme && turno auto  # Claude Code, con la cuenta de esta carpeta
+turno                         # dónde estás: esta carpeta, cuentas, gateway y qué sigue
+```
+
+<Steps>
+<Step>
+
+### Corre turno init
+
+`turno init` busca los agentes instalados, los perfiles de turno, las carpetas de agentes que hiciste a mano (`~/.claude-<nombre>`, `~/.codex-<nombre>`), los servidores MCP de la configuración de cada agente y las carpetas donde usaste cada cuenta de Claude Code. Después propone perfiles, reglas de carpeta, un perfil por defecto y `mcp.toml`, y muestra el cambio completo antes de escribir nada.
+
+Pregunta antes de adoptar cualquier cosa y escribe todo como un solo cambio, así que un solo `turno undo <stamp>` lo revierte. Para ver sin escribir:
+
+```sh
+turno init --dry-run
+```
+
+Cuando hay servidores MCP, `turno init` también ofrece arrancar el gateway como servicio de sesión (launchd en macOS, `systemd --user` en Linux) y apuntar cada perfil a él. `turno init --no-start` lo deja para después (`turno mcp daemon start` y luego `turno mcp sync`).
+
+</Step>
+<Step>
+
+### Inicia sesión una vez por perfil
+
+Cada perfil tiene un lanzador con su nombre. Córrelo e inicia sesión con esa cuenta, con el login del propio proveedor:
+
+```sh
+claude-trabajo     # y luego /login dentro de Claude Code
+```
+
+Los lanzadores van en `~/.local/bin`. Si esa carpeta no está en tu `PATH`, `turno profile add` te da la línea que hay que agregar, y mientras tanto funciona `turno trabajo`.
+
+</Step>
+<Step>
+
+### Abre una carpeta con su cuenta
+
+```sh
+cd ~/code/acme && turno auto
+```
+
+`turno auto` abre el agente con el perfil asignado a la carpeta actual. Nunca cambia de cuenta en silencio: si falta el perfil o `config.toml` tiene un error, se detiene y te dice el comando que lo arregla.
+
+</Step>
+<Step>
+
+### Mira dónde estás
+
+`turno` solo es la pantalla de estado y el siguiente paso. `turno doctor` revisa cada parte y nombra el arreglo debajo de cada problema (la salida está en inglés):
+
+<Recording name="doctor" title="turno doctor" />
+
+</Step>
+</Steps>
+
+## Paso a paso
+
+Si prefieres hacer cada parte a mano:
+
+```sh
+turno profile add trabajo --color violet  # ~/.claude-trabajo y el comando claude-trabajo
+turno profile add personal
+claude-trabajo                            # inicia sesión una vez por perfil (/login)
+turno profile assign ~/code/acme trabajo  # esta carpeta y todo lo que tiene adentro
+turno config set default personal         # carpetas sin regla
+turno mcp import --move-secrets --write   # mcp.toml a partir de los servidores que ya tienes
+turno mcp daemon start && turno mcp sync  # el gateway, y cada perfil apuntando a él
+cd ~/code/acme && turno auto              # Claude Code con la cuenta del trabajo
+```
+
+Los perfiles de Codex, Copilot y Cursor son iguales, con `--agent codex|copilot|cursor`.
+
+## Que sea tu forma de abrir un agente
+
+Apunta tu terminal o tu editor a `turno auto` (o al lanzador `turno-auto`), y cada carpeta abre con su cuenta.
+
+## Deshacer
+
+Cada comando que escribe guarda una copia de lo que cambia:
+
+```sh
+turno undo --list     # los cambios que hizo turno
+turno undo <stamp>    # restaura uno
+```
+
+Las copias de más de 30 días se borran, conservando las 10 más recientes.
+
+## Qué sigue
+
+Las guías están en inglés:
+
+- [Tengo cuentas de trabajo y personales](/es/docs/guides/work-and-personal)
+- [Muchas sesiones se comen mi RAM](/es/docs/guides/many-sessions-ram)
+- [Solución de problemas](/es/docs/troubleshooting), cuando `turno doctor` marque algo

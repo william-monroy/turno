@@ -1,0 +1,30 @@
+turno demo ~ % turno doctor
+System ─────────────────────────────────────────────────────────────────────────
+  ✓ node 26.13.0
+  ✓ claude at /private/tmp/turno-vhs/bin/claude
+  – codex not installed
+    optional: npm install --global @openai/codex
+  – copilot not installed
+    optional: npm install --global @github/copilot
+  – cursor-agent not installed
+    optional: curl https://cursor.com/install -fsS | bash
+  ✓ secret store: macOS Keychain (security)
+  ✓ Google Chrome installed
+  ✓ turno 0.2.0
+
+Config ─────────────────────────────────────────────────────────────────────────
+  ✓ ~/.config/turno/config.toml parses
+  ✓ ~/.config/turno/mcp.toml parses (2 servers)
+
+Profiles ───────────────────────────────────────────────────────────────────────
+  ✓  personal   launcher ok
+  ✓  work       launcher ok
+
+Look ───────────────────────────────────────────────────────────────────────────
+  ✓ status line: turno statusline
+  ✓ font: MesloLGS Nerd Font installed
+
+Gateway ────────────────────────────────────────────────────────────────────────
+  ✓ mcpd: reachable on port 52097 (pid 91865)
+
+12 ok, 3 skipped in 94ms

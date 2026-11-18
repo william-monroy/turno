@@ -1,0 +1,41 @@
+---
+title: Comparison
+description: How turno compares with tools that switch accounts, manage MCP config or draw a status line.
+---
+
+This page helps you decide whether you need turno or one of the tools that do a single part of it well.
+
+| | Accounts per folder | Several agents | Shared MCP processes | Status line | Notes |
+|---|---|---|---|---|---|
+| **turno** | yes | Claude Code, Codex, Copilot CLI, Cursor CLI | yes, lazy | yes | CLI, local only |
+| [claude-swap](https://github.com/realiti4/claude-swap) | switch, not per folder | Claude Code | no | no | usage dashboard, parallel sessions |
+| [clauth](https://github.com/uwuclxdy/clauth) | switch | Claude Code | no | no | TUI, cross-account delegation |
+| [cc-switch](https://github.com/farion1231/cc-switch) | no | many | no (manages MCP config) | no | desktop app, provider switching |
+| [ccstatusline](https://github.com/sirmalloc/ccstatusline) | no | Claude Code | no | yes | the most customizable status line |
+| [MetaMCP](https://github.com/metatool-ai/metamcp), [mcp-proxy](https://github.com/sparfenyuk/mcp-proxy) | no | any MCP client | aggregates or bridges | no | Docker / transport bridge |
+| Plain `CLAUDE_CONFIG_DIR` | by hand | one | no | no | what turno automates |
+
+If you only need one of these pieces, those tools are good at it. turno is for the case where you run many sessions of several agents with more than one account.
+
+## Which one fits
+
+- **You want a different account per repository, picked for you.** That is turno's folder rules: `turno profile assign ~/code/acme work`, then `turno auto`.
+- **You only want to switch one Claude Code account for another.** An account switcher is simpler.
+- **You only want a status line.** A dedicated status line tool gives you more to customize.
+- **You want one endpoint that aggregates MCP servers for any client.** An MCP aggregator or bridge does that; turno's gateway adds starting servers lazily, sharing them between sessions and stopping them when idle.
+- **You have one account and one agent.** A plain `CLAUDE_CONFIG_DIR` may be all you need; the gateway still helps if many sessions run the same servers.
+
+## What turno automates
+
+Without turno, a second account is a second config folder that you point the agent at by hand:
+
+```sh
+CLAUDE_CONFIG_DIR=~/.claude-work claude
+```
+
+With turno, a folder rule and one command do it, for four agents:
+
+```sh
+turno profile assign ~/code/acme work
+cd ~/code/acme && turno auto
+```

@@ -32,6 +32,14 @@ Last updated: 2026-11-17.
   (NEEDS_AUTH as a tool error that asks for `turno browser login`); a per-site reputation log of
   challenges with `turno browser reputation`; `turno browser doctor [--fix]`; and `stop_grace`
   per server in mcpd (5 s for turno-browser-mcp).
+- **Documentation site** (`apps/docs`, ADR 0046): Fumadocs (Next.js), a private workspace app
+  for `https://turno.wimo.dev` (not deployed yet). Get started, guides by problem, concepts,
+  security, benchmarks, comparison and FAQ are written by hand from the README and `docs/`;
+  the reference (commands, `config.toml`, `mcp.toml`, environment, exit codes, JSON) and one
+  troubleshooting page per doctor finding are generated from the code by `pnpm docs:generate`
+  and checked in the `docs` workflow, with the build and a link check. Four diagrams, text
+  recordings rendered from VHS tapes, Spanish for Get started and the FAQ, `llms.txt` and a
+  Markdown copy of every page.
 - **Accounts bridge**: registry, audit log, enforced headless delegation, the `accounts`
   builtin with elicitation for writes, `turno accounts` (now `turno identity`). Policy and
   isolation since ADR 0024, below.
@@ -217,7 +225,10 @@ Last updated: 2026-11-17.
    - a lawyer's read of the vendor terms notice, and Cursor's and Copilot's terms on several
      accounts, before the launch post promises anything about those agents;
    - the backup administrator in GOVERNANCE.md;
-   - optional later: Starlight docs site, OpenSSF Best Practices badge, GitHub Sponsors.
+   - optional later: OpenSSF Best Practices badge, GitHub Sponsors. Docs site: deploy
+     `apps/docs` to `turno.wimo.dev` (Vercel project and DNS); give doctor checks an `id` in
+     the code so the troubleshooting catalog stops matching on text; shrink the README once
+     the site is live.
 
 1. **Cutover** (needs the owner, live sessions must close): `migrate`, `mcp import --write
    --move-secrets`, `mcp install`, `mcpd start`, disable plugin stdio servers covered by the

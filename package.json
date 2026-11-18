@@ -9,10 +9,10 @@
   },
   "packageManager": "pnpm@12.2.1",
   "scripts": {
-    "build": "pnpm -r run build",
-    "test": "pnpm -r run test",
+    "build": "pnpm --filter \"./packages/*\" run build",
+    "test": "pnpm --filter \"./packages/*\" run test",
     "test:e2e": "pnpm --filter turno-cli run test:e2e",
-    "typecheck": "pnpm -r run typecheck",
+    "typecheck": "pnpm --filter \"./packages/*\" run typecheck",
     "lint": "biome lint && knip",
     "check": "pnpm typecheck && pnpm lint && pnpm test && node --test scripts/*.test.mjs && node scripts/no-em-dash.mjs && node scripts/licenses.mjs",
     "changeset": "changeset",
@@ -21,7 +21,12 @@
     "shrinkwrap": "node scripts/shrinkwrap.mjs packages/turno packages/browser",
     "release": "pnpm check && pnpm pack:check && changeset publish",
     "licenses": "node scripts/licenses.mjs --write",
-    "hooks": "git config core.hooksPath .githooks"
+    "hooks": "git config core.hooksPath .githooks",
+    "docs:dev": "pnpm --filter turno-docs run dev",
+    "docs:build": "pnpm --filter turno-docs run build",
+    "docs:generate": "pnpm --filter turno-docs run generate",
+    "docs:check": "pnpm --filter turno-docs run generate:check && pnpm --filter turno-docs run build && pnpm --filter turno-docs run links",
+    "docs:tapes": "pnpm --filter turno-docs run tapes"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.6",

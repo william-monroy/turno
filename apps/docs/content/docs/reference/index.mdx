@@ -1,0 +1,46 @@
+---
+title: Reference
+description: Commands, config files, environment variables and exit codes, generated from the code.
+---
+
+This section is the exact reference: every page in it is generated from turno's code by a script, and CI fails when one is out of date, so it cannot drift from what the CLI does.
+
+<Cards>
+  <Card title="Commands" href="/docs/reference/cli" description="Every command, with the text its --help prints." />
+  <Card title="config.toml" href="/docs/reference/config-toml" description="Profiles, folder rules and gateway settings." />
+  <Card title="mcp.toml" href="/docs/reference/mcp-toml" description="The MCP servers behind the gateway." />
+  <Card title="Environment variables" href="/docs/reference/environment" description="Every variable turno reads, and the ones it sets." />
+  <Card title="Exit codes" href="/docs/reference/exit-codes" description="What scripts and hooks can rely on." />
+  <Card title="JSON output" href="/docs/reference/json-output" description="The --json contract." />
+</Cards>
+
+The CLI carries the same reference: `turno --help` groups the commands, `turno <command> --help` explains each, and `turno help environment`, `turno help exit-codes` and `turno help json` print the topics.
+
+```sh
+turno mcp sync --help
+```
+
+```text
+Usage:
+  turno mcp sync [profile...] [--dry-run] [--force]
+    write gateway entries into every profile config
+
+Examples:
+  $ turno mcp sync
+```
+
+## Files
+
+| Path | What |
+|---|---|
+| `~/.config/turno/config.toml` | profiles and folder rules |
+| `~/.config/turno/mcp.toml` | MCP servers behind the gateway |
+| `~/.config/turno/accounts.toml` | service accounts for the accounts bridge |
+| `~/.local/state/turno/` | usage, run records, logs (with the tool call log `logs/calls.jsonl`), backups, the gateway tokens |
+| `~/.local/share/turno/` | installed servers, tool cache, browser identities |
+
+All three honor `XDG_CONFIG_HOME`, `XDG_STATE_HOME` and `XDG_DATA_HOME`. `turno config path` prints where each file lives on your machine.
+
+## How these pages are made
+
+`apps/docs/scripts/generate.mjs` in the turno repository writes them: it runs the built CLI in a throwaway HOME for the help text, reads the command registry, the known config keys, the exit code table and the checks of `turno doctor` from the source, and compares the `mcp.toml` keys the parser reads with the documented ones. [Troubleshooting](/docs/troubleshooting) is generated the same way, one page per finding of `turno doctor`.

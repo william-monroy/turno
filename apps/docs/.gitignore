@@ -1,0 +1,14 @@
+.next/
+.source/
+next-env.d.ts
+*.tsbuildinfo
+# Screenshots and scratch output of local previews
+.tmp/
+# Copied from docs/assets by scripts/copy-assets.mjs
+public/icon.svg
+public/demo.gif
+public/statusline.png
+public/social-preview.png
+# Written by `next dev` for coding agents; the repository's rules are in the root AGENTS.md
+AGENTS.md
+CLAUDE.md

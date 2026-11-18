@@ -1,0 +1,52 @@
+---
+title: Pruébalo
+description: Corre turno demo para ver dos perfiles, un gateway y la status line en un HOME desechable.
+---
+
+Esta página te muestra turno funcionando antes de instalar nada: un solo comando, en un HOME desechable que se borra cuando sales.
+
+```sh
+npx turno-cli demo
+```
+
+`turno demo` configura dos perfiles de Claude Code (`work` para `~/code/acme` y `personal` para las demás carpetas), un gateway con dos servidores MCP y la status line. Después abre una terminal en ese HOME. Nada de lo que pasa ahí lee o cambia tu propio HOME, y nada inicia sesión.
+
+## Lo que vas a ver
+
+Esta es la demo y los dos primeros comandos para probar, grabados como texto (la salida de la CLI está en inglés):
+
+<Recording name="try-it" title="turno demo" />
+
+La misma sesión grabada, con el selector de perfiles y `turno doctor`:
+
+![turno demo: dos perfiles, un gateway, la status line, el selector y turno doctor, en un HOME desechable](/demo.gif)
+
+## Qué probar dentro de la demo
+
+| Comando | Qué muestra |
+|---|---|
+| `turno` | el resumen en una pantalla: esta carpeta, las cuentas, el gateway y qué sigue |
+| `turno profile which ~/code/acme` | con qué cuenta abre una carpeta, y por qué |
+| `turno mcp list` | los servidores detrás del gateway |
+| `cat ~/.claude-work/.claude.json` | las entradas del gateway que escribió `turno mcp sync` |
+| `turno undo --list` | cada cambio que hizo turno; todos se pueden deshacer |
+| `turno doctor` | cada revisión, con el arreglo debajo de cada problema |
+
+Escribe `exit` para terminar la demo. Detiene el gateway y borra el HOME desechable:
+
+```text
+turno demo ~ % exit
+turno demo: stopped mcpd and removed /private/tmp/turno-demo-Xk3f9a
+```
+
+## Sin una terminal
+
+En un script o en una sesión de un agente, `turno demo` muestra lo que configuró y termina. `turno demo --keep` espera a que presiones Ctrl-C, y `turno demo -- <comando>` corre un comando dentro del HOME de la demo:
+
+```sh
+npx turno-cli demo -- turno mcp list
+```
+
+## Qué sigue
+
+Cuando lo quieras de verdad, [instala turno](/es/docs/get-started/install) y sigue los [primeros cinco minutos](/es/docs/get-started/first-five-minutes).

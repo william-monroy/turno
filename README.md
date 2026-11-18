@@ -412,3 +412,9 @@ Design: [docs/design](docs/design/2026-11-12-claudio-ecosystem-design.md). Decis
 Apache License 2.0 ([LICENSE](LICENSE), [NOTICE](NOTICE)). The bundled fonts keep their own
 licenses ([packages/fonts/LICENSE.txt](packages/fonts/LICENSE.txt)); dependencies are listed in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Made in Monterrey, Mexico.
+
+## Documentation
+
+The documentation site is at [turno.wimo.dev](https://turno.wimo.dev): guides by problem, concepts,
+the reference generated from the code, and one troubleshooting page per `turno doctor` finding.
+Its source is in [apps/docs](apps/docs).

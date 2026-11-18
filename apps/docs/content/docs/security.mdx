@@ -1,0 +1,123 @@
+---
+title: Security and privacy
+description: What turno stores, what it trusts, what it does not protect against, and what the vendors' terms ask of you.
+---
+
+This page says what turno stores and where, what leaves your machine (nothing, unless you ask), and what stays your responsibility.
+
+turno runs on your machine, as your user, and handles credentials of several accounts. In short:
+
+- **No account, no telemetry, no proxy for model traffic.** turno launches the agent and gets out of the way.
+- **turno never reads, stores or forwards your login tokens.** Every agent logs in by itself, in its own folder.
+- **Only MCP tool calls go through the gateway**, on `127.0.0.1`, with a bearer token per profile.
+
+## Check your setup
+
+```sh
+turno doctor --security
+```
+
+```text
+Security
+  ok secret store: macOS Keychain (security)
+  -  permissions: turno has no folders yet
+  -  mcpd port 47821: nothing listens there (mcpd is not running)
+  ok no literal secrets in mcp.toml or 0 agent configs
+
+2 ok, 2 skipped in 6ms
+```
+
+It checks who can read or write turno's folders (`--fix` narrows them to owner only), who holds the gateway's port, literal secrets left in `mcp.toml`, agent configs and backups (it names where, never the value), MCP servers that do not run an exact version, the age of the gateway token, and the audit log's hash chain. Each finding has a page under [Troubleshooting](/docs/troubleshooting#turno-doctor---security).
+
+## What turno stores
+
+| Data | Where | Protection |
+|---|---|---|
+| Agent logins (one per profile) | each agent's own config folder, for example `~/.claude-<profile>` | written by the agent itself; turno never reads, copies or proxies them |
+| MCP server secrets | macOS Keychain or Linux Secret Service (`secret-tool`), items `turno/<server>/<key>` | read at use time, passed on stdin (never in a command line), never logged |
+| OAuth tokens of remote MCP servers | the same secret store, items `turno/oauth/<server>@<variant>` | never in a file or a log; refreshed by mcpd and sent only to that server's own origin |
+| Master gateway token | `~/.local/state/turno/mcpd.token` | file mode 600; used by turno only, for mcpd's own endpoints; never written into an agent config |
+| Per-profile gateway tokens | each profile's agent config, and `~/.local/state/turno/mcpd-tokens/<profile>.token` for the launchers of Codex, Copilot and Cursor | file mode 600; each one holds that profile's own token, derived from the master token |
+| Browser identities | `~/.local/share/turno/browser/<identity>` | live cookies of the sites you signed into: treat as credentials |
+| Chrome profiles for `turno open` | `~/.local/share/turno/chrome/<profile>` | the claude.ai session of each profile |
+| Installed MCP servers | `~/.local/share/turno/servers/<name>/` | folders mode 700; exact versions, no install scripts unless `--allow-scripts` |
+| Usage, run records, exhausted marks, logs, caches | `~/.local/state/turno/` | folders 0700, files 0600; no secrets |
+| Tool call log | `~/.local/state/turno/logs/calls.jsonl` | mode 600; tool names, profiles, agents, durations, sizes and redacted errors, never arguments or results; `call_log = false` under `[mcpd]` turns it off |
+| Backups of the files turno changes | `~/.local/state/turno/backups/` | folders 0700, files 0600; they can hold literal secrets that were in those files; pruned after 30 days, keeping the newest 10 |
+| Accounts bridge audit log | `~/.local/state/turno/audit.jsonl` (mode 600) | append-only and hash-chained; prompts, results and the policy decision of each delegated task |
+
+`turno mcp import` shows secrets masked and stores nothing until `--write`. With `--move-secrets` it moves env and header secrets to the secret store; secrets in a server's args or URL query string stay literal in `mcp.toml`, since they cannot come from the store.
+
+## The gateway
+
+- It listens on `127.0.0.1` only, never on a public interface, and only on `mcpd.port`: if another process holds that port, mcpd fails and names it instead of moving.
+- It requires a bearer token on every request. Each profile has its own token, and the token decides the profile, so which servers and tools a session reaches. The master token opens only mcpd's own endpoints and is refused for MCP sessions. `turno mcp token rotate` replaces it and so invalidates every profile token.
+- It does not pass any token it receives on to the MCP servers behind it: each server gets its own secrets from the secret store.
+- It rejects any request that carries an `Origin` header, so a web page in your browser cannot reach it (DNS rebinding and cross-site requests), and request bodies over `mcpd.max_request_body` (32 MiB by default).
+- It runs MCP servers as your user, with the commands you put in `mcp.toml`. A server you add is code you trust; the gateway does not sandbox it.
+- It is the OAuth client of `auth = "oauth"` remote servers: it logs in once per account with PKCE, refuses authorization servers without S256 and answers whose issuer or state does not match, and never presents a token to another server.
+- Folder server sets (`mcp`, `mcp_deny` in `config.toml`) hide servers from sessions in a folder; they are a convenience, not a boundary: a session whose folder mcpd cannot learn sees every server.
+
+## The accounts bridge
+
+A delegated task runs headless in the profile that owns the account. A read gets only the account's `read_tools`, and every other tool is refused. An account without `read_tools`, and by default every call to a mail or messaging account, asks for your confirmation in the client, as writes do. The run loads no settings files, starts in turno's own empty folder with a minimal environment, and gets only the account's MCP servers when they go through the gateway. Every call, with the decision, is written to the audit log:
+
+```sh
+turno identity log            # recent calls to the accounts bridge
+turno identity log --verify   # checks the hash chain; exits 1 when it is broken
+```
+
+## The browser package
+
+`turno-browser-mcp` serves over stdio, through mcpd. It refuses `--port` or `--host` together with `--identity`, which would serve a signed-in browser over HTTP, unless you pass `--allow-http-identity`; it then listens on 127.0.0.1 only.
+
+Use it with your own accounts, on sites whose terms allow automated access by you, and at a human pace. Do not use it to get around access controls, paywalls, CAPTCHAs or rate limits, to scrape at scale, or to access accounts that are not yours.
+
+## When turno goes online
+
+Interactive commands ask the npm registry for a newer version at most once a day, sending only the package name. Turn it off with `update_check = false` in config.toml, `DO_NOT_TRACK=1`, `NO_UPDATE_NOTIFIER=1`, `TURNO_NO_UPDATE_CHECK=1` or `TURNO_NO_UPDATE_NOTIFIER=1`; it is also off in CI and outside a terminal.
+
+Apart from that, turno only goes online when you ask it to:
+
+| Command | What it reaches |
+|---|---|
+| `turno ui install` | downloads the status line font |
+| `turno mcp install`, `turno upgrade` | fetch packages from npm |
+| `turno mcp import --write`, `turno init` (once you confirm) | ask npm for the command name of servers you ran with npx |
+| `turno mcp login` | talks to that server's authorization server |
+
+Previews (`--dry-run`, `turno mcp import` without `--write`) stay offline. There is no telemetry.
+
+## Out of scope
+
+- Anything another process running as your user can do: it can read the token files, the browser profiles and the agent config folders. turno does not defend against local malware.
+- The behavior of the agents and the MCP servers themselves.
+- How you use the browser on third-party sites: that is between you and each site's terms.
+
+## Vendor terms
+
+Each account you add is yours and stays bound by its vendor's terms; turno does not change them. turno never reads, stores or forwards your login tokens, and it does not proxy model traffic: every agent logs in by itself, in its own directory. Before you use several accounts:
+
+- Check that your plan allows it, and use each account for what its terms allow (for example, a work account for work).
+- The `fallback` setting is off by default. It chooses which of your own accounts opens a folder while another is marked exhausted. Vendors' usage policies forbid creating or using accounts to get around usage limits or safeguards, so read your plan's terms before you set it, and do not use it for that.
+
+## Not affiliated
+
+turno is an independent open-source project. It is not affiliated with, endorsed by or sponsored by Anthropic, OpenAI, GitHub, Google, Anysphere or any other vendor. Claude, Claude Code, Codex, Copilot, Cursor and Gemini are trademarks of their owners; turno uses the names only to say which tools it works with. turno runs the vendors' own, unmodified command-line tools.
+
+## No warranty
+
+turno is provided "as is", without warranty of any kind (Apache License 2.0, sections 7 and 8). It edits agent config files and launches programs as your user; every write keeps a backup that `turno undo` restores, and `turno uninstall` removes what it set up.
+
+## Report a vulnerability
+
+Report it privately through GitHub: **Security > Report a vulnerability** on the [turno repository](https://github.com/wimo-dev/turno/security). That is the only channel; please do not open a public issue, discussion or pull request for a vulnerability.
+
+| Step | Target |
+|---|---|
+| Acknowledgement | 3 working days |
+| Triage and severity | 7 days |
+| Fix for high and critical issues | 30 days |
+| Coordinated disclosure | at most 90 days after the report, earlier once a fix ships |
+
+During 0.x only the latest minor release gets security fixes. Upgrade with `turno upgrade`. The full policy is in [SECURITY.md](https://github.com/wimo-dev/turno/blob/main/SECURITY.md).

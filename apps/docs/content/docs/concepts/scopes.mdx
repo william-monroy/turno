@@ -1,0 +1,64 @@
+---
+title: Scopes
+description: "A server's scope says how many processes it gets: one for everyone, one per repository, or one per session."
+---
+
+This page helps you choose the scope of each server in `mcp.toml`: how far one process is shared.
+
+<ScopeTree />
+
+## The three scopes
+
+| Scope | One process per | Use it for |
+|---|---|---|
+| `shared` (the default) | server and variant | stateless API clients, indexes that cover every repository |
+| `project` | git repository of the session | servers that read their working folder |
+| `session` | agent session | servers that keep per-conversation state, such as a throwaway browser |
+
+```toml title="~/.config/turno/mcp.toml"
+[server.calendar]
+command = "cal-mcp"
+scope = "shared"                     # one process for every session
+
+[server.devtools]
+command = "chrome-devtools-mcp"
+scope = "session"                    # one per agent session, stopped when it ends
+```
+
+`turno mcp list` shows the scope of each server in its `scope` column.
+
+## Exclusive: shared, one session at a time
+
+`exclusive = true` is not a fourth scope; it is a `shared` server that one client session uses at a time. An idle holder keeps it for `lease` (5 minutes by default). It is what a browser with a saved identity needs: one Chrome per identity.
+
+```toml title="~/.config/turno/mcp.toml"
+[server.browser-school]
+command = "turno-browser-mcp"
+args = ["--identity", "school"]
+scope = "shared"
+exclusive = true
+lease = "10m"
+idle = "30m"
+```
+
+## Servers that ask the user
+
+Some servers ask the user a question in the middle of a call (MCP elicitation) or ask the client's model for a completion (sampling). mcpd relays those to the session whose call is in flight. When calls from several sessions are in flight on a shared server, it refuses the request instead of guessing: use `scope = "session"` or `exclusive = true` for those servers.
+
+## What scope changes
+
+| | `shared` | `project` | `session` |
+|---|---|---|---|
+| Working folder (`cwd`) by default | your home | the project root | the session's folder |
+| Stops after (`idle`) by default | 30 minutes | 20 minutes | 20 minutes, and it stays while its session's process lives |
+| Memory | least | one process per repository | one per session |
+
+A session server whose session still runs is kept while memory pressure is at `warn`; under `critical` pressure it stops like any other once it has been quiet, and the next call starts it again.
+
+The more a server is shared, the more memory you save. `session` and `exclusive` give back some of that saving, in exchange for state that does not leak between conversations.
+
+## Variants are not a scope
+
+A variant (`[server.<name>.variant.<profile>]`) is about accounts, not sharing: each variant runs as its own process, so two profiles can reach two accounts of the same service. A `shared` server with a `work` variant runs at most two processes: the default one and the work one.
+
+Every key is in the [mcp.toml reference](/docs/reference/mcp-toml).

@@ -1,0 +1,20 @@
+{
+  "title": "turno",
+  "pages": [
+    "---Primeros pasos---",
+    "index",
+    "...get-started",
+    "---Guías (en inglés)---",
+    "...guides",
+    "---Conceptos (en inglés)---",
+    "...concepts",
+    "---Referencia (en inglés)---",
+    "reference",
+    "troubleshooting",
+    "---Más---",
+    "security",
+    "benchmarks",
+    "comparison",
+    "faq"
+  ]
+}

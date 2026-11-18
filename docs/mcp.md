@@ -47,8 +47,9 @@ and `--yes` runs it). Removing a profile does not revoke its token; `turno mcp t
 ```toml
 [server.<name>]
 command = "server-bin"            # stdio server
-args = ["--flag"]
+args = ["--flag"]                 # its arguments
 env = { TOKEN = "keychain:turno/name/token", REGION = "eu", OTHER = "env:SOME_VAR" }
+                                  # its environment: keychain: and env: values are read when it starts
 cwd = "/abs/path"                 # default: project root (project), session folder (session), home (shared)
 package = "server-pkg@1.2.3"      # optional: `turno mcp install` pins it to an exact version; until then npx runs it (with a warning in the logs)
 scope = "shared"                  # shared | project | session (default shared)
@@ -65,11 +66,14 @@ profiles = ["*"]                  # which profiles get this server (and may open
 tools = { allow = ["get_*", "list_*"], deny = ["*_delete"] }   # optional: which tools sessions see
 
 [server.<name>.variant.<profile>] # what changes for one profile (a different account)
-env = { TOKEN = "keychain:turno/name/token-work" }
+env = { TOKEN = "keychain:turno/name/token-work" }   # added to the server's env; a key here wins
+command = "server-bin-work"       # optional: another program for this profile
+args = ["--account", "work"]      # optional: replaces the server's args
+cwd = "/abs/path"                 # optional: another working folder
 tools = { deny = ["*"] }          # replaces the server's allow / deny, key by key, for this profile
 
 [server.<remote>]
-url = "https://example.com/mcp"
+url = "https://example.com/mcp"   # a remote server, reached over HTTP
 headers = { Authorization = "keychain:turno/remote/auth" }   # secret headers: proxied by mcpd
 type = "http"                     # or "sse" for the legacy HTTP+SSE transport
 auth = "oauth"                    # instead of an Authorization header: mcpd logs in (see below)
