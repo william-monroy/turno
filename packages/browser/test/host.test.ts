@@ -213,8 +213,10 @@ describe("identity", () => {
 describe("turno tool registry", () => {
   const stock = () => upstream().tools.browserTools;
 
-  it("ships no user-facing turno tools yet", () => {
-    expect(TURNO_TOOLS).toEqual([]);
+  it("ships browser_batch, after the stock tools", () => {
+    expect(TURNO_TOOLS.map((t) => t.schema.name)).toEqual(["browser_batch"]);
+    const host = createHost({ config: { server: {}, browser: { browserName: "chromium", launchOptions: {} } } as McpConfig, cliOptions: {} });
+    expect(host.listTools().at(-1)?.name).toBe("browser_batch");
   });
 
   it("refuses a turno tool with the name of any upstream tool, a duplicate or a bad name", () => {

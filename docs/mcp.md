@@ -272,6 +272,13 @@ about:blank (15 minutes: closed); `tabs` in the identity's identity.json or the 
 `--max-tabs`, `--popups`, `--park-after` and `--close-after` flags change that
 ([ADR 0048](decisions/0048-browser-tab-governor.md)).
 
+Next to the stock Playwright MCP tools, turno-browser lists `browser_batch`, which runs several
+of them in order in one call (stopping at the first failure) and returns one line per action and
+at most one snapshot. A click, hover, type, select or drag that fails because of the element says
+which element covers it, or whether it is hidden or disabled, and what to do next. `settle` in
+identity.json (like `"100ms"`) shortens Playwright's 500 ms wait after each action
+([ADR 0049](decisions/0049-browser-batch-and-action-errors.md)).
+
 When mcpd stops a browser server it closes its stdin and waits 5 seconds (`stop_grace`) before
 SIGTERM, so the server closes Chrome and writes its profile on its own; other servers keep the
 MCP SDK's 2 seconds.

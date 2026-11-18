@@ -27,7 +27,9 @@ export interface McpConfig {
   capabilities?: string[];
   outputDir?: string;
   skillMode?: boolean;
-  timeouts?: { idle?: number };
+  timeouts?: { idle?: number; settle?: number };
+  /** `snapshot.mode` is read on every call that includes a snapshot (`"full"` or `"none"`). */
+  snapshot?: { mode?: string; [key: string]: unknown };
   server: { port?: number; host?: string; allowedHosts?: string[] };
   configFile?: string;
 }
@@ -183,12 +185,20 @@ interface ZodType {
   optional(): ZodType;
 }
 
+interface ZodArray extends ZodType {
+  min(n: number): ZodArray;
+  max(n: number): ZodArray;
+}
+
 /** The bundled zod v4: the constructors a turno tool uses, and what the host needs. */
 export interface Zod {
   object(shape: Record<string, ZodType>): ZodObject;
   string(): ZodType;
   number(): ZodType;
   boolean(): ZodType;
+  unknown(): ZodType;
+  array(item: ZodType): ZodArray;
+  record(key: ZodType, value: ZodType): ZodType;
   toJSONSchema(schema: ZodObject): Record<string, unknown>;
   ZodError: new (...args: never[]) => Error;
   prettifyError(error: unknown): string;

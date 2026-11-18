@@ -2,8 +2,8 @@ import type { IdentitySettings } from "./settings.js";
 import { parseDuration } from "./units.js";
 
 /**
- * How the host runs one session's Chrome (ADR 0048): the tab governor and background tab
- * throttling. Each value comes from, in order of precedence, a `turno-browser-mcp` flag, the
+ * How the host runs one session's Chrome (ADR 0048): the tab governor, background tab
+ * throttling and the wait after each action. Each value comes from, in order of precedence, a `turno-browser-mcp` flag, the
  * identity's identity.json, then the defaults below. identity.json is read at every launch,
  * like the rest of it.
  */
@@ -27,6 +27,11 @@ export interface Tuning {
    * front before each call (see `launchTuning`).
    */
   backgroundThrottling: boolean;
+  /**
+   * The wait after each action for the work it started (Playwright's `timeouts.settle`), from
+   * identity.json `settle`; undefined keeps Playwright's (500 ms, or the user's own setting).
+   */
+  settleMs?: number;
 }
 
 /** The defaults, documented in ADR 0048 and the browser identities page. */
@@ -45,6 +50,8 @@ export interface TuningFlags {
 export function resolveTuning(settings: IdentitySettings | undefined, flags: TuningFlags = {}): Tuning {
   const t = settings?.tabs;
   const ms = (v: string | undefined) => (v === undefined ? undefined : parseDuration(v));
+  // No flag of turno's: Playwright's --timeout-settle is the flag, and it wins (configForSession).
+  const settle = ms(settings?.settle);
   return {
     tabs: {
       max: flags.maxTabs ?? t?.max ?? DEFAULT_TABS.max,
@@ -53,6 +60,7 @@ export function resolveTuning(settings: IdentitySettings | undefined, flags: Tun
       closeMs: flags.closeAfterMs ?? ms(t?.close) ?? DEFAULT_TABS.closeMs,
     },
     backgroundThrottling: flags.backgroundThrottling ?? settings?.backgroundThrottling ?? false,
+    ...(settle === undefined ? {} : { settleMs: settle }),
   };
 }
 
