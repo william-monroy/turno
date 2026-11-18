@@ -20,7 +20,12 @@ Usage:
                                      who holds it
   turno browser set <id> [--timezone <zone>] [--locale <tag>] [--languages
       <tag,...>] [--region <CC>] [--health-url <url>] [--health-text <text>]
-      [--health-selector <css>] [--no-health] [--dry-run]
+      [--health-selector <css>] [--no-health] [--tabs-max <n>] [--tabs-popups
+      close|keep] [--tabs-park <duration>] [--tabs-close <duration>] [--no-tabs]
+      [--background-throttling true|false] [--settle <duration>]
+      [--block-trackers true|false] [--block-types image,media,font]
+      [--block-patterns <host|glob>,...] [--no-block] [--cache]
+      [--cache-max-size <size>] [--no-cache] [--dry-run] [--json]
                                      change an identity's identity.json (an
                                      empty value removes a setting)
   turno browser doctor [--fix] [--no-launch] [--json]
@@ -53,6 +58,8 @@ Examples:
   $ turno browser add school --languages es-MX,es,en
   $ turno browser show school
   $ turno browser set school --health-url https://mail.example.com/ --health-text Inbox
+  $ turno browser set school --tabs-max 5 --tabs-popups keep --settle 250ms
+  $ turno browser set school --block-trackers true --cache --json
   $ turno browser login school --url https://example.com
   $ turno browser doctor --fix
   $ turno browser reputation school --json
@@ -103,11 +110,37 @@ Examples:
 Usage:
   turno browser set <id> [--timezone <zone>] [--locale <tag>] [--languages
       <tag,...>] [--region <CC>] [--health-url <url>] [--health-text <text>]
-      [--health-selector <css>] [--no-health] [--dry-run]
+      [--health-selector <css>] [--no-health] [--tabs-max <n>] [--tabs-popups
+      close|keep] [--tabs-park <duration>] [--tabs-close <duration>] [--no-tabs]
+      [--background-throttling true|false] [--settle <duration>]
+      [--block-trackers true|false] [--block-types image,media,font]
+      [--block-patterns <host|glob>,...] [--no-block] [--cache]
+      [--cache-max-size <size>] [--no-cache] [--dry-run] [--json]
     change an identity's identity.json (an empty value removes a setting)
+
+Each flag writes one key of identity.json; an empty value (--settle "") removes it, and
+--no-health, --no-tabs, --no-block and --no-cache remove a whole group. A flag of a group
+changes only its part: the rest of that group stays.
+
+How the host runs this identity's Chrome (read at every Chrome start):
+  --tabs-max <n>                  most tabs open at once, 0 for no cap (default 8)
+  --tabs-popups close|keep        close popups the agent did not open (default close)
+  --tabs-park <duration>          park an unused tab on about:blank, "0" never (default 5m)
+  --tabs-close <duration>         close an unused tab, "0" never (default 15m)
+  --background-throttling <bool>  let Chrome slow tabs that are not in front (default false)
+  --settle <duration>             wait after each action for the work it started, "0" to "10s"
+  --block-trackers <bool>         block a built-in list of ad and analytics hosts
+  --block-types <list>            block image, media and font requests (never the page itself)
+  --block-patterns <list>         block host names (and subdomains) or URL globs with *
+  --cache                         keep images, fonts, styles and scripts on disk (100MB)
+  --cache-max-size <size>         the cache's size, "1MB" to "10GB"; turns the cache on
+
+Blocking without the cache turns Chrome's own HTTP cache off: use them together.
 
 Examples:
   $ turno browser set school --health-url https://mail.example.com/ --health-text Inbox
+  $ turno browser set school --tabs-max 5 --tabs-popups keep --settle 250ms
+  $ turno browser set school --block-trackers true --cache --json
 ```
 
 ### turno browser doctor

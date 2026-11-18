@@ -53,7 +53,8 @@ While the agent works, turno keeps the identity's Chrome from piling up pages:
 | A page unused for `park` | 5 minutes | it goes to about:blank and stops running; it loads its page again when the agent uses it |
 | A page unused for `close` | 15 minutes | it closes |
 
-Change them in `identity.json` (format 2), or with the server's flags, which win over the file:
+Change them in `identity.json` (format 2), with `turno identity set`, or with the server's flags,
+which win over the file:
 
 ```json
 {
@@ -63,12 +64,17 @@ Change them in `identity.json` (format 2), or with the server's flags, which win
 ```
 
 ```sh
+turno identity set browser:school --tabs-max 4 --tabs-popups keep --tabs-park 2m --tabs-close 0
 turno-browser-mcp --identity school --max-tabs 4 --popups keep --park-after 2m --close-after 0
 ```
 
+An empty value removes one key (`--tabs-park ""`) and `--no-tabs` the whole group; `--dry-run
+--json` shows the file `set` would write without writing it.
+
 `"0"` turns a stage off and `max: 0` removes the cap. What turno closed or parked is listed at
 the end of the next tool result. Tabs in the background run at full speed, as Playwright launches
-Chrome; `"backgroundThrottling": true` (or `--background-throttling`) lets Chrome slow them down
+Chrome; `"backgroundThrottling": true` (`turno identity set browser:school
+--background-throttling true`, or the server's `--background-throttling`) lets Chrome slow them down
 and brings the agent's tab to the front before each call. It suits a headless browser or a window
 left in view: a covered headed window stops rendering. See
 [ADR 0048](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0048-browser-tab-governor.md).
@@ -83,8 +89,8 @@ in one call costs the agent one round trip instead of one per field.
 When a click or a type fails because of the page, the error says why: the element that covers
 the target (a cookie banner, a dialog) with its buttons, or that the target is hidden or
 disabled, and the next step. Playwright waits 500 ms after each action for the work it started;
-`"settle": "100ms"` in `identity.json` shortens that wait (Playwright's own `--timeout-settle`
-wins over it). See
+`"settle": "100ms"` in `identity.json` (`turno identity set browser:school --settle 100ms`)
+shortens that wait (Playwright's own `--timeout-settle` wins over it). See
 [ADR 0051](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0051-browser-batch-and-action-errors.md).
 
 ## Blocking and the resource cache
@@ -97,6 +103,12 @@ Both are off until `identity.json` asks for them, per identity:
   "block": { "trackers": true, "types": ["image", "font"], "patterns": ["ads.example", "*/promo/*"] },
   "cache": { "maxSize": "100MB" }
 }
+```
+
+```sh
+turno identity set browser:school --block-trackers true --block-types image,font \
+  --block-patterns 'ads.example,*/promo/*' --cache-max-size 100MB
+turno identity set browser:school --no-block --no-cache   # both off again
 ```
 
 `trackers` blocks a short built-in list of ad and analytics hosts; `types` takes `image`, `media`
