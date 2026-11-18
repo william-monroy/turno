@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { assertIdentityId } from "./identities.js";
+import { assertIdentityId } from "./ids.js";
 
 export {
   IdentityError,
@@ -8,12 +8,29 @@ export {
   assertIdentityId,
   identityDir,
   identityExists,
+  identityStateDir,
+  inUseBy,
   isInUse,
   isValidIdentityId,
   listIdentities,
   parseSingletonLock,
   removeIdentity,
 } from "./identities.js";
+export {
+  type HealthCheck,
+  IDENTITY_FORMAT_VERSION,
+  type IdentitySettings,
+  type SettingsPatch,
+  checkIdentitySettings,
+  identitySettingsPath,
+  readIdentitySettings,
+  systemTimezone,
+  writeIdentitySettings,
+} from "./settings.js";
+export { IdentityInUseError, type RuntimeLock, readRuntimeLock, runtimeLockAlive, runtimeLockPath } from "./runtime-lock.js";
+export { type HealthRecord, readHealth } from "./health.js";
+export { type ChallengeEvent, type IdentityReputation, type SiteSummary, readChallenges, reputationReport } from "./reputation.js";
+export { type ChromeInfo, type DoctorCheck, type DoctorOptions, type DoctorReport, findChrome, runDoctor } from "./doctor.js";
 export { type BuiltArgv, type PlaywrightMcpConfig, buildArgv, extractIdentity } from "./argv.js";
 export {
   type BenchOptions,
@@ -30,7 +47,7 @@ export {
   runBench,
   unavailableReason,
 } from "./bench.js";
-export { CHALLENGE_MARKERS, detectChallenge, parseRebrowser, parseSannysoft } from "./detectors.js";
+export { CHALLENGE_MARKERS, type ChallengeKind, classifyChallenge, detectChallenge, parseRebrowser, parseSannysoft } from "./detectors.js";
 export { type LoginOptions, loginIdentity } from "./login.js";
 export { mcpEntryPath } from "./patchright.js";
 export { paths } from "./paths.js";

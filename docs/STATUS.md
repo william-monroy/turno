@@ -26,6 +26,12 @@ Last updated: 2026-11-17.
   swept on the next start, shutdown is bounded to fit mcpd's 4 seconds, one scope advice
   (`shared` + `exclusive` for identities), session servers stop under critical memory pressure,
   `mcp top` counts Chrome's process group; real Chrome tests and an upstream contract test.
+  Identity module (ADR 0044): `identity.json` next to each profile (time zone, languages, locale,
+  region, health check) applied at every Chrome start, `turno identity add/show/set`; a runtime
+  lock `{ nodePid, chromePid, pgid, startedAt }` with a clear "in use by" message; session health
+  (NEEDS_AUTH as a tool error that asks for `turno browser login`); a per-site reputation log of
+  challenges with `turno browser reputation`; `turno browser doctor [--fix]`; and `stop_grace`
+  per server in mcpd (5 s for turno-browser-mcp).
 - **Accounts bridge**: registry, audit log, enforced headless delegation, the `accounts`
   builtin with elicitation for writes, `turno accounts` (now `turno identity`). Policy and
   isolation since ADR 0024, below.

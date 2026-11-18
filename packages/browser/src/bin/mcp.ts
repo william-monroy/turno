@@ -11,7 +11,8 @@ import { installShutdownGuard, sweepOrphan } from "../lifecycle.js";
  * Serves the Playwright MCP tools of patchright-core from turno's own MCP host (ADR 0043), with
  * the defaults of ADR 0005 and the lifecycle of ADR 0042: a generated config that closes an idle
  * Chrome, a sweep of a Chrome an earlier run left behind on the same profile, and a deadline on
- * shutdown.
+ * shutdown. With `--identity`, the identity module of ADR 0044: identity.json applied at launch,
+ * a runtime lock while Chrome runs, the session health check and the reputation log.
  * Speaks MCP over stdio; `--port` with `--identity` needs `--allow-http-identity`.
  */
 
@@ -59,4 +60,4 @@ if (built.userDataDir && !help) {
   installShutdownGuard(built.userDataDir);
 }
 
-await runHost(built.args);
+await runHost(built.args, built.identity !== undefined ? { identity: { id: built.identity, env: process.env } } : {});

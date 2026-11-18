@@ -1,6 +1,8 @@
 import { resolve } from "node:path";
 import type { Browser, BrowserContext } from "patchright-core";
-import { readLockPid } from "./lifecycle.js";
+import { findProfileChrome, readLockPid } from "./lifecycle.js";
+import { acquireRuntimeLock } from "./runtime-lock.js";
+import { launchSettings, readIdentitySettings, systemTimezone } from "./settings.js";
 import { type ClientInfo, type IdleTimerLike, type McpConfig, playwright, upstream } from "./upstream.js";
 
 /**
@@ -45,6 +47,14 @@ export interface LaunchRequest {
   cliOptions: Record<string, unknown>;
   /** The session title the browser is bound under (`browser.bind`), "<client> (2)" for a second one. */
   title: string;
+  /** The identity whose profile this is (`--identity`), for its settings and runtime lock. */
+  identity?: IdentityRef;
+}
+
+/** A browser identity as the host knows it: its id and the environment that locates its files. */
+export interface IdentityRef {
+  id: string;
+  env: NodeJS.ProcessEnv;
 }
 
 export interface Engine {
@@ -116,42 +126,67 @@ function launchError(error: Error, config: McpConfig, userDataDir: string, chann
   return error;
 }
 
+/** For an identity, who holds the profile instead of upstream's generic "already in use". */
+function profileInUse(identity: IdentityRef | undefined, userDataDir: string): Error {
+  if (!identity) return new Error(`Browser is already in use for ${userDataDir}, use --isolated to run multiple instances of the same browser`);
+  const chrome = findProfileChrome(userDataDir);
+  const who = chrome ? `a Chrome that turno-browser-mcp did not start (pid ${chrome.pid})` : "another Chrome";
+  return new Error(
+    `browser identity "${identity.id}" is in use by ${who}: a Chrome opened by hand on this profile, or a login from an older turno. ` +
+      `Close it, then try again; \`turno browser doctor\` shows who holds each identity.`,
+  );
+}
+
 /**
  * The installed Chrome on a persistent profile, launched by turno with the options upstream's
  * `createPersistentBrowser` uses: the resolved launch and context options, no signal handlers
  * of Playwright's own (the host's shutdown guard and upstream's exit watchdog close it), and
  * extensions allowed. It is bound like upstream's browser, so `playwright-cli` sees it too.
+ *
+ * For an identity (ADR 0044) it also takes the identity's runtime lock before Chrome starts,
+ * records Chrome's PID and process group in it, gives it back when Chrome closes, and applies
+ * identity.json: languages and locale as Chrome flags, the time zone as `timezoneId`.
  */
 const chromeEngine: Engine = {
   id: "chrome",
-  async launch({ config, clientInfo, title }) {
+  async launch({ config, clientInfo, title, identity }) {
     const userDataDir = config.browser.userDataDir;
     if (userDataDir === undefined) throw new Error("the chrome engine needs a profile directory");
     const { tools } = upstream();
     const tracesDir = resolve(tools.outputDir({ config, cwd: clientInfo.cwd }), "traces");
-    if (await profileLocked5Times(userDataDir)) {
-      throw new Error(`Browser is already in use for ${userDataDir}, use --isolated to run multiple instances of the same browser`);
-    }
-    const ignore = config.browser.launchOptions.ignoreDefaultArgs;
-    const launchOptions = {
-      tracesDir,
-      ...config.browser.launchOptions,
-      ...config.browser.contextOptions,
-      handleSIGINT: false,
-      handleSIGTERM: false,
-      ignoreDefaultArgs: ignore === true ? true : ["--disable-extensions", ...(Array.isArray(ignore) ? ignore : [])],
-    };
+    const settings = identity ? readIdentitySettings(identity.id, identity.env) : undefined;
+    const held = identity ? acquireRuntimeLock(identity.id, identity.env, { holder: "mcp" }) : undefined;
     let context: BrowserContext;
+    let browser: Browser;
     try {
-      context = await playwright()[config.browser.browserName].launchPersistentContext(userDataDir, launchOptions);
+      if (await profileLocked5Times(userDataDir)) throw profileInUse(identity, userDataDir);
+      const ignore = config.browser.launchOptions.ignoreDefaultArgs;
+      const userArgs = (config.browser.launchOptions.args as string[] | undefined) ?? [];
+      const applied = launchSettings(settings, userArgs, systemTimezone(), config.browser.contextOptions);
+      const launchOptions = {
+        tracesDir,
+        ...config.browser.launchOptions,
+        ...config.browser.contextOptions,
+        ...(applied.args.length ? { args: [...userArgs, ...applied.args] } : {}),
+        ...(applied.timezoneId ? { timezoneId: applied.timezoneId } : {}),
+        handleSIGINT: false,
+        handleSIGTERM: false,
+        ignoreDefaultArgs: ignore === true ? true : ["--disable-extensions", ...(Array.isArray(ignore) ? ignore : [])],
+      };
+      try {
+        context = await playwright()[config.browser.browserName].launchPersistentContext(userDataDir, launchOptions);
+      } catch (err) {
+        throw launchError(err as Error, config, userDataDir, launchOptions.channel as string | undefined);
+      }
+      browser = context.browser() as Browser;
+      try {
+        await browser.bind(title, { workspaceDir: clientInfo.cwd });
+      } catch (err) {
+        await browser.close().catch(() => {});
+        throw err;
+      }
     } catch (err) {
-      throw launchError(err as Error, config, userDataDir, launchOptions.channel as string | undefined);
-    }
-    const browser = context.browser() as Browser;
-    try {
-      await browser.bind(title, { workspaceDir: clientInfo.cwd });
-    } catch (err) {
-      await browser.close().catch(() => {});
+      held?.release();
       throw err;
     }
     let closing = false;
@@ -166,6 +201,12 @@ const chromeEngine: Engine = {
       idleTimer = timer;
     }
     const pid = readLockPid(userDataDir);
+    if (held) {
+      // Playwright starts Chrome as the leader of its own process group; ps confirms it.
+      const pgid = pid !== undefined ? (findProfileChrome(userDataDir)?.pgid ?? pid) : undefined;
+      held.update({ ...(pid !== undefined ? { chromePid: pid } : {}), ...(pgid !== undefined ? { pgid } : {}) });
+      browser.once("disconnected", () => held.release());
+    }
     return {
       engine: "chrome",
       context,
@@ -177,6 +218,7 @@ const chromeEngine: Engine = {
         idleTimer?.dispose();
         await context.close().catch(() => {});
         await browser.close().catch(() => {});
+        held?.release();
       },
     };
   },

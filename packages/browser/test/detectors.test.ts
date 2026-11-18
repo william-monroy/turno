@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { formatBenchTable } from "../src/bench.js";
-import { decodeEntities, detectChallenge, parseRebrowser, parseSannysoft, textOf } from "../src/detectors.js";
+import { classifyChallenge, decodeEntities, detectChallenge, parseRebrowser, parseSannysoft, textOf } from "../src/detectors.js";
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 
@@ -50,6 +50,29 @@ describe("detectChallenge", () => {
   it("ignores words that only appear in scripts and styles", () => {
     const c = detectChallenge(fixture("clean.html"));
     expect(c).toEqual({ title: "Student portal", markers: [] });
+  });
+});
+
+describe("classifyChallenge", () => {
+  const page = (title: string, body: string) => `<html><head><title>${title}</title></head><body>${body}</body></html>`;
+
+  it("sorts a challenge page into captcha, verify (it's you) or block", () => {
+    expect(classifyChallenge(fixture("challenge.html"))).toEqual({ kind: "captcha", markers: ["verify you are human", "unusual traffic", "just a moment"] });
+    expect(classifyChallenge(page("Sign in", "<h1>Verify it&#39;s you</h1><p>To help keep your account safe</p>"))).toEqual({ kind: "verify", markers: ["verify it's you"] });
+    expect(classifyChallenge(page("Sign in", "<h1>Verify it’s you</h1>"))!.kind).toBe("verify");
+    expect(classifyChallenge(page("Attention Required! | Example", "<h1>Sorry, you have been blocked</h1>"))).toEqual({
+      kind: "block",
+      markers: ["attention required", "you have been blocked"],
+    });
+    expect(classifyChallenge(page("Access Denied", "You don't have permission to access this server.")))!.toMatchObject({ kind: "block" });
+  });
+
+  it("ignores a clean page, and a long article that only mentions a marker", () => {
+    expect(classifyChallenge(fixture("clean.html"))).toBeUndefined();
+    const article = page("How CAPTCHAs work", `<p>${"A captcha is a test. ".repeat(10)}</p>`);
+    expect(classifyChallenge(article), "a marker in the title still counts").toMatchObject({ kind: "captcha" });
+    const long = page("Security blog", `<p>${"Words about the web. ".repeat(300)} Some sites show a captcha.</p>`);
+    expect(classifyChallenge(long), "a marker deep in a long page is not a challenge").toBeUndefined();
   });
 });
 

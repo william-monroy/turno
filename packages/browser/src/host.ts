@@ -5,7 +5,10 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { CallToolRequestSchema, type CallToolResult, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { type Engine, type LaunchedBrowser, createUpstreamEngine, selectEngine } from "./engine.js";
+import { type Engine, type IdentityRef, type LaunchedBrowser, createUpstreamEngine, selectEngine } from "./engine.js";
+import { type HealthContext, NEEDS_AUTH_HOLD_MS, healthDue, needsAuthMessage, readHealth, runHealthCheck, writeHealth } from "./health.js";
+import { recordChallenge, watchChallenges } from "./reputation.js";
+import { readIdentitySettings } from "./settings.js";
 import { TURNO_TOOLS, type TurnoTool, checkTurnoTools, parseArguments } from "./tools.js";
 import {
   type BrowserBackendInstance,
@@ -52,6 +55,8 @@ export interface HostOptions {
   turnoTools?: readonly TurnoTool[];
   /** The engine for every launch, instead of the one the config selects (tests inject a fake). */
   engine?: Engine;
+  /** The identity served (`--identity`): its runtime lock, settings, session health and reputation log. */
+  identity?: IdentityRef;
 }
 
 export interface Host {
@@ -100,7 +105,14 @@ class SessionBackend extends EventEmitter implements ServerBackend {
   private disposed = false;
 
   constructor(
-    private readonly host: { config: McpConfig; cliOptions: Record<string, unknown>; stock: UpstreamTool[]; turno: Map<string, TurnoTool>; engine: Engine },
+    private readonly host: {
+      config: McpConfig;
+      cliOptions: Record<string, unknown>;
+      stock: UpstreamTool[];
+      turno: Map<string, TurnoTool>;
+      engine: Engine;
+      identity?: IdentityRef;
+    },
     private readonly title: (clientInfo: ClientInfo) => string,
   ) {
     super();
@@ -132,9 +144,18 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     }
     if (this.current) return this.current;
     const clientInfo = this.info();
-    const { config, cliOptions, stock, engine } = this.host;
+    const { config, cliOptions, stock, engine, identity } = this.host;
     const promise = (async () => {
-      const launched = await engine.launch({ config, clientInfo, cliOptions, title: this.title(clientInfo) });
+      if (identity) refuseWhileNeedsAuth(identity);
+      const launched = await engine.launch({ config, clientInfo, cliOptions, title: this.title(clientInfo), ...(identity ? { identity } : {}) });
+      if (identity) {
+        try {
+          await afterIdentityLaunch(identity, launched);
+        } catch (error) {
+          await launched.close().catch(() => {});
+          throw error;
+        }
+      }
       const { BrowserBackend } = upstream().tools;
       const isCurrent = () => this.current === promise;
       const gone = () => {
@@ -209,6 +230,39 @@ class SessionBackend extends EventEmitter implements ServerBackend {
   }
 }
 
+/** After NEEDS_AUTH, fail at once for a short while instead of opening Chrome on every call. */
+function refuseWhileNeedsAuth(identity: IdentityRef): void {
+  const health = readIdentitySettings(identity.id, identity.env)?.health;
+  const last = readHealth(identity.id, identity.env);
+  if (health && last?.status === "needs_auth" && last.url === health.url && Date.now() - Date.parse(last.checkedAt) < NEEDS_AUTH_HOLD_MS) {
+    throw new Error(needsAuthMessage(identity.id, last));
+  }
+}
+
+/**
+ * Once an identity's Chrome runs (ADR 0044): watch its pages for challenges (the reputation
+ * log) and, when identity.json has a health check that is due, run it; a page without the
+ * proof of a signed-in session throws NEEDS_AUTH, and the call fails with that message.
+ */
+async function afterIdentityLaunch(identity: IdentityRef, launched: LaunchedBrowser): Promise<void> {
+  const { id, env } = identity;
+  watchChallenges(launched.context, (event) => {
+    try {
+      recordChallenge(id, env, event);
+    } catch {
+      /* the log is best effort; a full disk must not break a tool call */
+    }
+  });
+  const check = readIdentitySettings(id, env)?.health;
+  if (!check || !healthDue(readHealth(id, env), check)) return;
+  const record = await runHealthCheck(launched.context as unknown as HealthContext, check);
+  writeHealth(id, env, record);
+  if (record.status === "needs_auth") {
+    process.stderr.write(`turno-browser-mcp: ${id} needs a new sign-in (${record.detail} at ${record.url})\n`);
+    throw new Error(needsAuthMessage(id, record));
+  }
+}
+
 /** Builds the host for a resolved config: tool list, engine and session factory. */
 export function createHost(options: HostOptions): Host {
   const { tools } = upstream();
@@ -225,7 +279,7 @@ export function createHost(options: HostOptions): Host {
     sessionsByName.set(clientInfo.clientName, count);
     return count > 1 ? `${clientInfo.clientName} (${count})` : clientInfo.clientName;
   };
-  const shared = { config, cliOptions, stock, turno, engine };
+  const shared = { config, cliOptions, stock, turno, engine, ...(options.identity ? { identity: options.identity } : {}) };
   return {
     config,
     listTools: () => schemas.map(toMcpTool),
@@ -309,8 +363,9 @@ export async function serve(host: Host, transport?: Transport): Promise<Server |
  * Parses the Playwright MCP flags with upstream's definitions and serves them with turno's
  * host. Mirrors the action of upstream's program: exit watchdog, `--vision`, `tracing`, config.
  */
-export async function runHost(args: string[]): Promise<void> {
+export async function runHost(args: string[], options: { identity?: IdentityRef } = {}): Promise<void> {
   const { utils, core, version } = upstream();
+  const { identity } = options;
   const Command = utils.program.constructor;
   const program = new Command().version(`Version ${version}`).name("Playwright MCP");
   upstream().tools.decorateMCPCommand(program);
@@ -323,7 +378,7 @@ export async function runHost(args: string[]): Promise<void> {
     }
     if ((options.caps as string[] | undefined)?.includes("tracing")) (options.caps as string[]).push("devtools");
     const config = await upstream().tools.resolveCLIConfigForMCP(options);
-    await serve(createHost({ config, cliOptions: options }));
+    await serve(createHost({ config, cliOptions: options, ...(identity ? { identity } : {}) }));
   });
   try {
     await program.parseAsync(args, { from: "user" });

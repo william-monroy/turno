@@ -48,6 +48,11 @@ export interface StdioServer {
   builtin?: string;
   /** Seconds a single client request may run before mcpd cancels it (off when unset). */
   callTimeout?: number;
+  /**
+   * Seconds mcpd waits after closing the server's stdin before it sends SIGTERM (`stop_grace`).
+   * Unset: `effectiveStopGrace` picks the default.
+   */
+  stopGrace?: number;
   tools?: ToolFilter;
 }
 
@@ -309,6 +314,11 @@ export function parseManifest(text: string, file = "mcp.toml"): Manifest {
     if (pkg) server.package = pkg;
     if (builtin) server.builtin = builtin;
     if (v.call_timeout !== undefined) server.callTimeout = parseDuration(v.call_timeout, file, `${key}.call_timeout`);
+    if (v.stop_grace !== undefined) {
+      const grace = parseDuration(v.stop_grace, file, `${key}.stop_grace`);
+      if (grace > MAX_STOP_GRACE) throw new ConfigError(file, `${key}.stop_grace must be at most ${MAX_STOP_GRACE}s`);
+      server.stopGrace = grace;
+    }
     const tools = toolFilterOf(v.tools, file, `${key}.tools`);
     if (tools) server.tools = tools;
     servers[name] = server;
@@ -338,6 +348,23 @@ export function variantKey(server: { variants: Record<string, unknown> }, profil
 }
 
 /** Effective launch settings for a variant. */
+/** The MCP SDK's fixed wait between closing stdin and SIGTERM, in seconds. */
+const SDK_STOP_GRACE = 2;
+/** turno-browser-mcp closes Chrome within about 2.5 s of stdin closing (ADR 0042); 5 s leaves room. */
+const BROWSER_STOP_GRACE = 5;
+const MAX_STOP_GRACE = 60;
+
+/**
+ * Seconds mcpd gives a stdio server between closing its stdin and SIGTERM (ADR 0044): its
+ * `stop_grace`, else 5 for turno-browser-mcp however it is started (a path, npx), else the
+ * SDK's 2.
+ */
+export function effectiveStopGrace(server: StdioServer, variant: string): number {
+  if (server.stopGrace !== undefined) return server.stopGrace;
+  const { command, args } = effectiveLaunch(server, variant);
+  return [command, ...args].some((a) => a.split(/[\\/]/).pop() === "turno-browser-mcp") ? BROWSER_STOP_GRACE : SDK_STOP_GRACE;
+}
+
 export function effectiveLaunch(server: StdioServer, variant: string): { command: string; args: string[]; env: Record<string, string>; cwd?: string } {
   const v = server.variants[variant];
   const out: { command: string; args: string[]; env: Record<string, string>; cwd?: string } = {

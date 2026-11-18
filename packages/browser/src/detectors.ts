@@ -139,3 +139,47 @@ export function detectChallenge(html: string): ChallengeResult {
   const text = `${title} ${textOf(body)}`.toLowerCase();
   return { title, markers: CHALLENGE_MARKERS.filter((m) => text.includes(m)) };
 }
+
+/** What a challenge page asks for: solve a captcha, prove it is you, or nothing (a block). */
+export type ChallengeKind = "captcha" | "verify" | "block";
+
+/** Phrases per kind, in report order. Apostrophes are matched in their plain form. */
+const CHALLENGE_KINDS: readonly (readonly [string, ChallengeKind])[] = [
+  ["captcha", "captcha"],
+  ["verify you are human", "captcha"],
+  ["are you a robot", "captcha"],
+  ["not a robot", "captcha"],
+  ["unusual traffic", "captcha"],
+  ["checking your browser", "captcha"],
+  ["just a moment", "captcha"],
+  ["verify it's you", "verify"],
+  ["confirm it's you", "verify"],
+  ["verify your identity", "verify"],
+  ["access denied", "block"],
+  ["request blocked", "block"],
+  ["attention required", "block"],
+  ["you have been blocked", "block"],
+  ["you've been blocked", "block"],
+];
+
+/** A block outranks a request to prove it is you, which outranks a captcha. */
+const RANK: Record<ChallengeKind, number> = { block: 3, verify: 2, captcha: 1 };
+
+/** Challenge pages are short: past this much visible text a phrase in the body is an article. */
+const SHORT_PAGE = 1500;
+
+/**
+ * The challenge a page shows, for the reputation log: its kind and the phrases that matched.
+ * Undefined for a normal page. A phrase counts in the title, or in the visible text of a short
+ * page, so an article that mentions a captcha is not one.
+ */
+export function classifyChallenge(html: string): { kind: ChallengeKind; markers: string[] } | undefined {
+  const plain = (s: string) => s.toLowerCase().replace(/[‘’]/g, "'");
+  const title = plain(titleOf(html));
+  const body = plain(textOf(/<body\b[^>]*>([\s\S]*)<\/body\s*>/i.exec(html)?.[1] ?? html));
+  const short = body.length <= SHORT_PAGE;
+  const found = CHALLENGE_KINDS.filter(([m]) => title.includes(m) || (short && body.includes(m)));
+  if (!found.length) return undefined;
+  const kind = found.reduce<ChallengeKind>((best, [, k]) => (RANK[k] > RANK[best] ? k : best), "captcha");
+  return { kind, markers: found.map(([m]) => m) };
+}

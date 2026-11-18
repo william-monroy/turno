@@ -11,6 +11,7 @@ import { profileColor, style } from "../style.js";
 import * as accounts from "./accounts.js";
 import { policyLine } from "./accounts.js";
 import { type BrowserDeps, type BrowserModule, NOT_INSTALLED, defaultDeps, dispatch } from "./browser.js";
+import { SETTINGS_FLAGS, SETTINGS_FLAG_NAMES, SHOW_JSON } from "./browser-identity.js";
 
 /**
  * Who acts on an outside service for a session: a service account (`linear:work`, run by a
@@ -103,15 +104,28 @@ async function list(args: string[], io: Io): Promise<number> {
   return 0;
 }
 
+/** `args` with its `browser:<id>` positional replaced by the bare id, for the browser command. */
+function bareId(args: string[]): string[] {
+  const at = args.findIndex((a) => !a.startsWith("-"));
+  return args.map((a, i) => (i === at ? a.slice(BROWSER.length) : a));
+}
+
 async function add(args: string[], io: Io): Promise<number> {
   if (!firstId(args)?.startsWith(BROWSER)) return accounts.add(args, io);
-  const p = parseFlags(args, DRY_RUN, 1);
+  const p = parseFlags(args, { ...DRY_RUN, ...SETTINGS_FLAGS }, 1);
   const id = p.positionals[0]!.slice(BROWSER.length);
   if (bool(p, "dry-run")) {
     io.out(`(dry run) would create browser identity "${id}"`);
     return 0;
   }
-  return dispatch(await browserModule(io), "add", [id], io, deps);
+  return dispatch(await browserModule(io), "add", bareId(args), io, deps);
+}
+
+/** `show` and `set` exist for browser identities only. */
+async function browserOnly(sub: "show" | "set", args: string[], io: Io): Promise<number> {
+  const id = firstId(args);
+  if (!id?.startsWith(BROWSER)) return fail(`identity ${sub} works on browser identities (browser:<id>); service accounts are listed by \`turno identity list\``);
+  return dispatch(await browserModule(io), sub, bareId(args), io, deps);
 }
 
 async function remove(args: string[], io: Io): Promise<number> {
@@ -148,10 +162,19 @@ export const command = group(
     list: { summary: "service accounts, browser identities and folder preferences", synopsis: "[--json]", flags: ["--json"], json: LIST_JSON, run: list },
     add: {
       summary: "add a service account, or create a browser identity (browser:<id>)",
-      synopsis: "<service:label> --profile <p> --tools <pattern>[,...] [--read-tools <pattern>[,...]] [--confirm always|writes|never] | browser:<id>  [--dry-run]",
+      synopsis:
+        "<service:label> --profile <p> --tools <pattern>[,...] [--read-tools <pattern>[,...]] [--confirm always|writes|never] | browser:<id> [--timezone <zone>] [--languages <tag,...>] [--health-url <url> --health-text <text>]  [--dry-run]",
       args: ["any"],
-      flags: ["--profile", "--tools", "--read-tools", "--confirm", "--service", "--description", "--dry-run"],
+      flags: ["--profile", "--tools", "--read-tools", "--confirm", "--service", "--description", "--dry-run", ...SETTINGS_FLAG_NAMES],
       run: add,
+    },
+    show: { summary: "a browser identity's settings, session health and who holds it", synopsis: "browser:<id> [--json]", args: ["identity"], flags: ["--json"], json: SHOW_JSON, run: (a, io) => browserOnly("show", a, io) },
+    set: {
+      summary: "change a browser identity's time zone, languages, region or health check",
+      synopsis: "browser:<id> [--timezone <zone>] [--locale <tag>] [--languages <tag,...>] [--region <CC>] [--health-url <url>] [--health-text <text>] [--health-selector <css>] [--no-health] [--dry-run]",
+      args: ["identity"],
+      flags: ["--dry-run", ...SETTINGS_FLAG_NAMES],
+      run: (a, io) => browserOnly("set", a, io),
     },
     remove: { summary: "remove a service account, or delete a browser identity and its logins", synopsis: "<id> [--dry-run]", args: ["identity"], flags: ["--dry-run"], run: remove },
     login: { summary: "open a browser identity's Chrome to sign in by hand once", synopsis: "browser:<id> [--url <url>]", args: ["identity"], flags: ["--url"], run: login },
@@ -177,6 +200,8 @@ export const command = group(
       "turno identity add linear:work --profile work --tools 'mcp__linear__*'",
       "turno identity add browser:school",
       "turno identity login browser:school",
+      "turno identity show browser:school",
+      "turno identity set browser:school --timezone America/Monterrey --languages es-MX,es,en",
       "turno identity prefer ~/code/acme linear=linear:work",
       "turno identity remove linear:work --dry-run",
       "turno identity log --verify",

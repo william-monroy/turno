@@ -57,6 +57,8 @@ idle = "30m"                      # stop after this long without calls (default 
                                   # unless memory pressure is critical)
 call_timeout = "10m"              # optional: cancel a single request that runs longer (off by default;
                                   # it also cuts calls waiting for the user to answer a form)
+stop_grace = "5s"                 # optional: wait after closing stdin before SIGTERM (then 2s and SIGKILL);
+                                  # default 5s for turno-browser-mcp, 2s for every other server
 exclusive = false                 # one client session at a time (shared scope only)
 lease = "5m"                      # exclusive: how long an idle holder keeps it
 profiles = ["*"]                  # which profiles get this server (and may open it)
@@ -226,6 +228,33 @@ under critical memory pressure. Do not declare an identity as `session`: two ses
 share one profile, and the second would find it in use. A Chrome left running by a server that
 was killed is closed the next time the identity starts. See
 [ADR 0042](decisions/0042-browser-lifecycle.md).
+
+When mcpd stops a browser server it closes its stdin and waits 5 seconds (`stop_grace`) before
+SIGTERM, so the server closes Chrome and writes its profile on its own; other servers keep the
+MCP SDK's 2 seconds.
+
+Each identity also has (ADR 0044):
+
+- **identity.json** next to its profile (`~/.local/share/turno/browser/identities/<id>.json`): the
+  time zone, languages, locale and region that stay fixed for it, applied at every Chrome start.
+  `turno identity add browser:<id>` pins a new identity to the current time zone; change it with
+  `turno identity set browser:<id> --timezone America/Monterrey --languages es-MX,es,en`, look
+  at it with `turno identity show browser:<id>`. Without the file Chrome uses the machine's.
+- **A runtime lock** while its Chrome runs. A second session on the same identity gets a tool
+  error that names the process holding it and how to stop it (`kill <pid>`), instead of Chrome's
+  "Browser is already in use".
+- **A session health check**, optional: `turno identity set browser:<id> --health-url <url>
+  --health-text <text>` names a page and what it shows only when signed in. When Chrome starts
+  (at most every 30 minutes while it passes) turno checks it; if the proof is missing, the
+  identity is NEEDS_AUTH and tool calls fail with a message that asks the user to run
+  `turno browser login <id>`.
+- **A reputation log**: each captcha, "verify it's you" or block page the identity meets, with
+  the site's host name only. `turno browser reputation [<id>]` shows the counts per site and
+  whether they go up or down.
+
+`turno browser doctor` checks Chrome, a test launch and every identity (settings, who holds it,
+sign-in, recent challenges) and names the fix for each problem; `--fix` clears stale locks and a
+Chrome left running with no server.
 
 A remote server without secret headers or `auth = "oauth"` is written straight into each
 profile and never touches mcpd. With either it is proxied, so the secret or the OAuth token

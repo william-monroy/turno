@@ -5,8 +5,9 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import type { ChildProcess } from "node:child_process";
 import type { ServerDef } from "../core/manifest.js";
-import { effectiveLaunch } from "../core/manifest.js";
+import { effectiveLaunch, effectiveStopGrace } from "../core/manifest.js";
 import { PRIVATE_DIR_MODE, PRIVATE_FILE_MODE } from "../core/paths.js";
 import { type SecretResolver, expandVars, resolveRecord, secretStore } from "../core/secrets.js";
 import type { ClientContext, Connector } from "./instances.js";
@@ -38,6 +39,43 @@ export interface ConnectorOptions {
 }
 
 const MAX_LOG = 5 * 1024 * 1024;
+
+/** What the MCP SDK waits after closing stdin, and again after SIGTERM, in milliseconds. */
+const SDK_STEP_MS = 2000;
+
+/**
+ * Replaces the SDK's close of a stdio server (stdin closed, 2 s, SIGTERM, 2 s, SIGKILL) with one
+ * that waits `graceMs` before SIGTERM (`stop_grace`, ADR 0044). The rest is the SDK's: SIGTERM,
+ * 2 s, SIGKILL. It reads the transport's child process, a private field of the SDK; if that
+ * ever changes, the SDK's own close runs unchanged.
+ */
+function withStopGrace(transport: StdioClientTransport, graceMs: number): void {
+  const sdkClose = transport.close.bind(transport);
+  transport.close = async () => {
+    const proc = (transport as unknown as { _process?: ChildProcess })._process;
+    const running = () => proc !== undefined && proc.exitCode === null && proc.signalCode === null;
+    if (proc && running()) {
+      const closed = new Promise<void>((resolve) => proc.once("close", () => resolve()));
+      const wait = (ms: number) => Promise.race([closed, new Promise<void>((resolve) => setTimeout(resolve, ms).unref())]);
+      try {
+        proc.stdin?.end();
+      } catch {
+        /* already closed */
+      }
+      await wait(graceMs);
+      if (running()) {
+        proc.kill("SIGTERM");
+        await wait(SDK_STEP_MS);
+      }
+      if (running()) {
+        proc.kill("SIGKILL");
+        await wait(1000);
+      }
+    }
+    // The process is gone (the SDK cleared it on "close"): this only resets the read buffer.
+    await sdkClose();
+  };
+}
 
 function logFileOf(logsDir: string, label: string): string {
   return join(logsDir, `${label.replace(/[^A-Za-z0-9_.-]/g, "_")}.log`);
@@ -205,6 +243,8 @@ export class DefaultConnector implements Connector {
       cwd,
       stderr: "pipe",
     });
+    const graceMs = effectiveStopGrace(server, variant) * 1000;
+    if (graceMs !== SDK_STEP_MS) withStopGrace(transport, graceMs);
     const log = new RotatingLog(
       logFileOf(this.opts.logsDir, `${server.name}${variant === "default" ? "" : `@${variant}`}`),
       this.opts.maxLogBytes ?? MAX_LOG,
