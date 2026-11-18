@@ -72,7 +72,9 @@ then releases go to the `next` dist-tag (`turno upgrade --channel next` follows 
 
 - Workflows: `permissions: {}` at the top and the minimum per job, every action pinned to a
   full commit SHA (Dependabot keeps them current), `persist-credentials: false`, no
-  `pull_request_target`, no cache in the release workflow, Harden-Runner in audit mode.
+  `pull_request_target`, no cache in the release workflow. Harden-Runner blocks every host
+  outside each release job's allow list (ADR 0058) and audits the other workflows. When a
+  release job fails with a blocked connection, see "Egress allow lists" below.
   `zizmor.yml` lints the workflows on every change to `.github/`; `scorecard.yml` runs the
   OpenSSF Scorecard weekly.
 - Dependencies: pnpm waits three days before installing a newly published version
@@ -82,6 +84,16 @@ then releases go to the `next` dist-tag (`turno upgrade --channel next` follows 
   licenses outside the allow list; the dependency review action does the same for pull requests.
 - Commits: `pnpm hooks` installs a `commit-msg` hook that enforces Conventional Commits and
   rejects attribution trailers and the em dash.
+
+## Egress allow lists
+
+Each job of `release.yml` lists the hosts it may reach under `allowed-endpoints`. A host
+outside the list is blocked, and the step that needed it fails (a timeout or `ECONNREFUSED`,
+often a pnpm `ERR_PNPM_META_FETCH_FAIL`). To check a run, open the "View security insights"
+link that Harden-Runner prints in the job log: its Network events tab lists every connection,
+blocked ones marked. To add a host, append `host:443` to that job's list in a pull request.
+To go back to observing only, change that job's `egress-policy: block` to `audit`; the list can
+stay. The allow lists only apply on `main`, so a change shows up on the first push after merge.
 
 ## Before the first publish
 
