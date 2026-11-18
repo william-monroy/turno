@@ -175,6 +175,15 @@ describe("process memory", () => {
     expect(treeRss(t, 99)).toBeUndefined();
   });
 
+  it("counts a process group led by a descendant, so a browser's helpers left without a parent still count", () => {
+    // 20 is a server; 30 a browser it started in its own group (30); 31 a helper of it; 32 a
+    // helper reparented to init but still in group 30; 40 an unrelated group.
+    const t = parsePs(["1 0 1 10", "20 1 1 100", "30 20 30 1000", "31 30 30 200", "32 1 30 50", "40 1 40 7"].join("\n"));
+    expect(t.get(32)).toEqual({ ppid: 1, pgid: 30, rss: 50 * 1024 });
+    expect(treeRss(t, 20)).toBe(1350 * 1024);
+    expect(treeRss(t, 40)).toBe(7 * 1024);
+  });
+
   it("reads procfs when ps is missing, and reports unknown when neither exists", async () => {
     const proc = join(sb.home, "proc");
     sb.write("proc/7/status", "Name:\tnode\nPPid:\t1\nVmRSS:\t   2048 kB\n");

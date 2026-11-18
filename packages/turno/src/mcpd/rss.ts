@@ -6,8 +6,11 @@ import { atomicWrite } from "../core/journal.js";
 
 const run = promisify(execFile);
 
-/** Parent and resident memory (bytes) of every process we can see, by PID. */
-export type ProcTable = Map<number, { ppid: number; rss: number }>;
+/**
+ * Parent, resident memory (bytes) and, when `ps` reports it, process group of every process we
+ * can see, by PID.
+ */
+export type ProcTable = Map<number, { ppid: number; pgid?: number; rss: number }>;
 
 export interface ProcTableOptions {
   /** PATH used to find `ps` (tests point it at a fake one, or at nothing). */
@@ -16,13 +19,20 @@ export interface ProcTableOptions {
   procRoot?: string;
 }
 
-/** `ps -A -o pid=,ppid=,rss=` output (rss in KiB, as both macOS and procps print it). */
+/**
+ * `ps -A -o pid=,ppid=,pgid=,rss=` output (rss in KiB, as both macOS and procps print it). The
+ * three column form without pgid is read too.
+ */
 export function parsePs(stdout: string): ProcTable {
   const t: ProcTable = new Map();
   for (const line of stdout.split("\n")) {
-    const [pid, ppid, rss] = line.trim().split(/\s+/).map(Number);
+    const cols = line.trim().split(/\s+/).map(Number);
+    const [pid, ppid] = cols;
+    const pgid = cols.length >= 4 ? cols[2] : undefined;
+    const rss = cols.length >= 4 ? cols[3] : cols[2];
     if (Number.isInteger(pid) && (pid as number) > 0 && Number.isInteger(ppid) && Number.isFinite(rss)) {
-      t.set(pid as number, { ppid: ppid as number, rss: (rss as number) * 1024 });
+      const bytes = (rss as number) * 1024;
+      t.set(pid as number, Number.isInteger(pgid) ? { ppid: ppid as number, pgid: pgid as number, rss: bytes } : { ppid: ppid as number, rss: bytes });
     }
   }
   return t;
@@ -58,7 +68,7 @@ export function procfsTable(root = "/proc"): ProcTable | undefined {
 export async function processTable(opts: ProcTableOptions = {}): Promise<ProcTable | undefined> {
   try {
     const env = opts.env ?? process.env;
-    const { stdout } = await run("ps", ["-A", "-o", "pid=,ppid=,rss="], {
+    const { stdout } = await run("ps", ["-A", "-o", "pid=,ppid=,pgid=,rss="], {
       encoding: "utf8",
       timeout: 5000,
       maxBuffer: 16 * 1024 * 1024,
@@ -72,15 +82,24 @@ export async function processTable(opts: ProcTableOptions = {}): Promise<ProcTab
   return procfsTable(opts.procRoot);
 }
 
-/** RSS of a process and all its descendants (npx and shell wrappers start the real server as a child). */
+/**
+ * RSS of a process and all its descendants (npx and shell wrappers start the real server as a
+ * child). A descendant that leads its own process group brings the whole group: a browser server
+ * starts Chrome as a group leader, and a Chrome helper whose parent went away stays in that
+ * group (ADR 0042).
+ */
 export function treeRss(table: ProcTable, pid: number): number | undefined {
   if (!table.has(pid)) return undefined;
   const children = new Map<number, number[]>();
-  for (const [p, { ppid }] of table) {
-    if (p === ppid) continue;
-    const list = children.get(ppid);
+  const add = (key: number, p: number) => {
+    const list = children.get(key);
     if (list) list.push(p);
-    else children.set(ppid, [p]);
+    else children.set(key, [p]);
+  };
+  for (const [p, { ppid, pgid }] of table) {
+    if (p !== ppid) add(ppid, p);
+    // Members of a group count under its leader too (the leader's own PID is its pgid).
+    if (pgid !== undefined && pgid !== p && pgid !== ppid && table.get(pgid)?.pgid === pgid) add(pgid, p);
   }
   let total = 0;
   const seen = new Set<number>();

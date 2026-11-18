@@ -168,10 +168,20 @@ describe("reaping under memory pressure", () => {
     expect(await manager.reap()).toEqual([]);
   });
 
-  it("still keeps a session server whose owner is alive", async () => {
+  it("keeps a session server whose owner is alive under warn, and stops it when pressure is critical", async () => {
     await call(await boot('scope = "session"'), { "X-Turno-Pid": String(process.pid) });
     skew = 60 * 60_000;
+    expect(await manager.reap()).toEqual([]);
+    level = "warn";
+    expect(await manager.reap()).toEqual([]);
     level = "critical";
+    expect(await manager.reap()).toEqual(["fx: idle (memory pressure)"]);
+  });
+
+  it("keeps a session server that is busy or recently used even when pressure is critical", async () => {
+    await call(await boot('scope = "session"'), { "X-Turno-Pid": String(process.pid) });
+    level = "critical";
+    skew = 30_000; // under the critical cap of 75 seconds
     expect(await manager.reap()).toEqual([]);
   });
 

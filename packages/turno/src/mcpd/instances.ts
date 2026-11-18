@@ -678,7 +678,8 @@ export class InstanceManager {
 
   /**
    * Stop instances whose owner died, whose definition changed, or that sat idle too long; forget
-   * dead clients. Under memory pressure the idle limit shrinks (ADR 0028).
+   * dead clients. Under memory pressure the idle limit shrinks (ADR 0028), and under critical
+   * pressure it applies to session servers too (ADR 0042).
    */
   async reap(): Promise<string[]> {
     const stopped: string[] = [];
@@ -692,13 +693,17 @@ export class InstanceManager {
       const ownerAlive = inst.pid !== undefined && this.isAlive(inst.pid);
       const ownerDead = inst.pid !== undefined && !ownerAlive;
       const stale = quiet && !this.current(inst);
-      // A session server lives as long as its session: its state (a browser, a login) is the point.
-      const idleApplies = !(inst.scope === "session" && ownerAlive);
+      // A session server lives as long as its session: its state (a browser, a login) is the
+      // point. Under critical memory pressure a quiet one stops like any other; the next call
+      // starts it again (ADR 0042).
+      const idleApplies = !(inst.scope === "session" && ownerAlive && level !== "critical");
       const limit = effectiveIdle(inst.server.idle, level, this.opts.idleUnderPressure ?? 0);
       const idleFor = this.now() - inst.upstream.lastActivity;
       const idle = idleApplies && quiet && idleFor > limit * 1000;
       if (ownerDead || stale || idle) {
-        const why = ownerDead ? "owner exited" : stale ? "definition changed" : idleFor > inst.server.idle * 1000 ? "idle" : "idle (memory pressure)";
+        // Only pressure stops a session server whose launcher lives, whatever its own limit.
+        const ownLimit = idleFor > inst.server.idle * 1000 && !(inst.scope === "session" && ownerAlive);
+        const why = ownerDead ? "owner exited" : stale ? "definition changed" : ownLimit ? "idle" : "idle (memory pressure)";
         this.instances.delete(inst.key);
         // That key never comes back (dead PID, old definition): forget its start count.
         if (ownerDead || stale) this.starts.delete(inst.key);
