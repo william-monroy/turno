@@ -12,10 +12,14 @@ beforeEach(() => {
 afterEach(() => sb.cleanup());
 
 const git = (cwd: string, ...args: string[]) =>
-  execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "protocol.file.allow=always", "-C", cwd, ...args], {
-    stdio: ["ignore", "pipe", "ignore"],
-    encoding: "utf8",
-  });
+  execFileSync(
+    "git",
+    ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "protocol.file.allow=always", "-C", cwd, ...args],
+    {
+      stdio: ["ignore", "pipe", "ignore"],
+      encoding: "utf8",
+    },
+  );
 
 /** What candidateRoots returned before it read .git files: always through `git rev-parse`. */
 function viaGit(cwd: string): string[] {
@@ -70,7 +74,19 @@ describe("candidateRoots without spawning git", () => {
     renameSync(join(h, "moved/.git"), join(h, "moved.git"));
     symlinkSync(join(h, "moved.git"), join(h, "moved/.git"));
 
-    const cases = ["repo", "repo/src/deep", "repo/.git", "repo/.git/refs", "wt", "wt/pkg", "repo/vendor/lib", "plain/a", "link", "moved", "lib"];
+    const cases = [
+      "repo",
+      "repo/src/deep",
+      "repo/.git",
+      "repo/.git/refs",
+      "wt",
+      "wt/pkg",
+      "repo/vendor/lib",
+      "plain/a",
+      "link",
+      "moved",
+      "lib",
+    ];
     for (const rel of cases) {
       const dir = join(h, rel);
       const got = onDisk(dir);

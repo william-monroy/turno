@@ -30,7 +30,8 @@ const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 /** Decode RFC 4648 base32; spaces, dashes, lower case and padding are accepted. */
 export function base32Decode(text: string): Buffer {
   const clean = text.replace(/[\s-]/g, "").replace(/=+$/, "").toUpperCase();
-  if (!clean || /[^A-Z2-7]/.test(clean)) throw new TotpError("the one-time code secret is not base32 (letters A to Z and digits 2 to 7)");
+  if (!clean || /[^A-Z2-7]/.test(clean))
+    throw new TotpError("the one-time code secret is not base32 (letters A to Z and digits 2 to 7)");
   let bits = 0;
   let value = 0;
   const out: number[] = [];
@@ -58,22 +59,26 @@ function normalizeSecret(text: string): string {
  */
 export function parseTotpSecret(input: string): TotpParams {
   const text = input.trim();
-  if (!text.toLowerCase().startsWith("otpauth:")) return { secret: normalizeSecret(text), algorithm: "SHA1", digits: 6, period: 30 };
+  if (!text.toLowerCase().startsWith("otpauth:"))
+    return { secret: normalizeSecret(text), algorithm: "SHA1", digits: 6, period: 30 };
   let url: URL;
   try {
     url = new URL(text);
   } catch {
     throw new TotpError("the otpauth:// URI cannot be parsed");
   }
-  if (url.host.toLowerCase() !== "totp") throw new TotpError(`only otpauth://totp/ is supported (this is ${url.host || "an unknown type"})`);
+  if (url.host.toLowerCase() !== "totp")
+    throw new TotpError(`only otpauth://totp/ is supported (this is ${url.host || "an unknown type"})`);
   const secret = url.searchParams.get("secret");
   if (!secret) throw new TotpError("the otpauth:// URI has no secret");
   const algorithm = (url.searchParams.get("algorithm") ?? "SHA1").toUpperCase();
-  if (algorithm !== "SHA1" && algorithm !== "SHA256" && algorithm !== "SHA512") throw new TotpError(`unsupported algorithm ${algorithm} (SHA1, SHA256 or SHA512)`);
+  if (algorithm !== "SHA1" && algorithm !== "SHA256" && algorithm !== "SHA512")
+    throw new TotpError(`unsupported algorithm ${algorithm} (SHA1, SHA256 or SHA512)`);
   const digits = Number(url.searchParams.get("digits") ?? 6);
   if (!Number.isInteger(digits) || digits < 6 || digits > 8) throw new TotpError("digits must be 6, 7 or 8");
   const period = Number(url.searchParams.get("period") ?? 30);
-  if (!Number.isInteger(period) || period < 1 || period > 300) throw new TotpError("period must be a whole number of seconds from 1 to 300");
+  if (!Number.isInteger(period) || period < 1 || period > 300)
+    throw new TotpError("period must be a whole number of seconds from 1 to 300");
   return { secret: normalizeSecret(secret), algorithm, digits, period };
 }
 

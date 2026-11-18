@@ -68,7 +68,8 @@ export function publishedManifest(manifest, versions) {
         if (typeof spec !== "string" || !spec.startsWith("workspace:")) return [n, spec];
         const rest = spec.slice("workspace:".length);
         const version = versions.get(n);
-        if (version === undefined) throw new Error(`${manifest.name} depends on ${n}@${spec}, which is not a package of this workspace`);
+        if (version === undefined)
+          throw new Error(`${manifest.name} depends on ${n}@${spec}, which is not a package of this workspace`);
         return [n, rest === "*" ? version : rest === "^" || rest === "~" ? `${rest}${version}` : rest];
       }),
     );
@@ -142,7 +143,10 @@ export function collectGraph(pkgDir, versions = workspaceVersions(pkgDir)) {
         const other = nodes.get(key);
         const mine = resolveEdges(at, m, false, key);
         const same = mine.size === other.edges.size && [...mine].every(([n, k]) => other.edges.get(n) === k);
-        if (!same) throw new Error(`${key} is installed with different peer dependencies in two places; npm-shrinkwrap.json cannot express that`);
+        if (!same)
+          throw new Error(
+            `${key} is installed with different peer dependencies in two places; npm-shrinkwrap.json cannot express that`,
+          );
       }
     }
     return edges;
@@ -225,7 +229,8 @@ export function buildShrinkwrap(graph, integrity) {
   const placed = layout(rootEdges, (key) => nodes.get(key).edges);
   const rootEntry = { name: root.name, version: root.version };
   if (root.license) rootEntry.license = root.license;
-  for (const f of ["dependencies", "optionalDependencies"]) if (root[f] && Object.keys(root[f]).length) rootEntry[f] = root[f];
+  for (const f of ["dependencies", "optionalDependencies"])
+    if (root[f] && Object.keys(root[f]).length) rootEntry[f] = root[f];
   const bin = binOf(root);
   if (bin) rootEntry.bin = bin;
   if (root.engines) rootEntry.engines = root.engines;
@@ -234,7 +239,11 @@ export function buildShrinkwrap(graph, integrity) {
     const node = nodes.get(placed.get(path));
     const hash = integrity.get(node.key);
     if (!hash && !node.workspace) throw new Error(`${node.key} is not in pnpm-lock.yaml; run pnpm install`);
-    const extra = { version: node.version, resolved: tarballUrl(node.name, node.version), ...(hash ? { integrity: hash } : {}) };
+    const extra = {
+      version: node.version,
+      resolved: tarballUrl(node.name, node.version),
+      ...(hash ? { integrity: hash } : {}),
+    };
     if (node.name !== basename(path) && !path.endsWith(`/${node.name}`)) extra.name = node.name;
     const e = entry(node.manifest, extra);
     if (installScripts(node.manifest, node.dir).length) e.hasInstallScript = true;
@@ -268,8 +277,10 @@ export function shrinkwrapProblems(manifest, shrinkwrap, graph) {
   const root = shrinkwrap?.packages?.[""];
   if (!root) return ["npm-shrinkwrap.json has no root entry"];
   if (shrinkwrap.lockfileVersion !== 3) problems.push(`lockfileVersion is ${shrinkwrap.lockfileVersion}, expected 3`);
-  if (root.name !== manifest.name || root.version !== manifest.version) problems.push(`root is ${root.name}@${root.version}, package is ${manifest.name}@${manifest.version}`);
-  if (JSON.stringify(root.dependencies ?? {}) !== JSON.stringify(manifest.dependencies ?? {})) problems.push("root dependencies differ from package.json");
+  if (root.name !== manifest.name || root.version !== manifest.version)
+    problems.push(`root is ${root.name}@${root.version}, package is ${manifest.name}@${manifest.version}`);
+  if (JSON.stringify(root.dependencies ?? {}) !== JSON.stringify(manifest.dependencies ?? {}))
+    problems.push("root dependencies differ from package.json");
   const want = new Set([...graph.nodes.keys()]);
   const siblings = new Set([...graph.nodes.values()].filter((n) => n.workspace).map((n) => n.key));
   const have = new Set();
@@ -320,7 +331,9 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
       const ok = existsSync(file) && !lstatSync(file).isSymbolicLink() && readFileSync(file, "utf8") === text;
       if (!ok) {
         failed++;
-        console.error(`${file} is ${existsSync(file) ? "out of date" : "missing"}; run node scripts/shrinkwrap.mjs ${dir}`);
+        console.error(
+          `${file} is ${existsSync(file) ? "out of date" : "missing"}; run node scripts/shrinkwrap.mjs ${dir}`,
+        );
       }
     } else {
       writeFileSync(file, text);

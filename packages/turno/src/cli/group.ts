@@ -16,7 +16,12 @@ export interface Sub extends Completion {
 }
 
 /** Usage text of a group: one line per visible subcommand, then an optional footer and examples. */
-function groupUsage(name: string, subs: Record<string, Sub>, footer?: string, examples: readonly string[] = []): string {
+function groupUsage(
+  name: string,
+  subs: Record<string, Sub>,
+  footer?: string,
+  examples: readonly string[] = [],
+): string {
   const rows = Object.entries(subs)
     .filter(([, s]) => !s.hidden)
     .map(([n, s]) => [`turno ${name} ${n}${s.synopsis ? ` ${s.synopsis}` : ""}`, s.summary] as const);
@@ -67,8 +72,15 @@ export function group(
       }
       const s = subs[sub];
       if (!s) {
-        const near = closest(sub, Object.keys(subs).filter((n) => !subs[n]!.hidden));
-        return fail(near ? `unknown ${name} command '${sub}'. Did you mean 'turno ${name} ${near}'?` : `unknown ${name} command '${sub}'\n\n${usage}`);
+        const near = closest(
+          sub,
+          Object.keys(subs).filter((n) => !subs[n]!.hidden),
+        );
+        return fail(
+          near
+            ? `unknown ${name} command '${sub}'. Did you mean 'turno ${name} ${near}'?`
+            : `unknown ${name} command '${sub}'\n\n${usage}`,
+        );
       }
       if (!s.ownHelp && (rest.includes("--help") || rest.includes("-h"))) {
         io.out(groupUsage(name, { [sub]: s }, s.details, subExamples(name, sub, examples)));

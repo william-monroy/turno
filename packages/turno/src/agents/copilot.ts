@@ -43,10 +43,16 @@ export const copilot: AgentAdapter = {
   // Safe mode: `--disable-mcp-server=<name>` ("can be used multiple times") for each gateway entry.
   safeMode(s) {
     const cfg = readJsonFile(s.file);
-    const names = gatewayNames(typeof cfg === "object" && cfg !== null ? (cfg as Record<string, unknown>).mcpServers : undefined);
+    const names = gatewayNames(
+      typeof cfg === "object" && cfg !== null ? (cfg as Record<string, unknown>).mcpServers : undefined,
+    );
     return {
       args: names.map((n) => `--disable-mcp-server=${n}`),
-      notes: [names.length ? `turned off the gateway entries ${names.join(", ")} for this run` : "no gateway entries to turn off"],
+      notes: [
+        names.length
+          ? `turned off the gateway entries ${names.join(", ")} for this run`
+          : "no gateway entries to turn off",
+      ],
     };
   },
 };

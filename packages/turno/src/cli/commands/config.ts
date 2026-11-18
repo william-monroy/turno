@@ -3,7 +3,12 @@ import { existsSync } from "node:fs";
 import { parse } from "smol-toml";
 import { loadRegistry } from "../../accounts/registry.js";
 import { editConfig, migrationPending, readConfigText } from "../../core/config-edit.js";
-import { IDLE_UNDER_PRESSURE_PROBLEM, loadConfig, parseIdleUnderPressure, requestBodyProblem } from "../../core/config.js";
+import {
+  IDLE_UNDER_PRESSURE_PROBLEM,
+  loadConfig,
+  parseIdleUnderPressure,
+  requestBodyProblem,
+} from "../../core/config.js";
 import { type AgentId, DEFAULT_AGENT, adapter, isAgentId } from "../../agents/index.js";
 import { agentOf, configProblems, listProfiles } from "../../core/profiles.js";
 import { Journal } from "../../core/journal.js";
@@ -46,7 +51,10 @@ const KEYS: Record<string, string> = {
 
 /** Split a dotted key into its table and key. */
 export function splitKey(key: string): { table: string | undefined; key: string } {
-  const pattern = (k: string) => new RegExp(`^${k.replace(/\./g, "\\.").replace("<name>", "[a-z0-9][a-z0-9_-]*").replace("<agent>", "(codex|copilot|cursor)")}$`);
+  const pattern = (k: string) =>
+    new RegExp(
+      `^${k.replace(/\./g, "\\.").replace("<name>", "[a-z0-9][a-z0-9_-]*").replace("<agent>", "(codex|copilot|cursor)")}$`,
+    );
   const allowed = Object.keys(KEYS).some((k) => pattern(k).test(key));
   if (!allowed) fail(`unknown key '${key}' (turno config --help lists them)`);
   const i = key.lastIndexOf(".");
@@ -70,28 +78,51 @@ export function parseValue(raw: string): TomlValue {
 }
 
 function lookup(doc: Record<string, unknown>, key: string): unknown {
-  return key.split(".").reduce<unknown>((v, k) => (v && typeof v === "object" ? (v as Record<string, unknown>)[k] : undefined), doc);
+  return key
+    .split(".")
+    .reduce<unknown>((v, k) => (v && typeof v === "object" ? (v as Record<string, unknown>)[k] : undefined), doc);
 }
 
 async function path(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, PATH_FLAGS, 0);
   const env = io.env;
   const pp = paths(env);
-  const files = { config: pp.configFile, mcp: pp.mcpFile, accounts: pp.accountsFile, state: pp.state, backups: pp.backupsDir };
+  const files = {
+    config: pp.configFile,
+    mcp: pp.mcpFile,
+    accounts: pp.accountsFile,
+    state: pp.state,
+    backups: pp.backupsDir,
+  };
   const all = bool(p, "all") ? (await import("../diagnostics.js")).allPaths(env) : undefined;
   if (bool(p, "json")) {
     emit(io, p, PATH_JSON, {
-      ...Object.fromEntries(Object.entries(files).map(([k, v]) => [k, { path: tildify(v, env), exists: existsSync(v) }])),
-      ...(all ? { all: all.map((e) => ({ name: e.name, path: tildify(e.path, env), exists: existsSync(e.path), about: e.about })) } : {}),
+      ...Object.fromEntries(
+        Object.entries(files).map(([k, v]) => [k, { path: tildify(v, env), exists: existsSync(v) }]),
+      ),
+      ...(all
+        ? {
+            all: all.map((e) => ({
+              name: e.name,
+              path: tildify(e.path, env),
+              exists: existsSync(e.path),
+              about: e.about,
+            })),
+          }
+        : {}),
     });
     return 0;
   }
   if (all) {
     const w = Math.max(...all.map((e) => e.name.length));
-    for (const e of all) io.out(`${e.name.padEnd(w)}  ${tildify(e.path, env)}${existsSync(e.path) ? "" : paint(io, "  (not there yet)", "2")}  ${paint(io, e.about, "2")}`);
+    for (const e of all)
+      io.out(
+        `${e.name.padEnd(w)}  ${tildify(e.path, env)}${existsSync(e.path) ? "" : paint(io, "  (not there yet)", "2")}  ${paint(io, e.about, "2")}`,
+      );
     return 0;
   }
-  for (const [k, v] of Object.entries(files)) io.out(`${k.padEnd(9)} ${tildify(v, env)}${existsSync(v) ? "" : paint(io, "  (not there yet)", "2")}`);
+  for (const [k, v] of Object.entries(files))
+    io.out(`${k.padEnd(9)} ${tildify(v, env)}${existsSync(v) ? "" : paint(io, "  (not there yet)", "2")}`);
   return 0;
 }
 
@@ -152,7 +183,8 @@ export function checkValue(key: string, raw: string, env: NodeJS.ProcessEnv): To
       if (typeof value !== "boolean") fail(`${key} must be true or false`);
       return value;
     case "mcpd.port":
-      if (typeof value !== "number" || value < 1024 || value > 65535) fail("mcpd.port must be an integer between 1024 and 65535");
+      if (typeof value !== "number" || value < 1024 || value > 65535)
+        fail("mcpd.port must be an integer between 1024 and 65535");
       return value;
     case "mcpd.max_request_body": {
       const problem = requestBodyProblem(value);
@@ -184,7 +216,8 @@ async function set(args: string[], io: Io): Promise<number> {
   const { changed } = editConfig(io.env, journal, (t) => setValue(t, k.table, k.key, value));
   const line = `${key} = ${JSON.stringify(value)}`;
   io.out(`${colors(io) ? highlightToml(line) : line}${changed ? "" : " (unchanged)"}${dry ? " (dry run)" : ""}`);
-  if (/(^|\.)fallback$/.test(key)) io.out('fallback is opt-in: read "Vendor terms" in the README before relying on it.');
+  if (/(^|\.)fallback$/.test(key))
+    io.out('fallback is opt-in: read "Vendor terms" in the README before relying on it.');
   if (journal.hint()) io.out(journal.hint()!);
   return 0;
 }
@@ -253,9 +286,27 @@ export const command = group(
         "--all adds the logs, tokens, caches, service file, launchers, each agent's\nfolder and each profile's folder and launcher, with what turno keeps there.\nThe paths only, never what is in them.",
       run: path,
     },
-    get: { summary: "print a value (the whole file as JSON without a key)", synopsis: "[key] [--json]", args: ["key"], flags: ["--json"], run: get },
-    set: { summary: "set a value, checked like profile add checks it", synopsis: "<key> <value> [--dry-run]", args: ["key", "any"], flags: flagsOf(SET_SPEC), run: set },
-    unset: { summary: "remove a value", synopsis: "<key> [--dry-run]", args: ["key"], flags: ["--dry-run"], run: unset },
+    get: {
+      summary: "print a value (the whole file as JSON without a key)",
+      synopsis: "[key] [--json]",
+      args: ["key"],
+      flags: ["--json"],
+      run: get,
+    },
+    set: {
+      summary: "set a value, checked like profile add checks it",
+      synopsis: "<key> <value> [--dry-run]",
+      args: ["key", "any"],
+      flags: flagsOf(SET_SPEC),
+      run: set,
+    },
+    unset: {
+      summary: "remove a value",
+      synopsis: "<key> [--dry-run]",
+      args: ["key"],
+      flags: ["--dry-run"],
+      run: unset,
+    },
     edit: { summary: "open config.toml in $VISUAL or $EDITOR, then check it", run: edit },
     check: { summary: "parse config.toml, mcp.toml and accounts.toml", run: check },
   },

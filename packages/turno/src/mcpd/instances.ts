@@ -131,7 +131,10 @@ function memo<K, V>(ttlMs: number, compute: (key: K) => Promise<V>): (key: K, no
 /** Git top level of a folder (worktree-specific), else the folder itself. Async, cached for 10 s. */
 export const projectRoot: (cwd: string, now?: number) => Promise<string> = memo(10_000, async (cwd: string) => {
   try {
-    const { stdout } = await run("git", ["-C", cwd, "rev-parse", "--show-toplevel"], { encoding: "utf8", timeout: 3000 });
+    const { stdout } = await run("git", ["-C", cwd, "rev-parse", "--show-toplevel"], {
+      encoding: "utf8",
+      timeout: 3000,
+    });
     return stdout.trim() || cwd;
   } catch {
     try {
@@ -143,22 +146,28 @@ export const projectRoot: (cwd: string, now?: number) => Promise<string> = memo(
 });
 
 /** Current folder of a process: /proc on Linux, lsof elsewhere. Cached per PID for a minute. */
-export const processCwd: (pid: number, now?: number) => Promise<string | undefined> = memo(60_000, async (pid: number) => {
-  if (existsSync("/proc/self/cwd")) {
+export const processCwd: (pid: number, now?: number) => Promise<string | undefined> = memo(
+  60_000,
+  async (pid: number) => {
+    if (existsSync("/proc/self/cwd")) {
+      try {
+        return readlinkSync(`/proc/${pid}/cwd`);
+      } catch {
+        return undefined;
+      }
+    }
     try {
-      return readlinkSync(`/proc/${pid}/cwd`);
+      const { stdout } = await run("lsof", ["-a", "-p", String(pid), "-d", "cwd", "-Fn"], {
+        encoding: "utf8",
+        timeout: 3000,
+      });
+      const line = stdout.split("\n").find((l) => l.startsWith("n"));
+      return line ? line.slice(1) : undefined;
     } catch {
       return undefined;
     }
-  }
-  try {
-    const { stdout } = await run("lsof", ["-a", "-p", String(pid), "-d", "cwd", "-Fn"], { encoding: "utf8", timeout: 3000 });
-    const line = stdout.split("\n").find((l) => l.startsWith("n"));
-    return line ? line.slice(1) : undefined;
-  } catch {
-    return undefined;
-  }
-});
+  },
+);
 
 /** Stdio servers and OAuth remotes have variants per profile; other remotes have only "default". */
 function variantOf(server: ServerDef, profile: string | undefined): string {
@@ -174,7 +183,14 @@ export function scopeOf(server: ServerDef): Scope {
 export function descriptionFingerprint(server: ServerDef, variant: string): string {
   if (server.kind === "remote") return fingerprint({ url: server.url, headers: Object.keys(server.headers) });
   const launch = effectiveLaunch(server, variant);
-  return fingerprint({ c: launch.command, a: launch.args, e: launch.env, v: variant, p: server.package ?? null, b: server.builtin ?? null });
+  return fingerprint({
+    c: launch.command,
+    a: launch.args,
+    e: launch.env,
+    v: variant,
+    p: server.package ?? null,
+    b: server.builtin ?? null,
+  });
 }
 
 /**
@@ -185,7 +201,9 @@ export function descriptionFingerprint(server: ServerDef, variant: string): stri
 export function definitionFingerprint(server: ServerDef): string {
   const { tools: _tools, ...rest } = server;
   const variants =
-    rest.kind === "stdio" ? Object.fromEntries(Object.entries(rest.variants).map(([k, v]) => [k, { ...v, tools: null }])) : undefined;
+    rest.kind === "stdio"
+      ? Object.fromEntries(Object.entries(rest.variants).map(([k, v]) => [k, { ...v, tools: null }]))
+      : undefined;
   return fingerprint({ ...rest, profiles: null, ...(variants ? { variants } : {}) });
 }
 
@@ -266,12 +284,24 @@ export class InstanceManager {
   serverOf(ctx: ClientContext): ServerDef {
     const def = this.manifest?.().servers[ctx.serverName];
     if (!def || (def.kind === "remote" && !def.proxy)) {
-      throw new ServerGoneError(`${ctx.serverName} is no longer served by mcpd (removed from mcp.toml); restart the session to drop it`);
+      throw new ServerGoneError(
+        `${ctx.serverName} is no longer served by mcpd (removed from mcp.toml); restart the session to drop it`,
+      );
     }
     return def;
   }
 
-  keyOf(ctx: ClientContext): { key: string; descKey: string; variant: string; workdir: string; workdirKnown: boolean; pid?: number; server: ServerDef; scope: Scope; defFp: string } {
+  keyOf(ctx: ClientContext): {
+    key: string;
+    descKey: string;
+    variant: string;
+    workdir: string;
+    workdirKnown: boolean;
+    pid?: number;
+    server: ServerDef;
+    scope: Scope;
+    defFp: string;
+  } {
     const s = this.serverOf(ctx);
     const variant = variantOf(s, ctx.profile);
     const descKey = `${s.name}@${variant}`;
@@ -282,7 +312,12 @@ export class InstanceManager {
     if (scope === "shared") return { ...base, key: head, workdir: this.opts.home, workdirKnown: false };
     if (scope === "project") {
       const root = ctx.projectRoot ?? ctx.cwd;
-      return { ...base, key: `${head}|root:${root ?? this.opts.home}`, workdir: root ?? this.opts.home, workdirKnown: root !== undefined };
+      return {
+        ...base,
+        key: `${head}|root:${root ?? this.opts.home}`,
+        workdir: root ?? this.opts.home,
+        workdirKnown: root !== undefined,
+      };
     }
     const workdir = ctx.cwd ?? this.opts.home;
     const workdirKnown = ctx.cwd !== undefined;
@@ -424,11 +459,16 @@ export class InstanceManager {
     };
     if (caps.tools) d.tools = await inst.upstream.listAll("tools/list", "tools");
     if (caps.prompts) d.prompts = await inst.upstream.listAll("prompts/list", "prompts");
-    if (caps.resources) d.resourceTemplates = await inst.upstream.listAll("resources/templates/list", "resourceTemplates").catch(() => []);
+    if (caps.resources)
+      d.resourceTemplates = await inst.upstream
+        .listAll("resources/templates/list", "resourceTemplates")
+        .catch(() => []);
     const prev = this.opts.cache.peek(inst.descKey);
     this.opts.cache.set(inst.descKey, d);
     if (prev) {
-      const changed = LIST_NOTIFICATIONS.filter(([k, m]) => !quiet.includes(m) && JSON.stringify(prev[k] ?? null) !== JSON.stringify(d[k] ?? null));
+      const changed = LIST_NOTIFICATIONS.filter(
+        ([k, m]) => !quiet.includes(m) && JSON.stringify(prev[k] ?? null) !== JSON.stringify(d[k] ?? null),
+      );
       if (changed.length) {
         this.opts.log?.(`${inst.upstream.label}: ${changed.map(([k]) => k).join(", ")} changed; notifying clients`);
         for (const c of this.clientsOf(inst.descKey)) for (const [, m] of changed) c.notify(m, undefined);
@@ -509,7 +549,10 @@ export class InstanceManager {
       const base = this.opts.breakerBaseMs ?? 5000;
       const until = failures >= threshold ? this.now() + Math.min(base * 2 ** (failures - threshold), 5 * 60_000) : 0;
       this.breakers.set(bkey, { failures, until, lastError: message });
-      if (failures >= threshold) this.opts.log?.(`${k.server.name}: ${failures} failed starts in a row; next try in ${Math.round((until - this.now()) / 1000)}s`);
+      if (failures >= threshold)
+        this.opts.log?.(
+          `${k.server.name}: ${failures} failed starts in a row; next try in ${Math.round((until - this.now()) / 1000)}s`,
+        );
       throw err;
     }
   }
@@ -592,11 +635,15 @@ export class InstanceManager {
       const targets = new Set<ClientHandle>(inst.clients);
       for (const c of this.clientsOf(inst.descKey)) if (c.listening) targets.add(c);
       for (const c of targets) c.notify(method, params);
-      this.relist(inst, [method]).catch((err) => this.opts.log?.(`refresh ${inst.upstream.label} failed: ${(err as Error).message}`));
+      this.relist(inst, [method]).catch((err) =>
+        this.opts.log?.(`refresh ${inst.upstream.label} failed: ${(err as Error).message}`),
+      );
       return;
     }
     if (method.endsWith("/list_changed")) {
-      this.relist(inst).catch((err) => this.opts.log?.(`refresh ${inst.upstream.label} failed: ${(err as Error).message}`));
+      this.relist(inst).catch((err) =>
+        this.opts.log?.(`refresh ${inst.upstream.label} failed: ${(err as Error).message}`),
+      );
       return;
     }
     for (const c of inst.clients) c.notify(method, params);
@@ -632,12 +679,22 @@ export class InstanceManager {
    * read (null while the feature is off or before the first read), the configured limit, and
    * the idle cap that applies now (null when servers keep their own limits).
    */
-  memoryPressure(): { level: PressureLevel | null; checkedAt: number | null; idleUnderPressure: number; idleCap: number | null } {
+  memoryPressure(): {
+    level: PressureLevel | null;
+    checkedAt: number | null;
+    idleUnderPressure: number;
+    idleCap: number | null;
+  } {
     const under = this.opts.idleUnderPressure ?? 0;
     const watched = this.opts.pressure !== undefined && under > 0 && this.pressureCheckedAt !== undefined;
     const level = watched ? this.pressureLevel : null;
     const cap = level ? effectiveIdle(Number.POSITIVE_INFINITY, level, under) : Number.POSITIVE_INFINITY;
-    return { level, checkedAt: watched ? (this.pressureCheckedAt ?? null) : null, idleUnderPressure: under, idleCap: Number.isFinite(cap) ? cap : null };
+    return {
+      level,
+      checkedAt: watched ? (this.pressureCheckedAt ?? null) : null,
+      idleUnderPressure: under,
+      idleCap: Number.isFinite(cap) ? cap : null,
+    };
   }
 
   /** Read memory pressure; a failing probe counts as normal. Logs when the level changes. */
@@ -692,7 +749,13 @@ export class InstanceManager {
       if (ownerDead || stale || idle) {
         // Only pressure stops a session server whose launcher lives, whatever its own limit.
         const ownLimit = idleFor > inst.server.idle * 1000 && !(inst.scope === "session" && ownerAlive);
-        const why = ownerDead ? "owner exited" : stale ? "definition changed" : ownLimit ? "idle" : "idle (memory pressure)";
+        const why = ownerDead
+          ? "owner exited"
+          : stale
+            ? "definition changed"
+            : ownLimit
+              ? "idle"
+              : "idle (memory pressure)";
         this.instances.delete(inst.key);
         // That key never comes back (dead PID, old definition): forget its start count.
         if (ownerDead || stale) this.starts.delete(inst.key);
@@ -764,4 +827,3 @@ export function resolveCommand(
   }
   return { command, args };
 }
-

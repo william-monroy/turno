@@ -70,7 +70,9 @@ describe("MCP stores", () => {
   it("syncs a TOML store and a JSON store through one entry point", () => {
     const toml = sb.write(".x/config.toml", 'model = "m"\n');
     expect(syncServers(toml, TOML_MCP_SERVERS, { a: { url: "http://127.0.0.1:1/mcp/a" } }, []).added).toEqual(["a"]);
-    expect((parse(readFileSync(toml, "utf8")) as { mcp_servers: Record<string, unknown> }).mcp_servers.a).toEqual({ url: "http://127.0.0.1:1/mcp/a" });
+    expect((parse(readFileSync(toml, "utf8")) as { mcp_servers: Record<string, unknown> }).mcp_servers.a).toEqual({
+      url: "http://127.0.0.1:1/mcp/a",
+    });
     expect(syncServers(toml, TOML_MCP_SERVERS, {}, ["a"]).removed).toEqual(["a"]);
     expect(parse(readFileSync(toml, "utf8"))).toEqual({ model: "m" });
 
@@ -83,10 +85,18 @@ describe("MCP stores", () => {
     sb.write(".claude.json", JSON.stringify({ mcpServers: { a: { command: "claude-a" } } }));
     sb.write(".codex/config.toml", '[mcp_servers.b]\ncommand = "codex-b"\nargs = []\n');
     sb.write(".cursor/mcp.json", JSON.stringify({ mcpServers: { c: { command: "cursor-c" } } }));
-    sb.write(".copilot/mcp-config.json", JSON.stringify({ mcpServers: { c: { command: "copilot-c" }, d: { command: "copilot-d" } } }));
+    sb.write(
+      ".copilot/mcp-config.json",
+      JSON.stringify({ mcpServers: { c: { command: "copilot-c" }, d: { command: "copilot-d" } } }),
+    );
     const { sources: found, problems } = collectSources(sb.env, sb.home);
     expect(problems).toEqual([]);
-    expect(found.map((s) => s.label)).toEqual(["~/.claude.json", "~/.codex/config.toml", "~/.cursor/mcp.json", "~/.copilot/mcp-config.json"]);
+    expect(found.map((s) => s.label)).toEqual([
+      "~/.claude.json",
+      "~/.codex/config.toml",
+      "~/.cursor/mcp.json",
+      "~/.copilot/mcp-config.json",
+    ]);
     const merged = mergeSources(found);
     expect(merged.servers.b).toEqual({ type: "stdio", command: "codex-b", args: [] });
     expect(merged.servers.c).toEqual({ command: "cursor-c" });

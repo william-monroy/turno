@@ -25,7 +25,10 @@ async function compute(cwd: string): Promise<string[]> {
   const own = await realpath(cwd).catch(() => cwd);
   const out = [own];
   try {
-    const { stdout } = await run("git", ["-C", cwd, "rev-parse", "--path-format=absolute", "--git-common-dir"], { encoding: "utf8", timeout: 3000 });
+    const { stdout } = await run("git", ["-C", cwd, "rev-parse", "--path-format=absolute", "--git-common-dir"], {
+      encoding: "utf8",
+      timeout: 3000,
+    });
     const common = stdout.trim();
     if (common.endsWith("/.git")) {
       const main = await realpath(common.slice(0, -5)).catch(() => common.slice(0, -5));

@@ -17,7 +17,13 @@ import { isStringArray, readState, recordOf, requireState } from "../core/state-
  * profile's token (ADR 0023) in the entry; the others read it, and the session PID, from the
  * launcher's environment.
  */
-export function gatewayEntryFor(agent: AgentId, name: string, port: number, token: string, profile: string): Record<string, unknown> {
+export function gatewayEntryFor(
+  agent: AgentId,
+  name: string,
+  port: number,
+  token: string,
+  profile: string,
+): Record<string, unknown> {
   return adapter(agent).mcp.gatewayEntry(name, port, token, profile);
 }
 
@@ -139,7 +145,8 @@ export function syncJsonServers(
   if (!isObject(current)) throw new CliError(`${configFile}: ${key} is not a JSON object; fix it by hand`);
   const servers = { ...current };
   const res = plan(servers, wanted, previouslyManaged, opts);
-  if (res.changed && !opts.dryRun) atomicWrite(configFile, `${JSON.stringify({ ...cfg, [key]: servers }, null, 2)}\n`, 0o600);
+  if (res.changed && !opts.dryRun)
+    atomicWrite(configFile, `${JSON.stringify({ ...cfg, [key]: servers }, null, 2)}\n`, 0o600);
   return res;
 }
 
@@ -177,7 +184,9 @@ function tomlValue(v: unknown): string {
   if (typeof v === "number" || typeof v === "boolean") return String(v);
   if (Array.isArray(v)) return `[${v.map(tomlValue).join(", ")}]`;
   if (v && typeof v === "object") {
-    return `{ ${Object.entries(v as Record<string, unknown>).map(([k, x]) => `${tomlKey(k)} = ${tomlValue(x)}`).join(", ")} }`;
+    return `{ ${Object.entries(v as Record<string, unknown>)
+      .map(([k, x]) => `${tomlKey(k)} = ${tomlValue(x)}`)
+      .join(", ")} }`;
   }
   throw new Error(`cannot write ${String(v)} as TOML`);
 }
@@ -186,7 +195,9 @@ const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** Line ranges of every `[<key>.<name>]` table (and its sub-tables) in a TOML text. */
 function serverTables(lines: string[], key: string): Map<string, [number, number]> {
-  const header = new RegExp(`^\\s*\\[\\s*${escapeRegExp(key)}\\.("(?:[^"\\\\]|\\\\.)*"|[A-Za-z0-9_-]+)(\\.[^\\]]*)?\\s*\\]\\s*(#.*)?$`);
+  const header = new RegExp(
+    `^\\s*\\[\\s*${escapeRegExp(key)}\\.("(?:[^"\\\\]|\\\\.)*"|[A-Za-z0-9_-]+)(\\.[^\\]]*)?\\s*\\]\\s*(#.*)?$`,
+  );
   const anyHeader = /^\s*\[/;
   const out = new Map<string, [number, number]>();
   for (let i = 0; i < lines.length; i++) {
@@ -220,7 +231,10 @@ function syncTomlServers(
   const lines = text === "" ? [] : text.replace(/\n$/, "").split("\n");
   // Drop the tables that go or change, from the bottom up so ranges stay valid.
   const drop = [...res.removed, ...res.updated];
-  const ranges = [...serverTables(lines, key).entries()].filter(([n]) => drop.includes(n)).map(([, r]) => r).sort((a, b) => b[0] - a[0]);
+  const ranges = [...serverTables(lines, key).entries()]
+    .filter(([n]) => drop.includes(n))
+    .map(([, r]) => r)
+    .sort((a, b) => b[0] - a[0]);
   for (const [start, end] of ranges) lines.splice(start, end - start);
   for (const name of [...res.updated, ...res.added]) {
     while (lines.length && lines[lines.length - 1]!.trim() === "") lines.pop();

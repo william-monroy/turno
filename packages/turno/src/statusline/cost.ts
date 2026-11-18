@@ -1,4 +1,15 @@
-import { existsSync, mkdirSync, openSync, readSync, readdirSync, renameSync, rmSync, statSync, writeFileSync, closeSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  openSync,
+  readSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+  closeSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { PRIVATE_DIR_MODE, PRIVATE_FILE_MODE } from "../core/paths.js";
 import { readJsonFile, realOr } from "../core/fsutil.js";
@@ -80,7 +91,9 @@ const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v)
 
 /** Tokens a usage record bills: zero for Claude Code's synthetic messages. */
 function usageTokens(u: Usage): number {
-  return num(u.input_tokens) + num(u.output_tokens) + num(u.cache_creation_input_tokens) + num(u.cache_read_input_tokens);
+  return (
+    num(u.input_tokens) + num(u.output_tokens) + num(u.cache_creation_input_tokens) + num(u.cache_read_input_tokens)
+  );
 }
 
 /**
@@ -92,13 +105,20 @@ export function usageCost(model: string | undefined, u: Usage): number | undefin
   let p = priceFor(model);
   if (!p) return undefined;
   const long = LONG_PROMPT[normalizeModel(model!)];
-  if (long && num(u.input_tokens) + num(u.cache_creation_input_tokens) + num(u.cache_read_input_tokens) > long.over) p = long.price;
+  if (long && num(u.input_tokens) + num(u.cache_creation_input_tokens) + num(u.cache_read_input_tokens) > long.over)
+    p = long.price;
   const w1h = num(u.cache_creation?.ephemeral_1h_input_tokens);
   const w5m =
     u.cache_creation?.ephemeral_5m_input_tokens !== undefined
       ? num(u.cache_creation.ephemeral_5m_input_tokens)
       : Math.max(0, num(u.cache_creation_input_tokens) - w1h);
-  const usd = (num(u.input_tokens) * p[0] + num(u.output_tokens) * p[1] + w5m * p[2] + w1h * p[3] + num(u.cache_read_input_tokens) * p[4]) / 1e6;
+  const usd =
+    (num(u.input_tokens) * p[0] +
+      num(u.output_tokens) * p[1] +
+      w5m * p[2] +
+      w1h * p[3] +
+      num(u.cache_read_input_tokens) * p[4]) /
+    1e6;
   return usd * (u.speed === "fast" ? 2 : 1);
 }
 
@@ -215,7 +235,15 @@ export function computeCost(transcript: string, out: string, now = Date.now() / 
   const mainUsd = files[main]?.usd ?? 0;
   const total = Object.values(files).reduce((a, f) => a + f.usd, 0);
   const unknown = [...new Set(Object.values(files).flatMap((f) => f.unknown ?? []))];
-  const state: CostState = { v: STATE_VERSION, files, main: mainUsd, sub: total - mainUsd, total, unknown, updated_at: now };
+  const state: CostState = {
+    v: STATE_VERSION,
+    files,
+    main: mainUsd,
+    sub: total - mainUsd,
+    total,
+    unknown,
+    updated_at: now,
+  };
   try {
     writeJson(out, state);
   } finally {

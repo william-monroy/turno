@@ -23,12 +23,16 @@ export async function limitsData(env: NodeJS.ProcessEnv, withAccounts = true) {
   const config = loadConfig(env);
   const profiles = listProfiles(config, env);
   // Usage windows and accounts come from Claude Code; other agents show only exhausted marks.
-  const accounts = withAccounts ? await Promise.all(profiles.map((p) => (adapter(agentOf(p, config)).accountDetails ? account(p, env) : undefined))) : [];
+  const accounts = withAccounts
+    ? await Promise.all(profiles.map((p) => (adapter(agentOf(p, config)).accountDetails ? account(p, env) : undefined)))
+    : [];
   return profiles.map((p, i) => {
     const snap = usageSnapshot(p, env);
     const limits = snap.rate_limits ?? {};
     const win = (w?: { used_percentage?: number; resets_at?: number }) =>
-      w ? { used: Number(w.used_percentage) || 0, resetsAt: typeof w.resets_at === "number" ? w.resets_at : null } : null;
+      w
+        ? { used: Number(w.used_percentage) || 0, resetsAt: typeof w.resets_at === "number" ? w.resets_at : null }
+        : null;
     return {
       profile: p,
       agent: agentOf(p, config),
@@ -72,7 +76,12 @@ async function show(args: string[], io: Io): Promise<number> {
  * `--watch --json`: every profile as one JSON line (NDJSON) now and every 30 s, until Ctrl-C or
  * `signal`. A reader tells the rounds apart by `updatedAt` or by the profile coming back.
  */
-export async function watchJson(io: Io, p: Parameters<typeof emit>[1], signal?: AbortSignal, everyMs = WATCH_EVERY_MS): Promise<number> {
+export async function watchJson(
+  io: Io,
+  p: Parameters<typeof emit>[1],
+  signal?: AbortSignal,
+  everyMs = WATCH_EVERY_MS,
+): Promise<number> {
   const stop = signal ?? interrupted();
   while (!stop.aborted) {
     emitLines(io, p, SHOW_JSON, await limitsData(io.env));
@@ -101,7 +110,12 @@ function interrupted(): AbortSignal {
 async function profileArg(given: string | undefined, io: Io, verb: "set" | "clear"): Promise<string> {
   const name =
     given ??
-    (await (await import("../picker.js")).pickProfile(io, { command: `limit ${verb}`, title: verb === "set" ? "Profile to mark exhausted" : "Profile to clear" }));
+    (await (
+      await import("../picker.js")
+    ).pickProfile(io, {
+      command: `limit ${verb}`,
+      title: verb === "set" ? "Profile to mark exhausted" : "Profile to clear",
+    }));
   if (!launcherPath(name, io.env)) fail(`no profile '${name}' (turno profile list shows them)`);
   return name;
 }
@@ -127,7 +141,9 @@ async function set(args: string[], io: Io): Promise<number> {
     until = Math.floor(Date.now() / 1000) + d;
   }
   if (!bool(p, "dry-run")) markExhausted(name, until, io.env);
-  io.out(`${name} exhausted until ${formatUntil(until)}; its projects open with the fallback, if one is set${bool(p, "dry-run") ? " (dry run)" : ""}`);
+  io.out(
+    `${name} exhausted until ${formatUntil(until)}; its projects open with the fallback, if one is set${bool(p, "dry-run") ? " (dry run)" : ""}`,
+  );
   return 0;
 }
 
@@ -143,7 +159,13 @@ export const command = group(
   "limit",
   "usage limits of each account, and the exhausted marks that move projects to the fallback",
   {
-    show: { summary: "5 h and weekly usage of each account, as bars", synopsis: "[--watch] [--json]", flags: flagsOf(SHOW_SPEC), json: SHOW_JSON, run: show },
+    show: {
+      summary: "5 h and weekly usage of each account, as bars",
+      synopsis: "[--watch] [--json]",
+      flags: flagsOf(SHOW_SPEC),
+      json: SHOW_JSON,
+      run: show,
+    },
     set: {
       summary: "mark a profile exhausted (default for 5 h); its projects open with the fallback, if one is set",
       synopsis: '<profile> [--until "YYYY-MM-DD HH:MM" | --for 2h] [--dry-run]',
@@ -151,7 +173,13 @@ export const command = group(
       flags: flagsOf(SET_SPEC),
       run: set,
     },
-    clear: { summary: "clear a profile's exhausted mark", synopsis: "<profile> [--dry-run]", args: ["profile"], flags: flagsOf(DRY_RUN), run: clear },
+    clear: {
+      summary: "clear a profile's exhausted mark",
+      synopsis: "<profile> [--dry-run]",
+      args: ["profile"],
+      flags: flagsOf(DRY_RUN),
+      run: clear,
+    },
   },
   {
     fallback: "show",

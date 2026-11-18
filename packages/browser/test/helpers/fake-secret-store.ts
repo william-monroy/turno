@@ -89,7 +89,10 @@ export function fakeSecretStore(sb: Sandbox): FakeSecretStore {
     dir,
     read: (s) => (existsSync(file(s)) ? readFileSync(file(s), "utf8") : undefined),
     write: (s, v) => writeFileSync(file(s), v),
-    services: () => readdirSync(dir).filter((f) => !f.startsWith(".")).map(decodeURIComponent),
+    services: () =>
+      readdirSync(dir)
+        .filter((f) => !f.startsWith("."))
+        .map(decodeURIComponent),
     failWrites(on) {
       const flagFile = join(dir, ".fail-writes");
       if (on) writeFileSync(flagFile, "");

@@ -85,7 +85,9 @@ describe("Keychain store (macOS)", () => {
     expect(await store.has("other")).toBe(false);
     expect(await store.remove("other")).toBe(false);
     expect(await store.remove("known")).toBe(true);
-    await expect(keychainResolver(sb.env, "darwin")("keychain:other")).rejects.toThrow(/no Keychain item "other" \(turno secret set other\)/);
+    await expect(keychainResolver(sb.env, "darwin")("keychain:other")).rejects.toThrow(
+      /no Keychain item "other" \(turno secret set other\)/,
+    );
     expect(await keychainResolver(sb.env, "darwin")("keychain:known")).toBe("hunter2");
   });
 });
@@ -127,7 +129,10 @@ describe("no secret store", () => {
 
   it("secret commands fail with a usage error, never a stack trace", async () => {
     const env = bare();
-    await expect(secret.run(["has", "x"], fakeIo(env))).rejects.toMatchObject({ name: "UsageError", message: NO_SECRET_STORE });
+    await expect(secret.run(["has", "x"], fakeIo(env))).rejects.toMatchObject({
+      name: "UsageError",
+      message: NO_SECRET_STORE,
+    });
     await expect(secret.run(["rm", "x"], fakeIo(env))).rejects.toMatchObject({ name: "UsageError" });
   });
 });
@@ -144,7 +149,10 @@ describe("turno secret", () => {
     const io = fakeIo(sb.env);
     expect(await secret.run(["has", "known"], io)).toBe(0);
     expect(await secret.run(["has", "nope"], io)).toBe(1);
-    sb.write(".config/turno/mcp.toml", '[server.a]\ncommand = "x"\nenv = { A = "keychain:known", B = "keychain:nope" }\n');
+    sb.write(
+      ".config/turno/mcp.toml",
+      '[server.a]\ncommand = "x"\nenv = { A = "keychain:known", B = "keychain:nope" }\n',
+    );
     expect(await secret.run(["list"], io)).toBe(1);
     expect(io.lines.join("\n")).toMatch(/stored {3}keychain:known/);
     expect(io.lines.join("\n")).toMatch(/MISSING {2}keychain:nope {2}\(turno secret set nope\)/);

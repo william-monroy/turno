@@ -11,7 +11,11 @@ import {
   registerClient,
   startAuthorization,
 } from "@modelcontextprotocol/sdk/client/auth.js";
-import { InvalidClientError, InvalidGrantError, UnauthorizedClientError } from "@modelcontextprotocol/sdk/server/auth/errors.js";
+import {
+  InvalidClientError,
+  InvalidGrantError,
+  UnauthorizedClientError,
+} from "@modelcontextprotocol/sdk/server/auth/errors.js";
 import {
   type AuthorizationServerMetadata,
   type OAuthClientInformationMixed,
@@ -101,7 +105,9 @@ export function parseRecord(raw: string | undefined): OAuthRecord | undefined {
   if (!raw) return undefined;
   try {
     const r = JSON.parse(raw) as OAuthRecord;
-    return r && r.v === 1 && typeof r.issuer === "string" && r.client && typeof r.client.client_id === "string" ? r : undefined;
+    return r && r.v === 1 && typeof r.issuer === "string" && r.client && typeof r.client.client_id === "string"
+      ? r
+      : undefined;
   } catch {
     return undefined;
   }
@@ -111,7 +117,9 @@ export function parseRecord(raw: string | undefined): OAuthRecord | undefined {
 export class LoginRequiredError extends Error {
   constructor(server: string, variant: string, why: string) {
     const who = variant === "default" ? "" : ` --profile ${variant}`;
-    super(`${server}${variant === "default" ? "" : `@${variant}`} needs a login (${why}): run turno mcp login ${server}${who}`);
+    super(
+      `${server}${variant === "default" ? "" : `@${variant}`} needs a login (${why}): run turno mcp login ${server}${who}`,
+    );
     this.name = "LoginRequiredError";
   }
 }
@@ -187,12 +195,18 @@ function sameIssuer(advertised: string, used: string): boolean {
  * first, then OpenID Connect Discovery). The document's `issuer` must be the one the URL was
  * built from, and it must advertise PKCE with S256; otherwise turno refuses to go on.
  */
-async function authorizationServerMetadata(issuer: string, fetchFn: FetchLike = fetch): Promise<AuthorizationServerMetadata> {
+async function authorizationServerMetadata(
+  issuer: string,
+  fetchFn: FetchLike = fetch,
+): Promise<AuthorizationServerMetadata> {
   requireSecure(issuer, "the authorization server");
   for (const { url, type } of buildDiscoveryUrls(issuer)) {
     let res: Response;
     try {
-      res = await fetchFn(url, { headers: { Accept: "application/json", "MCP-Protocol-Version": LATEST_PROTOCOL_VERSION }, redirect: "error" });
+      res = await fetchFn(url, {
+        headers: { Accept: "application/json", "MCP-Protocol-Version": LATEST_PROTOCOL_VERSION },
+        redirect: "error",
+      });
     } catch (err) {
       throw new OAuthFlowError(`cannot reach the authorization server at ${url.origin}: ${(err as Error).message}`);
     }
@@ -201,17 +215,29 @@ async function authorizationServerMetadata(issuer: string, fetchFn: FetchLike = 
       if (res.status < 500) continue;
       throw new OAuthFlowError(`HTTP ${res.status} from ${url.href}`);
     }
-    const parsed = (type === "oauth" ? OAuthMetadataSchema : OpenIdProviderDiscoveryMetadataSchema).safeParse(await res.json().catch(() => null));
+    const parsed = (type === "oauth" ? OAuthMetadataSchema : OpenIdProviderDiscoveryMetadataSchema).safeParse(
+      await res.json().catch(() => null),
+    );
     if (!parsed.success) throw new OAuthFlowError(`${url.href} is not valid authorization server metadata`);
     const m = parsed.data as AuthorizationServerMetadata;
     if (!sameIssuer(m.issuer, issuer)) {
-      throw new OAuthFlowError(`the metadata at ${url.href} names issuer ${m.issuer}, not ${issuer}; refusing to use it (RFC 8414 section 3.3)`);
+      throw new OAuthFlowError(
+        `the metadata at ${url.href} names issuer ${m.issuer}, not ${issuer}; refusing to use it (RFC 8414 section 3.3)`,
+      );
     }
     if (!m.code_challenge_methods_supported?.includes("S256")) {
-      throw new OAuthFlowError(`the authorization server ${issuer} does not advertise PKCE with S256 (code_challenge_methods_supported); refusing to go on`);
+      throw new OAuthFlowError(
+        `the authorization server ${issuer} does not advertise PKCE with S256 (code_challenge_methods_supported); refusing to go on`,
+      );
     }
-    if (!m.response_types_supported.includes("code")) throw new OAuthFlowError(`the authorization server ${issuer} does not support the authorization code flow`);
-    for (const [k, v] of Object.entries({ authorization_endpoint: m.authorization_endpoint, token_endpoint: m.token_endpoint, registration_endpoint: m.registration_endpoint, revocation_endpoint: revocationEndpoint(m) })) {
+    if (!m.response_types_supported.includes("code"))
+      throw new OAuthFlowError(`the authorization server ${issuer} does not support the authorization code flow`);
+    for (const [k, v] of Object.entries({
+      authorization_endpoint: m.authorization_endpoint,
+      token_endpoint: m.token_endpoint,
+      registration_endpoint: m.registration_endpoint,
+      revocation_endpoint: revocationEndpoint(m),
+    })) {
       if (typeof v === "string") requireSecure(v, k);
     }
     return m;
@@ -220,17 +246,28 @@ async function authorizationServerMetadata(issuer: string, fetchFn: FetchLike = 
 }
 
 /** POST an unauthenticated initialize to learn the 401 challenge (resource_metadata, scope). */
-async function probe(serverUrl: string, fetchFn: FetchLike): Promise<{ status: number; resourceMetadataUrl?: URL; scope?: string }> {
+async function probe(
+  serverUrl: string,
+  fetchFn: FetchLike,
+): Promise<{ status: number; resourceMetadataUrl?: URL; scope?: string }> {
   let res: Response;
   try {
     res = await fetchFn(serverUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream", "MCP-Protocol-Version": LATEST_PROTOCOL_VERSION },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+        "MCP-Protocol-Version": LATEST_PROTOCOL_VERSION,
+      },
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
         method: "initialize",
-        params: { protocolVersion: LATEST_PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: "turno-mcpd", version: packageInfo().version } },
+        params: {
+          protocolVersion: LATEST_PROTOCOL_VERSION,
+          capabilities: {},
+          clientInfo: { name: "turno-mcpd", version: packageInfo().version },
+        },
       }),
       redirect: "error",
     });
@@ -247,7 +284,11 @@ async function probe(serverUrl: string, fetchFn: FetchLike): Promise<{ status: n
  * unauthenticated request and use the resource_metadata URL and scope of its 401; without one
  * (refresh), go straight to the well-known URLs.
  */
-async function discover(server: RemoteServer, fetchFn: FetchLike = fetch, challenge = false): Promise<Discovery & { unprotected?: boolean }> {
+async function discover(
+  server: RemoteServer,
+  fetchFn: FetchLike = fetch,
+  challenge = false,
+): Promise<Discovery & { unprotected?: boolean }> {
   requireSecure(server.url, `${server.name}'s url`);
   let resourceMetadataUrl: URL | undefined;
   let challengeScope: string | undefined;
@@ -259,21 +300,37 @@ async function discover(server: RemoteServer, fetchFn: FetchLike = fetch, challe
   }
   let resourceMetadata: OAuthProtectedResourceMetadata;
   try {
-    resourceMetadata = await discoverOAuthProtectedResourceMetadata(server.url, resourceMetadataUrl ? { resourceMetadataUrl } : {}, fetchFn);
+    resourceMetadata = await discoverOAuthProtectedResourceMetadata(
+      server.url,
+      resourceMetadataUrl ? { resourceMetadataUrl } : {},
+      fetchFn,
+    );
   } catch (err) {
-    throw new OAuthFlowError(`${server.name} does not publish OAuth protected resource metadata (RFC 9728): ${(err as Error).message}`);
+    throw new OAuthFlowError(
+      `${server.name} does not publish OAuth protected resource metadata (RFC 9728): ${(err as Error).message}`,
+    );
   }
   const requested = resourceUrlFromServerUrl(server.url);
   if (!checkResourceAllowed({ requestedResource: requested, configuredResource: resourceMetadata.resource })) {
-    throw new OAuthFlowError(`${server.name}: the protected resource ${resourceMetadata.resource} does not cover ${server.url}`);
+    throw new OAuthFlowError(
+      `${server.name}: the protected resource ${resourceMetadata.resource} does not cover ${server.url}`,
+    );
   }
   const listed = resourceMetadata.authorization_servers ?? [];
-  if (!listed.length) throw new OAuthFlowError(`${server.name}: the protected resource metadata lists no authorization server`);
+  if (!listed.length)
+    throw new OAuthFlowError(`${server.name}: the protected resource metadata lists no authorization server`);
   const wanted = server.oauth?.authorizationServer;
   const issuer = wanted ? listed.find((a) => sameIssuer(a, wanted)) : listed[0];
-  if (!issuer) throw new OAuthFlowError(`${server.name}: authorization_server ${wanted} is not one of ${listed.join(", ")}`);
+  if (!issuer)
+    throw new OAuthFlowError(`${server.name}: authorization_server ${wanted} is not one of ${listed.join(", ")}`);
   const metadata = await authorizationServerMetadata(issuer, fetchFn);
-  return { resourceMetadata, resource: resourceMetadata.resource, issuer, metadata, ...(challengeScope ? { challengeScope } : {}) };
+  return {
+    resourceMetadata,
+    resource: resourceMetadata.resource,
+    issuer,
+    metadata,
+    ...(challengeScope ? { challengeScope } : {}),
+  };
 }
 
 /** Space-separated union, keeping the first order. */
@@ -284,7 +341,12 @@ function unionScopes(...lists: (string | undefined)[]): string | undefined {
 }
 
 /** Scope selection of the spec: configured, else the 401 challenge, else scopes_supported. */
-function selectScope(d: Discovery, settings: OAuthSettings | undefined, extra?: string, previous?: string): string | undefined {
+function selectScope(
+  d: Discovery,
+  settings: OAuthSettings | undefined,
+  extra?: string,
+  previous?: string,
+): string | undefined {
   const base = settings?.scope ?? d.challengeScope ?? d.resourceMetadata.scopes_supported?.join(" ");
   let scope = unionScopes(previous, base, extra);
   // Refresh tokens are not a resource scope; ask for offline_access only when the server lists it.
@@ -298,14 +360,23 @@ function toStored(t: OAuthTokens, now: number): StoredTokens {
     token_type: t.token_type,
     ...(t.refresh_token ? { refresh_token: t.refresh_token } : {}),
     ...(t.scope ? { scope: t.scope } : {}),
-    ...(typeof t.expires_in === "number" && Number.isFinite(t.expires_in) ? { expires_at: now + t.expires_in * 1000 } : {}),
+    ...(typeof t.expires_in === "number" && Number.isFinite(t.expires_in)
+      ? { expires_at: now + t.expires_in * 1000 }
+      : {}),
   };
 }
 
 /** The client information to present: pre-registered ones get their secret from mcp.toml at use time. */
-async function clientFor(rec: OAuthRecord, settings: OAuthSettings | undefined, resolve: SecretResolver): Promise<OAuthClientInformationMixed> {
+async function clientFor(
+  rec: OAuthRecord,
+  settings: OAuthSettings | undefined,
+  resolve: SecretResolver,
+): Promise<OAuthClientInformationMixed> {
   if (rec.registration !== "pre-registered") return rec.client;
-  return { client_id: rec.client.client_id, ...(settings?.clientSecret ? { client_secret: await resolve(settings.clientSecret) } : {}) };
+  return {
+    client_id: rec.client.client_id,
+    ...(settings?.clientSecret ? { client_secret: await resolve(settings.clientSecret) } : {}),
+  };
 }
 
 // login ----------------------------------------------------------------------------------------
@@ -360,7 +431,9 @@ async function callbackServer(port: number): Promise<Callback> {
       return;
     }
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
-    res.end("<!doctype html><title>turno</title><p>turno received the answer. You can close this tab and go back to the terminal.</p>");
+    res.end(
+      "<!doctype html><title>turno</title><p>turno received the answer. You can close this tab and go back to the terminal.</p>",
+    );
     deliver(url.searchParams);
   });
   await new Promise<void>((resolve, reject) => {
@@ -373,7 +446,10 @@ async function callbackServer(port: number): Promise<Callback> {
     redirectUri: `http://127.0.0.1:${actual}${CALLBACK_PATH}`,
     wait: (timeoutMs) =>
       new Promise((resolve, reject) => {
-        const t = setTimeout(() => reject(new OAuthFlowError(`no answer from the browser within ${Math.round(timeoutMs / 1000)}s`)), timeoutMs);
+        const t = setTimeout(
+          () => reject(new OAuthFlowError(`no answer from the browser within ${Math.round(timeoutMs / 1000)}s`)),
+          timeoutMs,
+        );
         void got.then((q) => {
           clearTimeout(t);
           resolve(q);
@@ -406,12 +482,20 @@ function portOf(uris: unknown): number | undefined {
  */
 export function checkIssuerParam(q: URLSearchParams, issuer: string, metadata: AuthorizationServerMetadata): void {
   const iss = q.get("iss");
-  const advertised = (metadata as { authorization_response_iss_parameter_supported?: unknown }).authorization_response_iss_parameter_supported === true;
+  const advertised =
+    (metadata as { authorization_response_iss_parameter_supported?: unknown })
+      .authorization_response_iss_parameter_supported === true;
   if (iss !== null) {
-    if (iss !== issuer) throw new OAuthFlowError(`the authorization response came from issuer ${iss}, not ${issuer}; refusing it (RFC 9207)`);
+    if (iss !== issuer)
+      throw new OAuthFlowError(
+        `the authorization response came from issuer ${iss}, not ${issuer}; refusing it (RFC 9207)`,
+      );
     return;
   }
-  if (advertised) throw new OAuthFlowError(`the authorization response has no iss although ${issuer} advertises it; refusing it (RFC 9207)`);
+  if (advertised)
+    throw new OAuthFlowError(
+      `the authorization response has no iss although ${issuer} advertises it; refusing it (RFC 9207)`,
+    );
 }
 
 /**
@@ -424,7 +508,10 @@ export async function login(o: LoginOptions): Promise<LoginResult> {
   const settings = o.server.oauth;
   const service = oauthService(o.server.name, o.variant);
   const d = await discover(o.server, fetchFn, true);
-  if (d.unprotected) throw new OAuthFlowError(`${o.server.name} answered without asking for authorization; it needs no login (remove auth = "oauth")`);
+  if (d.unprotected)
+    throw new OAuthFlowError(
+      `${o.server.name} answered without asking for authorization; it needs no login (remove auth = "oauth")`,
+    );
   const previous = parseRecord(await o.store.get(service));
   const sameAs = previous && sameIssuer(previous.issuer, d.issuer) ? previous : undefined;
   const scope = selectScope(d, settings, o.scope, o.scope ? sameAs?.scope : undefined);
@@ -432,7 +519,8 @@ export async function login(o: LoginOptions): Promise<LoginResult> {
   // Registration, in the spec's order: pre-registered, metadata document, dynamic.
   let registration: Registration;
   if (settings?.clientId) registration = "pre-registered";
-  else if (d.metadata.client_id_metadata_document_supported === true && settings?.clientMetadataUrl) registration = "metadata-document";
+  else if (d.metadata.client_id_metadata_document_supported === true && settings?.clientMetadataUrl)
+    registration = "metadata-document";
   else if (d.metadata.registration_endpoint) registration = "dynamic";
   else {
     throw new OAuthFlowError(
@@ -442,17 +530,21 @@ export async function login(o: LoginOptions): Promise<LoginResult> {
   if (registration === "metadata-document" && !isHttpsUrl(settings?.clientMetadataUrl)) {
     throw new OAuthFlowError(`client_metadata_url must be an https URL with a path`);
   }
-  if (o.dryRun) return { issuer: d.issuer, registration, ...(scope ? { scope } : {}), refreshToken: false, service, planned: true };
+  if (o.dryRun)
+    return { issuer: d.issuer, registration, ...(scope ? { scope } : {}), refreshToken: false, service, planned: true };
 
   // Reuse the port of an earlier dynamic registration, so its exact redirect URI still matches.
   const reusable = registration === "dynamic" && sameAs?.registration === "dynamic" ? sameAs.client : undefined;
-  const wantedPort = settings?.callbackPort ?? portOf((reusable as { redirect_uris?: unknown } | undefined)?.redirect_uris) ?? 0;
+  const wantedPort =
+    settings?.callbackPort ?? portOf((reusable as { redirect_uris?: unknown } | undefined)?.redirect_uris) ?? 0;
   let cb: Callback;
   try {
     cb = await callbackServer(wantedPort);
   } catch (err) {
     if (settings?.callbackPort || wantedPort === 0) {
-      throw new OAuthFlowError(`cannot listen on 127.0.0.1:${wantedPort} for the browser's answer: ${(err as Error).message}`);
+      throw new OAuthFlowError(
+        `cannot listen on 127.0.0.1:${wantedPort} for the browser's answer: ${(err as Error).message}`,
+      );
     }
     cb = await callbackServer(0);
   }
@@ -466,9 +558,16 @@ export async function login(o: LoginOptions): Promise<LoginResult> {
       client = reusable;
     } else {
       try {
-        client = await registerClient(d.issuer, { metadata: d.metadata, clientMetadata: clientMetadata(cb.redirectUri, scope), ...(scope ? { scope } : {}), fetchFn });
+        client = await registerClient(d.issuer, {
+          metadata: d.metadata,
+          clientMetadata: clientMetadata(cb.redirectUri, scope),
+          ...(scope ? { scope } : {}),
+          fetchFn,
+        });
       } catch (err) {
-        throw new OAuthFlowError(`dynamic client registration at ${d.issuer} failed: ${scrub((err as Error).message, [])}`);
+        throw new OAuthFlowError(
+          `dynamic client registration at ${d.issuer} failed: ${scrub((err as Error).message, [])}`,
+        );
       }
     }
     const presented = await clientFor({ registration, client } as OAuthRecord, settings, o.resolve);
@@ -485,9 +584,13 @@ export async function login(o: LoginOptions): Promise<LoginResult> {
     const q = await cb.wait(o.timeoutMs ?? 5 * 60_000);
     // The issuer check comes first: on a mismatch nothing in the response is acted on or shown.
     checkIssuerParam(q, d.issuer, d.metadata);
-    if (q.get("state") !== state) throw new OAuthFlowError("the authorization response has a different state; refusing it");
+    if (q.get("state") !== state)
+      throw new OAuthFlowError("the authorization response has a different state; refusing it");
     const error = q.get("error");
-    if (error) throw new OAuthFlowError(`the authorization server answered ${error}${q.get("error_description") ? `: ${scrub(q.get("error_description")!, [])}` : ""}`);
+    if (error)
+      throw new OAuthFlowError(
+        `the authorization server answered ${error}${q.get("error_description") ? `: ${scrub(q.get("error_description")!, [])}` : ""}`,
+      );
     const code = q.get("code");
     if (!code) throw new OAuthFlowError("the authorization response has no code");
     let tokens: OAuthTokens;
@@ -502,7 +605,9 @@ export async function login(o: LoginOptions): Promise<LoginResult> {
         fetchFn,
       });
     } catch (err) {
-      throw new OAuthFlowError(`the token request failed: ${scrub((err as Error).message, [code, codeVerifier, presented.client_secret])}`);
+      throw new OAuthFlowError(
+        `the token request failed: ${scrub((err as Error).message, [code, codeVerifier, presented.client_secret])}`,
+      );
     }
     const at = now();
     const rec: OAuthRecord = {
@@ -534,7 +639,12 @@ export async function login(o: LoginOptions): Promise<LoginResult> {
  * Best-effort RFC 7009 revocation of a record's refresh token (else its access token).
  * Returns why it did not revoke, or undefined when the server accepted it.
  */
-export async function revoke(server: RemoteServer, rec: OAuthRecord, resolve: SecretResolver, fetchFn: FetchLike = fetch): Promise<string | undefined> {
+export async function revoke(
+  server: RemoteServer,
+  rec: OAuthRecord,
+  resolve: SecretResolver,
+  fetchFn: FetchLike = fetch,
+): Promise<string | undefined> {
   const token = rec.tokens?.refresh_token ?? rec.tokens?.access_token;
   if (!token) return "no token to revoke";
   try {
@@ -542,10 +652,21 @@ export async function revoke(server: RemoteServer, rec: OAuthRecord, resolve: Se
     const endpoint = revocationEndpoint(metadata);
     if (!endpoint) return "the authorization server has no revocation endpoint";
     const client = await clientFor(rec, server.oauth, resolve);
-    const body = new URLSearchParams({ token, token_type_hint: rec.tokens?.refresh_token ? "refresh_token" : "access_token", client_id: client.client_id });
+    const body = new URLSearchParams({
+      token,
+      token_type_hint: rec.tokens?.refresh_token ? "refresh_token" : "access_token",
+      client_id: client.client_id,
+    });
     const headers: Record<string, string> = { "Content-Type": "application/x-www-form-urlencoded" };
-    if (client.client_secret) headers.Authorization = `Basic ${Buffer.from(`${encodeURIComponent(client.client_id)}:${encodeURIComponent(client.client_secret)}`).toString("base64")}`;
-    const res = await fetchFn(endpoint, { method: "POST", headers, body, redirect: "error", signal: AbortSignal.timeout(10_000) });
+    if (client.client_secret)
+      headers.Authorization = `Basic ${Buffer.from(`${encodeURIComponent(client.client_id)}:${encodeURIComponent(client.client_secret)}`).toString("base64")}`;
+    const res = await fetchFn(endpoint, {
+      method: "POST",
+      headers,
+      body,
+      redirect: "error",
+      signal: AbortSignal.timeout(10_000),
+    });
     await res.body?.cancel().catch(() => {});
     return res.ok ? undefined : `the revocation endpoint answered HTTP ${res.status}`;
   } catch (err) {
@@ -628,7 +749,9 @@ export class OAuthSession {
         /* the store cannot be read: the tokens stay unsaved */
       }
       if (!this.unpersisted) return false;
-      this.opts.log?.(`${this.label}: mcpd stopped before the secret store accepted the rotated OAuth tokens; the next refresh needs a new login`);
+      this.opts.log?.(
+        `${this.label}: mcpd stopped before the secret store accepted the rotated OAuth tokens; the next refresh needs a new login`,
+      );
       return true;
     });
   }
@@ -646,21 +769,27 @@ export class OAuthSession {
 
   private requireStore(): SecretStore {
     const store = this.opts.store();
-    if (!store) throw new LoginRequiredError(this.name, this.variant, "this machine has no secret store to keep the login in");
+    if (!store)
+      throw new LoginRequiredError(this.name, this.variant, "this machine has no secret store to keep the login in");
     return store;
   }
 
   /** The current record: memory while it is fresh, else the store (which wins when someone else changed it). */
   private async load(force = false): Promise<OAuthRecord | undefined> {
     const now = this.now();
-    if (!force && !this.unpersisted && this.rec && now - this.checkedAt < (this.opts.recheckMs ?? RECHECK_MS)) return this.rec;
+    if (!force && !this.unpersisted && this.rec && now - this.checkedAt < (this.opts.recheckMs ?? RECHECK_MS))
+      return this.rec;
     const store = this.requireStore();
     let raw: string | undefined;
     try {
       raw = await store.get(this.service);
     } catch (err) {
       if (this.rec) return this.rec;
-      throw new LoginRequiredError(this.name, this.variant, `cannot read ${this.service} from the ${store.label}: ${(err as Error).message}`);
+      throw new LoginRequiredError(
+        this.name,
+        this.variant,
+        `cannot read ${this.service} from the ${store.label}: ${(err as Error).message}`,
+      );
     }
     this.checkedAt = now;
     const f = fp(raw);
@@ -688,7 +817,8 @@ export class OAuthSession {
     try {
       await this.requireStore().set(this.service, raw);
       this.seen = fp(raw);
-      if (this.unpersisted) this.opts.log?.(`${this.label}: saved the rotated OAuth tokens that were waiting in memory`);
+      if (this.unpersisted)
+        this.opts.log?.(`${this.label}: saved the rotated OAuth tokens that were waiting in memory`);
       this.unpersisted = false;
     } catch (err) {
       if (!this.unpersisted) {
@@ -705,8 +835,17 @@ export class OAuthSession {
   }
 
   private checkBinding(server: RemoteServer, rec: OAuthRecord): void {
-    if (!checkResourceAllowed({ requestedResource: resourceUrlFromServerUrl(server.url), configuredResource: rec.resource })) {
-      throw new LoginRequiredError(this.name, this.variant, `the login is for ${rec.resource}, and mcp.toml now says ${server.url}`);
+    if (
+      !checkResourceAllowed({
+        requestedResource: resourceUrlFromServerUrl(server.url),
+        configuredResource: rec.resource,
+      })
+    ) {
+      throw new LoginRequiredError(
+        this.name,
+        this.variant,
+        `the login is for ${rec.resource}, and mcp.toml now says ${server.url}`,
+      );
     }
     const id = server.oauth?.clientId;
     if (rec.registration === "pre-registered" ? id !== rec.client.client_id : id !== undefined) {
@@ -722,7 +861,12 @@ export class OAuthSession {
       if (!rec?.tokens) rec = await this.load(true);
       if (!rec) throw new LoginRequiredError(this.name, this.variant, "not logged in");
       this.checkBinding(server, rec);
-      if (!rec.tokens) throw new LoginRequiredError(this.name, this.variant, "the authorization server rejected the last refresh token");
+      if (!rec.tokens)
+        throw new LoginRequiredError(
+          this.name,
+          this.variant,
+          "the authorization server rejected the last refresh token",
+        );
       if (this.usable(rec.tokens)) return rec.tokens.access_token;
       return (await this.refresh(server, rec)).access_token;
     });
@@ -732,7 +876,12 @@ export class OAuthSession {
   afterUnauthorized(server: RemoteServer, stale: string): Promise<string> {
     return this.serial(async () => {
       const rec = await this.load(true);
-      if (!rec?.tokens) throw new LoginRequiredError(this.name, this.variant, rec ? "the authorization server rejected the last refresh token" : "not logged in");
+      if (!rec?.tokens)
+        throw new LoginRequiredError(
+          this.name,
+          this.variant,
+          rec ? "the authorization server rejected the last refresh token" : "not logged in",
+        );
       this.checkBinding(server, rec);
       if (rec.tokens.access_token !== stale && this.usable(rec.tokens)) return rec.tokens.access_token;
       return (await this.refresh(server, rec)).access_token;
@@ -742,7 +891,12 @@ export class OAuthSession {
   private async refresh(server: RemoteServer, rec: OAuthRecord, retried = false): Promise<StoredTokens> {
     const tokens = rec.tokens!;
     const refreshToken = tokens.refresh_token;
-    if (!refreshToken) throw new LoginRequiredError(this.name, this.variant, "the access token expired and the server gave no refresh token");
+    if (!refreshToken)
+      throw new LoginRequiredError(
+        this.name,
+        this.variant,
+        "the access token expired and the server gave no refresh token",
+      );
     const fetchFn = this.opts.fetchFn ?? fetch;
     let d: Discovery;
     try {
@@ -766,7 +920,11 @@ export class OAuthSession {
         fetchFn,
       });
     } catch (err) {
-      if (err instanceof InvalidGrantError || err instanceof InvalidClientError || err instanceof UnauthorizedClientError) {
+      if (
+        err instanceof InvalidGrantError ||
+        err instanceof InvalidClientError ||
+        err instanceof UnauthorizedClientError
+      ) {
         // A login in another process may have replaced the token we hold: read the store again once.
         const latest = retried ? undefined : await this.load(true);
         if (latest?.tokens?.refresh_token && latest.tokens.refresh_token !== refreshToken) {
@@ -774,17 +932,27 @@ export class OAuthSession {
         }
         const { tokens: _dropped, ...rest } = rec;
         await this.persist({ ...rest, savedAt: this.now() });
-        this.opts.log?.(`${this.label}: the authorization server rejected the refresh token (${(err as Error).name}); a new login is needed`);
-        throw new LoginRequiredError(this.name, this.variant, "the authorization server rejected the refresh token (revoked or expired)");
+        this.opts.log?.(
+          `${this.label}: the authorization server rejected the refresh token (${(err as Error).name}); a new login is needed`,
+        );
+        throw new LoginRequiredError(
+          this.name,
+          this.variant,
+          "the authorization server rejected the refresh token (revoked or expired)",
+        );
       }
       // Network trouble or a server error: keep the refresh token for the next try.
       this.discovery = undefined;
-      throw new Error(`${this.label}: cannot refresh the OAuth token: ${scrub((err as Error).message, [refreshToken, tokens.access_token])}`);
+      throw new Error(
+        `${this.label}: cannot refresh the OAuth token: ${scrub((err as Error).message, [refreshToken, tokens.access_token])}`,
+      );
     }
     const next: OAuthRecord = { ...rec, tokens: toStored(fresh, this.now()), savedAt: this.now() };
     // Persist before the new access token is used: with rotation, the old refresh token is spent.
     await this.persist(next);
-    this.opts.log?.(`${this.label}: refreshed the OAuth access token${next.tokens!.refresh_token !== refreshToken ? " (refresh token rotated)" : ""}`);
+    this.opts.log?.(
+      `${this.label}: refreshed the OAuth access token${next.tokens!.refresh_token !== refreshToken ? " (refresh token rotated)" : ""}`,
+    );
     return next.tokens!;
   }
 }
@@ -847,7 +1015,9 @@ export function oauthFetch(session: OAuthSession, server: () => RemoteServer, ba
       if (p.error === "insufficient_scope") {
         await res.body?.cancel().catch(() => {});
         const who = session.variant === "default" ? "" : ` --profile ${session.variant}`;
-        throw new Error(`${def.name} needs more scopes${p.scope ? ` (${p.scope})` : ""}: run turno mcp login ${def.name}${who}${p.scope ? ` --scope "${p.scope}"` : ""}`);
+        throw new Error(
+          `${def.name} needs more scopes${p.scope ? ` (${p.scope})` : ""}: run turno mcp login ${def.name}${who}${p.scope ? ` --scope "${p.scope}"` : ""}`,
+        );
       }
       return res;
     }
@@ -866,7 +1036,12 @@ export function oauthFetch(session: OAuthSession, server: () => RemoteServer, ba
 /** What `mcp list` and `mcp doctor` show for a variant, read from the store only. */
 export type LoginState = "logged in" | "expired" | "login required" | "not logged in" | "unknown";
 
-export async function loginState(store: SecretStore | undefined, name: string, variant: string, now = Date.now()): Promise<{ state: LoginState; expiresAt?: number; refresh?: boolean }> {
+export async function loginState(
+  store: SecretStore | undefined,
+  name: string,
+  variant: string,
+  now = Date.now(),
+): Promise<{ state: LoginState; expiresAt?: number; refresh?: boolean }> {
   if (!store) return { state: "unknown" };
   let raw: string | undefined;
   try {
@@ -880,5 +1055,9 @@ export async function loginState(store: SecretStore | undefined, name: string, v
   const t = rec.tokens;
   const expired = t.expires_at !== undefined && t.expires_at <= now;
   if (expired && !t.refresh_token) return { state: "login required" };
-  return { state: expired ? "expired" : "logged in", ...(t.expires_at ? { expiresAt: t.expires_at } : {}), refresh: Boolean(t.refresh_token) };
+  return {
+    state: expired ? "expired" : "logged in",
+    ...(t.expires_at ? { expiresAt: t.expires_at } : {}),
+    refresh: Boolean(t.refresh_token),
+  };
 }

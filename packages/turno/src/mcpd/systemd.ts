@@ -15,7 +15,10 @@ function quote(s: string): string {
 }
 
 function unquote(s: string): string {
-  return s.replace(/\$\$/g, "$").replace(/%%/g, "%").replace(/\\(["\\])/g, "$1");
+  return s
+    .replace(/\$\$/g, "$")
+    .replace(/%%/g, "%")
+    .replace(/\\(["\\])/g, "$1");
 }
 
 /**

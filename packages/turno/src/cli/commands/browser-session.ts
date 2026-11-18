@@ -13,7 +13,11 @@ import type { BrowserApi, BrowserDeps } from "./browser.js";
  * of stdin, never from a flag.
  */
 
-const EXPORT_FLAGS = { out: { type: "string", short: "o" }, expires: { type: "string" }, force: { type: "boolean" } } as const;
+const EXPORT_FLAGS = {
+  out: { type: "string", short: "o" },
+  expires: { type: "string" },
+  force: { type: "boolean" },
+} as const;
 const IMPORT_FLAGS = { as: { type: "string" }, yes: { type: "boolean", short: "y" }, ...DRY_RUN } as const;
 
 const DAY = 24 * 3600_000;
@@ -22,7 +26,8 @@ const DAY = 24 * 3600_000;
 export function parseExpiry(text: string): number {
   const m = /^(\d+)\s*(d|h)$/.exec(text.trim());
   const ms = m ? Number(m[1]) * (m[2] === "d" ? DAY : 3600_000) : Number.NaN;
-  if (!(ms > 0 && ms <= 90 * DAY)) return fail(`--expires takes hours or days up to 90d, like 7d or 12h, not "${text}"`);
+  if (!(ms > 0 && ms <= 90 * DAY))
+    return fail(`--expires takes hours or days up to 90d, like 7d or 12h, not "${text}"`);
   return ms;
 }
 
@@ -30,13 +35,19 @@ async function passphrase(io: Io, input: VaultInput, confirm: boolean): Promise<
   if (input.isTty()) {
     if (noInputReason(io.env)) needsAnswer(confirm ? "browser export" : "browser import", "the passphrase on stdin");
     const first = await input.hidden("Passphrase (input hidden): ");
-    if (confirm && (await input.hidden("Passphrase again: ")) !== first) return fail("the passphrases differ; nothing was written");
+    if (confirm && (await input.hidden("Passphrase again: ")) !== first)
+      return fail("the passphrases differ; nothing was written");
     return first;
   }
   return (await input.stdin()).split(/\r?\n/)[0] ?? "";
 }
 
-export async function exportSession(mod: BrowserApi, args: string[], io: Io, input: VaultInput = terminalInput): Promise<number> {
+export async function exportSession(
+  mod: BrowserApi,
+  args: string[],
+  io: Io,
+  input: VaultInput = terminalInput,
+): Promise<number> {
   const p = parseFlags(args, EXPORT_FLAGS, 1);
   const id = p.positionals[0];
   if (!id) return fail("usage: turno browser export <id> --out <file> [--expires 7d] [--force]");
@@ -51,15 +62,24 @@ export async function exportSession(mod: BrowserApi, args: string[], io: Io, inp
   try {
     writeFileSync(file, sealed, { mode: 0o600, flag: bool(p, "force") ? "w" : "wx" });
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "EEXIST") return fail(`${tildify(file, io.env)} exists; pass --force to replace it`);
+    if ((err as NodeJS.ErrnoException).code === "EEXIST")
+      return fail(`${tildify(file, io.env)} exists; pass --force to replace it`);
     throw err;
   }
-  io.out(`exported the session of "${id}" (${summary.cookies} cookies, storage of ${summary.origins} sites) to ${tildify(file, io.env)}`);
+  io.out(
+    `exported the session of "${id}" (${summary.cookies} cookies, storage of ${summary.origins} sites) to ${tildify(file, io.env)}`,
+  );
   io.out(`it can be imported until ${summary.expiresAt}; it holds no vault credentials`);
   return 0;
 }
 
-export async function importSession(mod: BrowserApi, args: string[], io: Io, deps: BrowserDeps, input: VaultInput = terminalInput): Promise<number> {
+export async function importSession(
+  mod: BrowserApi,
+  args: string[],
+  io: Io,
+  deps: BrowserDeps,
+  input: VaultInput = terminalInput,
+): Promise<number> {
   const p = parseFlags(args, IMPORT_FLAGS, 1);
   const path = p.positionals[0];
   if (!path) return fail("usage: turno browser import <file> [--as <id>] [--yes] [--dry-run]");
@@ -82,7 +102,12 @@ export async function importSession(mod: BrowserApi, args: string[], io: Io, dep
   }
   if (exists && !bool(p, "yes")) {
     if (!deps.interactive(io)) needsAnswer("browser import into an existing identity");
-    if (!(await deps.confirm(`Replace the cookies and site storage of "${id}"? Its current sign-ins are lost. [y/N] `, io))) {
+    if (
+      !(await deps.confirm(
+        `Replace the cookies and site storage of "${id}"? Its current sign-ins are lost. [y/N] `,
+        io,
+      ))
+    ) {
       io.out("nothing imported");
       return 1;
     }

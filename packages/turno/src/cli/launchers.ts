@@ -1,4 +1,14 @@
-import { accessSync, chmodSync, constants, existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import {
+  accessSync,
+  chmodSync,
+  constants,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { delimiter, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type AgentId, DEFAULT_AGENT, adapter, agentHub, agentProfileDir } from "../agents/index.js";
@@ -43,7 +53,8 @@ export function findOnPath(cmd: string, env: NodeJS.ProcessEnv = process.env): s
   return undefined;
 }
 
-export const NPX_MESSAGE = "turno is running from a temporary copy (npx, pnpm dlx or bunx). Install it first, for example: npm install --global turno-cli";
+export const NPX_MESSAGE =
+  "turno is running from a temporary copy (npx, pnpm dlx or bunx). Install it first, for example: npm install --global turno-cli";
 
 /** True when this turno runs from the cache of a one-off runner (npx, pnpm dlx, bunx), which may delete it at any time. */
 export function runningFromNpx(argv1: string | undefined = process.argv[1]): boolean {
@@ -91,7 +102,10 @@ function browserLines(env: NodeJS.ProcessEnv, platform: NodeJS.Platform, comment
 }
 
 /** The BROWSER a launcher exports on this platform (turno-open), or undefined where it cannot work. */
-export function launcherBrowser(env: NodeJS.ProcessEnv, platform: NodeJS.Platform = process.platform): string | undefined {
+export function launcherBrowser(
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform = process.platform,
+): string | undefined {
   const works = platform === "darwin" || (platform === "linux" && Boolean(findOnPath("xdg-open", env)));
   return works ? join(paths(env).bin, "turno-open") : undefined;
 }
@@ -125,7 +139,12 @@ const shWord = (v: string) => (/^[A-Za-z0-9_.,:/@%+=-]+$/.test(v) ? v : `"${esc(
  * Text of a profile's launcher (claude-<name>, codex-<name>, ...), from the agent's adapter
  * (ADR 0032). Classic launchers (Claude Code) keep the format they had before other agents.
  */
-export function launcherText(name: string, env: NodeJS.ProcessEnv = process.env, agent: AgentId = DEFAULT_AGENT, platform: NodeJS.Platform = process.platform): string {
+export function launcherText(
+  name: string,
+  env: NodeJS.ProcessEnv = process.env,
+  agent: AgentId = DEFAULT_AGENT,
+  platform: NodeJS.Platform = process.platform,
+): string {
   const a = adapter(agent);
   const p = paths(env);
   const hub = agentHub(agent, env);
@@ -150,7 +169,12 @@ export function launcherText(name: string, env: NodeJS.ProcessEnv = process.env,
           "export TURNO_MCPD_TOKEN",
         ]
       : []),
-    ...(hubDirs.length ? ["# If a cleanup removed an empty hub folder, the profile symlink would dangle.", `mkdir -p ${hubDirs.join(" ")}`] : []),
+    ...(hubDirs.length
+      ? [
+          "# If a cleanup removed an empty hub folder, the profile symlink would dangle.",
+          `mkdir -p ${hubDirs.join(" ")}`,
+        ]
+      : []),
     ...browserLines(env, platform, a.classicLauncher),
     "# exec keeps the PID, so turno sessions knows which account each session uses.",
     `mkdir -p ${run} && echo ${name} >${runFile} 2>/dev/null`,
@@ -178,7 +202,12 @@ function writeScript(file: string, text: string, journal?: Journal): void {
 }
 
 /** Write the profile's launcher (claude-<name>, codex-<name>, ...). Refuses to overwrite a file turno did not generate. */
-export function writeLauncher(name: string, env: NodeJS.ProcessEnv = process.env, agent: AgentId = profileAgent(name, env), journal?: Journal): string {
+export function writeLauncher(
+  name: string,
+  env: NodeJS.ProcessEnv = process.env,
+  agent: AgentId = profileAgent(name, env),
+  journal?: Journal,
+): string {
   const file = join(paths(env).bin, launcherName(name, agent));
   writeScript(file, launcherText(name, env, agent), journal);
   return file;
@@ -217,11 +246,19 @@ function legacyScript(file: string): boolean {
  * found there, so a Homebrew or npm upgrade keeps working), else the path of the running CLI
  * entry with a warning, else plain `turno`.
  */
-export function resolveTurnoCommand(env: NodeJS.ProcessEnv = process.env, argv1: string | undefined = process.argv[1]): TurnoCommand {
+export function resolveTurnoCommand(
+  env: NodeJS.ProcessEnv = process.env,
+  argv1: string | undefined = process.argv[1],
+): TurnoCommand {
   const onPath = findOnPath("turno", env);
   if (onPath && !onPath.includes("/_npx/") && !legacyScript(onPath)) {
     const shown = tildify(onPath, env);
-    return { words: quote(onPath), ...(VERSIONED.test(onPath) ? { warning: `wrote an absolute path (${shown}); it breaks if you switch Node versions` } : {}) };
+    return {
+      words: quote(onPath),
+      ...(VERSIONED.test(onPath)
+        ? { warning: `wrote an absolute path (${shown}); it breaks if you switch Node versions` }
+        : {}),
+    };
   }
   const main = fileURLToPath(new URL("./main.js", import.meta.url));
   if (!argv1 || !sameFile(argv1, main)) return { words: "turno" };
@@ -236,7 +273,10 @@ export function resolveTurnoCommand(env: NodeJS.ProcessEnv = process.env, argv1:
 }
 
 /** Shell words that run this turno (see resolveTurnoCommand). */
-export function turnoCommand(argv1: string | undefined = process.argv[1], env: NodeJS.ProcessEnv = process.env): string {
+export function turnoCommand(
+  argv1: string | undefined = process.argv[1],
+  env: NodeJS.ProcessEnv = process.env,
+): string {
   return resolveTurnoCommand(env, argv1).words;
 }
 
@@ -245,7 +285,11 @@ function helperText(sub: "auto" | "open", why: string, turno: string): string {
 }
 
 function autoLauncherText(turno = turnoCommand()): string {
-  return helperText("auto", "the agent with the account assigned to the folder (editors can use it as their Claude command).", turno);
+  return helperText(
+    "auto",
+    "the agent with the account assigned to the folder (editors can use it as their Claude command).",
+    turno,
+  );
 }
 
 function openLauncherText(turno = turnoCommand()): string {
@@ -257,7 +301,11 @@ function openLauncherText(turno = turnoCommand()): string {
  * tool are rewritten to run turno, so editors and sessions started before the switch keep working.
  * Returns the names written.
  */
-export function writeHelperLaunchers(env: NodeJS.ProcessEnv = process.env, turno = turnoCommand(), journal?: Journal): string[] {
+export function writeHelperLaunchers(
+  env: NodeJS.ProcessEnv = process.env,
+  turno = turnoCommand(),
+  journal?: Journal,
+): string[] {
   const bin = paths(env).bin;
   const written: string[] = [];
   writeScript(join(bin, "turno-auto"), autoLauncherText(turno), journal);

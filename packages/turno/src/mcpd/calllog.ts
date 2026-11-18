@@ -1,4 +1,14 @@
-import { closeSync, existsSync, fstatSync, mkdirSync, openSync, readSync, renameSync, statSync, writeSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  readSync,
+  renameSync,
+  statSync,
+  writeSync,
+} from "node:fs";
 import { dirname } from "node:path";
 import type { ClientContext } from "./instances.js";
 import { ErrorCode, type Outcome } from "./jsonrpc.js";
@@ -54,7 +64,10 @@ const MAX_ERROR = 300;
 export function redact(text: string): string {
   return text
     .replace(/\b(Bearer|Basic|token)\s+[A-Za-z0-9._~+/=-]{8,}/gi, "$1 [redacted]")
-    .replace(/\b([A-Za-z_]*(?:token|secret|password|passwd|api[_-]?key|auth)[A-Za-z_]*)(["']?\s*[:=]\s*["']?)[^\s"'&,;]+/gi, "$1$2[redacted]")
+    .replace(
+      /\b([A-Za-z_]*(?:token|secret|password|passwd|api[_-]?key|auth)[A-Za-z_]*)(["']?\s*[:=]\s*["']?)[^\s"'&,;]+/gi,
+      "$1$2[redacted]",
+    )
     .replace(/\b(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}/g, "[redacted]")
     .replace(/\b(?:ghp|gho|ghu|ghs|ghr|github_pat|xox[abpr]|glpat)[-_][A-Za-z0-9_-]{8,}/g, "[redacted]")
     .replace(/[A-Za-z0-9+_-]{32,}={0,2}/g, (s) => (/\d/.test(s) && /[A-Za-z]/.test(s) ? "[redacted]" : s));
@@ -63,7 +76,8 @@ export function redact(text: string): string {
 function outcomeOf(o: Outcome): { outcome: CallOutcome; error?: string } {
   if ("error" in o) {
     const code = o.error.code;
-    const outcome: CallOutcome = code === ErrorCode.RequestCancelled ? "cancelled" : code === ErrorCode.RequestTimeout ? "timeout" : "error";
+    const outcome: CallOutcome =
+      code === ErrorCode.RequestCancelled ? "cancelled" : code === ErrorCode.RequestTimeout ? "timeout" : "error";
     return { outcome, error: redact(String(o.error.message ?? "")).slice(0, MAX_ERROR) };
   }
   // A tool that failed answers with a result marked isError; its text is a result, so it stays out.
@@ -82,7 +96,10 @@ function bytes(v: unknown): number {
 /** A printable client name, at most 64 characters. */
 export function cleanAgentName(name: unknown): string | undefined {
   if (typeof name !== "string") return undefined;
-  const clean = name.replace(/[^\x20-\x7e]/g, "").trim().slice(0, 64);
+  const clean = name
+    .replace(/[^\x20-\x7e]/g, "")
+    .trim()
+    .slice(0, 64);
   return clean || undefined;
 }
 
@@ -118,7 +135,10 @@ export interface CallLog {
  * rotation: `calls.jsonl` becomes `calls.jsonl.1` at `maxBytes` and `keep` old files are kept.
  * Mode 600. A disk that refuses writes never takes mcpd down.
  */
-export function createCallLog(file: string, opts: { maxBytes?: number; keep?: number; onError?: (message: string) => void } = {}): CallLog {
+export function createCallLog(
+  file: string,
+  opts: { maxBytes?: number; keep?: number; onError?: (message: string) => void } = {},
+): CallLog {
   const maxBytes = opts.maxBytes ?? 5 * 1024 * 1024;
   const keep = opts.keep ?? 2;
   let fd: number | undefined;

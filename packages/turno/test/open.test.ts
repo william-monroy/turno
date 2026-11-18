@@ -40,7 +40,17 @@ describe("open: which links", () => {
     expect(isOpenableUrl("https://example.com/a?b=c")).toBe(true);
     expect(isOpenableUrl("HTTP://example.com")).toBe(true);
     expect(isOpenableUrl("mailto:alice@example.com")).toBe(true);
-    for (const bad of ["-a", "--help", "file:///etc/passwd", "/Applications/Calculator.app", "x.command", "javascript:alert(1)", "vscode://x", "https://a b", ""]) {
+    for (const bad of [
+      "-a",
+      "--help",
+      "file:///etc/passwd",
+      "/Applications/Calculator.app",
+      "x.command",
+      "javascript:alert(1)",
+      "vscode://x",
+      "https://a b",
+      "",
+    ]) {
       expect(isOpenableUrl(bad), bad).toBe(false);
       expect(() => openInvocation(undefined, bad, sb.env, "darwin"), bad).toThrow(/only http\(s\) and mailto/);
     }
@@ -49,10 +59,22 @@ describe("open: which links", () => {
 
 describe("open: macOS", () => {
   it("picks the Chrome profile from the argument or CLAUDE_CONFIG_DIR", () => {
-    expect(openArgs("work", URL, sb.env)).toEqual(["-na", "Google Chrome", "--args", `--user-data-dir=${chrome}`, "--profile-directory=work", URL]);
-    expect(openInvocation(undefined, URL, { ...sb.env, CLAUDE_CONFIG_DIR: join(sb.home, ".claude-work") }, "darwin").args).toContain("--profile-directory=work");
+    expect(openArgs("work", URL, sb.env)).toEqual([
+      "-na",
+      "Google Chrome",
+      "--args",
+      `--user-data-dir=${chrome}`,
+      "--profile-directory=work",
+      URL,
+    ]);
+    expect(
+      openInvocation(undefined, URL, { ...sb.env, CLAUDE_CONFIG_DIR: join(sb.home, ".claude-work") }, "darwin").args,
+    ).toContain("--profile-directory=work");
     expect(openInvocation(undefined, URL, sb.env, "darwin")).toEqual({ command: "open", args: [URL] }); // system profile: default browser
-    expect(openInvocation("work", "https://example.com", sb.env, "darwin")).toEqual({ command: "open", args: ["https://example.com"] });
+    expect(openInvocation("work", "https://example.com", sb.env, "darwin")).toEqual({
+      command: "open",
+      args: ["https://example.com"],
+    });
     expect(() => openArgs("setup", URL, sb.env)).toThrow(/reserved/);
     expect(statSync(chrome).mode & 0o777).toBe(0o700);
   });
@@ -67,24 +89,35 @@ describe("open: Linux", () => {
   it("starts Chrome from PATH with the profile, detached", () => {
     const env = onlyFakes("google-chrome-stable", "xdg-open");
     const inv = openInvocation("work", URL, env, "linux");
-    expect(inv).toEqual({ command: join(sb.home, "fakebin", "google-chrome-stable"), args: [`--user-data-dir=${chrome}`, "--profile-directory=work", URL], detach: true });
+    expect(inv).toEqual({
+      command: join(sb.home, "fakebin", "google-chrome-stable"),
+      args: [`--user-data-dir=${chrome}`, "--profile-directory=work", URL],
+      detach: true,
+    });
   });
 
   it("prefers google-chrome, then chromium", () => {
-    expect(openInvocation("work", URL, onlyFakes("chromium", "google-chrome"), "linux").command).toMatch(/\/google-chrome$/);
+    expect(openInvocation("work", URL, onlyFakes("chromium", "google-chrome"), "linux").command).toMatch(
+      /\/google-chrome$/,
+    );
   });
 
   it("falls back to xdg-open without Chrome, for other links and for default-browser profiles", () => {
     const env = onlyFakes("xdg-open");
     expect(openInvocation("work", URL, env, "linux")).toEqual({ command: "xdg-open", args: [URL] });
-    expect(openInvocation("work", "https://example.com", onlyFakes("chromium"), "linux")).toEqual({ command: "xdg-open", args: ["https://example.com"] });
+    expect(openInvocation("work", "https://example.com", onlyFakes("chromium"), "linux")).toEqual({
+      command: "xdg-open",
+      args: ["https://example.com"],
+    });
     expect(openInvocation(undefined, URL, env, "linux")).toEqual({ command: "xdg-open", args: [URL] });
   });
 
   it("says what to install when there is no opener", () => {
     const empty = join(sb.home, "empty");
     mkdirSync(empty);
-    expect(() => openInvocation(undefined, "https://example.com", { ...sb.env, PATH: empty }, "linux")).toThrow(/xdg-open is not installed/);
+    expect(() => openInvocation(undefined, "https://example.com", { ...sb.env, PATH: empty }, "linux")).toThrow(
+      /xdg-open is not installed/,
+    );
   });
 
   it("refuses other platforms", () => {

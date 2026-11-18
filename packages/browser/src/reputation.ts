@@ -50,7 +50,12 @@ export function reputationPath(id: string, env: NodeJS.ProcessEnv = process.env)
   return join(identityStateDir(id, env), "reputation.jsonl");
 }
 
-export function recordChallenge(id: string, env: NodeJS.ProcessEnv, event: Omit<ChallengeEvent, "ts">, now: Date = new Date()): void {
+export function recordChallenge(
+  id: string,
+  env: NodeJS.ProcessEnv,
+  event: Omit<ChallengeEvent, "ts">,
+  now: Date = new Date(),
+): void {
   const file = reputationPath(id, env);
   mkdirSync(identityStateDir(id, env), { recursive: true, mode: 0o700 });
   const line: ChallengeEvent = { ts: now.toISOString(), site: event.site, kind: event.kind, markers: event.markers };
@@ -103,7 +108,17 @@ export function summarizeChallenges(events: readonly ChallengeEvent[], now: Date
   const bySite = new Map<string, SiteSummary>();
   const t = now.getTime();
   for (const e of events) {
-    const s = bySite.get(e.site) ?? { site: e.site, total: 0, captcha: 0, verify: 0, block: 0, last7d: 0, prev7d: 0, trend: "flat", lastSeen: e.ts };
+    const s = bySite.get(e.site) ?? {
+      site: e.site,
+      total: 0,
+      captcha: 0,
+      verify: 0,
+      block: 0,
+      last7d: 0,
+      prev7d: 0,
+      trend: "flat",
+      lastSeen: e.ts,
+    };
     s.total++;
     s[e.kind]++;
     const age = t - Date.parse(e.ts);
@@ -117,7 +132,11 @@ export function summarizeChallenges(events: readonly ChallengeEvent[], now: Date
 }
 
 /** The report of `turno browser reputation`: the identities asked for, or every one. */
-export function reputationReport(env: NodeJS.ProcessEnv = process.env, ids?: readonly string[], now: Date = new Date()): { identities: IdentityReputation[] } {
+export function reputationReport(
+  env: NodeJS.ProcessEnv = process.env,
+  ids?: readonly string[],
+  now: Date = new Date(),
+): { identities: IdentityReputation[] } {
   const list = ids?.length ? [...ids] : listIdentities(env).map((i) => i.id);
   for (const id of list) if (!identityExists(id, env)) throw new IdentityError(`identity "${id}" does not exist`);
   return {
@@ -151,7 +170,11 @@ export interface WatchOptions {
  * Looks at every page the context loads (each main frame `load`, popups included) and reports
  * a challenge page: its host name, kind and matched phrases. Returns a function that stops.
  */
-export function watchChallenges(context: WatchedContext, onChallenge: (event: Omit<ChallengeEvent, "ts">) => void, opts: WatchOptions = {}): () => void {
+export function watchChallenges(
+  context: WatchedContext,
+  onChallenge: (event: Omit<ChallengeEvent, "ts">) => void,
+  opts: WatchOptions = {},
+): () => void {
   const dedupeMs = opts.dedupeMs ?? 60_000;
   const now = opts.now ?? Date.now;
   const last = new Map<string, number>();

@@ -59,7 +59,15 @@ export function serviceEnv(spec: ServiceSpec, kind: ServiceBackend["kind"]): Rec
     PATH: spec.env.PATH ?? "/usr/bin:/bin:/usr/sbin:/sbin",
     HOME: paths(spec.env).home,
   };
-  for (const k of ["XDG_CONFIG_HOME", "XDG_STATE_HOME", "XDG_DATA_HOME", "LANG", "TURNO_CONFIG_DIR", "TURNO_STATE_DIR", "TURNO_DATA_DIR"]) {
+  for (const k of [
+    "XDG_CONFIG_HOME",
+    "XDG_STATE_HOME",
+    "XDG_DATA_HOME",
+    "LANG",
+    "TURNO_CONFIG_DIR",
+    "TURNO_STATE_DIR",
+    "TURNO_DATA_DIR",
+  ]) {
     if (spec.env[k]) vars[k] = spec.env[k] as string;
   }
   vars[SERVICE_ENV] = kind;
@@ -76,7 +84,8 @@ export async function runTool(tool: string, args: string[], env: NodeJS.ProcessE
     return stdout;
   } catch (err) {
     const e = err as NodeJS.ErrnoException & { stderr?: string };
-    if (e.code === "ENOENT") throw new ServiceError(`${tool} was not found on PATH; it is needed to manage the mcpd service`);
+    if (e.code === "ENOENT")
+      throw new ServiceError(`${tool} was not found on PATH; it is needed to manage the mcpd service`);
     const detail = (e.stderr ?? "").trim().split("\n")[0] || e.message.split("\n")[0];
     throw new ServiceError(`${tool} ${args.join(" ")} failed: ${detail}`);
   }
@@ -86,7 +95,19 @@ export async function runTool(tool: string, args: string[], env: NodeJS.ProcessE
  * Paths that change when a version manager or Homebrew switches versions. A service that
  * runs them breaks after `nvm uninstall`, `brew cleanup` and the like.
  */
-const UNSTABLE = [/\/\.nvm\/versions\//, /\/Cellar\//, /\/\.volta\/tools\/image\//, /\/fnm\/node-versions\//, /\/\.asdf\/installs\//, /\/mise\/installs\//, /\/_npx\//, /\/\.npm\/_npx\//, /\/n\/versions\//, /\/\.local\/share\/pnpm\/\.tools\//, /\/\.local\/share\/pnpm\/dlx-/];
+const UNSTABLE = [
+  /\/\.nvm\/versions\//,
+  /\/Cellar\//,
+  /\/\.volta\/tools\/image\//,
+  /\/fnm\/node-versions\//,
+  /\/\.asdf\/installs\//,
+  /\/mise\/installs\//,
+  /\/_npx\//,
+  /\/\.npm\/_npx\//,
+  /\/n\/versions\//,
+  /\/\.local\/share\/pnpm\/\.tools\//,
+  /\/\.local\/share\/pnpm\/dlx-/,
+];
 
 export function isUnstablePath(p: string): boolean {
   return UNSTABLE.some((re) => re.test(p));
@@ -130,7 +151,9 @@ export function chooseProgram(opts: { env: NodeJS.ProcessEnv; execPath: string; 
   }
   if (!isUnstablePath(script)) {
     if (!isUnstablePath(opts.execPath)) return { program: [opts.execPath, script] };
-    const node = [...whichAll("node", opts.env), "/opt/homebrew/bin/node", "/usr/local/bin/node", "/usr/bin/node"].find((n) => !isUnstablePath(n) && executable(n));
+    const node = [...whichAll("node", opts.env), "/opt/homebrew/bin/node", "/usr/local/bin/node", "/usr/bin/node"].find(
+      (n) => !isUnstablePath(n) && executable(n),
+    );
     if (node) return { program: [node, script] };
   }
   return {
@@ -153,25 +176,44 @@ async function systemdAvailable(env: NodeJS.ProcessEnv): Promise<boolean> {
  * The backend for this platform. Throws a one-line ServiceError where there is none (Linux
  * without systemd, other systems): `turno mcp daemon run` still works under any supervisor.
  */
-export async function serviceBackend(env: NodeJS.ProcessEnv, platform: NodeJS.Platform = process.platform): Promise<ServiceBackend> {
+export async function serviceBackend(
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform = process.platform,
+): Promise<ServiceBackend> {
   if (platform === "darwin") return (await import("./launchd.js")).launchd;
   if (platform === "linux") {
     if (!(await systemdAvailable(env))) {
-      throw new ServiceError("no systemd user instance here (systemctl --user does not answer); run `turno mcp daemon run` under your own supervisor instead");
+      throw new ServiceError(
+        "no systemd user instance here (systemctl --user does not answer); run `turno mcp daemon run` under your own supervisor instead",
+      );
     }
     return (await import("./systemd.js")).systemd;
   }
-  throw new ServiceError(`keeping mcpd alive is not supported on ${platform}; run \`turno mcp daemon run\` under your own supervisor instead`);
+  throw new ServiceError(
+    `keeping mcpd alive is not supported on ${platform}; run \`turno mcp daemon run\` under your own supervisor instead`,
+  );
 }
 
 /** The backend whose file is installed, without asking the service manager. */
-export async function installedBackend(env: NodeJS.ProcessEnv, platform: NodeJS.Platform = process.platform): Promise<ServiceBackend | undefined> {
-  const b = platform === "darwin" ? (await import("./launchd.js")).launchd : platform === "linux" ? (await import("./systemd.js")).systemd : undefined;
+export async function installedBackend(
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform = process.platform,
+): Promise<ServiceBackend | undefined> {
+  const b =
+    platform === "darwin"
+      ? (await import("./launchd.js")).launchd
+      : platform === "linux"
+        ? (await import("./systemd.js")).systemd
+        : undefined;
   return b && existsSync(b.file(env)) ? b : undefined;
 }
 
 /** Write the service file through the journal and (unless dry) load it. */
-export async function installService(backend: ServiceBackend, spec: ServiceSpec, journal: Journal): Promise<{ file: string; text: string; changed: boolean }> {
+export async function installService(
+  backend: ServiceBackend,
+  spec: ServiceSpec,
+  journal: Journal,
+): Promise<{ file: string; text: string; changed: boolean }> {
   const file = backend.file(spec.env);
   const text = backend.render(spec);
   let before: string | undefined;
@@ -187,7 +229,11 @@ export async function installService(backend: ServiceBackend, spec: ServiceSpec,
 }
 
 /** Stop the service and remove its file through the journal (so it does not come back at login). */
-export async function removeService(backend: ServiceBackend, env: NodeJS.ProcessEnv, journal: Journal): Promise<{ file: string; existed: boolean }> {
+export async function removeService(
+  backend: ServiceBackend,
+  env: NodeJS.ProcessEnv,
+  journal: Journal,
+): Promise<{ file: string; existed: boolean }> {
   const file = backend.file(env);
   const existed = existsSync(file);
   if (journal.dryRun) return { file, existed };

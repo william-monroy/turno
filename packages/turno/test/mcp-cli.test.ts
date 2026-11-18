@@ -1,4 +1,15 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { type Server, createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -36,11 +47,15 @@ function snapshot(): string {
   return out.sort().join("\n");
 }
 
-const MANIFEST = '[server.calc]\ncommand = "calc-mcp"\nscope = "shared"\n\n[server.docs]\nurl = "https://docs.example.com/mcp"\n';
+const MANIFEST =
+  '[server.calc]\ncommand = "calc-mcp"\nscope = "shared"\n\n[server.docs]\nurl = "https://docs.example.com/mcp"\n';
 
 beforeEach(async () => {
   sb = sandbox();
-  sb.write(".config/turno/config.toml", `default = "work"\nsystem = "personal"\n\n[profiles.work]\n[profiles.personal]\n\n[mcpd]\nport = ${await freePort()}\n`);
+  sb.write(
+    ".config/turno/config.toml",
+    `default = "work"\nsystem = "personal"\n\n[profiles.work]\n[profiles.personal]\n\n[mcpd]\nport = ${await freePort()}\n`,
+  );
   sb.write(".config/turno/mcp.toml", MANIFEST);
   sb.write(".claude.json", "{}\n");
 });
@@ -66,7 +81,12 @@ describe("turno mcp flags", () => {
         expect(bad.err, `${sub} ${typo}`).toContain(`turno: unknown option ${typo}`);
       }
     }
-    for (const args of [["mcp", "--help"], ["mcp", "daemon", "--help"], ["mcp", "daemon", "start", "--help"], ["mcp", "import", "--move-secrets", "--write", "--help"]]) {
+    for (const args of [
+      ["mcp", "--help"],
+      ["mcp", "daemon", "--help"],
+      ["mcp", "daemon", "start", "--help"],
+      ["mcp", "import", "--move-secrets", "--write", "--help"],
+    ]) {
       expect((await run(args)).code, args.join(" ")).toBe(0);
     }
     expect(snapshot()).toBe(before);
@@ -105,13 +125,18 @@ describe("turno mcp sync", () => {
     writeFileSync(decoyRecord, "work\n");
     const sandboxRecord = sb.write(".local/state/turno/run/999998", "work\n");
     // A live plain `claude` session (this test process) with no run record: the system profile.
-    sb.write(".claude/sessions/1.json", JSON.stringify({ pid: process.pid, sessionId: "abcdef12", cwd: sb.home, entrypoint: "cli", status: "idle" }));
+    sb.write(
+      ".claude/sessions/1.json",
+      JSON.stringify({ pid: process.pid, sessionId: "abcdef12", cwd: sb.home, entrypoint: "cli", status: "idle" }),
+    );
     const realHome = process.env.HOME;
     process.env.HOME = decoy;
     try {
       const first = await run(["mcp", "sync"]);
       expect(first.code).toBe(1);
-      expect(first.out).toMatch(/^ {2}! +plain claude, profile personal +~\/\.claude\.json +skipped: has open sessions; close them or use --force$/m);
+      expect(first.out).toMatch(
+        /^ {2}! +plain claude, profile personal +~\/\.claude\.json +skipped: has open sessions; close them or use --force$/m,
+      );
       expect(readFileSync(join(sb.home, ".claude.json"), "utf8")).toBe("{}\n");
       expect(first.out).toMatch(/^ {2}ok +work +~\/\.claude-work\/\.claude\.json +added calc, docs$/m);
       expect(existsSync(decoyRecord)).toBe(true);
@@ -120,7 +145,9 @@ describe("turno mcp sync", () => {
 
       const forced = await run(["mcp", "sync", "--force"]);
       expect(forced.code).toBe(0);
-      expect(JSON.parse(readFileSync(join(sb.home, ".claude.json"), "utf8")).mcpServers.calc.url).toMatch(/\/mcp\/calc$/);
+      expect(JSON.parse(readFileSync(join(sb.home, ".claude.json"), "utf8")).mcpServers.calc.url).toMatch(
+        /\/mcp\/calc$/,
+      );
     } finally {
       process.env.HOME = realHome;
       rmSync(decoy, { recursive: true, force: true });
@@ -140,7 +167,9 @@ describe("turno mcp sync", () => {
   it("warns when mcpd is not running and omits the undo hint when nothing changed", async () => {
     const first = await run(["mcp", "sync", "work"]);
     expect(first.out).toContain("undo with: turno undo");
-    expect(first.err).toContain("warning: mcpd is not running, so these profiles have no local MCP servers until you run: turno mcp daemon start");
+    expect(first.err).toContain(
+      "warning: mcpd is not running, so these profiles have no local MCP servers until you run: turno mcp daemon start",
+    );
     const again = await run(["mcp", "sync", "work"]);
     expect(again.out).toMatch(/^ {2}- +work +~\/\.claude-work\/\.claude\.json +no changes$/m);
     expect(again.out).not.toContain("undo with");
@@ -183,7 +212,10 @@ if (args[0] === "install") {
 
 describe("turno mcp install", () => {
   it("pins an exact version, skips install scripts, keeps a lockfile and reinstalls from it", async () => {
-    sb.write(".config/turno/mcp.toml", '# mine\n[server.calc]\ncommand = "calc-mcp"\npackage = "calc-pkg@^1.2"  # keep\nscope = "shared"\n');
+    sb.write(
+      ".config/turno/mcp.toml",
+      '# mine\n[server.calc]\ncommand = "calc-mcp"\npackage = "calc-pkg@^1.2"  # keep\nscope = "shared"\n',
+    );
     const log = fakeNpm();
     const dry = await run(["mcp", "install", "--dry-run"]);
     expect(dry.code).toBe(0);
@@ -192,25 +224,35 @@ describe("turno mcp install", () => {
 
     const first = await run(["mcp", "install"]);
     expect(first.code).toBe(0);
-    const calls = readFileSync(log, "utf8").trim().split("\n").map((l) => JSON.parse(l) as string[]);
+    const calls = readFileSync(log, "utf8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l) as string[]);
     const inst = calls.find((c) => c[0] === "install")!;
     expect(inst).toContain("--ignore-scripts");
     expect(inst).toContain("--package-lock=true");
     expect(inst.at(-1)).toBe("calc-pkg@1.2.3");
     const text = readFileSync(join(sb.home, ".config/turno/mcp.toml"), "utf8");
-    expect(text).toBe('# mine\n[server.calc]\ncommand = "calc-mcp"\npackage = "calc-pkg@1.2.3"  # keep\nscope = "shared"\n');
+    expect(text).toBe(
+      '# mine\n[server.calc]\ncommand = "calc-mcp"\npackage = "calc-pkg@1.2.3"  # keep\nscope = "shared"\n',
+    );
     expect(first.out).toContain("pinned calc to calc-pkg@1.2.3");
 
     writeFileSync(log, "");
     expect((await run(["mcp", "install", "calc", "--allow-scripts"])).code).toBe(0);
-    const again = readFileSync(log, "utf8").trim().split("\n").map((l) => JSON.parse(l) as string[]);
+    const again = readFileSync(log, "utf8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l) as string[]);
     expect(again.map((c) => c[0])).toEqual(["ci"]);
     expect(again[0]).not.toContain("--ignore-scripts");
   });
 
   it("rewrites only the package line of the right table", () => {
     const text = '[server.a]\ncommand = "a"\npackage = "x@1"\n\n[server."b.c"]\ncommand = "b"\npackage = "y@latest"\n';
-    expect(pinPackage(text, "b.c", "y@2.0.0")).toBe('[server.a]\ncommand = "a"\npackage = "x@1"\n\n[server."b.c"]\ncommand = "b"\npackage = "y@2.0.0"\n');
+    expect(pinPackage(text, "b.c", "y@2.0.0")).toBe(
+      '[server.a]\ncommand = "a"\npackage = "x@1"\n\n[server."b.c"]\ncommand = "b"\npackage = "y@2.0.0"\n',
+    );
     expect(pinPackage(text, "missing", "z@1.0.0")).toBeUndefined();
   });
 });
@@ -219,7 +261,9 @@ describe("turno mcp refresh", () => {
   async function daemon(status: number): Promise<string[]> {
     const seen: string[] = [];
     const s = createServer((req, res) => {
-      seen.push(`${req.method} ${req.url} ${req.headers.authorization === `Bearer ${"t".padEnd(40, "0")}` ? "auth" : "noauth"}`);
+      seen.push(
+        `${req.method} ${req.url} ${req.headers.authorization === `Bearer ${"t".padEnd(40, "0")}` ? "auth" : "noauth"}`,
+      );
       res.writeHead(status, { "content-type": "application/json" }).end("{}");
     });
     servers.push(s);

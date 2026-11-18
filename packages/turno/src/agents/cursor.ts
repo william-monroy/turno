@@ -39,13 +39,16 @@ export const cursor: AgentAdapter = {
         "X-Turno-Cwd-B64": "${env:TURNO_SESSION_CWD_B64}",
       },
     }),
-    afterSync: (added) => `  Cursor asks to approve new servers once: cursor-agent mcp enable <name> (${added.join(", ")})`,
+    afterSync: (added) =>
+      `  Cursor asks to approve new servers once: cursor-agent mcp enable <name> (${added.join(", ")})`,
   },
   // Safe mode: Cursor CLI has no switch for one run (only `agent mcp disable`, which lasts). Its
   // entries read the token from the environment, which safe mode leaves out, so mcpd refuses them.
   safeMode(s) {
     const cfg = readJsonFile(s.file);
-    const names = gatewayNames(typeof cfg === "object" && cfg !== null ? (cfg as Record<string, unknown>).mcpServers : undefined);
+    const names = gatewayNames(
+      typeof cfg === "object" && cfg !== null ? (cfg as Record<string, unknown>).mcpServers : undefined,
+    );
     return {
       args: [],
       notes: [

@@ -36,14 +36,24 @@ function fakeAgent(command: string): void {
 }
 
 const agentArgs = () => readFileSync(join(sb.home, "agent-args.txt"), "utf8").trim().split("\n").filter(Boolean);
-const agentEnv = () => Object.fromEntries(readFileSync(join(sb.home, "agent-env.txt"), "utf8").trim().split("\n").map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]));
+const agentEnv = () =>
+  Object.fromEntries(
+    readFileSync(join(sb.home, "agent-env.txt"), "utf8")
+      .trim()
+      .split("\n")
+      .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]),
+  );
 
-const gateway = (agent: "claude" | "codex" | "copilot" | "cursor", name: string) => adapter(agent).mcp.gatewayEntry(name, 47821, "tok", "work");
+const gateway = (agent: "claude" | "codex" | "copilot" | "cursor", name: string) =>
+  adapter(agent).mcp.gatewayEntry(name, 47821, "tok", "work");
 
 describe("the safe-mode switch", () => {
   it("takes --no-gateway out of turno's arguments only, before --", () => {
     expect(takeSafeFlag(["--no-gateway", "--resume"])).toEqual({ args: ["--resume"], safe: true });
-    expect(takeSafeFlag(["--resume", "--", "--no-gateway"])).toEqual({ args: ["--resume", "--", "--no-gateway"], safe: false });
+    expect(takeSafeFlag(["--resume", "--", "--no-gateway"])).toEqual({
+      args: ["--resume", "--", "--no-gateway"],
+      safe: false,
+    });
     expect(wantsSafe(["x", "--no-gateway"], {})).toBe(true);
     expect(wantsSafe(["--", "--no-gateway"], {})).toBe(false);
   });
@@ -56,7 +66,8 @@ describe("the safe-mode switch", () => {
   });
 
   it("knows the gateway entries of every agent, and nothing else", () => {
-    for (const agent of ["claude", "codex", "copilot", "cursor"] as const) expect(isGatewayEntry(gateway(agent, "fx")), agent).toBe(true);
+    for (const agent of ["claude", "codex", "copilot", "cursor"] as const)
+      expect(isGatewayEntry(gateway(agent, "fx")), agent).toBe(true);
     expect(isGatewayEntry({ command: "npx", args: ["x"] })).toBe(false);
     expect(isGatewayEntry({ type: "http", url: "https://mcp.example.com/mcp" })).toBe(false);
   });
@@ -65,7 +76,10 @@ describe("the safe-mode switch", () => {
 describe("safePlan", () => {
   it("Claude Code: a strict MCP config with the profile's other servers, and no status line or hooks", () => {
     const cwd = join(sb.home, "code/app");
-    sb.write("code/app/.mcp.json", JSON.stringify({ mcpServers: { local: { command: "local-mcp" }, gw2: gateway("claude", "gw2") } }));
+    sb.write(
+      "code/app/.mcp.json",
+      JSON.stringify({ mcpServers: { local: { command: "local-mcp" }, gw2: gateway("claude", "gw2") } }),
+    );
     const cfg = sb.write(
       ".claude-work/.claude.json",
       JSON.stringify({
@@ -100,8 +114,14 @@ describe("safePlan", () => {
   });
 
   it("Copilot CLI: --disable-mcp-server for each gateway entry", () => {
-    const cfg = sb.write(".copilot-cp/mcp-config.json", JSON.stringify({ mcpServers: { a: gateway("copilot", "a"), b: gateway("copilot", "b"), own: { command: "x" } } }));
-    expect(safePlan("copilot", cfg, sb.home, sb.env, "cp").args).toEqual(["--disable-mcp-server=a", "--disable-mcp-server=b"]);
+    const cfg = sb.write(
+      ".copilot-cp/mcp-config.json",
+      JSON.stringify({ mcpServers: { a: gateway("copilot", "a"), b: gateway("copilot", "b"), own: { command: "x" } } }),
+    );
+    expect(safePlan("copilot", cfg, sb.home, sb.env, "cp").args).toEqual([
+      "--disable-mcp-server=a",
+      "--disable-mcp-server=b",
+    ]);
   });
 
   it("Cursor CLI: no arguments; the entries start without a token and mcpd refuses them", () => {
@@ -112,7 +132,12 @@ describe("safePlan", () => {
   });
 
   it("keeps the profile's account and drops the gateway variables", () => {
-    const env = safeEnv("codex", "cx", { ...sb.env, TURNO_MCPD_TOKEN: "t", TURNO_SESSION_PID: "1", TURNO_SESSION_CWD_B64: "x" }, "darwin");
+    const env = safeEnv(
+      "codex",
+      "cx",
+      { ...sb.env, TURNO_MCPD_TOKEN: "t", TURNO_SESSION_PID: "1", TURNO_SESSION_CWD_B64: "x" },
+      "darwin",
+    );
     expect(env.CODEX_HOME).toBe(join(sb.home, ".codex-cx"));
     expect(env.TURNO_PROFILE).toBe("cx");
     expect(env.TURNO_AGENT).toBe("codex");

@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BENCH_PROMPT, type BrowserDeps, type BrowserApi, NOT_INSTALLED, browserCommand, command as browser } from "../src/cli/commands/browser.js";
+import {
+  BENCH_PROMPT,
+  type BrowserDeps,
+  type BrowserApi,
+  NOT_INSTALLED,
+  browserCommand,
+  command as browser,
+} from "../src/cli/commands/browser.js";
 import { command as identity, setBrowserDeps } from "../src/cli/commands/identity.js";
 import { fakeIo } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -118,7 +125,9 @@ describe("turno browser", () => {
     expect(defaultDeps.interactive({ ...fakeIo(sb.env), ask: async () => "y" })).toBe(true);
     expect(defaultDeps.interactive(fakeIo(sb.env))).toBe(false);
     const { cmd, calls, asked } = setup({ interactive: defaultDeps.interactive }, true);
-    await expect(cmd.run(["bench"], fakeIo(sb.env))).rejects.toThrow("browser bench needs an answer; pass --yes (or run it in a terminal)");
+    await expect(cmd.run(["bench"], fakeIo(sb.env))).rejects.toThrow(
+      "browser bench needs an answer; pass --yes (or run it in a terminal)",
+    );
     expect(calls.bench).toHaveLength(0);
     expect(asked).toHaveLength(0);
   });
@@ -136,21 +145,36 @@ describe("turno browser", () => {
   it("runs bench after a yes, with engines, urls and --only-urls", async () => {
     const { cmd, calls } = setup({ interactive: () => true }, true);
     const io = fakeIo(sb.env);
-    expect(await cmd.run(["bench", "--engine", "engine-a,engine-b", "--url", "https://example.com", "--only-urls"], io)).toBe(0);
-    expect(calls.bench[0]).toMatchObject({ engines: ["engine-a", "engine-b"], urls: ["https://example.com"], detectors: false });
+    expect(
+      await cmd.run(["bench", "--engine", "engine-a,engine-b", "--url", "https://example.com", "--only-urls"], io),
+    ).toBe(0);
+    expect(calls.bench[0]).toMatchObject({
+      engines: ["engine-a", "engine-b"],
+      urls: ["https://example.com"],
+      detectors: false,
+    });
     expect(io.lines).toContain("TABLE");
     await expect(cmd.run(["bench", "--engine", "nope", "--yes"], fakeIo(sb.env))).rejects.toThrow(/unknown engine/);
-    await expect(cmd.run(["bench", "--only-urls", "--yes"], fakeIo(sb.env))).rejects.toThrow(/needs at least one --url/);
-    await expect(cmd.run(["bench", "--url", "file:///etc/passwd", "--yes"], fakeIo(sb.env))).rejects.toThrow(/must start with http/);
+    await expect(cmd.run(["bench", "--only-urls", "--yes"], fakeIo(sb.env))).rejects.toThrow(
+      /needs at least one --url/,
+    );
+    await expect(cmd.run(["bench", "--url", "file:///etc/passwd", "--yes"], fakeIo(sb.env))).rejects.toThrow(
+      /must start with http/,
+    );
   });
 
   it("passes an engine's current id when the package knows an older name for it", async () => {
     const calls: Calls = { bench: [], added: [], login: [] };
-    const mod = { ...fakeModule(calls), engineId: (name: string) => ({ "engine-a": "engine-a", "old-a": "engine-a" })[name] } as unknown as BrowserApi;
+    const mod = {
+      ...fakeModule(calls),
+      engineId: (name: string) => ({ "engine-a": "engine-a", "old-a": "engine-a" })[name],
+    } as unknown as BrowserApi;
     const cmd = browserCommand({ load: async () => mod, interactive: () => false, confirm: async () => false });
     expect(await cmd.run(["bench", "--engine", "old-a", "--yes"], fakeIo(sb.env))).toBe(0);
     expect(calls.bench[0]).toMatchObject({ engines: ["engine-a"] });
-    await expect(cmd.run(["bench", "--engine", "engine-b", "--yes"], fakeIo(sb.env))).rejects.toThrow(/unknown engine "engine-b" \(known: engine-a, engine-b\)/);
+    await expect(cmd.run(["bench", "--engine", "engine-b", "--yes"], fakeIo(sb.env))).rejects.toThrow(
+      /unknown engine "engine-b" \(known: engine-a, engine-b\)/,
+    );
   });
 
   it("adds an identity, and --dry-run writes nothing", async () => {
@@ -195,8 +219,12 @@ describe("turno identity with browser identities", () => {
   it("parses browser flags strictly and passes --url to login", async () => {
     const { deps, calls } = setup();
     prev = setBrowserDeps(deps);
-    await expect(identity.run(["add", "browser:school", "--bogus"], fakeIo(sb.env))).rejects.toThrow(/unknown option --bogus/);
-    await expect(identity.run(["login", "browser:school", "--bogus"], fakeIo(sb.env))).rejects.toThrow(/unknown option --bogus/);
+    await expect(identity.run(["add", "browser:school", "--bogus"], fakeIo(sb.env))).rejects.toThrow(
+      /unknown option --bogus/,
+    );
+    await expect(identity.run(["login", "browser:school", "--bogus"], fakeIo(sb.env))).rejects.toThrow(
+      /unknown option --bogus/,
+    );
     expect(await identity.run(["login", "browser:school", "--url", "https://example.com"], fakeIo(sb.env))).toBe(0);
     expect(calls.login).toEqual([{ id: "school", url: "https://example.com" }]);
     const help = fakeIo(sb.env);

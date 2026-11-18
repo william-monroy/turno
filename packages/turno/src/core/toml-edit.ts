@@ -96,7 +96,8 @@ export function removeTable(text: string, table: string): string {
   if (!range) return text;
   let [start, end] = range;
   while (start > 0 && lines[start - 1]!.trim().startsWith("#")) start--;
-  while (end < lines.length && lines[end]!.trim() === "" && end + 1 < lines.length && lines[end + 1]!.trim() === "") end++;
+  while (end < lines.length && lines[end]!.trim() === "" && end + 1 < lines.length && lines[end + 1]!.trim() === "")
+    end++;
   lines.splice(start, end - start);
   return join(lines);
 }
@@ -121,7 +122,11 @@ export function addArrayTable(text: string, name: string, entry: Record<string, 
 }
 
 /** Remove every `[[name]]` entry whose string keys match `pred`. Returns the text and how many went. */
-export function removeArrayTables(text: string, name: string, pred: (e: Record<string, string>) => boolean): { text: string; removed: number } {
+export function removeArrayTables(
+  text: string,
+  name: string,
+  pred: (e: Record<string, string>) => boolean,
+): { text: string; removed: number } {
   const lines = text.replace(/\n$/, "").split("\n");
   let removed = 0;
   for (let i = lines.length - 1; i >= 0; i--) {

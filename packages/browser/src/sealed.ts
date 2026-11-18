@@ -8,7 +8,12 @@ import { promisify } from "node:util";
  * expiry lives inside the encrypted payload, where it cannot be edited without the passphrase.
  */
 
-const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number, options: { N: number; r: number; p: number; maxmem: number }) => Promise<Buffer>;
+const scrypt = promisify(scryptCb) as (
+  password: string,
+  salt: Buffer,
+  keylen: number,
+  options: { N: number; r: number; p: number; maxmem: number },
+) => Promise<Buffer>;
 
 export const SEALED_FORMAT = "turno-browser-session";
 const VERSION = 1;
@@ -43,12 +48,18 @@ function aad(h: Header): Buffer {
 }
 
 async function key(passphrase: string, kdf: Header["kdf"]): Promise<Buffer> {
-  return await scrypt(passphrase.normalize("NFC"), Buffer.from(kdf.salt, "base64"), 32, { N: kdf.N, r: kdf.r, p: kdf.p, maxmem: 256 * kdf.N * kdf.r + 1024 * 1024 });
+  return await scrypt(passphrase.normalize("NFC"), Buffer.from(kdf.salt, "base64"), 32, {
+    N: kdf.N,
+    r: kdf.r,
+    p: kdf.p,
+    maxmem: 256 * kdf.N * kdf.r + 1024 * 1024,
+  });
 }
 
 /** Encrypt `payload` (any JSON) under `passphrase`; the result is one JSON document. */
 export async function seal(payload: unknown, passphrase: string): Promise<string> {
-  if (passphrase.length < MIN_PASSPHRASE) throw new SealError(`the passphrase needs at least ${MIN_PASSPHRASE} characters`);
+  if (passphrase.length < MIN_PASSPHRASE)
+    throw new SealError(`the passphrase needs at least ${MIN_PASSPHRASE} characters`);
   const header: Header = {
     format: SEALED_FORMAT,
     version: VERSION,
@@ -73,7 +84,8 @@ function parseEnvelope(text: string): Envelope {
     throw new SealError("this is not a turno-browser session export");
   }
   if (!isObject(v) || v.format !== SEALED_FORMAT) throw new SealError("this is not a turno-browser session export");
-  if (typeof v.version !== "number" || v.version > VERSION) throw new SealError("this export is from a newer turno-browser; update turno-browser");
+  if (typeof v.version !== "number" || v.version > VERSION)
+    throw new SealError("this export is from a newer turno-browser; update turno-browser");
   const kdf = v.kdf;
   if (
     !isObject(kdf) ||

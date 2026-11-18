@@ -52,7 +52,10 @@ describe("the --no-input flag", () => {
   });
 
   it("leaves what belongs to an agent alone: after --, and the arguments of run and of a profile", () => {
-    expect(takeNoInput(["demo", "--", "turno", "init", "--no-input"])).toEqual({ argv: ["demo", "--", "turno", "init", "--no-input"], noInput: false });
+    expect(takeNoInput(["demo", "--", "turno", "init", "--no-input"])).toEqual({
+      argv: ["demo", "--", "turno", "init", "--no-input"],
+      noInput: false,
+    });
     expect(takeNoInput(["run", "work", "--no-input"])).toEqual({ argv: ["run", "work", "--no-input"], noInput: false });
     expect(takeNoInput(["work", "--no-input"])).toEqual({ argv: ["work", "--no-input"], noInput: false });
     expect(takeNoInput(["--no-input", "work", "--no-input"])).toEqual({ argv: ["work", "--no-input"], noInput: true });
@@ -84,7 +87,9 @@ describe("turno secret set", () => {
     ] as const) {
       const io = fakeIo({ ...sb.env, ...env });
       expect(await main([...args], io)).toBe(2);
-      expect(io.errors).toEqual(["turno: secret set needs an answer; pass the value on stdin (or run it in a terminal)"]);
+      expect(io.errors).toEqual([
+        "turno: secret set needs an answer; pass the value on stdin (or run it in a terminal)",
+      ]);
     }
     expect(store.services()).toEqual([]);
   });

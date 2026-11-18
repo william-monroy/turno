@@ -30,9 +30,20 @@ const sdk = (p) => import(pathToFileURL(require.resolve(`@modelcontextprotocol/s
 const SERVERS = [
   { name: "playwright", pkg: "@playwright/mcp", version: "0.0.85", bin: "playwright-mcp" },
   { name: "devtools", pkg: "chrome-devtools-mcp", version: "1.13.0", bin: "chrome-devtools-mcp" },
-  { name: "filesystem", pkg: "@modelcontextprotocol/server-filesystem", version: "2.3.0", bin: "mcp-server-filesystem", args: ["/tmp"] },
+  {
+    name: "filesystem",
+    pkg: "@modelcontextprotocol/server-filesystem",
+    version: "2.3.0",
+    bin: "mcp-server-filesystem",
+    args: ["/tmp"],
+  },
   { name: "memory", pkg: "@modelcontextprotocol/server-memory", version: "2.1.1", bin: "mcp-server-memory" },
-  { name: "thinking", pkg: "@modelcontextprotocol/server-sequential-thinking", version: "2.1.1", bin: "mcp-server-sequential-thinking" },
+  {
+    name: "thinking",
+    pkg: "@modelcontextprotocol/server-sequential-thinking",
+    version: "2.1.1",
+    bin: "mcp-server-sequential-thinking",
+  },
   { name: "context7", pkg: "@upstash/context7-mcp", version: "4.7.0", bin: "context7-mcp" },
 ];
 
@@ -96,7 +107,12 @@ async function direct(dir) {
   for (let i = 0; i < SESSIONS; i++) {
     for (const s of SERVERS) {
       const t = values.npx
-        ? new StdioClientTransport({ command: "npx", args: ["-y", `${s.pkg}@${s.version}`, ...(s.args ?? [])], cwd: dir, stderr: "ignore" })
+        ? new StdioClientTransport({
+            command: "npx",
+            args: ["-y", `${s.pkg}@${s.version}`, ...(s.args ?? [])],
+            cwd: dir,
+            stderr: "ignore",
+          })
         : new StdioClientTransport({ command: binPath(dir, s), args: s.args ?? [], stderr: "ignore" });
       const { client } = await listOver(t);
       clients.push(client);
@@ -111,11 +127,20 @@ async function direct(dir) {
 
 async function gateway(dir, home) {
   const port = 47000 + Math.floor(Math.random() * 900);
-  const toml = SERVERS.map((s) => `[server.${s.name}]\ncommand = ${JSON.stringify(binPath(dir, s))}\nargs = ${JSON.stringify(s.args ?? [])}\nscope = "shared"\n`).join("\n");
+  const toml = SERVERS.map(
+    (s) =>
+      `[server.${s.name}]\ncommand = ${JSON.stringify(binPath(dir, s))}\nargs = ${JSON.stringify(s.args ?? [])}\nscope = "shared"\n`,
+  ).join("\n");
   mkdirSync(join(home, ".config/turno"), { recursive: true });
   writeFileSync(join(home, ".config/turno/mcp.toml"), toml);
   writeFileSync(join(home, ".config/turno/config.toml"), `[mcpd]\nport = ${port}\n`);
-  const env = { ...process.env, HOME: home, XDG_CONFIG_HOME: join(home, ".config"), XDG_STATE_HOME: join(home, ".local/state"), XDG_DATA_HOME: join(home, ".local/share") };
+  const env = {
+    ...process.env,
+    HOME: home,
+    XDG_CONFIG_HOME: join(home, ".config"),
+    XDG_STATE_HOME: join(home, ".local/state"),
+    XDG_DATA_HOME: join(home, ".local/share"),
+  };
   const daemon = spawn(process.execPath, [CLI, "mcp", "daemon", "run"], { env, stdio: "ignore" });
   const tokenFile = join(home, ".local/state/turno/mcpd.token");
   for (let i = 0; i < 100 && !existsSync(tokenFile); i++) await sleep(100);
@@ -128,7 +153,13 @@ async function gateway(dir, home) {
     for (let i = 0; i < SESSIONS; i++) {
       for (const s of SERVERS) {
         const t = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp/${s.name}`), {
-          requestInit: { headers: { Authorization: `Bearer ${token}`, "X-Turno-Profile": `p${i}`, "X-Turno-Pid": String(process.pid) } },
+          requestInit: {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "X-Turno-Profile": `p${i}`,
+              "X-Turno-Pid": String(process.pid),
+            },
+          },
         });
         clients.push((await listOver(t)).client);
       }
@@ -150,7 +181,13 @@ async function gateway(dir, home) {
     for (let i = 0; i < SESSIONS; i++) {
       for (const s of SERVERS) {
         const t = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp/${s.name}`), {
-          requestInit: { headers: { Authorization: `Bearer ${token}`, "X-Turno-Profile": `p${i}`, "X-Turno-Pid": String(process.pid) } },
+          requestInit: {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "X-Turno-Profile": `p${i}`,
+              "X-Turno-Pid": String(process.pid),
+            },
+          },
         });
         clients.push((await listOver(t)).client);
       }
@@ -169,7 +206,8 @@ async function gateway(dir, home) {
 function show(file) {
   const r = JSON.parse(readFileSync(file, "utf8"));
   const n = (x) => x.toLocaleString("en-US").padStart(6);
-  const row = (label, m) => `  ${label.padEnd(30)}${n(m.mib)} MiB  ${String(m.processes).padStart(2)} ${m.processes === 1 ? "process" : "processes"}`;
+  const row = (label, m) =>
+    `  ${label.padEnd(30)}${n(m.mib)} MiB  ${String(m.processes).padStart(2)} ${m.processes === 1 ? "process" : "processes"}`;
   console.log(`${r.sessions} sessions x ${r.servers.length} MCP servers (${r.machine})`);
   console.log(row(`each session starts its own`, r.direct));
   console.log(row("turno, all servers running", r.gatewayColdCache));

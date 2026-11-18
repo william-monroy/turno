@@ -58,22 +58,40 @@ async function boot(toml: string, master: string): Promise<number> {
   const manifest: Manifest = parseManifest(toml);
   manager = new InstanceManager({
     cache: new DescriptionCache(join(sb.home, "cache")),
-    connector: new DefaultConnector({ resolve: async (v) => v, serversDir: join(sb.home, "servers"), logsDir: join(sb.home, "logs"), baseEnv: { PATH: process.env.PATH ?? "" } }),
+    connector: new DefaultConnector({
+      resolve: async (v) => v,
+      serversDir: join(sb.home, "servers"),
+      logsDir: join(sb.home, "logs"),
+      baseEnv: { PATH: process.env.PATH ?? "" },
+    }),
     home: sb.home,
   });
-  gw = new Gateway({ manager, manifest: () => manifest, token: master, clientRequestTimeoutMs: 5000, processCwd: async () => undefined });
+  gw = new Gateway({
+    manager,
+    manifest: () => manifest,
+    token: master,
+    clientRequestTimeoutMs: 5000,
+    processCwd: async () => undefined,
+  });
   return gw.listen(0);
 }
 
 async function connect(port: number, server: string, headers: Record<string, string>): Promise<Client> {
   const client = new Client({ name: "test", version: "1" });
-  const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp/${server}`), { requestInit: { headers } });
+  const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp/${server}`), {
+    requestInit: { headers },
+  });
   await client.connect(transport);
   clients.push(client);
   return client;
 }
 
-const INIT = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } } });
+const INIT = JSON.stringify({
+  jsonrpc: "2.0",
+  id: 1,
+  method: "initialize",
+  params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } },
+});
 
 function post(port: number, path: string, headers: Record<string, string>, body = INIT): Promise<Response> {
   return fetch(`http://127.0.0.1:${port}${path}`, {
@@ -116,7 +134,10 @@ describe("gateway authentication (ADR 0023)", () => {
     expect(((await mismatch.json()) as { error: string }).error).toContain("belongs to profile a");
     // b's own token opens it; the matching header is fine.
     const b = await connect(port, "bonly", { ...bearer("b"), "X-Turno-Profile": "b" });
-    expect(((await b.callTool({ name: "echo", arguments: { text: "hi" } })) as { content: { text: string }[] }).content[0]!.text).toBe("hi");
+    expect(
+      ((await b.callTool({ name: "echo", arguments: { text: "hi" } })) as { content: { text: string }[] }).content[0]!
+        .text,
+    ).toBe("hi");
     const a = await connect(port, "fx", bearer("a"));
     expect((await a.listTools()).tools.length).toBeGreaterThan(0);
     expect(gw!.status()).toMatchObject({ sessions: 2 });
@@ -154,7 +175,12 @@ describe("gateway authentication (ADR 0023)", () => {
     const ping = JSON.stringify({ jsonrpc: "2.0", id: 2, method: "ping" });
     const hijack = await post(port, "/mcp/fx", { ...bearer("b"), "mcp-session-id": sid }, ping);
     expect(hijack.status).toBe(403);
-    const own = await post(port, "/mcp/fx", { ...bearer("a"), "mcp-session-id": sid, "mcp-protocol-version": "2025-06-18" }, ping);
+    const own = await post(
+      port,
+      "/mcp/fx",
+      { ...bearer("a"), "mcp-session-id": sid, "mcp-protocol-version": "2025-06-18" },
+      ping,
+    );
     expect(own.status).toBe(200);
   });
 });
@@ -184,8 +210,12 @@ describe("tool filters", () => {
     expect(() => parseManifest(fixture("fx", 'tools = { allow = "echo" }'))).toThrow(/tools.allow must be an array/);
     expect(() => parseManifest(fixture("fx", 'tools = { only = ["echo"] }'))).toThrow(/not a tool filter key/);
     expect(() => parseManifest(fixture("fx", 'tools = { deny = ["two words"] }'))).toThrow(/invalid tool pattern/);
-    expect(() => parseManifest('[server.docs]\nurl = "https://docs.example.com/mcp"\ntools = { deny = ["x"] }\n')).toThrow(/go through mcpd/);
-    const proxied = parseManifest('[server.vault]\nurl = "https://vault.example.com/mcp"\nheaders = { Authorization = "keychain:v" }\ntools = { deny = ["x"] }\n');
+    expect(() =>
+      parseManifest('[server.docs]\nurl = "https://docs.example.com/mcp"\ntools = { deny = ["x"] }\n'),
+    ).toThrow(/go through mcpd/);
+    const proxied = parseManifest(
+      '[server.vault]\nurl = "https://vault.example.com/mcp"\nheaders = { Authorization = "keychain:v" }\ntools = { deny = ["x"] }\n',
+    );
     expect(proxied.servers.vault!.tools).toEqual({ deny: ["x"] });
     // The filter is mcpd's business: it is not copied into the remote entry.
     expect((proxied.servers.vault as { entry: Record<string, unknown> }).entry.tools).toBeUndefined();
@@ -193,7 +223,10 @@ describe("tool filters", () => {
 
   it("hide filtered tools from tools/list and refuse calls to them", async () => {
     const master = "k".repeat(64);
-    const port = await boot(`${fixture("fx", 'tools = { deny = ["ask*", "hang"] }')}[server.fx.variant.work]\ntools = { allow = ["echo"] }\n`, master);
+    const port = await boot(
+      `${fixture("fx", 'tools = { deny = ["ask*", "hang"] }')}[server.fx.variant.work]\ntools = { allow = ["echo"] }\n`,
+      master,
+    );
     const personal = await connect(port, "fx", { Authorization: `Bearer ${profileToken(master, "personal")}` });
     const names = (await personal.listTools()).tools.map((t) => t.name);
     expect(names).toContain("echo");
@@ -201,7 +234,9 @@ describe("tool filters", () => {
     expect(names).not.toContain("ask");
     expect(names).not.toContain("askLater");
     expect(names).not.toContain("hang");
-    await expect(personal.callTool({ name: "hang", arguments: { ms: 1 } })).rejects.toThrow(/not available to profile personal/);
+    await expect(personal.callTool({ name: "hang", arguments: { ms: 1 } })).rejects.toThrow(
+      /not available to profile personal/,
+    );
     const work = await connect(port, "fx", { Authorization: `Bearer ${profileToken(master, "work")}` });
     expect((await work.listTools()).tools.map((t) => t.name)).toEqual(["echo"]);
     await expect(work.callTool({ name: "counter", arguments: {} })).rejects.toThrow(/tools.allow/);
@@ -226,7 +261,11 @@ describe("turno mcp sync writes each profile its own token", () => {
   });
 
   const claudeEntry = (rel: string, server: string) =>
-    (JSON.parse(readFileSync(join(sb.home, rel), "utf8")) as { mcpServers: Record<string, { headers: Record<string, string> }> }).mcpServers[server];
+    (
+      JSON.parse(readFileSync(join(sb.home, rel), "utf8")) as {
+        mcpServers: Record<string, { headers: Record<string, string> }>;
+      }
+    ).mcpServers[server];
 
   it("and a session with profile a's token cannot open b's server, end to end", async () => {
     const r = await run(["mcp", "sync"]);
@@ -235,10 +274,13 @@ describe("turno mcp sync writes each profile its own token", () => {
     const a = claudeEntry(".claude-a/.claude.json", "fx")!;
     expect(a.headers.Authorization).toBe(`Bearer ${profileToken(master, "a")}`);
     expect(claudeEntry(".claude-a/.claude.json", "bonly")).toBeUndefined();
-    expect(claudeEntry(".claude-b/.claude.json", "bonly")!.headers.Authorization).toBe(`Bearer ${profileToken(master, "b")}`);
+    expect(claudeEntry(".claude-b/.claude.json", "bonly")!.headers.Authorization).toBe(
+      `Bearer ${profileToken(master, "b")}`,
+    );
     // Plain claude gets the system profile's token.
     expect(claudeEntry(".claude.json", "fx")!.headers.Authorization).toBe(`Bearer ${profileToken(master, "a")}`);
-    for (const f of [".claude-a/.claude.json", ".claude-b/.claude.json", ".claude.json"]) expect(readFileSync(join(sb.home, f), "utf8")).not.toContain(master);
+    for (const f of [".claude-a/.claude.json", ".claude-b/.claude.json", ".claude.json"])
+      expect(readFileSync(join(sb.home, f), "utf8")).not.toContain(master);
 
     // Agents that read the token from the environment get a private token file their launcher reads.
     for (const p of ["cx", "cur"]) {
@@ -255,7 +297,10 @@ describe("turno mcp sync writes each profile its own token", () => {
     const port = await boot(readFileSync(join(sb.home, ".config/turno/mcp.toml"), "utf8"), master);
     const forged = await post(port, "/mcp/bonly", { Authorization: a.headers.Authorization!, "X-Turno-Profile": "b" });
     expect(forged.status).toBe(403);
-    const ok = await connect(port, "fx", { Authorization: a.headers.Authorization!, "X-Turno-Profile": a.headers["X-Turno-Profile"]! });
+    const ok = await connect(port, "fx", {
+      Authorization: a.headers.Authorization!,
+      "X-Turno-Profile": a.headers["X-Turno-Profile"]!,
+    });
     expect((await ok.listTools()).tools.length).toBeGreaterThan(0);
   });
 
@@ -270,7 +315,9 @@ describe("turno mcp sync writes each profile its own token", () => {
     expect(tokenProfile(master, before)).toBeUndefined();
     expect(tokenSyncCheck(sb.env)?.level).toBe("warn");
     expect((await run(["mcp", "sync"])).code).toBe(0);
-    expect(tokenProfile(master, claudeEntry(".claude-a/.claude.json", "fx")!.headers.Authorization!.slice(7))).toBe("a");
+    expect(tokenProfile(master, claudeEntry(".claude-a/.claude.json", "fx")!.headers.Authorization!.slice(7))).toBe(
+      "a",
+    );
     expect(readFileSync(profileTokenFile("cx", sb.env), "utf8").trim()).toBe(profileToken(master, "cx"));
     expect(tokenSyncCheck(sb.env)).toBeUndefined();
   });
@@ -279,7 +326,15 @@ describe("turno mcp sync writes each profile its own token", () => {
     const master = masterToken(sb.env, "ensure")!;
     const file = sb.write(
       ".claude-a/.claude.json",
-      JSON.stringify({ mcpServers: { fx: { type: "http", url: "http://127.0.0.1:1/mcp/fx", headers: { Authorization: `Bearer ${master}`, "X-Turno-Profile": "a" } } } }),
+      JSON.stringify({
+        mcpServers: {
+          fx: {
+            type: "http",
+            url: "http://127.0.0.1:1/mcp/fx",
+            headers: { Authorization: `Bearer ${master}`, "X-Turno-Profile": "a" },
+          },
+        },
+      }),
     );
     sb.write(".local/state/turno/mcp-managed.json", JSON.stringify({ [file]: ["fx"] }));
     const c = tokenSyncCheck(sb.env);

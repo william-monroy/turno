@@ -81,7 +81,11 @@ function opaqueDirs(env: NodeJS.ProcessEnv): Set<string> {
  * Folders and files under turno's config, state and data roots that group or others can read or
  * write, or that belong to another user. Symbolic links are not followed.
  */
-export function scanPermissions(env: NodeJS.ProcessEnv): { wide: PermissionFinding[]; foreign: PermissionFinding[]; truncated: boolean } {
+export function scanPermissions(env: NodeJS.ProcessEnv): {
+  wide: PermissionFinding[];
+  foreign: PermissionFinding[];
+  truncated: boolean;
+} {
   const uid = process.getuid?.();
   const opaque = opaqueDirs(env);
   const wide: PermissionFinding[] = [];
@@ -139,7 +143,13 @@ function permissionChecks(env: NodeJS.ProcessEnv): Check[] {
   const out: Check[] = [];
   const roots = privateRoots(env).filter((r) => existsSync(r));
   if (!roots.length) return [check({ level: "info", text: "permissions: turno has no folders yet" })];
-  if (!wide.length && !foreign.length) out.push(check({ level: "ok", text: `permissions: only you can read turno's folders (${roots.map((r) => tildify(r, env)).join(", ")})` }));
+  if (!wide.length && !foreign.length)
+    out.push(
+      check({
+        level: "ok",
+        text: `permissions: only you can read turno's folders (${roots.map((r) => tildify(r, env)).join(", ")})`,
+      }),
+    );
   if (wide.length) {
     const writable = wide.filter((f) => f.mode & 0o022);
     out.push(
@@ -171,7 +181,10 @@ function permissionChecks(env: NodeJS.ProcessEnv): Check[] {
       }),
     );
   }
-  if (truncated) out.push(check({ level: "info", text: `permissions: stopped after ${WALK_LIMIT} entries; the rest was not checked` }));
+  if (truncated)
+    out.push(
+      check({ level: "info", text: `permissions: stopped after ${WALK_LIMIT} entries; the rest was not checked` }),
+    );
   return out;
 }
 
@@ -188,11 +201,19 @@ async function portCheck(env: NodeJS.ProcessEnv): Promise<Check> {
     return check({
       level: "fail",
       text: `mcpd port ${port}: held by ${describeOwner(owner)}, another user, so sessions would send it the gateway token`,
-      manual: "stop it or move mcpd (turno config set mcpd.port <port>, then turno mcp sync), then turno mcp token rotate",
+      manual:
+        "stop it or move mcpd (turno config set mcpd.port <port>, then turno mcp sync), then turno mcp token rotate",
     });
   }
-  const ours = await answersAsMcpd(port, readToken(env, () => {}));
-  if (ours) return check({ level: "ok", text: `mcpd port ${port}: held by mcpd${ours.pid ? ` (pid ${ours.pid})` : ""} under your user` });
+  const ours = await answersAsMcpd(
+    port,
+    readToken(env, () => {}),
+  );
+  if (ours)
+    return check({
+      level: "ok",
+      text: `mcpd port ${port}: held by mcpd${ours.pid ? ` (pid ${ours.pid})` : ""} under your user`,
+    });
   return check({
     level: "warn",
     text: `mcpd port ${port}: held by ${describeOwner(owner)}, which does not answer as mcpd, so sessions would send it the gateway token`,
@@ -230,7 +251,8 @@ export async function entrySecrets(e: Entry): Promise<string[]> {
 function serverMaps(doc: Entry): Record<string, Entry>[] {
   const maps: Record<string, Entry>[] = [];
   const add = (v: unknown) => {
-    if (isObject(v)) maps.push(Object.fromEntries(Object.entries(v).filter(([, e]) => isObject(e))) as Record<string, Entry>);
+    if (isObject(v))
+      maps.push(Object.fromEntries(Object.entries(v).filter(([, e]) => isObject(e))) as Record<string, Entry>);
   };
   add(doc.mcpServers);
   add(doc.mcp_servers);
@@ -258,7 +280,8 @@ export async function configSecrets(file: string): Promise<string[]> {
   const doc = readDoc(file);
   if (!doc) return [];
   const out: string[] = [];
-  for (const map of serverMaps(doc)) for (const [name, e] of Object.entries(map)) for (const w of await entrySecrets(e)) out.push(`${name}.${w}`);
+  for (const map of serverMaps(doc))
+    for (const [name, e] of Object.entries(map)) for (const w of await entrySecrets(e)) out.push(`${name}.${w}`);
   return [...new Set(out)];
 }
 
@@ -271,7 +294,8 @@ async function manifestSecrets(file: string): Promise<string[]> {
     if (!isObject(def)) continue;
     for (const w of await entrySecrets(def)) out.push(`${name}.${w}`);
     if (isObject(def.variants)) {
-      for (const [variant, v] of Object.entries(def.variants)) if (isObject(v)) for (const w of await entrySecrets(v)) out.push(`${name}.variants.${variant}.${w}`);
+      for (const [variant, v] of Object.entries(def.variants))
+        if (isObject(v)) for (const w of await entrySecrets(v)) out.push(`${name}.variants.${variant}.${w}`);
     }
   }
   return out;
@@ -295,7 +319,8 @@ async function secretChecks(env: NodeJS.ProcessEnv, config: Config | undefined):
       check({
         level: "warn",
         text: `literal secrets in ${tildify(p.mcpFile, env)}: ${inManifest.join(", ")}`,
-        manual: "store each with turno secret set <name> and write keychain:<name> in its place (args and URLs cannot hold references; see docs/mcp.md)",
+        manual:
+          "store each with turno secret set <name> and write keychain:<name> in its place (args and URLs cannot hold references; see docs/mcp.md)",
       }),
     );
   }
@@ -314,7 +339,10 @@ async function secretChecks(env: NodeJS.ProcessEnv, config: Config | undefined):
       }),
     );
   }
-  if (!out.length) out.push(check({ level: "ok", text: `no literal secrets in mcp.toml or ${clean} agent config${clean === 1 ? "" : "s"}` }));
+  if (!out.length)
+    out.push(
+      check({ level: "ok", text: `no literal secrets in mcp.toml or ${clean} agent config${clean === 1 ? "" : "s"}` }),
+    );
   out.push(...(await backupChecks(env)));
   return out;
 }
@@ -377,7 +405,10 @@ function isExactPySpec(spec: string): boolean {
 }
 
 /** The package a runner command fetches at start (npx, bunx, pnpm dlx, uvx), if it is one. */
-async function fetchedPackage(command: string, args: string[]): Promise<{ runner: string; spec: string; exact: boolean } | undefined> {
+async function fetchedPackage(
+  command: string,
+  args: string[],
+): Promise<{ runner: string; spec: string; exact: boolean } | undefined> {
   const bin = basename(command);
   const { parseNpx } = await import("../mcpd/importer.js");
   if (bin === "npx" || bin === "bunx") {
@@ -416,11 +447,13 @@ async function versionChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
       if (!isExactNpmSpec(s.package)) {
         loose.push(`${s.name} (package ${s.package})`);
         pinnable.push(s.name);
-      }
-      else if (!existsSync(join(serversDir, s.name, "node_modules", ".bin", s.command))) runtime.push(s.name);
+      } else if (!existsSync(join(serversDir, s.name, "node_modules", ".bin", s.command))) runtime.push(s.name);
       continue;
     }
-    for (const launch of [{ command: s.command, args: s.args }, ...Object.values(s.variants).map((v) => ({ command: v.command ?? s.command, args: v.args ?? s.args }))]) {
+    for (const launch of [
+      { command: s.command, args: s.args },
+      ...Object.values(s.variants).map((v) => ({ command: v.command ?? s.command, args: v.args ?? s.args })),
+    ]) {
       const f = await fetchedPackage(launch.command, launch.args);
       if (f && !f.exact) {
         loose.push(`${s.name} (${f.runner} ${f.spec} fetches the newest version at each start)`);
@@ -437,12 +470,24 @@ async function versionChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
         text: `MCP servers without an exact version: ${loose.join("; ")}`,
         ...(all
           ? { hint: `turno mcp install ${pinnable.join(" ")}` }
-          : { manual: `write an exact version (pkg@1.2.3) in each command in mcp.toml${pinnable.length ? `; turno mcp install ${pinnable.join(" ")} pins the npm packages` : ""}` }),
+          : {
+              manual: `write an exact version (pkg@1.2.3) in each command in mcp.toml${pinnable.length ? `; turno mcp install ${pinnable.join(" ")} pins the npm packages` : ""}`,
+            }),
       }),
     );
   }
-  if (runtime.length) out.push(check({ level: "info", text: `pinned but not installed, so npx downloads them at each start: ${runtime.join(", ")}`, hint: "turno mcp install" }));
-  if (!loose.length && stdio) out.push(check({ level: "ok", text: `every stdio MCP server runs an exact version or a fixed command (${stdio})` }));
+  if (runtime.length)
+    out.push(
+      check({
+        level: "info",
+        text: `pinned but not installed, so npx downloads them at each start: ${runtime.join(", ")}`,
+        hint: "turno mcp install",
+      }),
+    );
+  if (!loose.length && stdio)
+    out.push(
+      check({ level: "ok", text: `every stdio MCP server runs an exact version or a fixed command (${stdio})` }),
+    );
   return out;
 }
 
@@ -510,7 +555,11 @@ function auditCheck(env: NodeJS.ProcessEnv): Check | undefined {
   try {
     v = verifyAudit(env);
   } catch (err) {
-    return check({ level: "warn", text: `audit log: cannot read it: ${(err as Error).message}`, manual: `check the owner and mode of ${tildify(paths(env).auditLog, env)} (yours, 600)` });
+    return check({
+      level: "warn",
+      text: `audit log: cannot read it: ${(err as Error).message}`,
+      manual: `check the owner and mode of ${tildify(paths(env).auditLog, env)} (yours, 600)`,
+    });
   }
   if (v.lines === 0) return undefined;
   if (!v.ok) {
@@ -520,7 +569,10 @@ function auditCheck(env: NodeJS.ProcessEnv): Check | undefined {
       manual: `find out who changed ${tildify(paths(env).auditLog, env)} after it was written; turno identity log --verify shows the line`,
     });
   }
-  return check({ level: "ok", text: `audit log: hash chain intact (${v.lines} line${v.lines === 1 ? "" : "s"}${v.legacy ? `, ${v.legacy} before the chain` : ""})` });
+  return check({
+    level: "ok",
+    text: `audit log: hash chain intact (${v.lines} line${v.lines === 1 ? "" : "s"}${v.legacy ? `, ${v.legacy} before the chain` : ""})`,
+  });
 }
 
 /** Every security check, in the order `turno doctor --security` prints them. */

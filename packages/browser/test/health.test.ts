@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { clearHealth, healthDue, healthPath, needsAuthMessage, readHealth, runHealthCheck, writeHealth } from "../src/health.js";
+import {
+  clearHealth,
+  healthDue,
+  healthPath,
+  needsAuthMessage,
+  readHealth,
+  runHealthCheck,
+  writeHealth,
+} from "../src/health.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
@@ -54,25 +62,47 @@ describe("runHealthCheck", () => {
     const { context, log } = fakeContext({ texts: ["Inbox"] });
     const r = await runHealthCheck(context, { url: "https://mail.example.com/", text: "Inbox" }, { now: () => NOW });
     expect(r).toEqual({ status: "ok", url: "https://mail.example.com/", checkedAt: NOW.toISOString() });
-    expect(log).toEqual(["newPage", "goto https://mail.example.com/ domcontentloaded", "wait text:Inbox visible", "close"]);
+    expect(log).toEqual([
+      "newPage",
+      "goto https://mail.example.com/ domcontentloaded",
+      "wait text:Inbox visible",
+      "close",
+    ]);
   });
 
   it("marks NEEDS_AUTH when the text or the selector is missing", async () => {
     const { context } = fakeContext({ texts: ["Inbox"] });
-    expect(await runHealthCheck(context, { url: "https://mail.example.com/", text: "Inbox", selector: "#avatar" }, { now: () => NOW })).toEqual({
+    expect(
+      await runHealthCheck(
+        context,
+        { url: "https://mail.example.com/", text: "Inbox", selector: "#avatar" },
+        { now: () => NOW },
+      ),
+    ).toEqual({
       status: "needs_auth",
       url: "https://mail.example.com/",
       checkedAt: NOW.toISOString(),
       detail: "no element matched #avatar",
     });
-    const missing = await runHealthCheck(fakeContext({}).context, { url: "https://mail.example.com/", text: "Inbox" }, { now: () => NOW });
+    const missing = await runHealthCheck(
+      fakeContext({}).context,
+      { url: "https://mail.example.com/", text: "Inbox" },
+      { now: () => NOW },
+    );
     expect(missing).toMatchObject({ status: "needs_auth", detail: 'the page did not show "Inbox"' });
   });
 
   it("says error, not NEEDS_AUTH, when the page cannot load", async () => {
-    const { context, log } = fakeContext({ gotoError: new Error("net::ERR_INTERNET_DISCONNECTED at https://mail.example.com/\nCall log: ...") });
+    const { context, log } = fakeContext({
+      gotoError: new Error("net::ERR_INTERNET_DISCONNECTED at https://mail.example.com/\nCall log: ..."),
+    });
     const r = await runHealthCheck(context, { url: "https://mail.example.com/", text: "Inbox" }, { now: () => NOW });
-    expect(r).toEqual({ status: "error", url: "https://mail.example.com/", checkedAt: NOW.toISOString(), detail: "could not load the page: net::ERR_INTERNET_DISCONNECTED at https://mail.example.com/" });
+    expect(r).toEqual({
+      status: "error",
+      url: "https://mail.example.com/",
+      checkedAt: NOW.toISOString(),
+      detail: "could not load the page: net::ERR_INTERNET_DISCONNECTED at https://mail.example.com/",
+    });
     expect(log.at(-1)).toBe("close");
   });
 });
@@ -100,7 +130,14 @@ describe("health record", () => {
   });
 
   it("tells the agent exactly what to ask the user", () => {
-    expect(needsAuthMessage("school", { status: "needs_auth", url: check.url, checkedAt: NOW.toISOString(), detail: 'the page did not show "Inbox"' })).toBe(
+    expect(
+      needsAuthMessage("school", {
+        status: "needs_auth",
+        url: check.url,
+        checkedAt: NOW.toISOString(),
+        detail: 'the page did not show "Inbox"',
+      }),
+    ).toBe(
       `NEEDS_AUTH: browser identity "school" is not signed in: the page did not show "Inbox" at ${check.url} (checked ${NOW.toISOString()}). ` +
         "Ask the user to run `turno browser login school`, sign in and close the window, then call this tool again.",
     );

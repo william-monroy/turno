@@ -8,7 +8,16 @@ import { Exit, exitName } from "../src/cli/exit.js";
 import { colors } from "../src/cli/io.js";
 import { writeLauncher } from "../src/cli/launchers.js";
 import { main } from "../src/cli/main.js";
-import { JsonFieldError, SCHEMA_KEY, emit, emitLine, jsonArg, jsonOutput, selectFields, shape } from "../src/cli/output.js";
+import {
+  JsonFieldError,
+  SCHEMA_KEY,
+  emit,
+  emitLine,
+  jsonArg,
+  jsonOutput,
+  selectFields,
+  shape,
+} from "../src/cli/output.js";
 import { COMMANDS, visibleCommands } from "../src/cli/registry.js";
 import { fakeCommand, fakeIo } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -75,13 +84,26 @@ describe("--json on the commands", () => {
   it("adds schemaVersion and keeps every existing key", async () => {
     const list = JSON.parse((await run(["profile", "list", "--json"])).out) as Record<string, unknown>[];
     expect(list.map((p) => p.name)).toEqual(["personal", "work"]);
-    expect(list[0]).toMatchObject({ schemaVersion: 1, name: "personal", agent: "claude", setUp: true, email: "alice@example.com", plan: "max" });
+    expect(list[0]).toMatchObject({
+      schemaVersion: 1,
+      name: "personal",
+      agent: "claude",
+      setUp: true,
+      email: "alice@example.com",
+      plan: "max",
+    });
     const version = JSON.parse((await run(["version", "--json"])).out) as Record<string, unknown>;
     expect(Object.keys(version)).toEqual(["schemaVersion", "name", "version", "node", "method", "path", "latest"]);
   });
 
   it("--json=fields lists the fields and runs nothing", async () => {
-    for (const args of [["status", "--json=fields"], ["profile", "list", "--json=fields"], ["profile", "--json=fields"], ["mcp", "top", "--json=fields"], ["secret", "list", "--json=fields"]]) {
+    for (const args of [
+      ["status", "--json=fields"],
+      ["profile", "list", "--json=fields"],
+      ["profile", "--json=fields"],
+      ["mcp", "top", "--json=fields"],
+      ["secret", "list", "--json=fields"],
+    ]) {
       const r = await run(args);
       expect(r.code, args.join(" ")).toBe(0);
       expect(r.out.split("\n")[0], args.join(" ")).toMatch(/^Fields for --json/);
@@ -97,7 +119,10 @@ describe("--json on the commands", () => {
     const bad = await run(["profile", "list", "--json=nope"]);
     expect(bad.code).toBe(Exit.usage);
     expect(bad.out).toBe("");
-    const e = JSON.parse(bad.err) as { schemaVersion: number; error: { code: string; exitCode: number; message: string; fields: string[] } };
+    const e = JSON.parse(bad.err) as {
+      schemaVersion: number;
+      error: { code: string; exitCode: number; message: string; fields: string[] };
+    };
     expect(e.schemaVersion).toBe(1);
     expect(e.error).toMatchObject({ code: "usage", exitCode: 2 });
     expect(e.error.message).toContain('unknown JSON field "nope"');
@@ -107,7 +132,10 @@ describe("--json on the commands", () => {
   it("errors under --json are one JSON line on stderr with the exit code's name", async () => {
     const r = await run(["profile", "list", "--json", "extra"]);
     expect(r.code).toBe(2);
-    expect(JSON.parse(r.err)).toEqual({ schemaVersion: 1, error: { code: "usage", exitCode: 2, message: "unexpected argument 'extra'" } });
+    expect(JSON.parse(r.err)).toEqual({
+      schemaVersion: 1,
+      error: { code: "usage", exitCode: 2, message: "unexpected argument 'extra'" },
+    });
     const text = await run(["profile", "list", "extra"]);
     expect(text.err).toBe("turno: unexpected argument 'extra'");
     const missing = await run(["config", "get", "nope", "--json"]);
@@ -131,7 +159,13 @@ describe("--json on the commands", () => {
     const io = fakeIo(sb.env);
     const stop = new AbortController();
     let rounds = 0;
-    const counting = { ...io, out: (l = "") => { io.out(l); if (++rounds === 4) stop.abort(); } };
+    const counting = {
+      ...io,
+      out: (l = "") => {
+        io.out(l);
+        if (++rounds === 4) stop.abort();
+      },
+    };
     expect(await watchJson(counting, "", stop.signal, 1)).toBe(0);
     expect(io.lines).toHaveLength(4);
     for (const l of io.lines) expect(JSON.parse(l)).toMatchObject({ schemaVersion: 1, agent: "claude" });
@@ -139,13 +173,22 @@ describe("--json on the commands", () => {
 
     const t = fakeIo(sb.env);
     const halt = new AbortController();
-    const one = { ...t, out: (l = "") => { t.out(l); halt.abort(); } };
+    const one = {
+      ...t,
+      out: (l = "") => {
+        t.out(l);
+        halt.abort();
+      },
+    };
     expect(await top(["--watch", "--json"], one, halt.signal, 1)).toBe(0);
     expect(t.lines).toEqual(['{"schemaVersion":1,"running":false}']);
   });
 
   it("mcp log --json and resolve --json stay one record per line", async () => {
-    sb.write(".local/state/turno/logs/calls.jsonl", '{"time":"2026-11-17T10:00:00Z","server":"gh","tool":"t","durationMs":3,"outcome":"ok"}\nnot json\n');
+    sb.write(
+      ".local/state/turno/logs/calls.jsonl",
+      '{"time":"2026-11-17T10:00:00Z","server":"gh","tool":"t","durationMs":3,"outcome":"ok"}\nnot json\n',
+    );
     const log = await run(["mcp", "log", "--json"]);
     expect(log.out.split("\n")).toHaveLength(1);
     expect(JSON.parse(log.out)).toMatchObject({ schemaVersion: 1, server: "gh", tool: "t" });
@@ -173,7 +216,16 @@ describe("--json on the commands", () => {
 
 describe("exit codes", () => {
   it("have stable names", () => {
-    expect([0, 1, 2, 3, 4, 5, 127, 130].map(exitName)).toEqual(["ok", "failure", "usage", "no_profile", "not_signed_in", "gateway_down", "not_installed", "cancelled"]);
+    expect([0, 1, 2, 3, 4, 5, 127, 130].map(exitName)).toEqual([
+      "ok",
+      "failure",
+      "usage",
+      "no_profile",
+      "not_signed_in",
+      "gateway_down",
+      "not_installed",
+      "cancelled",
+    ]);
     expect(exitName(42)).toBe("failure");
   });
 
@@ -211,7 +263,12 @@ describe("exit codes", () => {
     sb.write(".claude-work/.claude.json", "{}");
     r = await run(["profile", "which", dir, "--check", "--json"]);
     expect(r.code).toBe(Exit.notSignedIn);
-    expect(JSON.parse(r.out).check).toEqual({ ok: false, code: "not_signed_in", exitCode: 4, message: "work is not signed in: run claude-work, then /login" });
+    expect(JSON.parse(r.out).check).toEqual({
+      ok: false,
+      code: "not_signed_in",
+      exitCode: 4,
+      message: "work is not signed in: run claude-work, then /login",
+    });
     expect((await run(["profile", "which", dir, "--agent", "codex"])).code).toBe(Exit.usage);
   });
 });
@@ -220,14 +277,25 @@ describe("help topics", () => {
   it("turno help exit-codes lists every code", async () => {
     const r = await run(["help", "exit-codes"]);
     expect(r.code).toBe(0);
-    for (const n of ["0  ok", "1  failure", "2  usage", "3  no_profile", "4  not_signed_in", "5  gateway_down"]) expect(r.out).toContain(n);
+    for (const n of ["0  ok", "1  failure", "2  usage", "3  no_profile", "4  not_signed_in", "5  gateway_down"])
+      expect(r.out).toContain(n);
     expect(r.out).toContain("Examples:");
   });
 
   it("turno help json and environment exist, and turno help names the topics", async () => {
     expect((await run(["help", "json"])).out).toContain("--json=fields");
     const env = (await run(["help", "environment"])).out;
-    for (const v of ["NO_COLOR", "FORCE_COLOR", "CLICOLOR", "CLICOLOR_FORCE", "DO_NOT_TRACK", "CI", "TERM", "TURNO_NO_UPDATE_NOTIFIER"]) expect(env).toContain(v);
+    for (const v of [
+      "NO_COLOR",
+      "FORCE_COLOR",
+      "CLICOLOR",
+      "CLICOLOR_FORCE",
+      "DO_NOT_TRACK",
+      "CI",
+      "TERM",
+      "TURNO_NO_UPDATE_NOTIFIER",
+    ])
+      expect(env).toContain(v);
     expect((await run(["help"])).out).toContain("turno help exit-codes");
   });
 });
@@ -255,7 +323,14 @@ describe("help that ends with examples, and every variable named", () => {
     const missing: string[] = [];
     const examples = (text: string) => {
       const i = text.lastIndexOf("\nExamples:\n");
-      return i >= 0 && text.slice(i).split("\n").slice(2).every((l) => l.startsWith("  $ turno ") || l.startsWith("  $ ") || l === "");
+      return (
+        i >= 0 &&
+        text
+          .slice(i)
+          .split("\n")
+          .slice(2)
+          .every((l) => l.startsWith("  $ turno ") || l.startsWith("  $ ") || l === "")
+      );
     };
     for (const name of visibleCommands()) {
       const { command } = await COMMANDS[name]!();
@@ -272,7 +347,9 @@ describe("help that ends with examples, and every variable named", () => {
   it("turno help environment names every TURNO_ variable in the source", async () => {
     const { readFileSync, readdirSync } = await import("node:fs");
     const files = (dir: string): string[] =>
-      readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(join(dir, e.name)) : e.name.endsWith(".ts") ? [join(dir, e.name)] : []));
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? files(join(dir, e.name)) : e.name.endsWith(".ts") ? [join(dir, e.name)] : [],
+      );
     const root = join(__dirname, "..", "..");
     const used = new Set<string>();
     for (const f of [...files(join(root, "turno/src")), ...files(join(root, "browser/src"))]) {

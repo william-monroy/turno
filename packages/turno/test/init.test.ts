@@ -48,7 +48,10 @@ function existingSetup(): void {
     }),
   );
   // ~/.claude-work: used by hand with CLAUDE_CONFIG_DIR, with its own settings.json.
-  sb.write(".claude-work/.claude.json", JSON.stringify({ projects: { [home("code/acme/api")]: {}, [home("code/acme/web")]: {} } }));
+  sb.write(
+    ".claude-work/.claude.json",
+    JSON.stringify({ projects: { [home("code/acme/api")]: {}, [home("code/acme/web")]: {} } }),
+  );
   sb.write(".claude-work/settings.json", '{"theme":"mine"}\n');
   sb.write(".codex/config.toml", '[mcp_servers.context7]\ncommand = "npx"\nargs = ["-y", "@upstash/context7-mcp"]\n');
   sb.write(".codex-cx/config.toml", 'model = "o4"\n');
@@ -56,7 +59,10 @@ function existingSetup(): void {
   mkdirSync(home(".cursor-server/bin"), { recursive: true });
 }
 
-async function run(args: string[], io: ReturnType<typeof fakeIo> = fakeIo(sb.env)): Promise<{ code: number; out: string; err: string }> {
+async function run(
+  args: string[],
+  io: ReturnType<typeof fakeIo> = fakeIo(sb.env),
+): Promise<{ code: number; out: string; err: string }> {
   const code = await main(args, io);
   return { code, out: io.lines.join("\n"), err: io.errors.join("\n") };
 }
@@ -102,7 +108,13 @@ describe("turno init", () => {
 
   it("imports MCP servers from the agent folders it adopts, not only the main configs", async () => {
     existingSetup();
-    sb.write(".claude-work/.claude.json", JSON.stringify({ mcpServers: { linear: { type: "http", url: "https://mcp.linear.app/mcp" } }, projects: { [home("code/acme/api")]: { mcpServers: { db: { command: "db-mcp" } } } } }));
+    sb.write(
+      ".claude-work/.claude.json",
+      JSON.stringify({
+        mcpServers: { linear: { type: "http", url: "https://mcp.linear.app/mcp" } },
+        projects: { [home("code/acme/api")]: { mcpServers: { db: { command: "db-mcp" } } } },
+      }),
+    );
     sb.write(".codex-cx/config.toml", 'model = "o4"\n\n[mcp_servers.postgres]\ncommand = "pg-mcp"\n');
     const r = await run(["init", "--dry-run"]);
     expect(r.code).toBe(0);
@@ -312,7 +324,17 @@ describe("turno init", () => {
   });
 
   it("takes profiles and the default from flags", async () => {
-    const r = await run(["init", "--yes", "--no-mcp", "--profile", "work", "--profile", "cx:codex", "--default", "work"]);
+    const r = await run([
+      "init",
+      "--yes",
+      "--no-mcp",
+      "--profile",
+      "work",
+      "--profile",
+      "cx:codex",
+      "--default",
+      "work",
+    ]);
     expect(r.code).toBe(0);
     const cfg = read(cfgFile());
     expect(cfg).toContain('default = "work"');
@@ -365,16 +387,42 @@ describe("turno init", () => {
 
 describe("inferRules", () => {
   const H = "/h";
-  const dirs = new Set(["/h/code/acme/api", "/h/code/acme/web", "/h/code/side", "/h/code/mixed/a", "/h/code/mixed/b", "/h/code/both", "/h/x"]);
+  const dirs = new Set([
+    "/h/code/acme/api",
+    "/h/code/acme/web",
+    "/h/code/side",
+    "/h/code/mixed/a",
+    "/h/code/mixed/b",
+    "/h/code/both",
+    "/h/x",
+  ]);
   const isDir = (d: string) => dirs.has(d);
   const owners = (entries: [string, string[]][]) => new Map(entries.map(([d, ps]) => [d, new Set(ps)]));
 
   it("collapses sibling folders of one profile to their parent", () => {
-    expect(inferRules(owners([["/h/code/acme/api", ["work"]], ["/h/code/acme/web", ["work"]]]), H, [], isDir)).toEqual([{ path: "/h/code/acme", profile: "work" }]);
+    expect(
+      inferRules(
+        owners([
+          ["/h/code/acme/api", ["work"]],
+          ["/h/code/acme/web", ["work"]],
+        ]),
+        H,
+        [],
+        isDir,
+      ),
+    ).toEqual([{ path: "/h/code/acme", profile: "work" }]);
   });
 
   it("keeps siblings of different profiles apart", () => {
-    const r = inferRules(owners([["/h/code/mixed/a", ["work"]], ["/h/code/mixed/b", ["personal"]]]), H, [], isDir);
+    const r = inferRules(
+      owners([
+        ["/h/code/mixed/a", ["work"]],
+        ["/h/code/mixed/b", ["personal"]],
+      ]),
+      H,
+      [],
+      isDir,
+    );
     expect(r).toEqual([
       { path: "/h/code/mixed/a", profile: "work" },
       { path: "/h/code/mixed/b", profile: "personal" },
@@ -398,7 +446,17 @@ describe("inferRules", () => {
   });
 
   it("does not collapse into HOME itself", () => {
-    expect(inferRules(owners([["/h/x", ["work"]], ["/h/code", ["work"]]]), H, [], (d) => d === "/h/x" || d === "/h/code")).toEqual([
+    expect(
+      inferRules(
+        owners([
+          ["/h/x", ["work"]],
+          ["/h/code", ["work"]],
+        ]),
+        H,
+        [],
+        (d) => d === "/h/x" || d === "/h/code",
+      ),
+    ).toEqual([
       { path: "/h/code", profile: "work" },
       { path: "/h/x", profile: "work" },
     ]);

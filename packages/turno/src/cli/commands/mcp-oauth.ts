@@ -10,7 +10,18 @@ import { type Io, fail } from "../io.js";
 import { emit, jsonOutput } from "../output.js";
 
 /** `turno mcp login --json` (ADR 0045). */
-export const LOGIN_JSON = jsonOutput(["server", "variant", "issuer", "registration", "scope", "redirectUri", "expiresAt", "refreshToken", "service", "planned"]);
+export const LOGIN_JSON = jsonOutput([
+  "server",
+  "variant",
+  "issuer",
+  "registration",
+  "scope",
+  "redirectUri",
+  "expiresAt",
+  "refreshToken",
+  "service",
+  "planned",
+]);
 
 /**
  * `turno mcp login` and `turno mcp logout` (ADR 0029): mcpd is the OAuth client of remote
@@ -18,8 +29,19 @@ export const LOGIN_JSON = jsonOutput(["server", "variant", "issuer", "registrati
  * through mcpd and never log in themselves.
  */
 
-export const LOGIN_FLAGS: FlagSpec = { profile: { type: "string" }, scope: { type: "string" }, "no-browser": { type: "boolean" }, ...DRY_RUN, ...JSON_FLAG };
-export const LOGOUT_FLAGS: FlagSpec = { profile: { type: "string" }, all: { type: "boolean" }, "no-revoke": { type: "boolean" }, ...DRY_RUN };
+export const LOGIN_FLAGS: FlagSpec = {
+  profile: { type: "string" },
+  scope: { type: "string" },
+  "no-browser": { type: "boolean" },
+  ...DRY_RUN,
+  ...JSON_FLAG,
+};
+export const LOGOUT_FLAGS: FlagSpec = {
+  profile: { type: "string" },
+  all: { type: "boolean" },
+  "no-revoke": { type: "boolean" },
+  ...DRY_RUN,
+};
 
 /** Seams for tests: how the authorization URL reaches a browser, and the HTTP client. */
 export interface OAuthDeps {
@@ -38,7 +60,8 @@ function oauthServer(env: NodeJS.ProcessEnv, name: string | undefined, verb: str
 function variantFor(server: RemoteServer, profile: string | undefined): string {
   if (profile === undefined) return "default";
   if (!isValidProfileName(profile)) fail(`invalid profile name "${profile}"`);
-  if (!servesProfile(server, profile)) fail(`${server.name} is not served to profile ${profile} (profiles in mcp.toml)`);
+  if (!servesProfile(server, profile))
+    fail(`${server.name} is not served to profile ${profile} (profiles in mcp.toml)`);
   return variantKey(server, profile);
 }
 
@@ -93,7 +116,9 @@ export async function login(args: string[], io: Io, deps: OAuthDeps = {}): Promi
           say(`Open this link in a browser to log in to ${server.name} (${whom(server, variant)}):`);
           say(url);
         } else {
-          say(`Opening the browser to log in to ${server.name} (${whom(server, variant)}). If it does not open, visit:`);
+          say(
+            `Opening the browser to log in to ${server.name} (${whom(server, variant)}). If it does not open, visit:`,
+          );
           say(url);
           await (deps.open ?? openBrowser)(url, profile, io);
         }
@@ -106,13 +131,17 @@ export async function login(args: string[], io: Io, deps: OAuthDeps = {}): Promi
     }
     if (result.planned) {
       io.out(`would log in to ${server.name} (${whom(server, variant)}) through ${result.issuer}`);
-      io.out(`  client: ${result.registration === "dynamic" ? "dynamic client registration" : result.registration === "metadata-document" ? "client ID metadata document" : "pre-registered client_id"}`);
+      io.out(
+        `  client: ${result.registration === "dynamic" ? "dynamic client registration" : result.registration === "metadata-document" ? "client ID metadata document" : "pre-registered client_id"}`,
+      );
       io.out(`  scope: ${result.scope ?? "(none requested)"}`);
       io.out(`  tokens would go to the ${store.label} as ${result.service}`);
       return 0;
     }
     io.out(`Logged in to ${server.name} for ${whom(server, variant)} through ${result.issuer}.`);
-    io.out(`The tokens are in the ${store.label} as ${result.service}; mcpd refreshes them, and agents reach ${server.name} through mcpd.`);
+    io.out(
+      `The tokens are in the ${store.label} as ${result.service}; mcpd refreshes them, and agents reach ${server.name} through mcpd.`,
+    );
     if (!result.refreshToken) io.out(`The server gave no refresh token: log in again when the access token expires.`);
     return 0;
   } catch (err) {
@@ -140,7 +169,9 @@ export async function logout(args: string[], io: Io, deps: OAuthDeps = {}): Prom
       continue;
     }
     if (dry) {
-      io.out(`would remove ${service} from the ${store.label}${rec?.tokens && !bool(flags, "no-revoke") ? ` and revoke the token at ${rec.issuer}` : ""}`);
+      io.out(
+        `would remove ${service} from the ${store.label}${rec?.tokens && !bool(flags, "no-revoke") ? ` and revoke the token at ${rec.issuer}` : ""}`,
+      );
       continue;
     }
     let revoked = "";
@@ -163,7 +194,9 @@ async function tellMcpd(env: NodeJS.ProcessEnv, server: string, variants: string
   const r = await mcpdRequest(env, "POST", `/logout/${encodeURIComponent(server)}?${query}`);
   if (r === "down") return "mcpd is not running; it reads the secret store when it starts.";
   // An mcpd from before 0.2 has no /logout: it notices within a minute.
-  return r.status === 200 ? "mcpd stopped using the old token." : "mcpd stops using the old token within a minute (now: turno mcp daemon restart).";
+  return r.status === 200
+    ? "mcpd stopped using the old token."
+    : "mcpd stops using the old token within a minute (now: turno mcp daemon restart).";
 }
 
 export interface LoginRow {
@@ -183,13 +216,16 @@ export function loginVariants(server: RemoteServer): string[] {
 
 /** The login state of every OAuth server variant (reads the secret store, never prints a token). */
 export async function oauthLogins(env: NodeJS.ProcessEnv): Promise<LoginRow[]> {
-  const servers = Object.values(loadManifest(env).servers).filter((s): s is RemoteServer => s.kind === "remote" && s.oauth !== undefined);
+  const servers = Object.values(loadManifest(env).servers).filter(
+    (s): s is RemoteServer => s.kind === "remote" && s.oauth !== undefined,
+  );
   if (!servers.length) return [];
   const { loginState } = await import("../../mcpd/oauth.js");
   const store = secretStore(env);
   const rows: LoginRow[] = [];
   for (const s of servers) {
-    for (const variant of loginVariants(s)) rows.push({ server: s.name, variant, ...(await loginState(store, s.name, variant)) });
+    for (const variant of loginVariants(s))
+      rows.push({ server: s.name, variant, ...(await loginState(store, s.name, variant)) });
   }
   return rows;
 }

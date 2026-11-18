@@ -96,7 +96,9 @@ export function decide(account: PolicyAccount, write: boolean): Decision {
       reason: policy === "always" ? `read with the read tools; confirm = "always"` : "read with the read tools only",
     };
   }
-  const reason = write ? "write: every tool of the account" : "read, but the account lists no read_tools, so it gets every tool";
+  const reason = write
+    ? "write: every tool of the account"
+    : "read, but the account lists no read_tools, so it gets every tool";
   return {
     policy,
     confirm: policy !== "never",

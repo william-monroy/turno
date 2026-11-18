@@ -1,7 +1,15 @@
 import { statSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { browserPaths, ensurePrivateDir, findOnPath, isPrivatePath, resetPrivateDirCache, turnoRoots, writePrivateFile } from "../src/paths.js";
+import {
+  browserPaths,
+  ensurePrivateDir,
+  findOnPath,
+  isPrivatePath,
+  resetPrivateDirCache,
+  turnoRoots,
+  writePrivateFile,
+} from "../src/paths.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 let sb: Sandbox;
@@ -19,12 +27,22 @@ describe("turno's roots", () => {
       state: "/h/.local/state/turno",
       data: "/h/.local/share/turno",
     });
-    expect(turnoRoots({ HOME: "/h", XDG_CONFIG_HOME: "/x/c", XDG_STATE_HOME: "/x/s", XDG_DATA_HOME: "/x/d" })).toMatchObject({
+    expect(
+      turnoRoots({ HOME: "/h", XDG_CONFIG_HOME: "/x/c", XDG_STATE_HOME: "/x/s", XDG_DATA_HOME: "/x/d" }),
+    ).toMatchObject({
       config: "/x/c/turno",
       state: "/x/s/turno",
       data: "/x/d/turno",
     });
-    expect(turnoRoots({ HOME: "/h", XDG_DATA_HOME: "/x/d", TURNO_DATA_DIR: "/t/d", TURNO_STATE_DIR: "/t/s", TURNO_CONFIG_DIR: "/t/c" })).toMatchObject({
+    expect(
+      turnoRoots({
+        HOME: "/h",
+        XDG_DATA_HOME: "/x/d",
+        TURNO_DATA_DIR: "/t/d",
+        TURNO_STATE_DIR: "/t/s",
+        TURNO_CONFIG_DIR: "/t/c",
+      }),
+    ).toMatchObject({
       config: "/t/c",
       state: "/t/s",
       data: "/t/d",

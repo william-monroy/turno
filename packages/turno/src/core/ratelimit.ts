@@ -26,7 +26,9 @@ export function resetTime(error: string, now: Date = new Date()): number {
     return t > nowS ? t : nowS + 3600;
   }
   const m =
-    /resets?\s+(?:on\s+)?(?:([A-Z][a-z]{2})[a-z]*\.?\s+(\d{1,2}),?\s+)?(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*([ap]m)/i.exec(error);
+    /resets?\s+(?:on\s+)?(?:([A-Z][a-z]{2})[a-z]*\.?\s+(\d{1,2}),?\s+)?(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*([ap]m)/i.exec(
+      error,
+    );
   if (!m) return nowS + 3600;
   const [, mon, day, hourS, minuteS, ampm] = m;
   const hour = (Number(hourS) % 12) + (ampm?.toLowerCase() === "pm" ? 12 : 0);

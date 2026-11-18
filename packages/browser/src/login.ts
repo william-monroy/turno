@@ -23,7 +23,8 @@ export async function loginIdentity(id: string, options: LoginOptions = {}): Pro
   const dir = identityDir(id, env);
   const holder = inUseBy(id, env);
   if (holder) throw new IdentityError(holder);
-  if (isInUse(id, env)) throw new IdentityError(`identity "${id}" is in use (an MCP session holds its Chrome); close it first`);
+  if (isInUse(id, env))
+    throw new IdentityError(`identity "${id}" is in use (an MCP session holds its Chrome); close it first`);
   const settings = readIdentitySettings(id, env);
   const held = acquireRuntimeLock(id, env, { holder: "login" });
   try {

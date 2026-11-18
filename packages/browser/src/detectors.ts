@@ -45,9 +45,7 @@ export function decodeEntities(text: string): string {
 
 /** Drops comments, scripts, styles and templates: markup that is never shown as text. */
 function stripInvisible(html: string): string {
-  return html
-    .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(/<(script|style|template|noscript)\b[\s\S]*?<\/\1\s*>/gi, " ");
+  return html.replace(/<!--[\s\S]*?-->/g, " ").replace(/<(script|style|template|noscript)\b[\s\S]*?<\/\1\s*>/gi, " ");
 }
 
 /** Visible-ish text of an HTML fragment, whitespace collapsed. */
@@ -92,7 +90,13 @@ export function parseRebrowser(html: string): RebrowserResult {
     }
   }
   const count = (s: TestStatus) => tests.filter((t) => t.status === s).length;
-  return { tests, passed: count("pass"), failed: count("fail"), warned: count("warn"), untriggered: count("untriggered") };
+  return {
+    tests,
+    passed: count("pass"),
+    failed: count("fail"),
+    warned: count("warn"),
+    untriggered: count("untriggered"),
+  };
 }
 
 /** Counts the passed and failed rows of https://bot.sannysoft.com/. */

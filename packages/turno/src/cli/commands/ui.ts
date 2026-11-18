@@ -8,7 +8,15 @@ import { type FontSource, checkFonts, fontSource, installFonts, userFontDir } fr
 import { currentStatusLine, isTurnoStatusLine, setStatusLine, withNerdTerminals } from "../../ui/settings.js";
 import { Journal } from "../../core/journal.js";
 import { BUILTIN_SYMBOLS, currentTerminal } from "../../ui/terminal-id.js";
-import { TERMINALS, type Terminal, detectNerdTerminals, fontOf, installed, isNerdFamily, terminal } from "../../ui/terminals.js";
+import {
+  TERMINALS,
+  type Terminal,
+  detectNerdTerminals,
+  fontOf,
+  installed,
+  isNerdFamily,
+  terminal,
+} from "../../ui/terminals.js";
 import { DRY_RUN, FORCE, type FlagSpec, bool, flagsOf, parseFlags } from "../args.js";
 import { group } from "../group.js";
 import { type Io, fail, paint } from "../io.js";
@@ -51,7 +59,12 @@ function parse(args: string[]): Options {
   const p = parseFlags(args, INSTALL_SPEC, 0);
   const values = (p.values.terminal as string[] | undefined) ?? [];
   return {
-    terminals: values.flatMap((v) => v.split(",").map((s) => s.trim()).filter(Boolean)),
+    terminals: values.flatMap((v) =>
+      v
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
     font: !bool(p, "no-font"),
     statusline: !bool(p, "no-statusline"),
     force: bool(p, "force"),
@@ -69,7 +82,12 @@ function chosenTerminals(values: string[], env: NodeJS.ProcessEnv, platform: Nod
     }
     const id = v === "current" ? currentTerminal(env) : v;
     const t = id ? terminal(id) : undefined;
-    if (!t) fail(v === "current" ? "could not tell which terminal this is; name it (warp, vscode, cursor, alacritty)" : `unknown terminal '${v}'`);
+    if (!t)
+      fail(
+        v === "current"
+          ? "could not tell which terminal this is; name it (warp, vscode, cursor, alacritty)"
+          : `unknown terminal '${v}'`,
+      );
     out.set(t.id, t);
   }
   return [...out.values()];
@@ -82,7 +100,10 @@ export function statusLineInfo(env: NodeJS.ProcessEnv, self = process.argv[1]): 
   if (self) {
     try {
       const real = tildify(realpathSync(self), env);
-      return { command: `${real} statusline`, warning: `wrote an absolute path (${real}) because turno is not on your PATH; it breaks if you switch Node versions or move this copy` };
+      return {
+        command: `${real} statusline`,
+        warning: `wrote an absolute path (${real}) because turno is not on your PATH; it breaks if you switch Node versions or move this copy`,
+      };
     } catch {
       /* fall through */
     }
@@ -120,18 +141,25 @@ async function status(args: string[], io: Io): Promise<number> {
     if (have === checks.length) {
       const missing = missingGlyphs(checks[0]!.target);
       io.out(`font      ${ok(`${source.family} installed`)} in ${tildify(dir, env)}`);
-      io.out(`          ${missing.length ? warn(`missing ${missing.length} status line icons`) : `has all ${Object.keys(NERD).length} status line icons`}`);
+      io.out(
+        `          ${missing.length ? warn(`missing ${missing.length} status line icons`) : `has all ${Object.keys(NERD).length} status line icons`}`,
+      );
     } else {
       const other = checks.filter((c) => c.state === "different").length;
       const elsewhere = platform === "darwin" && checks.every((c) => existsSync(join("/Library/Fonts", c.file)));
       const note = elsewhere ? " (found in /Library/Fonts)" : other ? ` (${other} with other contents)` : "";
-      io.out(`font      ${warn(`${source.family}: ${have}/${checks.length} files`)} in ${tildify(dir, env)}${note}; turno ui install`);
+      io.out(
+        `font      ${warn(`${source.family}: ${have}/${checks.length} files`)} in ${tildify(dir, env)}${note}; turno ui install`,
+      );
     }
   }
 
   const s = currentStatusLine(join(p.hub, "settings.json"));
   const where = tildify(join(p.hub, "settings.json"), env);
-  if (isTurnoStatusLine(s)) io.out(`status    ${ok(`${where} runs \`${s!.command}\``)}${s!.refreshInterval ? ` every ${s!.refreshInterval} s` : ""}`);
+  if (isTurnoStatusLine(s))
+    io.out(
+      `status    ${ok(`${where} runs \`${s!.command}\``)}${s!.refreshInterval ? ` every ${s!.refreshInterval} s` : ""}`,
+    );
   else if (s) io.out(`status    ${warn(`${where} runs \`${s.command}\``)}; turno ui install switches it`);
   else io.out(`status    ${warn(`no statusLine in ${where}`)}; turno ui install adds it`);
 
@@ -143,7 +171,8 @@ async function status(args: string[], io: Io): Promise<number> {
   }
   const here = currentTerminal(env);
   const nerdList = config?.nerdTerminals ?? [];
-  const premigrate = !existsSync(p.configFile) && ["proyectos", "navegador"].some((f) => existsSync(join(p.legacyConfig, f)));
+  const premigrate =
+    !existsSync(p.configFile) && ["proyectos", "navegador"].some((f) => existsSync(join(p.legacyConfig, f)));
   const shown = TERMINALS.filter((t) => t.id === here || installed(t, env, platform));
   for (const [i, t] of shown.entries()) {
     const font = fontOf(t, env, platform);
@@ -163,7 +192,9 @@ async function status(args: string[], io: Io): Promise<number> {
     io.out(`${i === 0 ? "terminal  " : "          "}${line}`);
   }
   const icons = config?.icons ?? "auto";
-  io.out(`icons     ${icons}${icons === "auto" ? `: ${here && (BUILTIN_SYMBOLS.has(here) || nerdList.includes(here)) ? "Nerd" : "Unicode"} here` : ""}`);
+  io.out(
+    `icons     ${icons}${icons === "auto" ? `: ${here && (BUILTIN_SYMBOLS.has(here) || nerdList.includes(here)) ? "Nerd" : "Unicode"} here` : ""}`,
+  );
   return 0;
 }
 
@@ -182,7 +213,8 @@ async function install(args: string[], io: Io): Promise<number> {
   if (o.font) {
     source = await fontSource();
     const dir = userFontDir(env, platform);
-    if (!dir) io.out(`font: no user font folder on ${platform}; install ${source.family} by hand from ${source.files[0]!.url}`);
+    if (!dir)
+      io.out(`font: no user font folder on ${platform}; install ${source.family} by hand from ${source.files[0]!.url}`);
     else {
       const results = await installFonts(source, { dir, force: o.force, dryRun: o.dryRun, platform, env, journal });
       for (const r of results) {
@@ -205,7 +237,9 @@ async function install(args: string[], io: Io): Promise<number> {
     const r = setStatusLine(join(p.hub, "settings.json"), line.command, journal);
     if (!r.changed) io.out(`statusline: ${tildify(r.file, env)} already runs \`${r.after.command}\``);
     else {
-      io.out(`statusline: ${tildify(r.file, env)} now runs \`${r.after.command}\` every ${r.after.refreshInterval} s${dry}`);
+      io.out(
+        `statusline: ${tildify(r.file, env)} now runs \`${r.after.command}\` every ${r.after.refreshInterval} s${dry}`,
+      );
       if (r.before) io.out(`statusline: it ran \`${r.before.command}\``);
       if (line.warning) io.out(`statusline: ${line.warning}`);
     }
@@ -248,7 +282,8 @@ async function install(args: string[], io: Io): Promise<number> {
   const legacy = ["proyectos", "navegador"].some((f) => existsSync(join(p.legacyConfig, f)));
   if (!existsSync(p.configFile) && legacy) {
     // A config.toml written now would make `turno migrate` refuse; migrate detects the same list.
-    if (merged.length) io.out(`config: no config.toml yet; turno migrate records nerd_terminals = [${merged.join(", ")}]`);
+    if (merged.length)
+      io.out(`config: no config.toml yet; turno migrate records nerd_terminals = [${merged.join(", ")}]`);
   } else if (merged.join() !== [...current].sort().join()) {
     const text = existsSync(p.configFile) ? readFileSync(p.configFile, "utf8") : "";
     journal.write(p.configFile, withNerdTerminals(text, merged));
@@ -275,10 +310,6 @@ export const command = group(
   {
     fallback: "status",
     footer: "turno ui install --help explains each option.",
-    examples: [
-      "turno ui status",
-      "turno ui install --dry-run",
-      "turno ui install --terminal warp,vscode --no-font",
-    ],
+    examples: ["turno ui status", "turno ui install --dry-run", "turno ui install --terminal warp,vscode --no-font"],
   },
 );

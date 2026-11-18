@@ -23,7 +23,9 @@ export function isValidIdentityId(id: string): boolean {
 
 export function assertIdentityId(id: string): void {
   if (!isValidIdentityId(id)) {
-    throw new IdentityError(`invalid identity "${id}": use lowercase letters, digits, "-" and "_", starting with a letter or digit`);
+    throw new IdentityError(
+      `invalid identity "${id}": use lowercase letters, digits, "-" and "_", starting with a letter or digit`,
+    );
   }
 }
 

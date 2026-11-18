@@ -1,7 +1,16 @@
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type RunSpec, buildDelegation, delegate, isolatedMcp, launcherExists, mcpServerOf, parseClaudeJson, prepareRun } from "../src/accounts/delegate.js";
+import {
+  type RunSpec,
+  buildDelegation,
+  delegate,
+  isolatedMcp,
+  launcherExists,
+  mcpServerOf,
+  parseClaudeJson,
+  prepareRun,
+} from "../src/accounts/delegate.js";
 import { paths } from "../src/core/paths.js";
 import type { Account } from "../src/accounts/registry.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -12,9 +21,19 @@ beforeEach(() => {
 });
 afterEach(() => sb.cleanup());
 
-const WORK: Account = { id: "linear:work", service: "linear", label: "work", profile: "work", tools: ["mcp__linear__*", "mcp__linear2__get_issue"] };
+const WORK: Account = {
+  id: "linear:work",
+  service: "linear",
+  label: "work",
+  profile: "work",
+  tools: ["mcp__linear__*", "mcp__linear2__get_issue"],
+};
 
-const GATEWAY = (name: string) => ({ type: "http", url: `http://127.0.0.1:4100/mcp/${name}`, headers: { Authorization: "Bearer test-token", "X-Turno-Profile": "work" } });
+const GATEWAY = (name: string) => ({
+  type: "http",
+  url: `http://127.0.0.1:4100/mcp/${name}`,
+  headers: { Authorization: "Bearer test-token", "X-Turno-Profile": "work" },
+});
 
 function profileConfig(servers: Record<string, unknown>): void {
   sb.write(".claude-work/.claude.json", JSON.stringify({ mcpServers: servers }));
@@ -33,7 +52,11 @@ describe("delegation command", () => {
       HTTPS_PROXY: "http://proxy.example:8080",
     };
     const run = { cwd: join(sb.home, "run"), mcpConfig: join(sb.home, "mcp.json") };
-    const spec = buildDelegation({ account: WORK, task: "list my open issues", write: false, tools: ["mcp__linear__get_issue"] }, run, env);
+    const spec = buildDelegation(
+      { account: WORK, task: "list my open issues", write: false, tools: ["mcp__linear__get_issue"] },
+      run,
+      env,
+    );
     expect(spec.command).toBe(join(sb.home, ".local", "bin", "claude-work"));
     const a = spec.args;
     expect(a[0]).toBe("-p");
@@ -61,15 +84,25 @@ describe("delegation command", () => {
       "15",
     ]);
     expect(spec.cwd).toBe(run.cwd);
-    expect(Object.keys(spec.env).sort()).toEqual(["HOME", "HTTPS_PROXY", "LANG", "LC_ALL", "PATH", "TMPDIR"].filter((k) => env[k as keyof typeof env] !== undefined));
+    expect(Object.keys(spec.env).sort()).toEqual(
+      ["HOME", "HTTPS_PROXY", "LANG", "LC_ALL", "PATH", "TMPDIR"].filter(
+        (k) => env[k as keyof typeof env] !== undefined,
+      ),
+    );
     expect(spec.timeoutMs).toBe(5 * 60_000);
   });
 
   it("uses the account's tools by default, no strict MCP without a config, and states write permission", () => {
-    const spec = buildDelegation({ account: WORK, task: "create an issue", write: true, maxTurns: 3, timeoutMs: 1000 }, { cwd: sb.home }, sb.env);
+    const spec = buildDelegation(
+      { account: WORK, task: "create an issue", write: true, maxTurns: 3, timeoutMs: 1000 },
+      { cwd: sb.home },
+      sb.env,
+    );
     expect(spec.args).not.toContain("--strict-mcp-config");
     expect(spec.args).not.toContain("--mcp-config");
-    expect(spec.args.slice(spec.args.indexOf("--allowedTools") + 1, spec.args.indexOf("--disallowedTools"))).toEqual(WORK.tools);
+    expect(spec.args.slice(spec.args.indexOf("--allowedTools") + 1, spec.args.indexOf("--disallowedTools"))).toEqual(
+      WORK.tools,
+    );
     expect(spec.args[1]).toMatch(/Write actions .* are allowed/);
     expect(spec.args.slice(-2)).toEqual(["--max-turns", "3"]);
     expect(spec.timeoutMs).toBe(1000);
@@ -91,10 +124,22 @@ describe("delegation command", () => {
   });
 
   it("keeps the profile's MCP config for connectors, missing and non-gateway servers", () => {
-    profileConfig({ linear: GATEWAY("linear"), remote: { type: "http", url: "https://mcp.example.com/mcp", headers: { Authorization: "Bearer x" } } });
-    expect(isolatedMcp("work", ["mcp__claude_ai_Gmail__*"], sb.env)).toMatchObject({ strict: false, why: expect.stringMatching(/claude\.ai connector/) });
-    expect(isolatedMcp("work", ["mcp__linear2__*"], sb.env)).toMatchObject({ strict: false, why: expect.stringMatching(/not in the MCP config of profile work/) });
-    expect(isolatedMcp("work", ["mcp__remote__*"], sb.env)).toMatchObject({ strict: false, why: expect.stringMatching(/does not go through the turno gateway/) });
+    profileConfig({
+      linear: GATEWAY("linear"),
+      remote: { type: "http", url: "https://mcp.example.com/mcp", headers: { Authorization: "Bearer x" } },
+    });
+    expect(isolatedMcp("work", ["mcp__claude_ai_Gmail__*"], sb.env)).toMatchObject({
+      strict: false,
+      why: expect.stringMatching(/claude\.ai connector/),
+    });
+    expect(isolatedMcp("work", ["mcp__linear2__*"], sb.env)).toMatchObject({
+      strict: false,
+      why: expect.stringMatching(/not in the MCP config of profile work/),
+    });
+    expect(isolatedMcp("work", ["mcp__remote__*"], sb.env)).toMatchObject({
+      strict: false,
+      why: expect.stringMatching(/does not go through the turno gateway/),
+    });
     expect(isolatedMcp("nobody", ["mcp__linear__*"], sb.env).strict).toBe(false);
   });
 
@@ -106,7 +151,10 @@ describe("delegation command", () => {
     expect(statSync(run.cwd).mode & 0o777).toBe(0o700);
     expect(run.mcpConfig).toBeDefined();
     expect(statSync(run.mcpConfig!).mode & 0o777).toBe(0o600);
-    expect(Object.keys(JSON.parse(readFileSync(run.mcpConfig!, "utf8")).mcpServers).sort()).toEqual(["linear", "linear2"]);
+    expect(Object.keys(JSON.parse(readFileSync(run.mcpConfig!, "utf8")).mcpServers).sort()).toEqual([
+      "linear",
+      "linear2",
+    ]);
     run.cleanup();
     expect(existsSync(run.mcpConfig!)).toBe(false);
     // Something left in the folder is cleared before the next run.
@@ -122,7 +170,18 @@ describe("delegation command", () => {
         env: sb.env,
         runner: async (spec) => {
           seen = spec;
-          return { code: 0, stdout: JSON.stringify({ type: "result", result: "3 open issues", is_error: false, total_cost_usd: 0.02, num_turns: 4 }), stderr: "", timedOut: false };
+          return {
+            code: 0,
+            stdout: JSON.stringify({
+              type: "result",
+              result: "3 open issues",
+              is_error: false,
+              total_cost_usd: 0.02,
+              num_turns: 4,
+            }),
+            stderr: "",
+            timedOut: false,
+          };
         },
       },
     );
@@ -133,12 +192,21 @@ describe("delegation command", () => {
   it("reports errors, timeouts and unparsable output", async () => {
     const run = (out: { code: number | null; stdout: string; stderr: string; timedOut: boolean }) =>
       delegate({ account: WORK, task: "t", write: false }, { env: sb.env, runner: async () => out });
-    expect(await run({ code: 1, stdout: JSON.stringify({ result: "", is_error: true, subtype: "error_max_turns", num_turns: 15 }), stderr: "", timedOut: false })).toMatchObject({
+    expect(
+      await run({
+        code: 1,
+        stdout: JSON.stringify({ result: "", is_error: true, subtype: "error_max_turns", num_turns: 15 }),
+        stderr: "",
+        timedOut: false,
+      }),
+    ).toMatchObject({
       ok: false,
       numTurns: 15,
     });
     expect((await run({ code: null, stdout: "", stderr: "", timedOut: true })).text).toMatch(/timed out/);
-    expect((await run({ code: 127, stdout: "", stderr: "command not found", timedOut: false })).text).toMatch(/exit 127.*command not found/);
+    expect((await run({ code: 127, stdout: "", stderr: "command not found", timedOut: false })).text).toMatch(
+      /exit 127.*command not found/,
+    );
     expect(parseClaudeJson('noise\n{"result":"x"}\n')).toEqual({ result: "x" });
   });
 
@@ -162,9 +230,22 @@ echo '{"type":"result","subtype":"success","is_error":false,"result":"done from 
     );
     expect(launcherExists("work", sb.env)).toBe(true);
     expect(launcherExists("personal", sb.env)).toBe(false);
-    const env = { ...sb.env, TURNO_SESSION_PID: "99", CLAUDE_CONFIG_DIR: join(sb.home, ".claude-personal"), ANTHROPIC_API_KEY: "sk-test", OTHER_SECRET: "s3cret" };
+    const env = {
+      ...sb.env,
+      TURNO_SESSION_PID: "99",
+      CLAUDE_CONFIG_DIR: join(sb.home, ".claude-personal"),
+      ANTHROPIC_API_KEY: "sk-test",
+      OTHER_SECRET: "s3cret",
+    };
     const res = await delegate({ account: WORK, task: "t", write: false, tools: ["mcp__linear__get_issue"] }, { env });
-    expect(res).toMatchObject({ ok: true, text: "done from work", costUsd: 0.5, numTurns: 2, denied: ["mcp__linear__create_issue"], mcp: "strict" });
+    expect(res).toMatchObject({
+      ok: true,
+      text: "done from work",
+      costUsd: 0.5,
+      numTurns: 2,
+      denied: ["mcp__linear__create_issue"],
+      mcp: "strict",
+    });
     const argv = readFileSync(`${log}.argv`, "utf8");
     expect(argv).toContain("--setting-sources\n\n");
     expect(argv).toContain("--strict-mcp-config\n");
@@ -224,7 +305,13 @@ echo '{"type":"result","subtype":"success","is_error":false,"result":"done from 
     ac.abort();
     const res = await delegate(
       { account: WORK, task: "t", write: false },
-      { env: sb.env, signal: ac.signal, runner: async (_spec, signal) => ((ran = !signal?.aborted), { code: null, stdout: "", stderr: "", timedOut: false, cancelled: true }) },
+      {
+        env: sb.env,
+        signal: ac.signal,
+        runner: async (_spec, signal) => (
+          (ran = !signal?.aborted), { code: null, stdout: "", stderr: "", timedOut: false, cancelled: true }
+        ),
+      },
     );
     expect(ran).toBe(false);
     expect(res.cancelled).toBe(true);

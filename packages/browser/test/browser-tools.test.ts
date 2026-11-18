@@ -1,4 +1,3 @@
-
 import { writeFileSync } from "node:fs";
 import { type Server, createServer } from "node:http";
 import { readdirSync, statSync } from "node:fs";
@@ -26,7 +25,6 @@ import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 const pkg = fileURLToPath(new URL("..", import.meta.url));
 const bin = join(pkg, "dist", "bin", "mcp.js");
 const reason = chromeUnavailable();
-
 
 let sb: Sandbox;
 const running: StdioClientTransport[] = [];
@@ -69,10 +67,22 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Static files for the resource tests: body, content type and caching headers. */
 const STATIC: Record<string, { body: string; type: string; headers: Record<string, string> }> = {
-  "/static/app.css": { body: "h1 { color: green }", type: "text/css", headers: { "cache-control": "public, max-age=3600" } },
+  "/static/app.css": {
+    body: "h1 { color: green }",
+    type: "text/css",
+    headers: { "cache-control": "public, max-age=3600" },
+  },
   "/static/nostore.css": { body: "p { color: red }", type: "text/css", headers: { "cache-control": "no-store" } },
-  "/static/cookie.js": { body: "window.cookieScript = 1;", type: "text/javascript", headers: { "cache-control": "max-age=3600", "set-cookie": "seen=1; Path=/" } },
-  "/static/logo.svg": { body: '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>', type: "image/svg+xml", headers: { "cache-control": "max-age=3600" } },
+  "/static/cookie.js": {
+    body: "window.cookieScript = 1;",
+    type: "text/javascript",
+    headers: { "cache-control": "max-age=3600", "set-cookie": "seen=1; Path=/" },
+  },
+  "/static/logo.svg": {
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>',
+    type: "image/svg+xml",
+    headers: { "cache-control": "max-age=3600" },
+  },
   "/promo/ad.js": { body: "window.ad = 1;", type: "text/javascript", headers: { "cache-control": "max-age=3600" } },
 };
 
@@ -80,7 +90,12 @@ const STATIC: Record<string, { body: string; type: string; headers: Record<strin
  * Pages for the tests, on 127.0.0.1. `requested` maps each path and query to when it was last
  * asked for, and `count` to how many times.
  */
-async function site(): Promise<{ url: string; requested: Map<string, number>; count: Map<string, number>; close(): Promise<void> }> {
+async function site(): Promise<{
+  url: string;
+  requested: Map<string, number>;
+  count: Map<string, number>;
+  close(): Promise<void>;
+}> {
   const requested = new Map<string, number>();
   const count = new Map<string, number>();
   const pages: Record<string, string> = {
@@ -134,232 +149,260 @@ async function site(): Promise<{ url: string; requested: Map<string, number>; co
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const { port } = server.address() as { port: number };
-  return { url: `http://127.0.0.1:${port}`, requested, count, close: () => new Promise((r) => server.close(() => r())) };
+  return {
+    url: `http://127.0.0.1:${port}`,
+    requested,
+    count,
+    close: () => new Promise((r) => server.close(() => r())),
+  };
 }
 
-describe.skipIf(reason !== undefined)(reason ? `browser tools on real Chrome (skipped: ${reason})` : "browser tools on real Chrome", () => {
-  it("closes a popup that opens after the tool call ended, and keeps the window a click opened", async () => {
-    const web = await site();
-    onTestFinished(() => web.close());
-    // New windows can take seconds on CI runners: give the clicks that open one time. Chrome's
-    // popup blocker would make the delayed popup depend on a click's user activation, which
-    // expires on a slow runner; turned off here, the page opens it from a timer.
-    const config = join(sb.home, "popup-config.json");
-    writeFileSync(config, JSON.stringify({ browser: { launchOptions: { args: ["--disable-popup-blocking"] } } }));
-    const client = await start("popups", ["--timeout-action", "20000", "--config", config]);
-    await call(client, "browser_navigate", { url: `${web.url}/link` });
-    const opened = await call(client, "browser_click", { target: "a", element: "Open B link" });
-    expect(opened).toMatch(/^- 1: /m);
+describe.skipIf(reason !== undefined)(
+  reason ? `browser tools on real Chrome (skipped: ${reason})` : "browser tools on real Chrome",
+  () => {
+    it("closes a popup that opens after the tool call ended, and keeps the window a click opened", async () => {
+      const web = await site();
+      onTestFinished(() => web.close());
+      // New windows can take seconds on CI runners: give the clicks that open one time. Chrome's
+      // popup blocker would make the delayed popup depend on a click's user activation, which
+      // expires on a slow runner; turned off here, the page opens it from a timer.
+      const config = join(sb.home, "popup-config.json");
+      writeFileSync(config, JSON.stringify({ browser: { launchOptions: { args: ["--disable-popup-blocking"] } } }));
+      const client = await start("popups", ["--timeout-action", "20000", "--config", config]);
+      await call(client, "browser_navigate", { url: `${web.url}/link` });
+      const opened = await call(client, "browser_click", { target: "a", element: "Open B link" });
+      expect(opened).toMatch(/^- 1: /m);
 
-    await call(client, "browser_navigate", { url: `${web.url}/delayed-popup` });
-    const ended = Date.now();
-    // Wait for the popup's request without a tool call (a call would make it the agent's).
-    const deadline = ended + 30_000;
-    while (!web.requested.has("/plain?ad") && Date.now() < deadline) await sleep(100);
-    const at = web.requested.get("/plain?ad");
-    expect(at, "the page opened its popup").toBeDefined();
-    await sleep(1_000);
-    const list = await call(client, "browser_tabs", { action: "list" });
-    if (at! - ended > POPUP_GRACE_MS + 250) {
-      expect(list).toContain(`closed a popup that ${web.url}/delayed-popup opened while no tool call was running`);
-      expect(list).not.toContain("?ad");
+      await call(client, "browser_navigate", { url: `${web.url}/delayed-popup` });
+      const ended = Date.now();
+      // Wait for the popup's request without a tool call (a call would make it the agent's).
+      const deadline = ended + 30_000;
+      while (!web.requested.has("/plain?ad") && Date.now() < deadline) await sleep(100);
+      const at = web.requested.get("/plain?ad");
+      expect(at, "the page opened its popup").toBeDefined();
+      await sleep(1_000);
+      const list = await call(client, "browser_tabs", { action: "list" });
+      if (at! - ended > POPUP_GRACE_MS + 250) {
+        expect(list).toContain(`closed a popup that ${web.url}/delayed-popup opened while no tool call was running`);
+        expect(list).not.toContain("?ad");
+        expect(list.match(/^- \d+:/gm)).toHaveLength(2);
+      } else {
+        // A slow runner ended the click late: the popup came within the grace period, so it is the
+        // agent's and stays.
+        expect(list).toContain("?ad");
+      }
+    }, 120_000);
+
+    it("keeps at most --max-tabs pages, closing the least recently used", async () => {
+      const web = await site();
+      onTestFinished(() => web.close());
+      const client = await start("cap", ["--max-tabs", "2"]);
+      await call(client, "browser_navigate", { url: `${web.url}/a` });
+      await call(client, "browser_tabs", { action: "new", url: `${web.url}/b` });
+      const third = await call(client, "browser_tabs", { action: "new", url: `${web.url}/plain` });
+      expect(third).toContain(`closed the least recently used tab (${web.url}/a): more than 2 were open`);
+      const list = await call(client, "browser_tabs", { action: "list" });
       expect(list.match(/^- \d+:/gm)).toHaveLength(2);
-    } else {
-      // A slow runner ended the click late: the popup came within the grace period, so it is the
-      // agent's and stays.
-      expect(list).toContain("?ad");
-    }
-  }, 120_000);
+      expect(list).toContain("[page B]");
+      expect(list).toContain("(current) [plain]");
+    }, 60_000);
 
-  it("keeps at most --max-tabs pages, closing the least recently used", async () => {
-    const web = await site();
-    onTestFinished(() => web.close());
-    const client = await start("cap", ["--max-tabs", "2"]);
-    await call(client, "browser_navigate", { url: `${web.url}/a` });
-    await call(client, "browser_tabs", { action: "new", url: `${web.url}/b` });
-    const third = await call(client, "browser_tabs", { action: "new", url: `${web.url}/plain` });
-    expect(third).toContain(`closed the least recently used tab (${web.url}/a): more than 2 were open`);
-    const list = await call(client, "browser_tabs", { action: "list" });
-    expect(list.match(/^- \d+:/gm)).toHaveLength(2);
-    expect(list).toContain("[page B]");
-    expect(list).toContain("(current) [plain]");
-  }, 60_000);
+    it("parks an unused tab on about:blank, loads it again when selected, and closes a tab unused past close", async () => {
+      const web = await site();
+      onTestFinished(() => web.close());
+      writeIdentitySettings("parking", { tabs: { park: "2s", close: "8s" } }, sb.env);
+      const client = await start("parking");
+      await call(client, "browser_navigate", { url: `${web.url}/a` });
+      await call(client, "browser_tabs", { action: "new", url: `${web.url}/b` });
+      await sleep(4_000);
+      const list = await call(client, "browser_tabs", { action: "list" });
+      expect(list).toContain(`- 0: [](about:blank) (parked, was ${web.url}/a: selecting it loads that page again)`);
+      expect(list).toContain(`parked a tab unused for`);
 
-  it("parks an unused tab on about:blank, loads it again when selected, and closes a tab unused past close", async () => {
-    const web = await site();
-    onTestFinished(() => web.close());
-    writeIdentitySettings("parking", { tabs: { park: "2s", close: "8s" } }, sb.env);
-    const client = await start("parking");
-    await call(client, "browser_navigate", { url: `${web.url}/a` });
-    await call(client, "browser_tabs", { action: "new", url: `${web.url}/b` });
-    await sleep(4_000);
-    const list = await call(client, "browser_tabs", { action: "list" });
-    expect(list).toContain(`- 0: [](about:blank) (parked, was ${web.url}/a: selecting it loads that page again)`);
-    expect(list).toContain(`parked a tab unused for`);
+      const selected = await call(client, "browser_tabs", { action: "select", index: 0 });
+      expect(selected).toContain(`loaded ${web.url}/a again in a tab that was parked`);
+      expect(selected).toContain("- 0: (current) [page A]");
+      const snap = await call(client, "browser_snapshot");
+      expect(snap).toContain('heading "Page A"');
 
-    const selected = await call(client, "browser_tabs", { action: "select", index: 0 });
-    expect(selected).toContain(`loaded ${web.url}/a again in a tab that was parked`);
-    expect(selected).toContain("- 0: (current) [page A]");
-    const snap = await call(client, "browser_snapshot");
-    expect(snap).toContain('heading "Page A"');
+      // Tab 1 (page B) is not used from here on; tab 0 stays current.
+      await sleep(9_000);
+      const after = await call(client, "browser_tabs", { action: "list" });
+      expect(after).toMatch(/closed a tab unused for \d+ seconds \(/);
+      expect(after.match(/^- \d+:/gm)).toHaveLength(1);
+    }, 90_000);
 
-    // Tab 1 (page B) is not used from here on; tab 0 stays current.
-    await sleep(9_000);
-    const after = await call(client, "browser_tabs", { action: "list" });
-    expect(after).toMatch(/closed a tab unused for \d+ seconds \(/);
-    expect(after.match(/^- \d+:/gm)).toHaveLength(1);
-  }, 90_000);
+    it("says which element covers the target of a failed click, and what the page offers to close it", async () => {
+      const web = await site();
+      onTestFinished(() => web.close());
+      const client = await start("diagnose", ["--timeout-action", "1500"]);
+      await call(client, "browser_navigate", { url: `${web.url}/covered` });
+      const res = await client.callTool({
+        name: "browser_click",
+        arguments: { target: "#save", element: "Save button" },
+      });
+      expect(res.isError).toBe(true);
+      const text = textOf(res);
+      expect(text).toContain(
+        '### Error\nCould not click button "Save" (button#save), #save: dialog "We use cookies" (div.cookie-banner) covers it and would get the click instead.',
+      );
+      expect(text).toContain('Next: close or answer that element first (it has "Accept all", "Reject")');
+      expect(text).toContain("Playwright: ");
 
-  it("says which element covers the target of a failed click, and what the page offers to close it", async () => {
-    const web = await site();
-    onTestFinished(() => web.close());
-    const client = await start("diagnose", ["--timeout-action", "1500"]);
-    await call(client, "browser_navigate", { url: `${web.url}/covered` });
-    const res = await client.callTool({ name: "browser_click", arguments: { target: "#save", element: "Save button" } });
-    expect(res.isError).toBe(true);
-    const text = textOf(res);
-    expect(text).toContain('### Error\nCould not click button "Save" (button#save), #save: dialog "We use cookies" (div.cookie-banner) covers it and would get the click instead.');
-    expect(text).toContain('Next: close or answer that element first (it has "Accept all", "Reject")');
-    expect(text).toContain("Playwright: ");
+      await call(client, "browser_navigate", { url: `${web.url}/disabled` });
+      expect(textOf(await client.callTool({ name: "browser_click", arguments: { target: "#go" } }))).toContain(
+        'Could not click button "Continue" (button#go), #go: it is disabled.',
+      );
+      await call(client, "browser_navigate", { url: `${web.url}/hidden` });
+      expect(textOf(await client.callTool({ name: "browser_click", arguments: { target: "#settings" } }))).toContain(
+        'Could not click link "Settings" (a#settings), #settings: it is not visible (navigation "Menu" (nav.menu) hides it).',
+      );
 
-    await call(client, "browser_navigate", { url: `${web.url}/disabled` });
-    expect(textOf(await client.callTool({ name: "browser_click", arguments: { target: "#go" } }))).toContain('Could not click button "Continue" (button#go), #go: it is disabled.');
-    await call(client, "browser_navigate", { url: `${web.url}/hidden` });
-    expect(textOf(await client.callTool({ name: "browser_click", arguments: { target: "#settings" } }))).toContain(
-      'Could not click link "Settings" (a#settings), #settings: it is not visible (navigation "Menu" (nav.menu) hides it).',
-    );
+      // JSON results keep their shape.
+      await call(client, "browser_navigate", { url: `${web.url}/covered` });
+      const json = await client.callTool({
+        name: "browser_click",
+        arguments: { target: "#save", _meta: { json: true } },
+      });
+      const payload = JSON.parse(textOf(json)) as { isError: boolean; error: string };
+      expect(payload.isError).toBe(true);
+      expect(payload.error).toMatch(/^Could not click button "Save" .* covers it/);
+    }, 60_000);
 
-    // JSON results keep their shape.
-    await call(client, "browser_navigate", { url: `${web.url}/covered` });
-    const json = await client.callTool({ name: "browser_click", arguments: { target: "#save", _meta: { json: true } } });
-    const payload = JSON.parse(textOf(json)) as { isError: boolean; error: string };
-    expect(payload.isError).toBe(true);
-    expect(payload.error).toMatch(/^Could not click button "Save" .* covers it/);
-  }, 60_000);
-
-  it("runs a batch of actions in one call, with one snapshot at the end", async () => {
-    const web = await site();
-    onTestFinished(() => web.close());
-    const client = await start("batch");
-    const text = await call(client, "browser_batch", {
-      actions: [
-        { tool: "browser_navigate", arguments: { url: `${web.url}/form` } },
-        { tool: "browser_type", arguments: { target: "#name", text: "Alice" } },
-        { tool: "browser_select_option", arguments: { target: "#plan", values: ["Pro"] } },
-        { tool: "browser_click", arguments: { target: "#agree" } },
-        { tool: "browser_click", arguments: { target: "#submit" } },
-        { tool: "browser_wait_for", arguments: { text: "Saved Alice" } },
-      ],
-      snapshot: true,
-    });
-    expect(text).toMatch(/### Batch\n1\. browser_navigate http:\/\/127\.0\.0\.1:\d+\/form: ok/);
-    expect(text).toContain("6. browser_wait_for Saved Alice: ok");
-    expect(text.match(/### Snapshot/g)).toHaveLength(1);
-    expect(text).toContain("Saved Alice");
-    expect(text).toMatch(/checkbox "I agree" \[checked\]/);
-
-    const failed = await client.callTool({
-      name: "browser_batch",
-      arguments: {
+    it("runs a batch of actions in one call, with one snapshot at the end", async () => {
+      const web = await site();
+      onTestFinished(() => web.close());
+      const client = await start("batch");
+      const text = await call(client, "browser_batch", {
         actions: [
-          { tool: "browser_navigate", arguments: { url: `${web.url}/covered` } },
-          { tool: "browser_click", arguments: { target: "#save" } },
-          { tool: "browser_press_key", arguments: { key: "Enter" } },
+          { tool: "browser_navigate", arguments: { url: `${web.url}/form` } },
+          { tool: "browser_type", arguments: { target: "#name", text: "Alice" } },
+          { tool: "browser_select_option", arguments: { target: "#plan", values: ["Pro"] } },
+          { tool: "browser_click", arguments: { target: "#agree" } },
+          { tool: "browser_click", arguments: { target: "#submit" } },
+          { tool: "browser_wait_for", arguments: { text: "Saved Alice" } },
         ],
-      },
-    });
-    expect(failed.isError).toBe(true);
-    expect(textOf(failed)).toMatch(/^### Error\nAction 2 of 3 \(browser_click #save\) failed; the last action did not run\.\nCould not click button "Save"/);
-  }, 90_000);
+        snapshot: true,
+      });
+      expect(text).toMatch(/### Batch\n1\. browser_navigate http:\/\/127\.0\.0\.1:\d+\/form: ok/);
+      expect(text).toContain("6. browser_wait_for Saved Alice: ok");
+      expect(text.match(/### Snapshot/g)).toHaveLength(1);
+      expect(text).toContain("Saved Alice");
+      expect(text).toMatch(/checkbox "I agree" \[checked\]/);
 
-  it("waits the identity's settle after an action before it reads the page", async () => {
-    const web = await site();
-    onTestFinished(() => web.close());
-    // The click changes the title 1.5 s later: the result shows the new title only when the
-    // settle after the click is longer than that.
-    const after = async (id: string, settle: string) => {
-      writeIdentitySettings(id, { settle }, sb.env);
-      const client = await start(id);
-      await call(client, "browser_navigate", { url: `${web.url}/later` });
-      return call(client, "browser_click", { target: "#go" });
-    };
-    expect(await after("settle-long", "3s")).toContain("- Page Title: after");
-    expect(await after("settle-zero", "0")).toContain("- Page Title: before");
-  }, 90_000);
+      const failed = await client.callTool({
+        name: "browser_batch",
+        arguments: {
+          actions: [
+            { tool: "browser_navigate", arguments: { url: `${web.url}/covered` } },
+            { tool: "browser_click", arguments: { target: "#save" } },
+            { tool: "browser_press_key", arguments: { key: "Enter" } },
+          ],
+        },
+      });
+      expect(failed.isError).toBe(true);
+      expect(textOf(failed)).toMatch(
+        /^### Error\nAction 2 of 3 \(browser_click #save\) failed; the last action did not run\.\nCould not click button "Save"/,
+      );
+    }, 90_000);
 
-  it("blocks what identity.json lists and serves cacheable static files from the identity's own disk cache", async () => {
-    const web = await site();
-    onTestFinished(() => web.close());
-    const n = (path: string) => web.count.get(path) ?? 0;
-    writeIdentitySettings("res-a", { block: { types: ["image"], patterns: ["*/promo/*"] }, cache: {} }, sb.env);
-    const load = async (client: Client) => {
-      await call(client, "browser_navigate", { url: `${web.url}/res` });
-      await sleep(500); // the body is stored when the request finishes
-    };
-    let client = await start("res-a");
-    await load(client);
-    await load(client);
-    expect(n("/res")).toBe(2);
-    expect(n("/static/app.css")).toBe(1);
-    expect(n("/static/nostore.css")).toBe(2);
-    expect(n("/static/cookie.js")).toBe(2);
-    expect(n("/static/logo.svg")).toBe(0);
-    expect(n("/promo/ad.js")).toBe(0);
-    // The cached stylesheet still applies.
-    expect(await call(client, "browser_evaluate", { function: "() => getComputedStyle(document.querySelector('h1')).color" })).toContain("rgb(0, 128, 0)");
+    it("waits the identity's settle after an action before it reads the page", async () => {
+      const web = await site();
+      onTestFinished(() => web.close());
+      // The click changes the title 1.5 s later: the result shows the new title only when the
+      // settle after the click is longer than that.
+      const after = async (id: string, settle: string) => {
+        writeIdentitySettings(id, { settle }, sb.env);
+        const client = await start(id);
+        await call(client, "browser_navigate", { url: `${web.url}/later` });
+        return call(client, "browser_click", { target: "#go" });
+      };
+      expect(await after("settle-long", "3s")).toContain("- Page Title: after");
+      expect(await after("settle-zero", "0")).toContain("- Page Title: before");
+    }, 90_000);
 
-    // The cache is on disk: a new server for the same identity uses it.
-    await client.close();
-    client = await start("res-a");
-    await load(client);
-    expect(n("/static/app.css")).toBe(1);
-    const dir = join(identityStateDir("res-a", sb.env), "resource-cache");
-    expect(readdirSync(dir).some((f) => f.endsWith(".json"))).toBe(true);
-    expect(statSync(dir).mode & 0o777).toBe(0o700);
+    it("blocks what identity.json lists and serves cacheable static files from the identity's own disk cache", async () => {
+      const web = await site();
+      onTestFinished(() => web.close());
+      const n = (path: string) => web.count.get(path) ?? 0;
+      writeIdentitySettings("res-a", { block: { types: ["image"], patterns: ["*/promo/*"] }, cache: {} }, sb.env);
+      const load = async (client: Client) => {
+        await call(client, "browser_navigate", { url: `${web.url}/res` });
+        await sleep(500); // the body is stored when the request finishes
+      };
+      let client = await start("res-a");
+      await load(client);
+      await load(client);
+      expect(n("/res")).toBe(2);
+      expect(n("/static/app.css")).toBe(1);
+      expect(n("/static/nostore.css")).toBe(2);
+      expect(n("/static/cookie.js")).toBe(2);
+      expect(n("/static/logo.svg")).toBe(0);
+      expect(n("/promo/ad.js")).toBe(0);
+      // The cached stylesheet still applies.
+      expect(
+        await call(client, "browser_evaluate", {
+          function: "() => getComputedStyle(document.querySelector('h1')).color",
+        }),
+      ).toContain("rgb(0, 128, 0)");
 
-    // Never across identities, and nothing blocked without a block setting.
-    writeIdentitySettings("res-b", { cache: {} }, sb.env);
-    const other = await start("res-b");
-    await load(other);
-    expect(n("/static/app.css")).toBe(2);
-    expect(n("/static/logo.svg")).toBe(1);
-    expect(n("/promo/ad.js")).toBe(1);
-  }, 90_000);
+      // The cache is on disk: a new server for the same identity uses it.
+      await client.close();
+      client = await start("res-a");
+      await load(client);
+      expect(n("/static/app.css")).toBe(1);
+      const dir = join(identityStateDir("res-a", sb.env), "resource-cache");
+      expect(readdirSync(dir).some((f) => f.endsWith(".json"))).toBe(true);
+      expect(statSync(dir).mode & 0o777).toBe(0o700);
 
-  it("keeps background tabs at full speed by default", async () => {
-    const web = await site();
-    onTestFinished(() => web.close());
-    const client = await start("fullspeed");
-    await call(client, "browser_navigate", { url: `${web.url}/busy` });
-    await call(client, "browser_tabs", { action: "new", url: `${web.url}/plain` });
-    await sleep(4_000);
-    await call(client, "browser_tabs", { action: "select", index: 0 });
-    const state = await call(client, "browser_evaluate", { function: "() => JSON.stringify(document.documentElement.dataset)" });
-    // Focus emulation keeps it visible, and its timers at full speed: about 200 ticks a second
-    // locally, 18 and up on slow CI runners (throttled it is 1 or 2).
-    expect(state).not.toContain("hidden");
-    expect(Number(/rate\\":\\"(\d+)/.exec(state)?.[1])).toBeGreaterThan(10);
-  }, 60_000);
+      // Never across identities, and nothing blocked without a block setting.
+      writeIdentitySettings("res-b", { cache: {} }, sb.env);
+      const other = await start("res-b");
+      await load(other);
+      expect(n("/static/app.css")).toBe(2);
+      expect(n("/static/logo.svg")).toBe(1);
+      expect(n("/promo/ad.js")).toBe(1);
+    }, 90_000);
 
-  it("with --background-throttling, slows a tab in the background and still acts at once on the current tab", async () => {
-    const web = await site();
-    onTestFinished(() => web.close());
-    const client = await start("throttled", ["--background-throttling"]);
-    await call(client, "browser_navigate", { url: `${web.url}/busy` });
-    await call(client, "browser_tabs", { action: "new", url: `${web.url}/plain` });
-    await sleep(4_000);
-    await call(client, "browser_tabs", { action: "select", index: 0 });
-    // Chrome saw it hidden, so it throttled it (1 to 10 timer ticks a second locally; how much is
-    // Chrome's budget, which varies on CI runners).
-    expect(await call(client, "browser_evaluate", { function: "() => document.documentElement.dataset.hidden" })).toContain('"seen"');
+    it("keeps background tabs at full speed by default", async () => {
+      const web = await site();
+      onTestFinished(() => web.close());
+      const client = await start("fullspeed");
+      await call(client, "browser_navigate", { url: `${web.url}/busy` });
+      await call(client, "browser_tabs", { action: "new", url: `${web.url}/plain` });
+      await sleep(4_000);
+      await call(client, "browser_tabs", { action: "select", index: 0 });
+      const state = await call(client, "browser_evaluate", {
+        function: "() => JSON.stringify(document.documentElement.dataset)",
+      });
+      // Focus emulation keeps it visible, and its timers at full speed: about 200 ticks a second
+      // locally, 18 and up on slow CI runners (throttled it is 1 or 2).
+      expect(state).not.toContain("hidden");
+      expect(Number(/rate\\":\\"(\d+)/.exec(state)?.[1])).toBeGreaterThan(10);
+    }, 60_000);
 
-    // A click that opens a window puts that window in front while the agent stays on its tab;
-    // the next action on the agent's tab must not wait for a frame that never comes.
-    await call(client, "browser_navigate", { url: `${web.url}/link` });
-    await call(client, "browser_click", { target: "a", element: "Open B link" });
-    const t0 = Date.now();
-    await call(client, "browser_click", { target: "button", element: "Press button" });
-    expect(Date.now() - t0).toBeLessThan(4_000);
-    expect(await call(client, "browser_evaluate", { function: "() => document.title" })).toContain('"clicked"');
-  }, 60_000);
-});
+    it("with --background-throttling, slows a tab in the background and still acts at once on the current tab", async () => {
+      const web = await site();
+      onTestFinished(() => web.close());
+      const client = await start("throttled", ["--background-throttling"]);
+      await call(client, "browser_navigate", { url: `${web.url}/busy` });
+      await call(client, "browser_tabs", { action: "new", url: `${web.url}/plain` });
+      await sleep(4_000);
+      await call(client, "browser_tabs", { action: "select", index: 0 });
+      // Chrome saw it hidden, so it throttled it (1 to 10 timer ticks a second locally; how much is
+      // Chrome's budget, which varies on CI runners).
+      expect(
+        await call(client, "browser_evaluate", { function: "() => document.documentElement.dataset.hidden" }),
+      ).toContain('"seen"');
+
+      // A click that opens a window puts that window in front while the agent stays on its tab;
+      // the next action on the agent's tab must not wait for a frame that never comes.
+      await call(client, "browser_navigate", { url: `${web.url}/link` });
+      await call(client, "browser_click", { target: "a", element: "Open B link" });
+      const t0 = Date.now();
+      await call(client, "browser_click", { target: "button", element: "Press button" });
+      expect(Date.now() - t0).toBeLessThan(4_000);
+      expect(await call(client, "browser_evaluate", { function: "() => document.title" })).toContain('"clicked"');
+    }, 60_000);
+  },
+);

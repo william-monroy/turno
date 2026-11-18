@@ -123,7 +123,8 @@ export function migrate(io: Io, opts: { dryRun?: boolean; force?: boolean } = {}
   } else {
     const exists = existsSync(p.configFile);
     if (exists && !opts.force) {
-      if (opts.dryRun) io.out(`${prefix}! ${tildify(p.configFile, io.env)} exists; a real run needs --force to replace it`);
+      if (opts.dryRun)
+        io.out(`${prefix}! ${tildify(p.configFile, io.env)} exists; a real run needs --force to replace it`);
       else fail(`${tildify(p.configFile, io.env)} already exists; use --force to replace it (a backup is kept)`);
     }
     const legacy = parseLegacy(proyectos ?? "", navegador ?? "");
@@ -149,7 +150,9 @@ export function migrate(io: Io, opts: { dryRun?: boolean; force?: boolean } = {}
   const usage = copyState(join(legacyDir, "uso"), p.usageDir, (n) => n.endsWith(".json"), journal);
   const exhausted = copyState(join(legacyDir, "agotadas"), p.exhaustedDir, isValidProfileName, journal);
   const plan = copyState(join(legacyDir, "plan"), p.planDir, isValidProfileName, journal);
-  io.out(`${prefix}+ state: ${usage} usage snapshots, ${exhausted} exhausted marks, ${plan} plans copied to ${tildify(p.state, io.env)}/`);
+  io.out(
+    `${prefix}+ state: ${usage} usage snapshots, ${exhausted} exhausted marks, ${plan} plans copied to ${tildify(p.state, io.env)}/`,
+  );
   io.out("Legacy files were left untouched.");
   if (journal.used) io.out(`undo with: turno undo ${journal.stamp}`);
   return 0;

@@ -93,7 +93,8 @@ export const launchd: ServiceBackend = {
   },
   async load(env) {
     ensurePrivateDir(paths(env).logsDir, env);
-    if (await launchd.isLoaded(env)) await runTool("launchctl", ["bootout", `${domain()}/${LABEL}`], env).catch(() => {});
+    if (await launchd.isLoaded(env))
+      await runTool("launchctl", ["bootout", `${domain()}/${LABEL}`], env).catch(() => {});
     await runTool("launchctl", ["bootstrap", domain(), plistPath(env)], env);
   },
   async unload(env) {

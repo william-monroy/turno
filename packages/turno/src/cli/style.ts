@@ -30,8 +30,32 @@ export const ICONS: Record<IconMode, Record<IconName, string>> = {
     next: cp(0xf0a9),
     skip: cp(0xf05e),
   },
-  unicode: { ok: "✓", warn: "!", err: "✗", info: "•", add: "+", remove: "-", on: "●", off: "○", arrow: "→", next: "➜", skip: "–" },
-  ascii: { ok: "ok", warn: "!", err: "x", info: "-", add: "+", remove: "-", on: "", off: "", arrow: "->", next: "", skip: "-" },
+  unicode: {
+    ok: "✓",
+    warn: "!",
+    err: "✗",
+    info: "•",
+    add: "+",
+    remove: "-",
+    on: "●",
+    off: "○",
+    arrow: "→",
+    next: "➜",
+    skip: "–",
+  },
+  ascii: {
+    ok: "ok",
+    warn: "!",
+    err: "x",
+    info: "-",
+    add: "+",
+    remove: "-",
+    on: "",
+    off: "",
+    arrow: "->",
+    next: "",
+    skip: "-",
+  },
 };
 
 /** SGR codes of the semantic colors: the terminal's own palette, so dark and light themes both work. */
@@ -237,7 +261,9 @@ export function style(io: Pick<Io, "env" | "isTty" | "color">, opts: { nerd?: bo
     skip: faint,
   };
   const icon = (name: IconName) => (ICON_COLOR[name] ?? ((s: string) => s))(ICONS[icons][name]);
-  const iconWidth = Math.max(...(["ok", "warn", "err", "skip", "info"] as const).map((n) => visibleWidth(ICONS[icons][n])));
+  const iconWidth = Math.max(
+    ...(["ok", "warn", "err", "skip", "info"] as const).map((n) => visibleWidth(ICONS[icons][n])),
+  );
 
   const wrapLine = (prefix: string, text: string): string => {
     if (!color) return `${prefix}${text}`;
@@ -255,7 +281,9 @@ export function style(io: Pick<Io, "env" | "isTty" | "color">, opts: { nerd?: bo
     const widthOf = (i: number) => Math.max(0, ...rows.map((r) => visibleWidth(r[i] ?? "")));
     // The last column wraps under itself, so it only needs LAST_MIN columns to fit.
     const total = (ks: number[]) =>
-      indent + ks.reduce((a, i, k) => a + (k === ks.length - 1 ? Math.min(widthOf(i), LAST_MIN) : widthOf(i)), 0) + gap * Math.max(0, ks.length - 1);
+      indent +
+      ks.reduce((a, i, k) => a + (k === ks.length - 1 ? Math.min(widthOf(i), LAST_MIN) : widthOf(i)), 0) +
+      gap * Math.max(0, ks.length - 1);
     // Only a terminal drops columns: a pipe keeps everything for whoever reads it.
     while (color && total(keep) > width) {
       const droppable = keep.filter((i) => cols[i]?.drop !== undefined).sort((a, b) => cols[b]!.drop! - cols[a]!.drop!);
@@ -270,7 +298,12 @@ export function style(io: Pick<Io, "env" | "isTty" | "color">, opts: { nerd?: bo
         if (cols[i]?.align === "right") return padStart(cell, w);
         return k === keep.length - 1 ? cell : padEnd(cell, w);
       });
-      const head = " ".repeat(indent) + cells.slice(0, -1).map((c) => `${c}${" ".repeat(gap)}`).join("");
+      const head =
+        " ".repeat(indent) +
+        cells
+          .slice(0, -1)
+          .map((c) => `${c}${" ".repeat(gap)}`)
+          .join("");
       return wrapLine(head, cells.at(-1) ?? "")
         .split("\n")
         .map((l) => l.trimEnd());
@@ -290,13 +323,15 @@ export function style(io: Pick<Io, "env" | "isTty" | "color">, opts: { nerd?: bo
     err,
     icon,
     lead: (name, text) => (ICONS[icons][name] ? `${icon(name)} ${text}` : text),
-    profile: (name, c) => (color && c !== undefined ? `\x1b[48;5;${c};1;38;5;255m ${name} \x1b[0m` : color ? bold(name) : name),
+    profile: (name, c) =>
+      color && c !== undefined ? `\x1b[48;5;${c};1;38;5;255m ${name} \x1b[0m` : color ? bold(name) : name,
     header: (title) => {
       if (!color) return title;
       const rule = Math.max(0, Math.min(width, 80) - visibleWidth(title) - 1);
       return `${bold(title)} ${faint("─".repeat(rule))}`;
     },
-    kv: (key, value, keyWidth, indent = 2) => wrapLine(`${" ".repeat(indent)}${muted(padEnd(key, keyWidth))}  `, value).trimEnd(),
+    kv: (key, value, keyWidth, indent = 2) =>
+      wrapLine(`${" ".repeat(indent)}${muted(padEnd(key, keyWidth))}  `, value).trimEnd(),
     table,
     tableRows,
     wrap: wrapLine,

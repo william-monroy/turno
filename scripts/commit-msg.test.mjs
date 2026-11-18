@@ -31,7 +31,10 @@ test("rejects the em dash", () => {
 });
 
 test("ignores comment lines git adds to the editor", () => {
-  assert.deepEqual(checkMessage("chore: tidy\n# Please enter the commit message\n# Co-Authored-By: shown in a comment\n"), []);
+  assert.deepEqual(
+    checkMessage("chore: tidy\n# Please enter the commit message\n# Co-Authored-By: shown in a comment\n"),
+    [],
+  );
 });
 
 test("lets merge and revert messages through", () => {

@@ -2,7 +2,15 @@ import { resolve } from "node:path";
 import { readAudit, verifyAudit } from "../../accounts/audit.js";
 import { launcherExists } from "../../accounts/delegate.js";
 import { effectivePolicy } from "../../accounts/policy.js";
-import { type Account, type Registry, isValidService, loadRegistry, makeAccount, parseAccountId, saveRegistry } from "../../accounts/registry.js";
+import {
+  type Account,
+  type Registry,
+  isValidService,
+  loadRegistry,
+  makeAccount,
+  parseAccountId,
+  saveRegistry,
+} from "../../accounts/registry.js";
 import { Journal } from "../../core/journal.js";
 import { expandHome, paths, tildify } from "../../core/paths.js";
 import { DRY_RUN, type FlagSpec, JSON_FLAG, type Parsed, bool, count, parseFlags, str } from "../args.js";
@@ -39,9 +47,25 @@ const ADD_SPEC: FlagSpec = {
 export const LOG_SPEC: FlagSpec = { tail: { type: "string", short: "n" }, verify: { type: "boolean" }, ...JSON_FLAG };
 
 /** `log --json`: one element per audit line; `log --verify --json`: the chain check (ADR 0045). */
-const AUDIT_JSON = jsonOutput(["ts", "caller", "account", "owner", "write", "task", "outcome", "detail", "durationMs", "costUsd", "decision", "prev"]);
+const AUDIT_JSON = jsonOutput([
+  "ts",
+  "caller",
+  "account",
+  "owner",
+  "write",
+  "task",
+  "outcome",
+  "detail",
+  "durationMs",
+  "costUsd",
+  "decision",
+  "prev",
+]);
 const VERIFY_JSON = jsonOutput(["file", "ok", "lines", "legacy", "line", "reason"]);
-export const LOG_JSON = jsonOutput([...AUDIT_JSON.fields, ...VERIFY_JSON.fields.filter((f) => !AUDIT_JSON.fields.includes(f))]);
+export const LOG_JSON = jsonOutput([
+  ...AUDIT_JSON.fields,
+  ...VERIFY_JSON.fields.filter((f) => !AUDIT_JSON.fields.includes(f)),
+]);
 
 /**
  * `log --verify`: check the hash chain of audit.jsonl (ADR 0018). It shows accidents and naive
@@ -111,7 +135,10 @@ export function add(rawArgs: string[], io: Io): number {
   const p = parseFlags(rawArgs, ADD_SPEC);
   const dry = bool(p, "dry-run");
   const [id, extra] = p.positionals;
-  if (!id || extra !== undefined) fail("usage: turno identity add <service:label> --profile <p> --tools <pattern>[,<pattern>] [--read-tools <pattern>[,...]] [--confirm always|writes|never]");
+  if (!id || extra !== undefined)
+    fail(
+      "usage: turno identity add <service:label> --profile <p> --tools <pattern>[,<pattern>] [--read-tools <pattern>[,...]] [--confirm always|writes|never]",
+    );
   const journal = new Journal(io.env, `accounts add ${id}`, dry);
   const flags = {
     profile: str(p, "profile"),
@@ -135,9 +162,12 @@ export function add(rawArgs: string[], io: Io): number {
     ...(flags.description ? { description: flags.description } : {}),
   });
   const file = saveRegistry(reg, io.env, journal);
-  io.out(`${existed ? "Updated" : "Added"} ${id} (profile ${flags.profile}) in ${tildify(file, io.env)}${dry ? " (dry run)" : ""}.`);
+  io.out(
+    `${existed ? "Updated" : "Added"} ${id} (profile ${flags.profile}) in ${tildify(file, io.env)}${dry ? " (dry run)" : ""}.`,
+  );
   if (journal.hint()) io.out(journal.hint()!);
-  if (!launcherExists(flags.profile, io.env)) io.err(`warning: no launcher claude-${flags.profile} yet; delegation to it will fail until it exists.`);
+  if (!launcherExists(flags.profile, io.env))
+    io.err(`warning: no launcher claude-${flags.profile} yet; delegation to it will fail until it exists.`);
   return 0;
 }
 
@@ -189,7 +219,8 @@ export function prefer(rawArgs: string[], io: Io): number {
   }
   const account = reg.accounts[accountId];
   if (!account) fail(`unknown account "${accountId}"`);
-  if (parseAccountId(accountId)?.service !== service) fail(`account "${accountId}" belongs to service "${account.service}", not "${service}"`);
+  if (parseAccountId(accountId)?.service !== service)
+    fail(`account "${accountId}" belongs to service "${account.service}", not "${service}"`);
   if (!rule) {
     rule = { path, accounts: {} };
     reg.prefer.push(rule);
@@ -228,7 +259,9 @@ export function log(args: string[], io: Io): number {
       const d = e.decision;
       const asked = d.asked ? (d.confirmed ? "confirmed" : "not confirmed") : "not asked";
       const blocked = d.denied?.length ? `; blocked: ${d.denied.join(", ")}` : "";
-      io.out(`    ${paint(io, `${d.toolset === "read" ? "read tools" : "all tools"}, ${asked}${d.mcp ? `, ${d.mcp} MCP` : ""}${blocked}`, "2")}`);
+      io.out(
+        `    ${paint(io, `${d.toolset === "read" ? "read tools" : "all tools"}, ${asked}${d.mcp ? `, ${d.mcp} MCP` : ""}${blocked}`, "2")}`,
+      );
     }
     if (e.outcome !== "ok" && e.detail) io.out(`    ${paint(io, e.detail.replace(/\s+/g, " ").slice(0, 160), "2")}`);
   }

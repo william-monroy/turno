@@ -1,6 +1,17 @@
 import { execFile, execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Config, loadConfig } from "../../core/config.js";
@@ -168,7 +179,14 @@ function resolveKey(cwd: string, configFile: string): string {
   return createHash("sha1").update(`${cwd}\0${mtime}`).digest("hex").slice(0, 20);
 }
 
-function resolveCached(cwd: string, config: Config, env: NodeJS.ProcessEnv, p: Paths, cache: string, now: number): { chosen: string; assigned: string } {
+function resolveCached(
+  cwd: string,
+  config: Config,
+  env: NodeJS.ProcessEnv,
+  p: Paths,
+  cache: string,
+  now: number,
+): { chosen: string; assigned: string } {
   if (!cwd) return { chosen: "", assigned: "" };
   const file = join(cache, `resolve-${resolveKey(cwd, p.configFile)}`);
   try {
@@ -189,7 +207,12 @@ function resolveCached(cwd: string, config: Config, env: NodeJS.ProcessEnv, p: P
   return { chosen: r.chosen, assigned: r.assigned };
 }
 
-function turnHistory(cache: string, sid: string | undefined, promptId: string | undefined, five: Window | undefined): number | undefined {
+function turnHistory(
+  cache: string,
+  sid: string | undefined,
+  promptId: string | undefined,
+  five: Window | undefined,
+): number | undefined {
   if (!sid || !five || five.used_percentage === undefined) return undefined;
   const file = join(cache, `turns-${sid}.json`);
   const hist = turns(readJsonFile(file));
@@ -208,7 +231,11 @@ function turnHistory(cache: string, sid: string | undefined, promptId: string | 
 function gitSpawn(cwd: string): string {
   const git = (args: string[]) => {
     try {
-      return execFileSync("git", ["--no-optional-locks", "-C", cwd, ...args], { encoding: "utf8", timeout: 3000, stdio: ["ignore", "pipe", "ignore"] }).trim();
+      return execFileSync("git", ["--no-optional-locks", "-C", cwd, ...args], {
+        encoding: "utf8",
+        timeout: 3000,
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim();
     } catch {
       return "";
     }
@@ -260,7 +287,13 @@ interface SessionCost {
   unknown: string[];
 }
 
-function sessionCost(cache: string, sid: string | undefined, transcript: string | undefined, now: number, jobs: Job[]): SessionCost | undefined {
+function sessionCost(
+  cache: string,
+  sid: string | undefined,
+  transcript: string | undefined,
+  now: number,
+  jobs: Job[],
+): SessionCost | undefined {
   if (!sid || !transcript) return undefined;
   const out = join(cache, `cost-${sid}.json`);
   const raw = readJsonFile(out);
@@ -319,7 +352,12 @@ const FALLBACK_CONFIG: Config = {
  * its own: a bad cache file, a full disk or a broken repository leaves that piece empty and the
  * rest of the line intact. Background workers are queued on `jobs`, not started.
  */
-export function collect(payload: unknown, env: NodeJS.ProcessEnv, now = Date.now() / 1000, jobs: Job[] = []): RenderInput {
+export function collect(
+  payload: unknown,
+  env: NodeJS.ProcessEnv,
+  now = Date.now() / 1000,
+  jobs: Job[] = [],
+): RenderInput {
   const data = sanitize(payload);
   const config = safe(() => loadConfig(env), FALLBACK_CONFIG);
   const p = paths(env);
@@ -344,7 +382,10 @@ export function collect(payload: unknown, env: NodeJS.ProcessEnv, now = Date.now
   if (account) {
     input.limits = safe(() => accountLimits(join(p.usageDir, `${account}.json`), cache, sid, own, now), own);
     input.plan = safe(() => planOf(join(p.planDir, account), now, jobs), "");
-    Object.assign(input, safe(() => resolveCached(cwd, config, env, p, cache, now), { chosen: "", assigned: "" }));
+    Object.assign(
+      input,
+      safe(() => resolveCached(cwd, config, env, p, cache, now), { chosen: "", assigned: "" }),
+    );
     const t = safe(() => turnHistory(cache, sid, data.prompt_id, input.limits.five_hour), undefined);
     if (t !== undefined) input.turnsLeft = t;
     const mine = safe(() => exhaustedUntil(account, env, now), undefined);

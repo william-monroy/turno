@@ -22,7 +22,10 @@ function globalPackage(name: string, body: string): string {
   const root = join(sb.home, "global/lib/node_modules");
   const dir = join(root, name);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, "package.json"), JSON.stringify({ name, type: "module", main: "index.js", exports: "./index.js" }));
+  writeFileSync(
+    join(dir, "package.json"),
+    JSON.stringify({ name, type: "module", main: "index.js", exports: "./index.js" }),
+  );
   writeFileSync(join(dir, "index.js"), body);
   return root;
 }
@@ -73,7 +76,9 @@ describe("loadOptional (ADR 0045)", () => {
   });
 
   it("throws other import errors, and a module the guard rejects is a CliError with the update command", async () => {
-    await expect(loadOptional(PKG, { importer: async () => Promise.reject(new SyntaxError("bad")) })).rejects.toThrow(SyntaxError);
+    await expect(loadOptional(PKG, { importer: async () => Promise.reject(new SyntaxError("bad")) })).rejects.toThrow(
+      SyntaxError,
+    );
     const old = loadOptional(PKG, { importer: async () => ({ other: 1 }), guard: isExample });
     await expect(old).rejects.toThrow(CliError);
     await expect(loadOptional(PKG, { importer: async () => ({}), guard: isExample })).rejects.toThrow(
@@ -88,7 +93,9 @@ describe("loadOptional (ADR 0045)", () => {
     expect(apiMismatch(PKG, { major: 1, minor: 1 }, wanted)).toBe(
       "turno-example is too old for this turno (its API is 1.1, this turno needs 1.2 or a later 1.x); update it: npm install --global turno-example@latest",
     );
-    expect(apiMismatch(PKG, { major: 0, minor: 9 }, wanted)).toMatch(/^turno-example is too old for this turno \(its API is 0\.9,/);
+    expect(apiMismatch(PKG, { major: 0, minor: 9 }, wanted)).toMatch(
+      /^turno-example is too old for this turno \(its API is 0\.9,/,
+    );
     for (const none of [undefined, null, 1, "1.2", { major: 1 }, { major: -1, minor: 0 }, { major: 1.5, minor: 0 }]) {
       expect(apiMismatch(PKG, none, wanted)).toBe(
         "turno-example is too old for this turno (it has no API_VERSION, this turno needs 1.2 or a later 1.x); update it: npm install --global turno-example@latest",
@@ -101,12 +108,26 @@ describe("loadOptional (ADR 0045)", () => {
 
   it("checks API_VERSION before the guard and refuses with one message", async () => {
     const wanted = { major: 1, minor: 0 };
-    const ok = await loadOptional(PKG, { importer: async () => ({ API_VERSION: { major: 1, minor: 3 }, hello: () => "hi" }), guard: isExample, api: wanted });
+    const ok = await loadOptional(PKG, {
+      importer: async () => ({ API_VERSION: { major: 1, minor: 3 }, hello: () => "hi" }),
+      guard: isExample,
+      api: wanted,
+    });
     expect(ok?.hello()).toBe("hi");
-    await expect(loadOptional(PKG, { importer: async () => ({ hello: () => "old" }), guard: isExample, api: wanted })).rejects.toThrow(
-      new CliError("turno-example is too old for this turno (it has no API_VERSION, this turno needs 1.0 or a later 1.x); update it: npm install --global turno-example@latest"),
+    await expect(
+      loadOptional(PKG, { importer: async () => ({ hello: () => "old" }), guard: isExample, api: wanted }),
+    ).rejects.toThrow(
+      new CliError(
+        "turno-example is too old for this turno (it has no API_VERSION, this turno needs 1.0 or a later 1.x); update it: npm install --global turno-example@latest",
+      ),
     );
-    await expect(loadOptional(PKG, { importer: async () => ({ API_VERSION: { major: 2, minor: 0 } }), guard: isExample, api: wanted })).rejects.toThrow(/too new for this turno/);
+    await expect(
+      loadOptional(PKG, {
+        importer: async () => ({ API_VERSION: { major: 2, minor: 0 } }),
+        guard: isExample,
+        api: wanted,
+      }),
+    ).rejects.toThrow(/too new for this turno/);
   });
 
   it("loadBrowser finds the workspace turno-browser, checks its API version and returns its API object", async () => {
@@ -118,8 +139,17 @@ describe("loadOptional (ADR 0045)", () => {
   });
 
   it("loadBrowser refuses a turno-browser without API_VERSION (0.2) with the update command", async () => {
-    const root = globalPackage("turno-browser", "export const ENGINES = ['chrome-headed'];\nexport function listIdentities() { return []; }\nexport async function runBench() { return {}; }\n");
-    await expect(loadBrowser({ global: true, importer: async (s: string) => (s.startsWith("file:") ? import(s) : Promise.reject(missing())), globalRoot: () => root })).rejects.toThrow(
+    const root = globalPackage(
+      "turno-browser",
+      "export const ENGINES = ['chrome-headed'];\nexport function listIdentities() { return []; }\nexport async function runBench() { return {}; }\n",
+    );
+    await expect(
+      loadBrowser({
+        global: true,
+        importer: async (s: string) => (s.startsWith("file:") ? import(s) : Promise.reject(missing())),
+        globalRoot: () => root,
+      }),
+    ).rejects.toThrow(
       "turno-browser is too old for this turno (it has no API_VERSION, this turno needs 1.2 or a later 1.x); update it: npm install --global turno-browser@latest",
     );
   });

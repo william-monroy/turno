@@ -1,6 +1,12 @@
 import { readlinkSync, realpathSync } from "node:fs";
 import { join } from "node:path";
-import { type ProcTable, parentIsInit, pidAlive as processAlive, readProcTable, signalProcess as sendSignal } from "turno-core/process";
+import {
+  type ProcTable,
+  parentIsInit,
+  pidAlive as processAlive,
+  readProcTable,
+  signalProcess as sendSignal,
+} from "turno-core/process";
 import { parseSingletonLock } from "./identities.js";
 
 /**
@@ -132,7 +138,10 @@ async function waitUntil(cond: () => boolean, ms: number): Promise<boolean> {
  * process that holds the cookie store at the same moment), then SIGKILL to the whole group.
  * A group is only signalled when the browser process leads it.
  */
-export async function stopChrome(target: ProfileChrome, opts: StopOptions = {}): Promise<"exited" | "killed" | "survived"> {
+export async function stopChrome(
+  target: ProfileChrome,
+  opts: StopOptions = {},
+): Promise<"exited" | "killed" | "survived"> {
   const signal = opts.signal ?? sendSignal;
   const alive = opts.alive ?? processAlive;
   const leadsGroup = target.pgid === target.pid;

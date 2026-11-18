@@ -5,7 +5,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import { ResourceCache, blocker, freshness, storable } from "../src/resources.js";
 
 describe("blocker", () => {
-  const block = blocker({ trackers: true, types: ["image"], patterns: ["ads.example", "*/promo/*", "cdn.example/banners/*"] });
+  const block = blocker({
+    trackers: true,
+    types: ["image"],
+    patterns: ["ads.example", "*/promo/*", "cdn.example/banners/*"],
+  });
   const u = (s: string) => new URL(s);
 
   it("blocks built-in tracker hosts and their subdomains, the listed types and the user's patterns", () => {
@@ -22,7 +26,9 @@ describe("blocker", () => {
     expect(block(u("https://notads.example/app.js"), "script", false)).toBeUndefined();
     expect(block(u("https://doubleclick.net.shop.example/app.js"), "script", false)).toBeUndefined();
     expect(block(u("https://ads.example/"), "document", true)).toBeUndefined();
-    expect(blocker({ trackers: false, types: [], patterns: [] })(u("https://www.google-analytics.com/"), "script", false)).toBeUndefined();
+    expect(
+      blocker({ trackers: false, types: [], patterns: [] })(u("https://www.google-analytics.com/"), "script", false),
+    ).toBeUndefined();
   });
 });
 
@@ -31,7 +37,9 @@ describe("freshness", () => {
   it("reads max-age less Age, or Expires against Date", () => {
     expect(freshness({ "cache-control": "public, max-age=3600" }, now)).toBe(3_600_000);
     expect(freshness({ "cache-control": "max-age=3600", age: "600" }, now)).toBe(3_000_000);
-    expect(freshness({ expires: "Wed, 18 Nov 2026 13:00:00 GMT", date: "Wed, 18 Nov 2026 12:00:00 GMT" }, now)).toBe(3_600_000);
+    expect(freshness({ expires: "Wed, 18 Nov 2026 13:00:00 GMT", date: "Wed, 18 Nov 2026 12:00:00 GMT" }, now)).toBe(
+      3_600_000,
+    );
   });
 
   it("is undefined for no-store, no-cache, no lifetime or a stale response", () => {
@@ -59,7 +67,14 @@ describe("ResourceCache", () => {
   let dir: string;
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  const meta = (url: string, expiresAt: number, origin?: string | null) => ({ url, status: 200, headers: { "content-type": "image/png" }, expiresAt, ...(origin === undefined ? {} : { origin }), size: 0 });
+  const meta = (url: string, expiresAt: number, origin?: string | null) => ({
+    url,
+    status: 200,
+    headers: { "content-type": "image/png" },
+    expiresAt,
+    ...(origin === undefined ? {} : { origin }),
+    size: 0,
+  });
 
   it("stores private files, serves fresh entries, drops stale ones and keeps them across instances", async () => {
     dir = join(mkdtempSync(join(tmpdir(), "turno-rc-")), "cache");

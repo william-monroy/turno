@@ -86,7 +86,10 @@ export function isInitialize(body: unknown): boolean {
 }
 
 /** Read and parse a JSON body, refusing more than `limit` bytes. */
-export function readJsonBody(req: IncomingMessage, limit: number): Promise<{ value: unknown } | { status: number; code: number; message: string }> {
+export function readJsonBody(
+  req: IncomingMessage,
+  limit: number,
+): Promise<{ value: unknown } | { status: number; code: number; message: string }> {
   return new Promise((resolve) => {
     const declared = Number(header(req, "content-length") ?? "0");
     if (declared > limit) {
@@ -133,7 +136,11 @@ export function decodeHeaderValue(v: string): string | undefined {
 }
 
 /** Every `x-mcp-header` reachable from the schema root through `properties` keys only, with its path. */
-function annotatedParams(schema: unknown, path: string[] = [], out: { name: string; path: string[]; type: unknown }[] = []) {
+function annotatedParams(
+  schema: unknown,
+  path: string[] = [],
+  out: { name: string; path: string[]; type: unknown }[] = [],
+) {
   if (!isObject(schema) || !isObject(schema.properties)) return out;
   for (const [key, sub] of Object.entries(schema.properties)) {
     if (!isObject(sub)) continue;
@@ -154,7 +161,11 @@ function valueAt(args: unknown, path: string[]): unknown {
  * Check the `Mcp-Param-{Name}` headers of a tools/call against its arguments, for the tool's
  * `x-mcp-header` annotations. Returns the problem, or undefined when they agree.
  */
-export function paramHeaderProblem(tool: unknown, args: unknown, headers: Record<string, string | string[] | undefined>): string | undefined {
+export function paramHeaderProblem(
+  tool: unknown,
+  args: unknown,
+  headers: Record<string, string | string[] | undefined>,
+): string | undefined {
   const schema = isObject(tool) ? tool.inputSchema : undefined;
   for (const p of annotatedParams(schema)) {
     const hname = `mcp-param-${p.name.toLowerCase()}`;
@@ -199,7 +210,12 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
 
 function openSse(res: ServerResponse): void {
   if (res.headersSent) return;
-  res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive", "x-accel-buffering": "no" });
+  res.writeHead(200, {
+    "content-type": "text/event-stream",
+    "cache-control": "no-cache",
+    connection: "keep-alive",
+    "x-accel-buffering": "no",
+  });
   res.flushHeaders();
 }
 
@@ -227,7 +243,12 @@ class Listener {
   constructor(
     readonly res: ServerResponse,
     readonly id: Id,
-    readonly filter: { toolsListChanged?: true; promptsListChanged?: true; resourcesListChanged?: true; resourceSubscriptions?: string[] },
+    readonly filter: {
+      toolsListChanged?: true;
+      promptsListChanged?: true;
+      resourcesListChanged?: true;
+      resourceSubscriptions?: string[];
+    },
   ) {}
 
   wants(method: string, params: Json | undefined): boolean {
@@ -252,7 +273,11 @@ class Listener {
       return;
     }
     const meta = isObject(params?._meta) ? params._meta : {};
-    writeSse(this.res, { jsonrpc: "2.0", method, params: { ...(params ?? {}), _meta: { ...meta, [SUBSCRIPTION_ID]: this.id } } });
+    writeSse(this.res, {
+      jsonrpc: "2.0",
+      method,
+      params: { ...(params ?? {}), _meta: { ...meta, [SUBSCRIPTION_ID]: this.id } },
+    });
   }
 
   /** Send the acknowledgment, then whatever arrived while the subscription was being set up. */
@@ -269,7 +294,11 @@ class Listener {
   /** Graceful end: the response to the listen request, then close (mcpd is stopping). */
   end(): void {
     if (this.timer) clearInterval(this.timer);
-    writeSse(this.res, { jsonrpc: "2.0", id: this.id, result: { resultType: "complete", _meta: { [SUBSCRIPTION_ID]: this.id } } });
+    writeSse(this.res, {
+      jsonrpc: "2.0",
+      id: this.id,
+      result: { resultType: "complete", _meta: { [SUBSCRIPTION_ID]: this.id } },
+    });
     if (!this.res.writableEnded) this.res.end();
   }
 }
@@ -317,7 +346,8 @@ export class StatelessClient implements ClientHandle {
     // The revision: no notifications/message for a request that did not ask for a log level.
     if (method === "notifications/message" && call.logLevel) {
       const level = LOG_LEVELS.indexOf(String(params?.level ?? ""));
-      if (level >= LOG_LEVELS.indexOf(call.logLevel)) writeSse(call.res, { jsonrpc: "2.0", method, ...(params ? { params } : {}) });
+      if (level >= LOG_LEVELS.indexOf(call.logLevel))
+        writeSse(call.res, { jsonrpc: "2.0", method, ...(params ? { params } : {}) });
     }
   }
 
@@ -423,7 +453,15 @@ export class StatelessFront {
   /** Answer one 2026-07-28 POST whose body is already parsed. */
   async handle(req: IncomingMessage, res: ServerResponse, name: string, profile: string, body: unknown): Promise<void> {
     if (!isObject(body) || body.jsonrpc !== "2.0" || typeof body.method !== "string") {
-      sendJson(res, 400, errorBody(null, ErrorCode.InvalidRequest, "Invalid Request: the body must be one JSON-RPC request or notification"));
+      sendJson(
+        res,
+        400,
+        errorBody(
+          null,
+          ErrorCode.InvalidRequest,
+          "Invalid Request: the body must be one JSON-RPC request or notification",
+        ),
+      );
       return;
     }
     const method = body.method;
@@ -434,26 +472,40 @@ export class StatelessFront {
       return;
     }
     if (typeof body.id !== "string" && typeof body.id !== "number") {
-      sendJson(res, 400, errorBody(null, ErrorCode.InvalidRequest, "Invalid Request: the id must be a string or a number"));
+      sendJson(
+        res,
+        400,
+        errorBody(null, ErrorCode.InvalidRequest, "Invalid Request: the id must be a string or a number"),
+      );
       return;
     }
     const id = body.id;
     const version = header(req, "mcp-protocol-version")?.trim() ?? "";
     if (!MODERN_PROTOCOL_VERSIONS.includes(version)) {
-      sendJson(res, 400, errorBody(id, ModernErrorCode.UnsupportedProtocolVersion, "Unsupported protocol version", { supported: ALL_PROTOCOL_VERSIONS, requested: version }));
+      sendJson(
+        res,
+        400,
+        errorBody(id, ModernErrorCode.UnsupportedProtocolVersion, "Unsupported protocol version", {
+          supported: ALL_PROTOCOL_VERSIONS,
+          requested: version,
+        }),
+      );
       return;
     }
     const params = isObject(body.params) ? body.params : {};
-    const mismatch = (message: string) => sendJson(res, 400, errorBody(id, ModernErrorCode.HeaderMismatch, `Header mismatch: ${message}`));
+    const mismatch = (message: string) =>
+      sendJson(res, 400, errorBody(id, ModernErrorCode.HeaderMismatch, `Header mismatch: ${message}`));
     const mcpMethod = header(req, "mcp-method");
     if (mcpMethod === undefined) return mismatch("missing Mcp-Method header");
-    if (mcpMethod !== method) return mismatch(`Mcp-Method header value '${mcpMethod}' does not match body value '${method}'`);
+    if (mcpMethod !== method)
+      return mismatch(`Mcp-Method header value '${mcpMethod}' does not match body value '${method}'`);
     const field = NAMED[method];
     if (field) {
       const sent = header(req, "mcp-name");
       if (sent === undefined) return mismatch(`missing Mcp-Name header for ${method}`);
       const decoded = decodeHeaderValue(sent);
-      if (decoded === undefined || decoded !== params[field]) return mismatch(`Mcp-Name header value does not match body value of params.${field}`);
+      if (decoded === undefined || decoded !== params[field])
+        return mismatch(`Mcp-Name header value does not match body value of params.${field}`);
     }
     const meta = isObject(params._meta) ? params._meta : {};
     for (const k of [PROTOCOL_VERSION, CLIENT_CAPABILITIES]) {
@@ -463,9 +515,16 @@ export class StatelessFront {
         return;
       }
     }
-    if (meta[PROTOCOL_VERSION] !== version) return mismatch(`MCP-Protocol-Version header value '${version}' does not match _meta value '${String(meta[PROTOCOL_VERSION])}'`);
+    if (meta[PROTOCOL_VERSION] !== version)
+      return mismatch(
+        `MCP-Protocol-Version header value '${version}' does not match _meta value '${String(meta[PROTOCOL_VERSION])}'`,
+      );
     if (REMOVED.has(method)) {
-      sendJson(res, 404, errorBody(id, ErrorCode.MethodNotFound, `Method not found: ${method} is not part of MCP ${version}`));
+      sendJson(
+        res,
+        404,
+        errorBody(id, ErrorCode.MethodNotFound, `Method not found: ${method} is not part of MCP ${version}`),
+      );
       return;
     }
 
@@ -493,7 +552,15 @@ export class StatelessFront {
   /** A hidden server: no capabilities, empty lists that are not cached, every other request refused. */
   private hiddenReply(res: ServerResponse, id: Id, method: string, why: string): void {
     if (method === "server/discover") {
-      this.reply(res, id, method, { result: { supportedVersions: ALL_PROTOCOL_VERSIONS, capabilities: {}, instructions: why, ttlMs: 0, cacheScope: "private" } });
+      this.reply(res, id, method, {
+        result: {
+          supportedVersions: ALL_PROTOCOL_VERSIONS,
+          capabilities: {},
+          instructions: why,
+          ttlMs: 0,
+          cacheScope: "private",
+        },
+      });
       return;
     }
     const spec = LISTS[method] ?? (method === "resources/list" ? { field: "resources" } : undefined);
@@ -511,7 +578,11 @@ export class StatelessFront {
 
   private stamp(result: Json, serverInfo: unknown): Json {
     const meta = isObject(result._meta) ? result._meta : {};
-    return { ...result, resultType: typeof result.resultType === "string" ? result.resultType : "complete", ...(serverInfo ? { _meta: { ...meta, [SERVER_INFO]: serverInfo } } : {}) };
+    return {
+      ...result,
+      resultType: typeof result.resultType === "string" ? result.resultType : "complete",
+      ...(serverInfo ? { _meta: { ...meta, [SERVER_INFO]: serverInfo } } : {}),
+    };
   }
 
   private reply(res: ServerResponse, id: Id, method: string, outcome: Outcome, serverInfo?: unknown): void {
@@ -559,10 +630,24 @@ export class StatelessFront {
     const filter = spec.key === "tools" ? this.opts.toolFilter(client.ctx) : undefined;
     if (filter) items = items.filter((t) => toolAllowed(filter, String((t as { name?: unknown }).name ?? "")));
     // Private: lists differ by profile (variants, tool filters), and the profile token is the authorization context.
-    this.reply(res, id, method, { result: { [spec.field]: items, ttlMs: this.ttl(d), cacheScope: "private" } }, d.serverInfo);
+    this.reply(
+      res,
+      id,
+      method,
+      { result: { [spec.field]: items, ttlMs: this.ttl(d), cacheScope: "private" } },
+      d.serverInfo,
+    );
   }
 
-  private async forward(req: IncomingMessage, res: ServerResponse, id: Id, method: string, params: Json, meta: Json, client: StatelessClient): Promise<void> {
+  private async forward(
+    req: IncomingMessage,
+    res: ServerResponse,
+    id: Id,
+    method: string,
+    params: Json,
+    meta: Json,
+    client: StatelessClient,
+  ): Promise<void> {
     const manager = this.opts.manager;
     if (method === "tools/call") {
       // The Mcp-Param-* headers are this revision's transport check, so they come before the
@@ -580,8 +665,15 @@ export class StatelessFront {
     const upMeta = Object.fromEntries(Object.entries(meta).filter(([k]) => !k.startsWith("io.modelcontextprotocol/")));
     const { _meta: _drop, ...rest } = params;
     const upParams: Json = { ...rest, ...(Object.keys(upMeta).length ? { _meta: upMeta } : {}) };
-    const logLevel = typeof meta[LOG_LEVEL] === "string" && LOG_LEVELS.includes(meta[LOG_LEVEL] as string) ? (meta[LOG_LEVEL] as string) : undefined;
-    const call: Call = { res, stream: meta.progressToken !== undefined || logLevel !== undefined, ...(logLevel ? { logLevel } : {}) };
+    const logLevel =
+      typeof meta[LOG_LEVEL] === "string" && LOG_LEVELS.includes(meta[LOG_LEVEL] as string)
+        ? (meta[LOG_LEVEL] as string)
+        : undefined;
+    const call: Call = {
+      res,
+      stream: meta.progressToken !== undefined || logLevel !== undefined,
+      ...(logLevel ? { logLevel } : {}),
+    };
     // Our own id for the call, so two requests of one client never collide upstream.
     const internal = `h${++this.seq}`;
     client.calls.set(internal, call);
@@ -593,14 +685,23 @@ export class StatelessFront {
       closed = true;
       // Closing the response is the cancellation signal in this revision.
       try {
-        manager.existing(client)?.upstream.notify("notifications/cancelled", { requestId: internal, reason: "the client closed the request" }, client);
+        manager
+          .existing(client)
+          ?.upstream.notify(
+            "notifications/cancelled",
+            { requestId: internal, reason: "the client closed the request" },
+            client,
+          );
       } catch {
         /* the server left the manifest; nothing to cancel */
       }
     });
     let outcome: Outcome;
     try {
-      outcome = method === "tools/call" ? await this.opts.calls.call(client, upParams, internal, () => closed) : await manager.forward(client, method, upParams, internal, () => closed);
+      outcome =
+        method === "tools/call"
+          ? await this.opts.calls.call(client, upParams, internal, () => closed)
+          : await manager.forward(client, method, upParams, internal, () => closed);
     } finally {
       settled = true;
       client.calls.delete(internal);
@@ -610,7 +711,13 @@ export class StatelessFront {
     this.reply(res, id, method, outcome, manager.cachedDescription(client)?.serverInfo);
   }
 
-  private async listen(_req: IncomingMessage, res: ServerResponse, id: Id, params: Json, client: StatelessClient): Promise<void> {
+  private async listen(
+    _req: IncomingMessage,
+    res: ServerResponse,
+    id: Id,
+    params: Json,
+    client: StatelessClient,
+  ): Promise<void> {
     const manager = this.opts.manager;
     const asked = isObject(params.notifications) ? params.notifications : {};
     const d = await manager.describe(client);
@@ -619,7 +726,9 @@ export class StatelessFront {
     if (asked.toolsListChanged === true && caps.tools) filter.toolsListChanged = true;
     if (asked.promptsListChanged === true && caps.prompts) filter.promptsListChanged = true;
     if (asked.resourcesListChanged === true && caps.resources) filter.resourcesListChanged = true;
-    const uris = Array.isArray(asked.resourceSubscriptions) ? asked.resourceSubscriptions.filter((u): u is string => typeof u === "string" && u !== "") : [];
+    const uris = Array.isArray(asked.resourceSubscriptions)
+      ? asked.resourceSubscriptions.filter((u): u is string => typeof u === "string" && u !== "")
+      : [];
     const listener = new Listener(res, id, filter);
     openSse(res);
     client.listeners.add(listener);
@@ -642,7 +751,10 @@ export class StatelessFront {
     if (uris.length && subscribes) {
       for (const uri of uris) {
         const out = await manager.subscribe(client, uri, `h${++this.seq}`);
-        if ("error" in out) this.opts.log?.(`${client.ctx.serverName}: subscriptions/listen could not subscribe to a resource: ${out.error.message}`);
+        if ("error" in out)
+          this.opts.log?.(
+            `${client.ctx.serverName}: subscriptions/listen could not subscribe to a resource: ${out.error.message}`,
+          );
         else if (!open) release([uri]);
         else subscribed.push(uri);
       }

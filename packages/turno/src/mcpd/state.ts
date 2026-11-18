@@ -16,7 +16,14 @@ import { paths } from "../core/paths.js";
 import { hasFields, readState } from "../core/state-file.js";
 
 /** Files mcpd keeps in the state folder besides `mcpd.token` and `mcpd.port`. */
-export function daemonFiles(env: NodeJS.ProcessEnv = process.env): { lock: string; lastGood: string; error: string; log: string; calls: string; rss: string } {
+export function daemonFiles(env: NodeJS.ProcessEnv = process.env): {
+  lock: string;
+  lastGood: string;
+  error: string;
+  log: string;
+  calls: string;
+  rss: string;
+} {
   const p = paths(env);
   return {
     lock: join(p.state, "mcpd.lock"),
@@ -44,7 +51,11 @@ function defaultWarn(message: string): void {
  * reported when it cannot be), and a file owned by another user is reported. The token is
  * never printed. Per-profile tokens derive from this one (mcpd/tokens.ts, ADR 0023).
  */
-export function masterToken(env: NodeJS.ProcessEnv = process.env, mode: TokenMode = "ensure", warn: (message: string) => void = defaultWarn): string | undefined {
+export function masterToken(
+  env: NodeJS.ProcessEnv = process.env,
+  mode: TokenMode = "ensure",
+  warn: (message: string) => void = defaultWarn,
+): string | undefined {
   const file = paths(env).mcpdToken;
   if (mode !== "rotate") {
     let fd: number | undefined;
@@ -53,7 +64,8 @@ export function masterToken(env: NodeJS.ProcessEnv = process.env, mode: TokenMod
       const st = fstatSync(fd);
       if (st.isFile()) {
         const uid = process.getuid?.();
-        if (uid !== undefined && st.uid !== uid) warn(`${file} belongs to uid ${st.uid}, not to you; rotate it with: turno mcp token rotate`);
+        if (uid !== undefined && st.uid !== uid)
+          warn(`${file} belongs to uid ${st.uid}, not to you; rotate it with: turno mcp token rotate`);
         else if (st.mode & 0o077) {
           try {
             fchmodSync(fd, 0o600);
@@ -102,7 +114,8 @@ export interface LockInfo {
   startedAt: string;
 }
 
-const isLockInfo = (v: unknown): v is LockInfo => hasFields(v, { pid: "number" }) && Number.isInteger(v.pid) && (v.pid as number) > 0;
+const isLockInfo = (v: unknown): v is LockInfo =>
+  hasFields(v, { pid: "number" }) && Number.isInteger(v.pid) && (v.pid as number) > 0;
 
 /** The lock file, or undefined when there is none or it is not a lock (state-file.ts). */
 export function readLock(env: NodeJS.ProcessEnv = process.env): LockInfo | undefined {
@@ -114,7 +127,11 @@ export function isMcpdProcess(pid: number): boolean {
   if (pid === process.pid) return true;
   if (!pidAlive(pid)) return false;
   try {
-    const cmd = execFileSync("ps", ["-o", "command=", "-p", String(pid)], { encoding: "utf8", timeout: 2000, stdio: ["ignore", "pipe", "ignore"] });
+    const cmd = execFileSync("ps", ["-o", "command=", "-p", String(pid)], {
+      encoding: "utf8",
+      timeout: 2000,
+      stdio: ["ignore", "pipe", "ignore"],
+    });
     return /\b(mcpd|daemon) run\b/.test(cmd);
   } catch {
     return true; // cannot tell: assume it is
@@ -135,7 +152,9 @@ export function loadConfigSafe(env: NodeJS.ProcessEnv = process.env): { config: 
     const file = paths(env).configFile;
     const config = parseConfig("", file, env);
     try {
-      const port = ((parseToml(readFileSync(file, "utf8")) as Record<string, unknown>).mcpd as Record<string, unknown> | undefined)?.port;
+      const port = (
+        (parseToml(readFileSync(file, "utf8")) as Record<string, unknown>).mcpd as Record<string, unknown> | undefined
+      )?.port;
       if (typeof port === "number" && Number.isInteger(port) && port >= 1024 && port <= 65535) config.mcpd.port = port;
     } catch {
       /* not even TOML: the default port */
@@ -179,7 +198,10 @@ export function readStartError(env: NodeJS.ProcessEnv = process.env): StartError
 export async function answersAsMcpd(port: number, token: string | undefined): Promise<{ pid?: number } | undefined> {
   if (!token) return undefined;
   try {
-    const res = await fetch(`http://127.0.0.1:${port}/status`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(2000) });
+    const res = await fetch(`http://127.0.0.1:${port}/status`, {
+      headers: { authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(2000),
+    });
     if (!res.ok) return undefined;
     const body = (await res.json()) as { pid?: number };
     return { ...(typeof body.pid === "number" ? { pid: body.pid } : {}) };

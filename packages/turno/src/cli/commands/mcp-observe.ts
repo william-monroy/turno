@@ -12,12 +12,31 @@ import { type IconName, duration as elapsed, padEnd, style } from "../style.js";
  * same agent sessions would use without the gateway.
  */
 
-export const LOG_FLAGS: FlagSpec = { follow: { type: "boolean", short: "f" }, ...TAIL, server: { type: "string" }, profile: { type: "string" }, ...JSON_FLAG };
+export const LOG_FLAGS: FlagSpec = {
+  follow: { type: "boolean", short: "f" },
+  ...TAIL,
+  server: { type: "string" },
+  profile: { type: "string" },
+  ...JSON_FLAG,
+};
 export const TOP_FLAGS: FlagSpec = { once: { type: "boolean" }, ...WATCH, ...JSON_FLAG };
 export const SAVINGS_FLAGS: FlagSpec = { ...JSON_FLAG };
 
 /** `turno mcp log --json`: one call record per line (ADR 0045). */
-export const LOG_JSON = jsonOutput(["time", "agent", "profile", "pid", "server", "variant", "tool", "durationMs", "outcome", "error", "requestBytes", "responseBytes"]);
+export const LOG_JSON = jsonOutput([
+  "time",
+  "agent",
+  "profile",
+  "pid",
+  "server",
+  "variant",
+  "tool",
+  "durationMs",
+  "outcome",
+  "error",
+  "requestBytes",
+  "responseBytes",
+]);
 /** `turno mcp top --json`; `{ running: false }` when mcpd is down. */
 export const TOP_JSON = jsonOutput(["running", "mcpd", "instances", "memoryKnown", "memoryPressure"]);
 /** `turno mcp savings --json`; `{ running: false }` or `{ running: true, error }` when it cannot tell. */
@@ -100,7 +119,11 @@ const GAP = 2;
  * a cap, narrowed until the line fits, then sizes and the agent added while they fit (on a
  * narrow terminal the agent goes first, then the sizes).
  */
-export function logLayout(io: Pick<Io, "env" | "isTty" | "color">, records: readonly CallRecord[], now = new Date()): LogLayout {
+export function logLayout(
+  io: Pick<Io, "env" | "isTty" | "color">,
+  records: readonly CallRecord[],
+  now = new Date(),
+): LogLayout {
   const { width } = style(io);
   const day = (iso: string) => {
     const d = new Date(iso);
@@ -175,14 +198,19 @@ export function formatCall(io: Io, r: CallRecord, localTime: (iso: string) => st
 export async function log(args: string[], io: Io, signal?: AbortSignal): Promise<number> {
   const p = parseFlags(args, LOG_FLAGS, 0);
   const n = count(p, "tail", 20);
-  const filter = { ...(str(p, "server") ? { server: str(p, "server") } : {}), ...(str(p, "profile") ? { profile: str(p, "profile") } : {}) };
+  const filter = {
+    ...(str(p, "server") ? { server: str(p, "server") } : {}),
+    ...(str(p, "profile") ? { profile: str(p, "profile") } : {}),
+  };
   const json = bool(p, "json");
   const { daemonFiles, loadConfigSafe } = await import("../../mcpd/state.js");
   const { followCalls, readCalls } = await import("../../mcpd/calllog.js");
   const { localTime } = await import("./mcpd.js");
   const file = daemonFiles(io.env).calls;
   if (!loadConfigSafe(io.env).config.mcpd.callLog) {
-    io.err(`${paint(io, "note", "33")}: the call log is off (call_log = false under [mcpd] in config.toml); mcpd records no new calls`);
+    io.err(
+      `${paint(io, "note", "33")}: the call log is off (call_log = false under [mcpd] in config.toml); mcpd records no new calls`,
+    );
   }
   const records = readCalls(file, n, filter);
   const layout = logLayout(io, records);
@@ -271,7 +299,15 @@ const MEMORY_UNKNOWN = "memory is unknown: ps is not available and there is no /
 
 export interface TopSnapshot {
   running: true;
-  mcpd: { pid: number; version: string | null; uptimeSeconds: number | null; sessions: number; agents: number; rssBytes: number | null; totalRssBytes: number | null };
+  mcpd: {
+    pid: number;
+    version: string | null;
+    uptimeSeconds: number | null;
+    sessions: number;
+    agents: number;
+    rssBytes: number | null;
+    totalRssBytes: number | null;
+  };
   instances: {
     server: string;
     variant: string;
@@ -291,10 +327,18 @@ export interface TopSnapshot {
    * watched); `idleCapSeconds` the idle limit every server gets now, null when they keep their
    * own. Null as a whole when the running mcpd does not report it.
    */
-  memoryPressure?: { level: "normal" | "warn" | "critical" | null; idleUnderPressureSeconds: number; idleCapSeconds: number | null } | null;
+  memoryPressure?: {
+    level: "normal" | "warn" | "critical" | null;
+    idleUnderPressureSeconds: number;
+    idleCapSeconds: number | null;
+  } | null;
 }
 
-export async function topSnapshot(status: Status, procs: ProcTable | undefined, now = Date.now()): Promise<TopSnapshot> {
+export async function topSnapshot(
+  status: Status,
+  procs: ProcTable | undefined,
+  now = Date.now(),
+): Promise<TopSnapshot> {
   const { treeRss } = await import("../../mcpd/rss.js");
   const started = status.startedAt ? Date.parse(status.startedAt) : Number.NaN;
   return {
@@ -325,7 +369,11 @@ export async function topSnapshot(status: Status, procs: ProcTable | undefined, 
       .sort((a, b) => (b.rssBytes ?? 0) - (a.rssBytes ?? 0) || a.server.localeCompare(b.server)),
     memoryKnown: procs !== undefined,
     memoryPressure: status.memoryPressure
-      ? { level: status.memoryPressure.level, idleUnderPressureSeconds: status.memoryPressure.idleUnderPressure, idleCapSeconds: status.memoryPressure.idleCap }
+      ? {
+          level: status.memoryPressure.level,
+          idleUnderPressureSeconds: status.memoryPressure.idleUnderPressure,
+          idleCapSeconds: status.memoryPressure.idleCap,
+        }
       : null,
   };
 }
@@ -333,7 +381,8 @@ export async function topSnapshot(status: Status, procs: ProcTable | undefined, 
 /** The memory pressure line under the top header; nothing while mcpd does not watch it. */
 function pressureLine(s: ReturnType<typeof style>, p: TopSnapshot["memoryPressure"]): string | undefined {
   if (!p?.level) return undefined;
-  if (p.level === "normal" || p.idleCapSeconds === null) return s.note("ok", s.muted(`memory pressure ${p.level}: servers keep their own idle limits`));
+  if (p.level === "normal" || p.idleCapSeconds === null)
+    return s.note("ok", s.muted(`memory pressure ${p.level}: servers keep their own idle limits`));
   const text = `memory pressure ${p.level}: idle servers stop after ${duration(p.idleCapSeconds)} (mcpd.idle_under_pressure)`;
   return p.level === "critical" ? s.note("err", s.err(text)) : s.note("warn", s.warn(text));
 }
@@ -357,7 +406,11 @@ export function renderTop(io: Io, t: TopSnapshot): string[] {
     return out;
   }
   // Column titles: muted lowercase on a terminal, as in turno status; uppercase in plain text.
-  const rows = [["SERVER", "VARIANT", "SCOPE", "PID", "RSS", "SESSIONS", "IN FLIGHT", "IDLE", "RESTARTS", "UP", "HELD BY"].map((h) => s.muted(s.color ? h.toLowerCase() : h))];
+  const rows = [
+    ["SERVER", "VARIANT", "SCOPE", "PID", "RSS", "SESSIONS", "IN FLIGHT", "IDLE", "RESTARTS", "UP", "HELD BY"].map(
+      (h) => s.muted(s.color ? h.toLowerCase() : h),
+    ),
+  ];
   for (const i of t.instances) {
     rows.push([
       `${s.icon("on")}${s.color ? " " : ""}${s.bold(i.server)}`,
@@ -378,7 +431,19 @@ export function renderTop(io: Io, t: TopSnapshot): string[] {
   out.push(
     ...s.table(rows, {
       indent: 0,
-      columns: [{}, { drop: 1 }, {}, right, right, right, right, { ...right, drop: 3 }, { ...right, drop: 2 }, { ...right, drop: 4 }, { drop: 5 }],
+      columns: [
+        {},
+        { drop: 1 },
+        {},
+        right,
+        right,
+        right,
+        right,
+        { ...right, drop: 3 },
+        { ...right, drop: 2 },
+        { ...right, drop: 4 },
+        { drop: 5 },
+      ],
     }),
   );
   return out;
@@ -431,7 +496,13 @@ export async function top(args: string[], io: Io, signal?: AbortSignal, everyMs 
 }
 
 /** `top --watch --json`: a snapshot per line, or `{ running: false }` while mcpd is down. */
-async function watchTop(io: Io, p: Parameters<typeof emit>[1], snap: () => Promise<TopSnapshot | undefined>, signal: AbortSignal | undefined, everyMs: number): Promise<number> {
+async function watchTop(
+  io: Io,
+  p: Parameters<typeof emit>[1],
+  snap: () => Promise<TopSnapshot | undefined>,
+  signal: AbortSignal | undefined,
+  everyMs: number,
+): Promise<number> {
   const stop = signal ? { signal, dispose() {} } : untilInterrupted();
   try {
     while (!stop.signal.aborted) {
@@ -492,7 +563,12 @@ const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
  * The comparison: mcpd plus its children now, against an estimate of the same agent sessions
  * without the gateway, where each starts its own copy of every stdio server its profile gets.
  */
-export async function computeSavings(status: Status, procs: ProcTable, manifest: import("../../core/manifest.js").Manifest, now = new Date()): Promise<Savings> {
+export async function computeSavings(
+  status: Status,
+  procs: ProcTable,
+  manifest: import("../../core/manifest.js").Manifest,
+  now = new Date(),
+): Promise<Savings> {
   const { treeRss } = await import("../../mcpd/rss.js");
   const { servesProfile, variantKey } = await import("../../core/manifest.js");
   const live = new Map<string, number[]>();
@@ -501,7 +577,10 @@ export async function computeSavings(status: Status, procs: ProcTable, manifest:
     if (rss) live.set(`${i.server}@${i.variant}`, [...(live.get(`${i.server}@${i.variant}`) ?? []), rss]);
   }
   const samples = status.serverRss ?? {};
-  const rssOf = (name: string, variant: string): { bytes: number; source: "live" | "sample"; at: string } | undefined => {
+  const rssOf = (
+    name: string,
+    variant: string,
+  ): { bytes: number; source: "live" | "sample"; at: string } | undefined => {
     for (const key of [`${name}@${variant}`, `${name}@default`]) {
       const l = live.get(key);
       if (l) return { bytes: Math.round(avg(l)), source: "live", at: now.toISOString() };
@@ -531,7 +610,14 @@ export async function computeSavings(status: Status, procs: ProcTable, manifest:
       }
       without += m.bytes;
       const key = `${def.name}@${variant}`;
-      const row = per.get(key) ?? { server: def.name, variant, rssBytes: m.bytes, source: m.source, measuredAt: m.at, sessions: 0 };
+      const row = per.get(key) ?? {
+        server: def.name,
+        variant,
+        rssBytes: m.bytes,
+        source: m.source,
+        measuredAt: m.at,
+        sessions: 0,
+      };
       row.sessions++;
       per.set(key, row);
     }
@@ -544,7 +630,12 @@ export async function computeSavings(status: Status, procs: ProcTable, manifest:
     running: true,
     agentSessions: n,
     unidentifiedSessions: agents.length - n,
-    withTurno: { totalBytes: total, mcpdBytes, serversBytes: total - mcpdBytes, runningServers: status.instances.filter((i) => i.pid).length },
+    withTurno: {
+      totalBytes: total,
+      mcpdBytes,
+      serversBytes: total - mcpdBytes,
+      runningServers: status.instances.filter((i) => i.pid).length,
+    },
     withoutTurnoBytes: without,
     savedBytes: saved,
     savedPercent: without > 0 ? Math.round((saved / without) * 100) : null,
@@ -569,28 +660,51 @@ export async function savings(args: string[], io: Io): Promise<number> {
   }
   const { loadManifestSafe } = await import("../../mcpd/daemon.js");
   const state = loadManifestSafe(io.env);
-  if (state.error && !json) io.err(`${paint(io, "warning", "33")}: mcp.toml is invalid, so the estimate uses the ${state.source}: ${state.error}`);
+  if (state.error && !json)
+    io.err(
+      `${paint(io, "warning", "33")}: mcp.toml is invalid, so the estimate uses the ${state.source}: ${state.error}`,
+    );
   const s = await computeSavings(status, procs, state.manifest);
   if (json) {
     emit(io, p, SAVINGS_JSON, s);
     return 0;
   }
   const w = s.withTurno;
-  io.out(`${paint(io, "With turno:", "1")}     ${memory(w.totalBytes).padStart(7)}  (mcpd ${memory(w.mcpdBytes)} + ${w.runningServers} running server${w.runningServers === 1 ? "" : "s"} ${memory(w.serversBytes)})`);
+  io.out(
+    `${paint(io, "With turno:", "1")}     ${memory(w.totalBytes).padStart(7)}  (mcpd ${memory(w.mcpdBytes)} + ${w.runningServers} running server${w.runningServers === 1 ? "" : "s"} ${memory(w.serversBytes)})`,
+  );
   if (!s.agentSessions) {
-    io.out("No agent session is connected to mcpd right now, so there is nothing to compare. Open one and run this again.");
-    if (s.unidentifiedSessions) io.out(`(${s.unidentifiedSessions} session${s.unidentifiedSessions === 1 ? "" : "s"} sent no client PID and cannot be counted.)`);
+    io.out(
+      "No agent session is connected to mcpd right now, so there is nothing to compare. Open one and run this again.",
+    );
+    if (s.unidentifiedSessions)
+      io.out(
+        `(${s.unidentifiedSessions} session${s.unidentifiedSessions === 1 ? "" : "s"} sent no client PID and cannot be counted.)`,
+      );
     return 0;
   }
-  io.out(`${paint(io, "Without turno:", "1")}  ${memory(s.withoutTurnoBytes).padStart(7)}  (estimate for ${s.agentSessions} agent session${s.agentSessions === 1 ? "" : "s"})`);
+  io.out(
+    `${paint(io, "Without turno:", "1")}  ${memory(s.withoutTurnoBytes).padStart(7)}  (estimate for ${s.agentSessions} agent session${s.agentSessions === 1 ? "" : "s"})`,
+  );
   const label = s.savedBytes >= 0 ? "Saved:" : "Extra:";
-  io.out(`${paint(io, label, "1")}${" ".repeat(15 - label.length)} ${memory(Math.abs(s.savedBytes)).padStart(7)}${s.savedPercent !== null && s.savedBytes >= 0 ? `  (${s.savedPercent}%)` : ""}`);
+  io.out(
+    `${paint(io, label, "1")}${" ".repeat(15 - label.length)} ${memory(Math.abs(s.savedBytes)).padStart(7)}${s.savedPercent !== null && s.savedBytes >= 0 ? `  (${s.savedPercent}%)` : ""}`,
+  );
   io.out(s.estimate);
-  if (s.savedBytes < 0) io.out("With this few sessions mcpd costs more than it saves; the saving grows with each session that shares a server.");
+  if (s.savedBytes < 0)
+    io.out(
+      "With this few sessions mcpd costs more than it saves; the saving grows with each session that shares a server.",
+    );
   for (const r of s.servers) {
-    io.out(`  ${`${r.server}@${r.variant}`.padEnd(24)} ${memory(r.rssBytes).padStart(7)} x ${r.sessions} = ${memory(r.rssBytes * r.sessions)}${r.source === "sample" ? `  (measured ${r.measuredAt.slice(0, 10)})` : ""}`);
+    io.out(
+      `  ${`${r.server}@${r.variant}`.padEnd(24)} ${memory(r.rssBytes).padStart(7)} x ${r.sessions} = ${memory(r.rssBytes * r.sessions)}${r.source === "sample" ? `  (measured ${r.measuredAt.slice(0, 10)})` : ""}`,
+    );
   }
-  if (s.unmeasured.length) io.out(`Not counted (never measured while running): ${s.unmeasured.join(", ")}. Use them once and run this again.`);
-  if (s.unidentifiedSessions) io.out(`Not counted: ${s.unidentifiedSessions} session${s.unidentifiedSessions === 1 ? "" : "s"} without a client PID.`);
+  if (s.unmeasured.length)
+    io.out(`Not counted (never measured while running): ${s.unmeasured.join(", ")}. Use them once and run this again.`);
+  if (s.unidentifiedSessions)
+    io.out(
+      `Not counted: ${s.unidentifiedSessions} session${s.unidentifiedSessions === 1 ? "" : "s"} without a client PID.`,
+    );
   return 0;
 }

@@ -50,12 +50,25 @@ async function serviceChecks(env: NodeJS.ProcessEnv): Promise<McpdCheck[]> {
   const out: McpdCheck[] = [];
   const missing = program.filter((a) => a.startsWith("/") && !existsSync(a));
   if (!program.length) out.push({ level: "fail", text: `mcpd: ${shown} has no program to run`, fix: startFix });
-  else if (missing.length) out.push({ level: "fail", text: `mcpd: ${shown} runs ${missing.map((m) => tildify(m, env)).join(", ")}, which no longer exists`, fix: startFix });
+  else if (missing.length)
+    out.push({
+      level: "fail",
+      text: `mcpd: ${shown} runs ${missing.map((m) => tildify(m, env)).join(", ")}, which no longer exists`,
+      fix: startFix,
+    });
   else if (program.some((a) => a.startsWith("/") && isUnstablePath(a))) {
-    out.push({ level: "warn", text: `mcpd: ${shown} runs a versioned path (${tildify(program[0]!, env)}) that breaks when that version is removed`, fix: startFix });
+    out.push({
+      level: "warn",
+      text: `mcpd: ${shown} runs a versioned path (${tildify(program[0]!, env)}) that breaks when that version is removed`,
+      fix: startFix,
+    });
   } else out.push({ level: "ok", text: `mcpd: ${backend.noun} ${shown}` });
   if (backend.kind === "launchd" && /<key>ProcessType<\/key>\s*<string>Background<\/string>/.test(text)) {
-    out.push({ level: "warn", text: "mcpd: the LaunchAgent runs as a Background process, which macOS throttles", fix: startFix });
+    out.push({
+      level: "warn",
+      text: "mcpd: the LaunchAgent runs as a Background process, which macOS throttles",
+      fix: startFix,
+    });
   }
   return out;
 }
@@ -65,12 +78,20 @@ function tokenCheck(env: NodeJS.ProcessEnv): McpdCheck | undefined {
   try {
     const st = statSync(file);
     const uid = process.getuid?.();
-    if (uid !== undefined && st.uid !== uid) return { level: "fail", text: `mcpd: ${tildify(file, env)} belongs to uid ${st.uid}`, hint: `sudo chown "$(id -un)" ${tildify(file, env)}` };
+    if (uid !== undefined && st.uid !== uid)
+      return {
+        level: "fail",
+        text: `mcpd: ${tildify(file, env)} belongs to uid ${st.uid}`,
+        hint: `sudo chown "$(id -un)" ${tildify(file, env)}`,
+      };
     if (st.mode & 0o077) {
       return {
         level: "warn",
         text: `mcpd: ${tildify(file, env)} is readable by others (mode ${(st.mode & 0o777).toString(8)})`,
-        fix: { label: `chmod 600 ${tildify(file, env)}`, run: async () => (await import("./state.js")).readToken(env, () => {}) },
+        fix: {
+          label: `chmod 600 ${tildify(file, env)}`,
+          run: async () => (await import("./state.js")).readToken(env, () => {}),
+        },
       };
     }
     return undefined;
@@ -80,13 +101,19 @@ function tokenCheck(env: NodeJS.ProcessEnv): McpdCheck | undefined {
 }
 
 async function portChecks(env: NodeJS.ProcessEnv): Promise<McpdCheck[]> {
-  const { answersAsMcpd, daemonFiles, loadConfigSafe, mcpdPort, readLock, readStartError, readToken } = await import("./state.js");
+  const { answersAsMcpd, daemonFiles, loadConfigSafe, mcpdPort, readLock, readStartError, readToken } = await import(
+    "./state.js"
+  );
   const { describeOwner, portOwner } = await import("./peerpid.js");
   const out: McpdCheck[] = [];
   const port = mcpdPort(env);
   const token = readToken(env, () => {});
   if (!token) {
-    out.push({ level: "info", text: `mcpd: no token at ${tildify(paths(env).mcpdToken, env)}, so it has not started yet`, hint: "turno mcp daemon start" });
+    out.push({
+      level: "info",
+      text: `mcpd: no token at ${tildify(paths(env).mcpdToken, env)}, so it has not started yet`,
+      hint: "turno mcp daemon start",
+    });
     return out;
   }
   const ours = await answersAsMcpd(port, token);
@@ -94,13 +121,27 @@ async function portChecks(env: NodeJS.ProcessEnv): Promise<McpdCheck[]> {
   const uid = process.getuid?.();
   if (ours) {
     if (owner?.uid !== undefined && uid !== undefined && owner.uid !== uid) {
-      out.push({ level: "fail", text: `mcpd: port ${port} answers with your token but belongs to uid ${owner.uid}`, hint: "turno mcp token rotate" });
+      out.push({
+        level: "fail",
+        text: `mcpd: port ${port} answers with your token but belongs to uid ${owner.uid}`,
+        hint: "turno mcp token rotate",
+      });
     } else if (owner?.pid !== undefined && ours.pid !== undefined && owner.pid !== ours.pid) {
-      out.push({ level: "warn", text: `mcpd: port ${port} is held by pid ${owner.pid}, but mcpd reports pid ${ours.pid}`, hint: "turno mcp daemon restart" });
+      out.push({
+        level: "warn",
+        text: `mcpd: port ${port} is held by pid ${owner.pid}, but mcpd reports pid ${ours.pid}`,
+        hint: "turno mcp daemon restart",
+      });
     } else out.push({ level: "ok", text: `mcpd: reachable on port ${port}${ours.pid ? ` (pid ${ours.pid})` : ""}` });
     try {
-      const res = await fetch(`http://127.0.0.1:${port}/status`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(2000) });
-      const s = (await res.json()) as { manifest?: { source: string; error: string | null }; config?: { error: string | null } };
+      const res = await fetch(`http://127.0.0.1:${port}/status`, {
+        headers: { authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(2000),
+      });
+      const s = (await res.json()) as {
+        manifest?: { source: string; error: string | null };
+        config?: { error: string | null };
+      };
       if (s.manifest?.error) {
         out.push({
           level: "warn",
@@ -108,7 +149,12 @@ async function portChecks(env: NodeJS.ProcessEnv): Promise<McpdCheck[]> {
           manual: `correct ${tildify(paths(env).mcpFile, env)} where the error points, then turno mcp daemon restart`,
         });
       }
-      if (s.config?.error) out.push({ level: "warn", text: `mcpd: config.toml is invalid, mcpd uses defaults: ${s.config.error}`, hint: "turno config edit" });
+      if (s.config?.error)
+        out.push({
+          level: "warn",
+          text: `mcpd: config.toml is invalid, mcpd uses defaults: ${s.config.error}`,
+          hint: "turno config edit",
+        });
     } catch {
       /* answered a moment ago; nothing more to add */
     }
@@ -122,11 +168,21 @@ async function portChecks(env: NodeJS.ProcessEnv): Promise<McpdCheck[]> {
       manual: "stop that process, or move mcpd: turno config set mcpd.port <port>, then turno mcp sync",
     });
   } else out.push({ level: "info", text: `mcpd: not reachable on port ${port}`, hint: "turno mcp daemon start" });
-  if (configured !== port) out.push({ level: "info", text: `mcpd: config.toml says port ${configured}, the last mcpd used ${port}` });
+  if (configured !== port)
+    out.push({ level: "info", text: `mcpd: config.toml says port ${configured}, the last mcpd used ${port}` });
   const e = readStartError(env);
-  if (e) out.push({ level: "warn", text: `mcpd: last start failed at ${e.at}: ${e.message}`, hint: "turno mcp daemon start" });
+  if (e)
+    out.push({
+      level: "warn",
+      text: `mcpd: last start failed at ${e.at}: ${e.message}`,
+      hint: "turno mcp daemon start",
+    });
   const lock = readLock(env);
-  if (lock) out.push({ level: "info", text: `mcpd: stale lock from pid ${lock.pid} in ${tildify(daemonFiles(env).lock, env)} (the next start clears it)` });
+  if (lock)
+    out.push({
+      level: "info",
+      text: `mcpd: stale lock from pid ${lock.pid} in ${tildify(daemonFiles(env).lock, env)} (the next start clears it)`,
+    });
   return out;
 }
 
@@ -203,7 +259,8 @@ export function tokenSyncCheck(env: NodeJS.ProcessEnv): McpdCheck | undefined {
       continue;
     }
     if (text.includes(master)) legacy.push(tildify(file, env));
-    else if ([...text.matchAll(PROFILE_BEARER)].some((m) => !tokenProfile(master, m[1]!))) stale.push(tildify(file, env));
+    else if ([...text.matchAll(PROFILE_BEARER)].some((m) => !tokenProfile(master, m[1]!)))
+      stale.push(tildify(file, env));
   }
   const dir = dirname(profileTokenFile("x", env));
   let names: string[] = [];
@@ -215,7 +272,8 @@ export function tokenSyncCheck(env: NodeJS.ProcessEnv): McpdCheck | undefined {
   for (const f of names) {
     const profile = f.slice(0, -".token".length);
     try {
-      if (tokenProfile(master, readFileSync(join(dir, f), "utf8").trim()) !== profile) stale.push(tildify(join(dir, f), env));
+      if (tokenProfile(master, readFileSync(join(dir, f), "utf8").trim()) !== profile)
+        stale.push(tildify(join(dir, f), env));
     } catch {
       /* unreadable: the launcher sends nothing and mcpd says why */
     }
@@ -243,7 +301,11 @@ export async function mcpdChecks(env: NodeJS.ProcessEnv): Promise<McpdCheck[]> {
   try {
     out.push(...(await serviceChecks(env)));
   } catch (err) {
-    out.push({ level: "warn", text: `mcpd: cannot read the service file: ${(err as Error).message}`, hint: "turno mcp daemon start" });
+    out.push({
+      level: "warn",
+      text: `mcpd: cannot read the service file: ${(err as Error).message}`,
+      hint: "turno mcp daemon start",
+    });
   }
   const t = tokenCheck(env);
   if (t) out.push(t);

@@ -1,11 +1,27 @@
 import { createHash } from "node:crypto";
-import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { GENESIS, appendAudit, readAudit, verifyAudit } from "../src/accounts/audit.js";
 import { saveRegistry } from "../src/accounts/registry.js";
 import { command as undo } from "../src/cli/commands/undo.js";
-import { Journal, type JournalManifest, listJournals, parseAge, pruneJournals, undoJournal } from "../src/core/journal.js";
+import {
+  Journal,
+  type JournalManifest,
+  listJournals,
+  parseAge,
+  pruneJournals,
+  undoJournal,
+} from "../src/core/journal.js";
 import { ensurePrivateDir, findOnPath, paths, resetPrivateDirCache } from "../src/core/paths.js";
 import { fakeCommand, fakeIo } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -98,7 +114,13 @@ describe("journal backups", () => {
     const stamp = `${year}010${Math.floor(n / 10)}-00000${n % 10}`;
     const dir = join(paths(sb.env).backupsDir, stamp);
     mkdirSync(join(dir, "files"), { recursive: true });
-    const m: JournalManifest = { version: 1, stamp, command: `old ${n}`, created: created.toISOString(), entries: entry ? [{ path: entry.path, existed: false, wrote: entry.wrote }] : [] };
+    const m: JournalManifest = {
+      version: 1,
+      stamp,
+      command: `old ${n}`,
+      created: created.toISOString(),
+      entries: entry ? [{ path: entry.path, existed: false, wrote: entry.wrote }] : [],
+    };
     writeFileSync(join(dir, "journal.json"), JSON.stringify(m));
     return stamp;
   }
@@ -177,7 +199,16 @@ describe("journal backups", () => {
 });
 
 describe("audit log", () => {
-  const base = { caller: { profile: "personal", pid: 42 }, account: "linear:work", owner: "work", write: false, outcome: "ok" as const, detail: "", durationMs: 5, costUsd: null };
+  const base = {
+    caller: { profile: "personal", pid: 42 },
+    account: "linear:work",
+    owner: "work",
+    write: false,
+    outcome: "ok" as const,
+    detail: "",
+    durationMs: 5,
+    costUsd: null,
+  };
 
   it("chains each line to the previous one and verifies", () => {
     for (const task of ["one", "two", "three"]) appendAudit({ ...base, task }, sb.env);
@@ -197,7 +228,11 @@ describe("audit log", () => {
     writeFileSync(file, `${[lines[0], lines[2]].join("\n")}\n`);
     expect(verifyAudit(sb.env)).toMatchObject({ ok: false, line: 2 });
     writeFileSync(file, `${lines.slice(1).join("\n")}\n`);
-    expect(verifyAudit(sb.env)).toMatchObject({ ok: false, line: 1, reason: expect.stringMatching(/removed from the start/) });
+    expect(verifyAudit(sb.env)).toMatchObject({
+      ok: false,
+      line: 1,
+      reason: expect.stringMatching(/removed from the start/),
+    });
     writeFileSync(file, original);
     appendFileSync(file, `${JSON.stringify({ ...base, ts: "x", task: "forged" })}\n`);
     expect(verifyAudit(sb.env)).toMatchObject({ ok: false, line: 4 });

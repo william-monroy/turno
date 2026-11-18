@@ -79,7 +79,10 @@ describe("accounts registry", () => {
     ['[account."linear:work"]\nservice = "gmail"\nprofile = "work"\ntools = ["x"]', /id starts with "linear"/],
     ['[[prefer]]\nlinear = "linear:work"', /needs path/],
     ['[[prefer]]\npath = "~/x"\nlinear = "linear:work"', /unknown account/],
-    ['[account."gmail:work"]\nprofile = "work"\ntools = ["x"]\n[[prefer]]\npath = "~/x"\nlinear = "gmail:work"', /belongs to service "gmail"/],
+    [
+      '[account."gmail:work"]\nprofile = "work"\ntools = ["x"]\n[[prefer]]\npath = "~/x"\nlinear = "gmail:work"',
+      /belongs to service "gmail"/,
+    ],
     ["account = [", /accounts.toml|x/],
   ])("rejects %s", (text, err) => {
     expect(() => parseRegistry(text, "x", sb.env)).toThrow(err);
@@ -90,7 +93,10 @@ describe("accounts registry", () => {
     const acme = join(sb.home, "code", "acme", "app");
     mkdirSync(acme, { recursive: true });
     expect(preferredFor(reg, acme)).toEqual({ linear: "linear:work", gmail: "gmail:personal" });
-    expect(preferredFor(reg, join(sb.home, "code", "other"))).toEqual({ linear: "linear:personal", gmail: "gmail:personal" });
+    expect(preferredFor(reg, join(sb.home, "code", "other"))).toEqual({
+      linear: "linear:personal",
+      gmail: "gmail:personal",
+    });
     expect(preferredFor(reg, join(sb.home, "code-old"))).toEqual({});
     expect(preferredFor(reg, sb.home)).toEqual({});
     // Through a symlink into the acme tree.
@@ -112,7 +118,15 @@ describe("accounts registry", () => {
 
 describe("audit log", () => {
   it("appends JSONL with mode 600 and reads the tail", () => {
-    const base = { caller: { profile: "personal", pid: 42 }, owner: "work", write: false, outcome: "ok" as const, detail: "", durationMs: 5, costUsd: 0.01 };
+    const base = {
+      caller: { profile: "personal", pid: 42 },
+      owner: "work",
+      write: false,
+      outcome: "ok" as const,
+      detail: "",
+      durationMs: 5,
+      costUsd: 0.01,
+    };
     appendAudit({ ...base, account: "linear:work", task: "x".repeat(800) }, sb.env);
     appendAudit({ ...base, account: "gmail:personal", task: "second", outcome: "refused", detail: "declined" }, sb.env);
     appendAudit({ ...base, account: "linear:work", task: "third", outcome: "error", costUsd: null }, sb.env);
@@ -123,7 +137,11 @@ describe("audit log", () => {
     expect(all[0]?.task).toHaveLength(500);
     expect(all[0]?.ts).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(readAudit(2, sb.env).map((e) => e.task)).toEqual(["second", "third"]);
-    expect(readAudit(2, sb.env)[0]).toMatchObject({ outcome: "refused", detail: "declined", caller: { profile: "personal", pid: 42 } });
+    expect(readAudit(2, sb.env)[0]).toMatchObject({
+      outcome: "refused",
+      detail: "declined",
+      caller: { profile: "personal", pid: 42 },
+    });
   });
 
   it("returns nothing when there is no log", () => {
@@ -134,7 +152,21 @@ describe("audit log", () => {
 describe("turno accounts", () => {
   it("adds, prefers, lists, removes and shows the log", async () => {
     const t = io();
-    expect(await command.run(["add", "linear:work", "--profile", "work", "--tools", "mcp__linear__*,mcp__linear2__*", "--description", "Work Linear"], t)).toBe(0);
+    expect(
+      await command.run(
+        [
+          "add",
+          "linear:work",
+          "--profile",
+          "work",
+          "--tools",
+          "mcp__linear__*,mcp__linear2__*",
+          "--description",
+          "Work Linear",
+        ],
+        t,
+      ),
+    ).toBe(0);
     expect(t.errs.join("\n")).toMatch(/no launcher claude-work/);
     expect(await command.run(["add", "gmail:personal", "--profile=personal", "--tools", "mcp__gmail__*"], t)).toBe(0);
     mkdirSync(join(sb.home, "code", "acme"), { recursive: true });
@@ -148,8 +180,12 @@ describe("turno accounts", () => {
     expect(l.lines.join("\n")).toMatch(/linear:work\s+work\s+mcp__linear__\*/);
     expect(l.lines.join("\n")).toContain("~/code/acme  linear=linear:work");
 
-    await expect(command.run(["prefer", "~/code", "linear=gmail:personal"], t)).rejects.toThrow(/belongs to service "gmail"/);
-    await expect(command.run(["add", "bad", "--profile", "work", "--tools", "x"], t)).rejects.toThrow(/invalid account id/);
+    await expect(command.run(["prefer", "~/code", "linear=gmail:personal"], t)).rejects.toThrow(
+      /belongs to service "gmail"/,
+    );
+    await expect(command.run(["add", "bad", "--profile", "work", "--tools", "x"], t)).rejects.toThrow(
+      /invalid account id/,
+    );
     await expect(command.run(["add", "linear:x", "--tools", "x"], t)).rejects.toThrow(/--profile is required/);
 
     expect(await command.run(["remove", "linear:work"], t)).toBe(0);
@@ -158,7 +194,17 @@ describe("turno accounts", () => {
     expect(reg.prefer).toEqual([]);
 
     appendAudit(
-      { caller: { profile: "personal", pid: 7 }, account: "linear:work", owner: "work", write: true, task: "create an issue", outcome: "refused", detail: "the user chose decline", durationMs: 1200, costUsd: null },
+      {
+        caller: { profile: "personal", pid: 7 },
+        account: "linear:work",
+        owner: "work",
+        write: true,
+        task: "create an issue",
+        outcome: "refused",
+        detail: "the user chose decline",
+        durationMs: 1200,
+        costUsd: null,
+      },
       sb.env,
     );
     const lg = io();

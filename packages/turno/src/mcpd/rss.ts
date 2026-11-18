@@ -33,7 +33,12 @@ export function parsePs(stdout: string): ProcTable {
     const rss = cols.length >= 4 ? cols[3] : cols[2];
     if (Number.isInteger(pid) && (pid as number) > 0 && Number.isInteger(ppid) && Number.isFinite(rss)) {
       const bytes = (rss as number) * 1024;
-      t.set(pid as number, Number.isInteger(pgid) ? { ppid: ppid as number, pgid: pgid as number, rss: bytes } : { ppid: ppid as number, rss: bytes });
+      t.set(
+        pid as number,
+        Number.isInteger(pgid)
+          ? { ppid: ppid as number, pgid: pgid as number, rss: bytes }
+          : { ppid: ppid as number, rss: bytes },
+      );
     }
   }
   return t;
@@ -135,7 +140,8 @@ export class RssSampler {
     private readonly opts: ProcTableOptions = {},
   ) {
     // None on the first run; entries of another shape are dropped.
-    for (const [k, s] of Object.entries(readState(file, isRecord) ?? {})) if (hasFields(s, { bytes: "number", at: "string" })) this.known[k] = s as unknown as RssSample;
+    for (const [k, s] of Object.entries(readState(file, isRecord) ?? {}))
+      if (hasFields(s, { bytes: "number", at: "string" })) this.known[k] = s as unknown as RssSample;
   }
 
   samples(): Record<string, RssSample> {
@@ -156,7 +162,8 @@ export class RssSampler {
         if (rss) sums.set(i.descKey, [...(sums.get(i.descKey) ?? []), rss]);
       }
       if (!sums.size) return;
-      for (const [k, list] of sums) this.known[k] = { bytes: Math.round(list.reduce((a, b) => a + b, 0) / list.length), at: now.toISOString() };
+      for (const [k, list] of sums)
+        this.known[k] = { bytes: Math.round(list.reduce((a, b) => a + b, 0) / list.length), at: now.toISOString() };
       try {
         atomicWrite(this.file, `${JSON.stringify(this.known)}\n`, 0o600);
       } catch {

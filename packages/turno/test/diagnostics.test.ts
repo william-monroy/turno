@@ -27,7 +27,17 @@ describe("turno config path --all", () => {
     sb.write(".config/turno/config.toml", '[profiles.work]\n[profiles.cx]\nagent = "codex"\n');
     const r = await run(["config", "path", "--all"]);
     expect(r.code).toBe(0);
-    for (const name of ["config", "mcp", "mcpd token", "call log", "launchers", "claude hub", "codex hub", "profile work", "launcher cx"]) {
+    for (const name of [
+      "config",
+      "mcp",
+      "mcpd token",
+      "call log",
+      "launchers",
+      "claude hub",
+      "codex hub",
+      "profile work",
+      "launcher cx",
+    ]) {
       expect(r.out).toMatch(new RegExp(`^${name}\\s`, "m"));
     }
     expect(r.out).toMatch(/~\/\.codex-cx/);
@@ -46,8 +56,12 @@ describe("turno config path --all", () => {
   });
 
   it("names the service file of the platform", () => {
-    expect(allPaths(sb.env, "darwin").find((e) => e.name === "service")?.path).toMatch(/LaunchAgents\/dev\.turno\.mcpd\.plist$/);
-    expect(allPaths(sb.env, "linux").find((e) => e.name === "service")?.path).toMatch(/systemd\/user\/turno-mcpd\.service$/);
+    expect(allPaths(sb.env, "darwin").find((e) => e.name === "service")?.path).toMatch(
+      /LaunchAgents\/dev\.turno\.mcpd\.plist$/,
+    );
+    expect(allPaths(sb.env, "linux").find((e) => e.name === "service")?.path).toMatch(
+      /systemd\/user\/turno-mcpd\.service$/,
+    );
   });
 });
 

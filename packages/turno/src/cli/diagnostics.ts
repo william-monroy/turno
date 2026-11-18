@@ -57,7 +57,11 @@ export function allPaths(env: NodeJS.ProcessEnv, platform: NodeJS.Platform = pro
     { name: "mcpd token", path: p.mcpdToken, about: "the gateway's master token (mode 600)" },
     { name: "mcpd port", path: p.mcpdPort, about: "the port mcpd listens on" },
     { name: "mcpd lock", path: d.lock, about: "the running mcpd's pid" },
-    { name: "profile tokens", path: join(p.state, "mcpd-tokens"), about: "each profile's gateway token, for launchers" },
+    {
+      name: "profile tokens",
+      path: join(p.state, "mcpd-tokens"),
+      about: "each profile's gateway token, for launchers",
+    },
     { name: "managed entries", path: p.mcpdManaged, about: "agent config entries turno mcp sync wrote" },
     { name: "run records", path: p.runDir, about: "which profile each launcher started" },
     { name: "usage", path: p.usageDir, about: "usage snapshots for the status line" },
@@ -67,25 +71,45 @@ export function allPaths(env: NodeJS.ProcessEnv, platform: NodeJS.Platform = pro
     { name: "servers", path: p.serversDir, about: "packages turno mcp install installed" },
     { name: "descriptions", path: p.mcpdCacheDir, about: "cached tool lists of each server" },
     { name: "browser", path: p.browserDir, about: "browser identities" },
-    { name: "chrome profiles", path: configOrNone(env)?.open.chromeDir ?? p.chromeProfilesDir, about: "Chrome profiles of turno open" },
+    {
+      name: "chrome profiles",
+      path: configOrNone(env)?.open.chromeDir ?? p.chromeProfilesDir,
+      about: "Chrome profiles of turno open",
+    },
     { name: "compile cache", path: compileCacheDir(env), about: "Node's compiled code of turno" },
     { name: "launchers", path: p.bin, about: "claude-<p>, codex-<p>, turno-auto, turno-open (TURNO_BIN)" },
   ];
-  if (platform === "darwin") out.push({ name: "service", path: plistPath(env), about: "the LaunchAgent that keeps mcpd running" });
-  if (platform === "linux") out.push({ name: "service", path: unitPath(env), about: "the systemd user unit that keeps mcpd running" });
+  if (platform === "darwin")
+    out.push({ name: "service", path: plistPath(env), about: "the LaunchAgent that keeps mcpd running" });
+  if (platform === "linux")
+    out.push({ name: "service", path: unitPath(env), about: "the systemd user unit that keeps mcpd running" });
   const fonts = userFontDir(env, platform);
   if (fonts) out.push({ name: "fonts", path: fonts, about: "the status line font (turno ui install)" });
   out.push({ name: "claude config", path: p.hubConfig, about: "plain claude's .claude.json (TURNO_HUB_CONFIG)" });
-  for (const id of AGENT_IDS) out.push({ name: `${id} hub`, path: agentHub(id, env), about: `${adapter(id).label}'s own folder, shared by its profiles` });
+  for (const id of AGENT_IDS)
+    out.push({
+      name: `${id} hub`,
+      path: agentHub(id, env),
+      about: `${adapter(id).label}'s own folder, shared by its profiles`,
+    });
   const config = configOrNone(env);
   if (config) {
     for (const name of listProfiles(config, env)) {
       const agent = agentOf(name, config);
-      out.push({ name: `profile ${name}`, path: agentProfileDir(name, agent, env), about: `${adapter(agent).label} profile folder` });
+      out.push({
+        name: `profile ${name}`,
+        path: agentProfileDir(name, agent, env),
+        about: `${adapter(agent).label} profile folder`,
+      });
       out.push({ name: `launcher ${name}`, path: join(p.bin, launcherName(name, agent)), about: `opens ${name}` });
     }
   }
-  if (existsSync(p.legacyConfig)) out.push({ name: "legacy config", path: p.legacyConfig, about: "the bash claudio config (turno migrate reads it)" });
+  if (existsSync(p.legacyConfig))
+    out.push({
+      name: "legacy config",
+      path: p.legacyConfig,
+      about: "the bash claudio config (turno migrate reads it)",
+    });
   return out;
 }
 
@@ -93,7 +117,10 @@ export function allPaths(env: NodeJS.ProcessEnv, platform: NodeJS.Platform = pro
 function versionOf(file: string, env: NodeJS.ProcessEnv): Promise<string | undefined> {
   return new Promise((resolve) => {
     execFile(file, ["--version"], { env, timeout: 3000, encoding: "utf8" }, (err, stdout) => {
-      const line = String(stdout ?? "").trim().split("\n")[0]?.trim();
+      const line = String(stdout ?? "")
+        .trim()
+        .split("\n")[0]
+        ?.trim();
       resolve(err || !line ? undefined : line.slice(0, 80));
     });
   });
@@ -124,7 +151,11 @@ const cell = (s: string) => s.replace(/\|/g, "\\|").replace(/\s*\n\s*/g, " ");
  * The `turno doctor --report` block: Markdown to paste in an issue. Profile and server names
  * appear (they say which check is which); tokens, secret values and variable values never do.
  */
-export async function reportMarkdown(env: NodeJS.ProcessEnv, input: ReportInput, platform: NodeJS.Platform = process.platform): Promise<string[]> {
+export async function reportMarkdown(
+  env: NodeJS.ProcessEnv,
+  input: ReportInput,
+  platform: NodeJS.Platform = process.platform,
+): Promise<string[]> {
   const t = (s: string) => tildify(s, env);
   const pkg = packageInfo();
   const install = detectInstall();
@@ -140,7 +171,9 @@ export async function reportMarkdown(env: NodeJS.ProcessEnv, input: ReportInput,
     }),
   );
   const shell = env.SHELL ? env.SHELL.split("/").pop() : undefined;
-  const terminal = env.TERM_PROGRAM ? `${env.TERM_PROGRAM}${env.TERM_PROGRAM_VERSION ? ` ${env.TERM_PROGRAM_VERSION}` : ""}` : env.TERM;
+  const terminal = env.TERM_PROGRAM
+    ? `${env.TERM_PROGRAM}${env.TERM_PROGRAM_VERSION ? ` ${env.TERM_PROGRAM_VERSION}` : ""}`
+    : env.TERM;
   const out: string[] = [
     `### turno doctor${input.security ? " --security" : ""} --report`,
     "",
@@ -158,7 +191,10 @@ export async function reportMarkdown(env: NodeJS.ProcessEnv, input: ReportInput,
     "",
     "| agent | command | version | profiles |",
     "|---|---|---|---|",
-    ...agents.map((a) => `| ${a.label} | ${a.at ? cell(t(a.at)) : `${a.command} (not found)`} | ${a.version ? cell(a.version) : "-"} | ${byAgent.get(a.id) ?? 0} |`),
+    ...agents.map(
+      (a) =>
+        `| ${a.label} | ${a.at ? cell(t(a.at)) : `${a.command} (not found)`} | ${a.version ? cell(a.version) : "-"} | ${byAgent.get(a.id) ?? 0} |`,
+    ),
     "",
     "**mcpd**",
     "",
@@ -181,13 +217,17 @@ export async function reportMarkdown(env: NodeJS.ProcessEnv, input: ReportInput,
     "**Doctor**",
     "",
     `- ${c.ok} ok, ${c.warn} warnings, ${c.fail} failures, ${c.skip} skipped`,
-    ...input.checks.filter((x) => x.status === "warn" || x.status === "fail").map((x) => `- ${x.status}: ${cell(x.text)}${x.fix ? ` (fix: \`${cell(x.fix)}\`)` : ""}`),
+    ...input.checks
+      .filter((x) => x.status === "warn" || x.status === "fail")
+      .map((x) => `- ${x.status}: ${cell(x.text)}${x.fix ? ` (fix: \`${cell(x.fix)}\`)` : ""}`),
     "",
     "<details><summary>Paths</summary>",
     "",
     "| name | path | exists |",
     "|---|---|---|",
-    ...allPaths(env, platform).map((e) => `| ${cell(e.name)} | ${cell(t(e.path))} | ${existsSync(e.path) ? "yes" : "no"} |`),
+    ...allPaths(env, platform).map(
+      (e) => `| ${cell(e.name)} | ${cell(t(e.path))} | ${existsSync(e.path) ? "yes" : "no"} |`,
+    ),
     "",
     "</details>",
   );

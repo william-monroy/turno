@@ -1,8 +1,25 @@
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { paths, tildify } from "../core/paths.js";
 import { plural } from "../cli/io.js";
-import { type AgentAdapter, JSON_MCP_SERVERS, type SafePlan, type SafeStep, type SetupStep, gatewayUrl, isGatewayEntry } from "./adapter.js";
+import {
+  type AgentAdapter,
+  JSON_MCP_SERVERS,
+  type SafePlan,
+  type SafeStep,
+  type SetupStep,
+  gatewayUrl,
+  isGatewayEntry,
+} from "./adapter.js";
 import { isObject, readJsonFile } from "../core/fsutil.js";
 
 /**
@@ -125,7 +142,9 @@ function safeMode(s: SafeStep): SafePlan {
   return {
     args: ["--strict-mcp-config", "--mcp-config", s.scratch, "--settings", JSON.stringify({ disableAllHooks: true })],
     notes: [
-      dropped.size ? `left out the gateway entries ${[...dropped].sort().join(", ")}` : "no gateway entries to leave out",
+      dropped.size
+        ? `left out the gateway entries ${[...dropped].sort().join(", ")}`
+        : "no gateway entries to leave out",
       `kept ${names.length ? names.join(", ") : "no other MCP servers"} (${tildify(s.scratch, s.env)}; plugin servers are skipped too)`,
       "no status line and no hooks (disableAllHooks)",
     ],
@@ -148,7 +167,9 @@ function seedGlobalConfig(s: SetupStep): void {
   for (const k of SEED_KEYS) if (k in hub) seed[k] = hub[k];
   s.writeOwn(dst, `${JSON.stringify(seed, null, 2)}\n`);
   const count = (v: unknown) => (v && typeof v === "object" ? Object.keys(v).length : 0);
-  s.out(`  + .claude.json with ${plural(count(seed.mcpServers), "MCP server")} and ${plural(count(seed.projects), "project")} from the hub`);
+  s.out(
+    `  + .claude.json with ${plural(count(seed.mcpServers), "MCP server")} and ${plural(count(seed.projects), "project")} from the hub`,
+  );
 }
 
 /** The ↑ history starts as a copy of the hub's: it cannot be shared (see PER_ACCOUNT). */
@@ -213,7 +234,10 @@ export const claude: AgentAdapter = {
     hubFile: (env) => paths(env).hubConfig,
     folderFile: ".mcp.json",
     projectServers: (config) =>
-      Object.entries((config.projects as Record<string, Record<string, unknown>>) ?? {}).map(([dir, proj]) => [dir, proj?.mcpServers]),
+      Object.entries((config.projects as Record<string, Record<string, unknown>>) ?? {}).map(([dir, proj]) => [
+        dir,
+        proj?.mcpServers,
+      ]),
     foldersUsed: projectsOf,
     directRemote: true,
     gatewayEntry,

@@ -65,12 +65,17 @@ describe("next step", () => {
     profiles("work");
     sb.write(".config/turno/mcp.toml", '[server.docs]\ncommand = "docs-mcp"\nscope = "shared"\n');
     r = await run(["status"]);
-    expect(r.out).toMatch(/^Next {2}turno mcp daemon start\n {6}mcp\.toml has 1 server and the gateway is not running$/m);
+    expect(r.out).toMatch(
+      /^Next {2}turno mcp daemon start\n {6}mcp\.toml has 1 server and the gateway is not running$/m,
+    );
   });
 
   it("is part of status --json, and null when nothing is left", async () => {
     profiles("work");
     const j = JSON.parse((await run(["status", "--json"])).out);
-    expect(j.next).toEqual({ command: "turno ui install", why: "optional: the status line with account, usage and gateway" });
+    expect(j.next).toEqual({
+      command: "turno ui install",
+      why: "optional: the status line with account, usage and gateway",
+    });
   });
 });

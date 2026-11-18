@@ -3,7 +3,16 @@ import { join } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { paths, tildify } from "../core/paths.js";
 import { setValue } from "../core/toml-edit.js";
-import { type AgentAdapter, type RuleFoldersStep, type SafePlan, type SafeStep, type SetupStep, TOML_MCP_SERVERS, gatewayNames, gatewayUrl } from "./adapter.js";
+import {
+  type AgentAdapter,
+  type RuleFoldersStep,
+  type SafePlan,
+  type SafeStep,
+  type SetupStep,
+  TOML_MCP_SERVERS,
+  gatewayNames,
+  gatewayUrl,
+} from "./adapter.js";
 
 /** A Codex `[mcp_servers.<name>]` table in Claude Code's shape. */
 function fromCodex(e: Record<string, unknown>): Record<string, unknown> {
@@ -112,8 +121,12 @@ function safeMode(s: SafeStep): SafePlan {
   return {
     args: plain.flatMap((n) => ["-c", `mcp_servers.${n}.enabled=false`]),
     notes: [
-      plain.length ? `turned off the gateway entries ${plain.join(", ")} for this run` : "no gateway entries to turn off",
-      ...(odd.length ? [`${odd.join(", ")}: a name with a dot cannot be turned off for one run; without the token mcpd refuses it`] : []),
+      plain.length
+        ? `turned off the gateway entries ${plain.join(", ")} for this run`
+        : "no gateway entries to turn off",
+      ...(odd.length
+        ? [`${odd.join(", ")}: a name with a dot cannot be turned off for one run; without the token mcpd refuses it`]
+        : []),
     ],
   };
 }
@@ -158,10 +171,13 @@ export const codex: AgentAdapter = {
   doctorWarnings(dir) {
     let store: unknown;
     try {
-      store = (parseToml(readFileSync(join(dir, "config.toml"), "utf8")) as Record<string, unknown>).cli_auth_credentials_store;
+      store = (parseToml(readFileSync(join(dir, "config.toml"), "utf8")) as Record<string, unknown>)
+        .cli_auth_credentials_store;
     } catch {
       store = undefined;
     }
-    return store === "file" ? [] : ['Codex may keep the login in the shared Keychain (cli_auth_credentials_store is not "file")'];
+    return store === "file"
+      ? []
+      : ['Codex may keep the login in the shared Keychain (cli_auth_credentials_store is not "file")'];
   },
 };

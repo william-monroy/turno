@@ -48,7 +48,14 @@ export function planAuto(argv: string[], io: Io, cwd: string = process.cwd()): A
     config = loadConfig(env);
   } catch (err) {
     const msg = (err as Error).message;
-    if (env.TURNO_ALLOW_PLAIN === "1") return { file: plain(), agent, args, notice: `turno: ${msg}; running plain ${a.command} (TURNO_ALLOW_PLAIN=1)`, always: true };
+    if (env.TURNO_ALLOW_PLAIN === "1")
+      return {
+        file: plain(),
+        agent,
+        args,
+        notice: `turno: ${msg}; running plain ${a.command} (TURNO_ALLOW_PLAIN=1)`,
+        always: true,
+      };
     throw new CliError(
       `${msg}\nturno auto does not guess an account while config.toml is broken. Fix it (turno config edit), or run plain ${a.command} once with TURNO_ALLOW_PLAIN=1.`,
     );
@@ -60,17 +67,24 @@ export function planAuto(argv: string[], io: Io, cwd: string = process.cwd()): A
     if (!launcher) {
       if (!listProfiles(config, env).includes(r.chosen)) {
         const add = `turno profile add ${r.chosen}${agent === DEFAULT_AGENT ? "" : ` --agent ${agent}`}`;
-        throw new CliError(`${where} uses the ${r.chosen} profile (${r.reason}), but there is no such profile. Run: ${add}, or change the rule (turno profile which)`, Exit.noProfile);
+        throw new CliError(
+          `${where} uses the ${r.chosen} profile (${r.reason}), but there is no such profile. Run: ${add}, or change the rule (turno profile which)`,
+          Exit.noProfile,
+        );
       }
       const missing = tildify(join(paths(env).bin, launcherName(r.chosen, agent)), env);
-      throw new CliError(`${where} uses the ${r.chosen} profile, but its launcher ${missing} is missing. Run: turno profile repair ${r.chosen}`);
+      throw new CliError(
+        `${where} uses the ${r.chosen} profile, but its launcher ${missing} is missing. Run: turno profile repair ${r.chosen}`,
+      );
     }
     return {
       file: launcher,
       agent,
       profile: r.chosen,
       args,
-      notice: r.note ? `turno: ${r.assigned} ${r.note} → using ${r.chosen} (${r.reason})` : `turno: account ${r.chosen} (${r.reason})`,
+      notice: r.note
+        ? `turno: ${r.assigned} ${r.note} → using ${r.chosen} (${r.reason})`
+        : `turno: account ${r.chosen} (${r.reason})`,
     };
   }
   if (config.system === "") {
@@ -80,9 +94,20 @@ export function planAuto(argv: string[], io: Io, cwd: string = process.cwd()): A
     );
   }
   if (agent !== DEFAULT_AGENT && listProfiles(config, env, agent).length === 0) {
-    return { file: plain(), agent, args, notice: `turno: no ${a.label} profile yet, so this runs plain ${a.command} with ${hub} (turno profile add <name> --agent ${agent})`, always: true };
+    return {
+      file: plain(),
+      agent,
+      args,
+      notice: `turno: no ${a.label} profile yet, so this runs plain ${a.command} with ${hub} (turno profile add <name> --agent ${agent})`,
+      always: true,
+    };
   }
-  return { file: plain(), agent, args, notice: `turno: no rule or default for ${where}; running plain ${a.command} with ${hub}` };
+  return {
+    file: plain(),
+    agent,
+    args,
+    notice: `turno: no rule or default for ${where}; running plain ${a.command} with ${hub}`,
+  };
 }
 
 export const command: Command = {
@@ -99,7 +124,7 @@ export const command: Command = {
     "copilot, cursor-agent).",
     "",
     "It never switches accounts in silence: it exits 3 when the folder's profile does",
-    "not exist (or there is no rule and system = \"\"), 1 when its launcher is missing",
+    'not exist (or there is no rule and system = ""), 1 when its launcher is missing',
     "or config.toml does not parse, and says how to fix it (turno help exit-codes).",
     "TURNO_ALLOW_PLAIN=1 runs the plain agent despite a broken config.toml;",
     'system = "" in config.toml makes folders without a rule an error too.',

@@ -36,7 +36,9 @@ describe.skipIf(skipE2e || !hasBinary("claude"))("Claude Code against mcpd", () 
     writeFileSync(join(cfgDir, ".claude.json"), JSON.stringify({ hasCompletedOnboarding: true, mcpServers: servers }));
     const env = realBinEnv(sb, { CLAUDE_CONFIG_DIR: cfgDir, TURNO_SESSION_PID: String(process.pid) });
     // Async on purpose: the daemon runs in this process and must keep serving.
-    const run = async () => (await promisify(execFile)("claude", ["mcp", "list"], { env, cwd: sb.home, encoding: "utf8", timeout: 90_000 })).stdout;
+    const run = async () =>
+      (await promisify(execFile)("claude", ["mcp", "list"], { env, cwd: sb.home, encoding: "utf8", timeout: 90_000 }))
+        .stdout;
     expect(await run()).toMatch(/fx: .*Connected/);
     expect(readFileSync(log, "utf8").trim().split("\n")).toHaveLength(1);
     await daemon.manager.stopAll();

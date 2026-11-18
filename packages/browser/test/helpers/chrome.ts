@@ -30,7 +30,11 @@ export function chromeUnavailable(): string | undefined {
   ].join("\n");
   try {
     const core = join(pkg, "node_modules", "patchright-core");
-    execFileSync(process.execPath, ["-e", probe, core], { env: { PATH: process.env.PATH, HOME: home }, stdio: ["ignore", "ignore", "pipe"], timeout: 40_000 });
+    execFileSync(process.execPath, ["-e", probe, core], {
+      env: { PATH: process.env.PATH, HOME: home },
+      stdio: ["ignore", "ignore", "pipe"],
+      timeout: 40_000,
+    });
     return undefined;
   } catch (err) {
     const why = String((err as { stderr?: Buffer }).stderr ?? "").trim() || String((err as Error).message);
@@ -60,7 +64,10 @@ export async function waitFor(cond: () => boolean, ms: number): Promise<boolean>
 
 /** Processes whose command line names the sandbox (only the Chromes these tests started). */
 export function sandboxProcesses(home: string): { pid: number; ppid: number; pgid: number }[] {
-  const out = execFileSync("ps", ["-A", "-ww", "-o", "pid=,ppid=,pgid=,command="], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  const out = execFileSync("ps", ["-A", "-ww", "-o", "pid=,ppid=,pgid=,command="], {
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
   return out
     .split("\n")
     .filter((l) => l.includes(home))

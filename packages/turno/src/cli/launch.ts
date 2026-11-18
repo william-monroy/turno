@@ -11,7 +11,11 @@ import { executable, launcherName, profileAgent } from "./launchers.js";
 export { findOnPath } from "./launchers.js";
 
 /** Path of a profile's launcher (claude-<name>, codex-<name>, ...) when it exists and is executable. */
-export function launcherPath(name: string, env: NodeJS.ProcessEnv = process.env, agent: AgentId = profileAgent(name, env)): string | undefined {
+export function launcherPath(
+  name: string,
+  env: NodeJS.ProcessEnv = process.env,
+  agent: AgentId = profileAgent(name, env),
+): string | undefined {
   if (!isValidProfileName(name)) return undefined;
   const file = join(paths(env).bin, launcherName(name, agent));
   return executable(file) ? file : undefined;
@@ -34,7 +38,11 @@ const IGNORED: NodeJS.Signals[] = ["SIGINT", "SIGQUIT"];
  * Without `process.execve` (Node < 22.15) the program runs as a child with inherited stdio,
  * and its exit code or signal is passed on.
  */
-export async function execLauncher(file: string, args: string[], env: NodeJS.ProcessEnv = process.env): Promise<number> {
+export async function execLauncher(
+  file: string,
+  args: string[],
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<number> {
   if (typeof process.execve === "function") {
     process.execve(file, [file, ...args], env);
   }
@@ -83,7 +91,10 @@ export async function launchProfile(name: string, given: string[], io: Io): Prom
     } catch (err) {
       throw new CliError((err as Error).message);
     }
-    if (!listProfiles(config, io.env).includes(name)) throw new UsageError(`no profile '${name}' (turno profile list shows them; turno profile add ${name} creates it)`);
+    if (!listProfiles(config, io.env).includes(name))
+      throw new UsageError(
+        `no profile '${name}' (turno profile list shows them; turno profile add ${name} creates it)`,
+      );
     return launchSafe(profileAgent(name, io.env), name, args, io);
   }
   const file = launcherPath(name, io.env);

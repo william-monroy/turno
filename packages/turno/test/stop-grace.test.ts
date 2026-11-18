@@ -70,10 +70,24 @@ describe("stop_grace", () => {
   });
 
   it("defaults to 5 seconds for turno-browser-mcp, however it is started, and to the SDK's 2 otherwise", () => {
-    expect(effectiveStopGrace(server(`[server.s]\ncommand = "turno-browser-mcp"\nargs = ["--identity", "school"]`), "default")).toBe(5);
-    expect(effectiveStopGrace(server(`[server.s]\ncommand = "/opt/homebrew/bin/turno-browser-mcp"`), "default")).toBe(5);
-    expect(effectiveStopGrace(server(`[server.s]\ncommand = "npx"\nargs = ["-y", "-p", "turno-browser@0.3.0", "turno-browser-mcp"]`), "default")).toBe(5);
-    expect(effectiveStopGrace(server(`[server.s]\ncommand = "turno-browser-mcp"\nstop_grace = "8s"`), "default")).toBe(8);
+    expect(
+      effectiveStopGrace(
+        server(`[server.s]\ncommand = "turno-browser-mcp"\nargs = ["--identity", "school"]`),
+        "default",
+      ),
+    ).toBe(5);
+    expect(effectiveStopGrace(server(`[server.s]\ncommand = "/opt/homebrew/bin/turno-browser-mcp"`), "default")).toBe(
+      5,
+    );
+    expect(
+      effectiveStopGrace(
+        server(`[server.s]\ncommand = "npx"\nargs = ["-y", "-p", "turno-browser@0.3.0", "turno-browser-mcp"]`),
+        "default",
+      ),
+    ).toBe(5);
+    expect(effectiveStopGrace(server(`[server.s]\ncommand = "turno-browser-mcp"\nstop_grace = "8s"`), "default")).toBe(
+      8,
+    );
     expect(effectiveStopGrace(server(`[server.s]\ncommand = "other-mcp"`), "default")).toBe(2);
     expect(effectiveStopGrace(server(`[server.s]\ncommand = "other-mcp"\nstop_grace = "0"`), "default")).toBe(0);
   });

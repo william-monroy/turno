@@ -13,12 +13,53 @@ import { launcherName, refuseNpx, resolveTurnoCommand, writeHelperLaunchers, wri
 
 /** Names a profile cannot take: every command, alias and legacy word. */
 export const RESERVED = new Set([
-  "auto", "which", "resolve", "sessions", "usage", "exhausted", "available", "hook", "setup", "status",
-  "open", "migrate", "doctor", "statusline", "handoff", "mcp", "mcpd", "secret", "accounts", "browser", "ui", "help", "version",
-  "cuenta", "resolver", "sesiones", "uso", "agotada", "disponible", "limite", "abrir", "sync-mcp",
-  "profile", "navegador",
-  "run", "limit", "session", "identity", "config", "undo", "upgrade", "completion", "__complete", "__update-check",
-  "uninstall", "init", "demo",
+  "auto",
+  "which",
+  "resolve",
+  "sessions",
+  "usage",
+  "exhausted",
+  "available",
+  "hook",
+  "setup",
+  "status",
+  "open",
+  "migrate",
+  "doctor",
+  "statusline",
+  "handoff",
+  "mcp",
+  "mcpd",
+  "secret",
+  "accounts",
+  "browser",
+  "ui",
+  "help",
+  "version",
+  "cuenta",
+  "resolver",
+  "sesiones",
+  "uso",
+  "agotada",
+  "disponible",
+  "limite",
+  "abrir",
+  "sync-mcp",
+  "profile",
+  "navegador",
+  "run",
+  "limit",
+  "session",
+  "identity",
+  "config",
+  "undo",
+  "upgrade",
+  "completion",
+  "__complete",
+  "__update-check",
+  "uninstall",
+  "init",
+  "demo",
 ]);
 
 export function checkName(name: string): void {
@@ -85,10 +126,19 @@ function writeOwn(file: string, text: string, journal: Journal): void {
 }
 
 /** Shared items of a profile: its folder, the agent's hub, and the items linked from it (files only when they exist). */
-function sharedItems(name: string, agent: AgentId, env: NodeJS.ProcessEnv): { dir: string; hub: string; dirs: string[]; files: string[] } {
+function sharedItems(
+  name: string,
+  agent: AgentId,
+  env: NodeJS.ProcessEnv,
+): { dir: string; hub: string; dirs: string[]; files: string[] } {
   const a = adapter(agent);
   const hub = agentHub(agent, env);
-  return { dir: agentProfileDir(name, agent, env), hub, dirs: [...a.sharedDirs], files: a.sharedFiles.filter((f) => existsSync(join(hub, f))) };
+  return {
+    dir: agentProfileDir(name, agent, env),
+    hub,
+    dirs: [...a.sharedDirs],
+    files: a.sharedFiles.filter((f) => existsSync(join(hub, f))),
+  };
 }
 
 /**
@@ -96,7 +146,11 @@ function sharedItems(name: string, agent: AgentId, env: NodeJS.ProcessEnv): { di
  * can ask before it moves anything. `config` is the one the setup will run with (turno init
  * passes the config it is about to write, so a profile it declares has its own agent).
  */
-export function localCopies(names: string[], env: NodeJS.ProcessEnv, config: Config = loadConfig(env)): { name: string; dir: string; items: string[] }[] {
+export function localCopies(
+  names: string[],
+  env: NodeJS.ProcessEnv,
+  config: Config = loadConfig(env),
+): { name: string; dir: string; items: string[] }[] {
   return names.map((name) => {
     const s = sharedItems(name, agentOf(name, config), env);
     return { name, dir: s.dir, items: [...s.dirs, ...s.files].filter((item) => ownCopy(join(s.dir, item))) };
@@ -104,12 +158,27 @@ export function localCopies(names: string[], env: NodeJS.ProcessEnv, config: Con
 }
 
 /** Print what linking did: one line, or every item with `verbose`. */
-function reportLinks(name: string, label: string, dir: string, hub: string, results: [string, Link][], aside: string, io: Io, verbose: boolean, brief = false): void {
+function reportLinks(
+  name: string,
+  label: string,
+  dir: string,
+  hub: string,
+  results: [string, Link][],
+  aside: string,
+  io: Io,
+  verbose: boolean,
+  brief = false,
+): void {
   const env = io.env;
   const dirs = results.length;
   const st = style(io);
   const more = verbose || !dirs ? "" : st.muted(" (-v lists them)");
-  io.out(st.wrap(`${st.accent("▸")} `, `${st.bold(name)}${label} → ${tildify(dir, env)}: shares ${plural(dirs, "item")} with ${tildify(hub, env)}${more}`));
+  io.out(
+    st.wrap(
+      `${st.accent("▸")} `,
+      `${st.bold(name)}${label} → ${tildify(dir, env)}: shares ${plural(dirs, "item")} with ${tildify(hub, env)}${more}`,
+    ),
+  );
   if (verbose) for (const [item, r] of results) io.out(`  ${r === "same" ? st.muted("=") : st.accent("↔")} ${item}`);
   const moved = results.filter(([, r]) => r === "aside").map(([item]) => item);
   if (moved.length) {
@@ -139,7 +208,15 @@ export interface SetupOptions {
  * Set up one profile: its folder (0700), the hub links, the agent's own steps (ADR 0032) and
  * its launcher. Local copies of shared items move to .aside-<stamp>/.
  */
-function setupProfile(name: string, agent: AgentId, io: Io, verbose: boolean, journal: Journal, config: Config, brief = false): void {
+function setupProfile(
+  name: string,
+  agent: AgentId,
+  io: Io,
+  verbose: boolean,
+  journal: Journal,
+  config: Config,
+  brief = false,
+): void {
   const a = adapter(agent);
   const step: SetupStep = {
     name,
@@ -178,7 +255,9 @@ function setupProfile(name: string, agent: AgentId, io: Io, verbose: boolean, jo
 
 /** The absolute folders whose `[[projects]]` rules name `profile`. */
 function ruleFolders(profile: string, config: Config, env: NodeJS.ProcessEnv): string[] {
-  return [...new Set(config.projects.filter((r) => r.profile === profile).map((r) => resolvePath(expandHome(r.path, env))))];
+  return [
+    ...new Set(config.projects.filter((r) => r.profile === profile).map((r) => resolvePath(expandHome(r.path, env)))),
+  ];
 }
 
 /**
@@ -209,7 +288,8 @@ export function setupProfiles(names: string[], io: Io, opts: SetupOptions = {}):
   const verbose = Boolean(opts.verbose);
   const config = loadConfig(io.env);
   const journal = opts.journal ?? new Journal(io.env, `profile repair ${names.join(" ")}`);
-  for (const name of names) setupProfile(name, agentOf(name, config), io, verbose, journal, config, Boolean(opts.brief));
+  for (const name of names)
+    setupProfile(name, agentOf(name, config), io, verbose, journal, config, Boolean(opts.brief));
   const written = writeHelperLaunchers(io.env, turno.words, journal);
   if (verbose) for (const w of written) io.out(`+ command ${w}`);
   if (turno.warning) io.out(`! turno-auto and turno-open: ${turno.warning}`);

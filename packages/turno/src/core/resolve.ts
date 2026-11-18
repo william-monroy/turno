@@ -21,7 +21,10 @@ export interface Resolution {
 }
 
 /** The directory itself plus, for a git worktree, the main repository it belongs to. */
-export function candidateRoots(cwd: string, spawnGit: (cwd: string) => string | undefined = gitCommonDirBySpawn): string[] {
+export function candidateRoots(
+  cwd: string,
+  spawnGit: (cwd: string) => string | undefined = gitCommonDirBySpawn,
+): string[] {
   const cands = [realOr(cwd)];
   const found = gitCommonDirOnDisk(cwd);
   const common = found === UNSURE ? spawnGit(cwd) : found;
@@ -48,7 +51,13 @@ function gitCommonDirBySpawn(cwd: string): string | undefined {
 const UNSURE = Symbol("unsure");
 
 /** Variables that change how git finds a repository: with any of them set, git itself decides. */
-const GIT_DISCOVERY_VARS = ["GIT_DIR", "GIT_COMMON_DIR", "GIT_WORK_TREE", "GIT_CEILING_DIRECTORIES", "GIT_DISCOVERY_ACROSS_FILESYSTEM"];
+const GIT_DISCOVERY_VARS = [
+  "GIT_DIR",
+  "GIT_COMMON_DIR",
+  "GIT_WORK_TREE",
+  "GIT_CEILING_DIRECTORIES",
+  "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+];
 
 function stat(p: string) {
   try {
@@ -140,7 +149,12 @@ export function folderMcpSet(roots: string[], rules: ProjectRule[], profile?: st
     const root = realOr(rule.path);
     if (!roots.some((c) => covers(root, c))) continue;
     const longer = !best || root.length > best.root.length;
-    const preferred = best && root.length === best.root.length && profile !== undefined && rule.profile === profile && best.rule.profile !== profile;
+    const preferred =
+      best &&
+      root.length === best.root.length &&
+      profile !== undefined &&
+      rule.profile === profile &&
+      best.rule.profile !== profile;
     if (longer || preferred) best = { rule, root };
   }
   return best?.rule;
@@ -164,7 +178,8 @@ export function resolveProfile(
   roots: string[] = candidateRoots(cwd),
   agent: AgentId = DEFAULT_AGENT,
 ): Resolution {
-  const roles = agent === DEFAULT_AGENT ? { default: config.default, fallback: config.fallback } : (config.agents[agent] ?? {});
+  const roles =
+    agent === DEFAULT_AGENT ? { default: config.default, fallback: config.fallback } : (config.agents[agent] ?? {});
   let best: { profile: string; root: string } | undefined;
   for (const rule of config.projects) {
     if (!rule.profile || agentOf(rule.profile, config) !== agent) continue;

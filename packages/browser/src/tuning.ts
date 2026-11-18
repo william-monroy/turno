@@ -38,7 +38,12 @@ export interface Tuning {
 }
 
 /** The defaults, documented in ADR 0048 and the browser identities page. */
-export const DEFAULT_TABS: Readonly<TabPolicy> = Object.freeze({ max: 8, popups: "close", parkMs: 5 * 60_000, closeMs: 15 * 60_000 });
+export const DEFAULT_TABS: Readonly<TabPolicy> = Object.freeze({
+  max: 8,
+  popups: "close",
+  parkMs: 5 * 60_000,
+  closeMs: 15 * 60_000,
+});
 
 /** What `turno-browser-mcp` flags set; each wins over identity.json. */
 export interface TuningFlags {
@@ -72,7 +77,10 @@ function resourcePolicy(settings: IdentitySettings | undefined): ResourcePolicy 
   const out: ResourcePolicy = {};
   const b = settings?.block;
   if (b) out.block = { trackers: b.trackers ?? false, types: b.types ?? [], patterns: b.patterns ?? [] };
-  if (settings?.cache) out.cacheBytes = settings.cache.maxSize ? (parseSize(settings.cache.maxSize) ?? DEFAULT_CACHE_BYTES) : DEFAULT_CACHE_BYTES;
+  if (settings?.cache)
+    out.cacheBytes = settings.cache.maxSize
+      ? (parseSize(settings.cache.maxSize) ?? DEFAULT_CACHE_BYTES)
+      : DEFAULT_CACHE_BYTES;
   return out;
 }
 
@@ -80,7 +88,11 @@ function resourcePolicy(settings: IdentitySettings | undefined): ResourcePolicy 
  * The three switches Playwright adds to every Chromium launch so that pages in the background
  * keep running at full speed (`chromiumSwitches`, pinned by the contract test).
  */
-export const BACKGROUND_SWITCHES = ["--disable-background-timer-throttling", "--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding"] as const;
+export const BACKGROUND_SWITCHES = [
+  "--disable-background-timer-throttling",
+  "--disable-backgrounding-occluded-windows",
+  "--disable-renderer-backgrounding",
+] as const;
 
 /**
  * Launch options for `backgroundThrottling`. Dropping the switches is not enough: Playwright

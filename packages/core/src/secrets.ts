@@ -64,8 +64,16 @@ function exec(cmd: string, args: string[], env: NodeJS.ProcessEnv, input?: strin
       done = true;
       resolve(r);
     };
-    child.on("error", (e: NodeJS.ErrnoException) => finish({ code: e.code === "ENOENT" ? 127 : 1, stdout: "", stderr: e.message }));
-    child.on("close", (code) => finish({ code: code ?? 1, stdout: Buffer.concat(out).toString("utf8"), stderr: Buffer.concat(err).toString("utf8") }));
+    child.on("error", (e: NodeJS.ErrnoException) =>
+      finish({ code: e.code === "ENOENT" ? 127 : 1, stdout: "", stderr: e.message }),
+    );
+    child.on("close", (code) =>
+      finish({
+        code: code ?? 1,
+        stdout: Buffer.concat(out).toString("utf8"),
+        stderr: Buffer.concat(err).toString("utf8"),
+      }),
+    );
     child.stdin.on("error", () => {
       /* the process exited before reading; its exit code tells */
     });
@@ -89,7 +97,8 @@ export function securityQuote(word: string): string {
 
 /** The line `security -i` reads on stdin to store an item; exported for tests. */
 export function keychainAddLine(service: string, value: string, account = "turno"): string {
-  if (/[\0\r\n]/.test(value)) throw new SecretError("", "the value has a line break or NUL byte; the Keychain store reads one line");
+  if (/[\0\r\n]/.test(value))
+    throw new SecretError("", "the value has a line break or NUL byte; the Keychain store reads one line");
   return `add-generic-password -U -a ${securityQuote(account)} -s ${securityQuote(service)} -w ${securityQuote(value)} -T /usr/bin/security\n`;
 }
 
@@ -117,7 +126,8 @@ function keychainStore(bin: string, env: NodeJS.ProcessEnv): SecretStore {
       // `security -i` reads commands from stdin, so the value never shows in `ps`. The output is
       // not echoed back: an error line could quote the command.
       const r = await exec(bin, ["-i"], env, keychainAddLine(service, value), 60_000);
-      if (r.code !== 0) throw new SecretError("", `the Keychain did not store ${service} (security exited with ${r.code})`);
+      if (r.code !== 0)
+        throw new SecretError("", `the Keychain did not store ${service} (security exited with ${r.code})`);
     },
     async remove(service) {
       checkService(service);
@@ -154,13 +164,15 @@ function libsecretStore(bin: string, env: NodeJS.ProcessEnv): SecretStore {
       checkService(service);
       // secret-tool reads the value from stdin when stdin is not a terminal.
       const r = await exec(bin, ["store", `--label=turno: ${service}`, ...attrs(service)], env, value, 60_000);
-      if (r.code !== 0) throw new SecretError("", `secret-tool did not store ${service}: ${firstLine(r.stderr) || `exit ${r.code}`}`);
+      if (r.code !== 0)
+        throw new SecretError("", `secret-tool did not store ${service}: ${firstLine(r.stderr) || `exit ${r.code}`}`);
     },
     async remove(service) {
       checkService(service);
       if (!(await this.has(service))) return false;
       const r = await exec(bin, ["clear", ...attrs(service)], env);
-      if (r.code !== 0) throw new SecretError("", `secret-tool did not delete ${service}: ${firstLine(r.stderr) || `exit ${r.code}`}`);
+      if (r.code !== 0)
+        throw new SecretError("", `secret-tool did not delete ${service}: ${firstLine(r.stderr) || `exit ${r.code}`}`);
       return true;
     },
   };
@@ -170,7 +182,10 @@ function libsecretStore(bin: string, env: NodeJS.ProcessEnv): SecretStore {
  * The secret store of this machine: `security` on macOS, `secret-tool` elsewhere, found on the
  * PATH of `env`. Undefined when there is none (the caller prints NO_SECRET_STORE).
  */
-export function secretStore(env: NodeJS.ProcessEnv, platform: NodeJS.Platform = process.platform): SecretStore | undefined {
+export function secretStore(
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform = process.platform,
+): SecretStore | undefined {
   if (platform === "darwin") {
     const bin = findOnPath("security", env);
     return bin ? keychainStore(bin, env) : undefined;

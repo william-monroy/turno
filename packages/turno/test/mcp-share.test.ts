@@ -59,7 +59,9 @@ let base = "";
 beforeAll(async () => {
   oauthServer = createServer((req, res) => {
     if (req.url?.startsWith("/locked")) {
-      res.writeHead(401, { "www-authenticate": 'Bearer resource_metadata="http://127.0.0.1/.well-known/oauth-protected-resource"' });
+      res.writeHead(401, {
+        "www-authenticate": 'Bearer resource_metadata="http://127.0.0.1/.well-known/oauth-protected-resource"',
+      });
       res.end();
     } else {
       res.writeHead(200, { "content-type": "application/json" });
@@ -104,7 +106,8 @@ describe("exportManifest", () => {
 });
 
 describe("mergeServers and removeServer", () => {
-  const existing = "# keep me\n[server.a]\ncommand = \"a\"\n\n[server.b]\ncommand = \"b\"\nenv = { X = \"1\" }\n\n[server.b.variant.work]\nargs = [\"--w\"]\n";
+  const existing =
+    '# keep me\n[server.a]\ncommand = "a"\n\n[server.b]\ncommand = "b"\nenv = { X = "1" }\n\n[server.b.variant.work]\nargs = ["--w"]\n';
 
   it("appends new servers, keeps existing ones, and keeps comments", () => {
     const r = mergeServers(existing, { b: { command: "b2" }, c: { command: "c" } }, false);
@@ -126,7 +129,9 @@ describe("mergeServers and removeServer", () => {
 
   it("refuses to replace a server that is not its own table", () => {
     expect(removeServer('[server]\nb = { command = "b" }\n', "b")).toBeUndefined();
-    expect(() => mergeServers('[server]\nb = { command = "b" }\n', { b: { command: "x" } }, true)).toThrow(/edit it by hand/);
+    expect(() => mergeServers('[server]\nb = { command = "b" }\n', { b: { command: "x" } }, true)).toThrow(
+      /edit it by hand/,
+    );
   });
 });
 
@@ -186,7 +191,9 @@ describe("turno mcp export and import <file>", () => {
       expect(written).toContain('GITHUB_TOKEN = "keychain:turno/gh/github-token"');
       const out = io2.lines.join("\n");
       expect(out).toMatch(/^added gh, db, docs$/m);
-      expect(out).toMatch(/^Next: turno secret list shows which of 4 keychain references still need turno secret set; turno mcp install pins and installs the packages; turno mcp sync points your profiles at them$/m);
+      expect(out).toMatch(
+        /^Next: turno secret list shows which of 4 keychain references still need turno secret set; turno mcp install pins and installs the packages; turno mcp sync points your profiles at them$/m,
+      );
     } finally {
       other.cleanup();
     }
@@ -194,7 +201,10 @@ describe("turno mcp export and import <file>", () => {
 
   it("keeps servers already there unless --force, and marks OAuth remotes on --write", async () => {
     sb.write(".config/turno/mcp.toml", '[server.gh]\ncommand = "mine"\n');
-    const file = sb.write("in.toml", `[server.gh]\ncommand = "theirs"\n\n[server.linear]\nurl = "${base}/locked/mcp"\n\n[server.open]\nurl = "${base}/open/mcp"\n`);
+    const file = sb.write(
+      "in.toml",
+      `[server.gh]\ncommand = "theirs"\n\n[server.linear]\nurl = "${base}/locked/mcp"\n\n[server.open]\nurl = "${base}/open/mcp"\n`,
+    );
     const r = await run(["mcp", "import", file, "--write"]);
     expect(r.code).toBe(0);
     expect(r.out).toMatch(/kept gh \(already in mcp.toml; --force replaces them\)/);
@@ -209,7 +219,12 @@ describe("turno mcp export and import <file>", () => {
   it("takes an agent's JSON config too, skipping turno's own gateway entries", async () => {
     const file = sb.write(
       "claude.json",
-      JSON.stringify({ mcpServers: { fs: { command: "fs-mcp", args: ["/tmp"] }, gw: { type: "http", url: "http://127.0.0.1:47821/mcp/gw", headers: { "X-Turno-Profile": "work" } } } }),
+      JSON.stringify({
+        mcpServers: {
+          fs: { command: "fs-mcp", args: ["/tmp"] },
+          gw: { type: "http", url: "http://127.0.0.1:47821/mcp/gw", headers: { "X-Turno-Profile": "work" } },
+        },
+      }),
     );
     const r = await run(["mcp", "import", file]);
     expect(r.code).toBe(0);
@@ -232,7 +247,12 @@ describe("turno mcp export and import <file>", () => {
   it("export --json has the text and the secret names", async () => {
     sb.write(".config/turno/mcp.toml", MANIFEST);
     const j = JSON.parse((await run(["mcp", "export", "--profile", "home", "--json"])).out);
-    expect(j).toMatchObject({ schemaVersion: 1, profile: "home", servers: ["gh", "docs"], keychain: ["turno/gh/github-token"] });
+    expect(j).toMatchObject({
+      schemaVersion: 1,
+      profile: "home",
+      servers: ["gh", "docs"],
+      keychain: ["turno/gh/github-token"],
+    });
     expect(j.text).not.toContain(SECRET);
   });
 });

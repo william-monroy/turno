@@ -46,6 +46,8 @@ describe("main", () => {
   it("reports an unknown profile as a usage error", async () => {
     const io = fakeIo(sb.env);
     expect(await main(["nobody"], io)).toBe(2);
-    expect(io.errors[0]).toBe("turno: no profile 'nobody' (turno profile list shows them; turno profile add nobody creates it)");
+    expect(io.errors[0]).toBe(
+      "turno: no profile 'nobody' (turno profile list shows them; turno profile add nobody creates it)",
+    );
   });
 });

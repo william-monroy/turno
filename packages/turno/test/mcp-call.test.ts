@@ -32,7 +32,8 @@ async function run(args: string[], env = sb.env) {
   return { code, out: io.lines.join("\n"), err: io.errors.join("\n") };
 }
 
-const fx = (extra = "") => `[server.fx]\ncommand = ${JSON.stringify(process.execPath)}\nargs = [${JSON.stringify(FIXTURE)}]\n${extra}`;
+const fx = (extra = "") =>
+  `[server.fx]\ncommand = ${JSON.stringify(process.execPath)}\nargs = [${JSON.stringify(FIXTURE)}]\n${extra}`;
 
 async function daemon(manifest = fx(), config = ""): Promise<RunningDaemon> {
   sb.write(".config/turno/config.toml", config);
@@ -44,7 +45,14 @@ async function daemon(manifest = fx(), config = ""): Promise<RunningDaemon> {
 
 describe("callArguments", () => {
   it("merges --args with key=value strings and key:=json values", () => {
-    expect(callArguments('{"a": 1, "b": "x"}', ["b=y", "n:=5", "list:=[1,2]", "flag:=true", "eq=a=b"])).toEqual({ a: 1, b: "y", n: 5, list: [1, 2], flag: true, eq: "a=b" });
+    expect(callArguments('{"a": 1, "b": "x"}', ["b=y", "n:=5", "list:=[1,2]", "flag:=true", "eq=a=b"])).toEqual({
+      a: 1,
+      b: "y",
+      n: 5,
+      list: [1, 2],
+      flag: true,
+      eq: "a=b",
+    });
     expect(callArguments(undefined, [])).toEqual({});
   });
 
@@ -60,7 +68,9 @@ describe("contentText", () => {
   it("prints text as it is and other content as one bracketed line", () => {
     expect(contentText({ type: "text", text: "hi" })).toBe("hi");
     expect(contentText({ type: "image", mimeType: "image/png", data: "AAAA" })).toBe("[image image/png, 3 bytes]");
-    expect(contentText({ type: "resource", resource: { uri: "file:///a", mimeType: "text/plain" } })).toBe("[resource file:///a, text/plain]");
+    expect(contentText({ type: "resource", resource: { uri: "file:///a", mimeType: "text/plain" } })).toBe(
+      "[resource file:///a, text/plain]",
+    );
     expect(contentText({ type: "resource_link", uri: "file:///b", name: "b" })).toBe("[link file:///b (b)]");
   });
 });
@@ -78,7 +88,15 @@ describe("turno mcp call", () => {
     const r = await run(["mcp", "call", "fx", "echo", "--args", '{"text": "j"}', "--profile", "work", "--json"]);
     expect(r.code).toBe(0);
     const out = JSON.parse(r.out);
-    expect(out).toMatchObject({ schemaVersion: 1, server: "fx", tool: "echo", profile: "work", isError: false, content: [{ type: "text", text: "j" }], tools: null });
+    expect(out).toMatchObject({
+      schemaVersion: 1,
+      server: "fx",
+      tool: "echo",
+      profile: "work",
+      isError: false,
+      content: [{ type: "text", text: "j" }],
+      tools: null,
+    });
     expect(typeof out.ms).toBe("number");
   });
 

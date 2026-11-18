@@ -1,4 +1,3 @@
-
 import { readFileSync } from "node:fs";
 import { type Server, createServer } from "node:http";
 import { join } from "node:path";
@@ -35,7 +34,6 @@ const bin = join(pkg, "dist", "bin", "mcp.js");
 
 const reason = chromeUnavailable();
 const HEADED = process.platform === "darwin";
-
 
 let sb: Sandbox;
 const running: StdioClientTransport[] = [];
@@ -80,7 +78,10 @@ async function start(id: string, env: Record<string, string> = {}): Promise<Runn
 }
 
 async function navigate(r: Running): Promise<void> {
-  const res = await r.client.callTool({ name: "browser_navigate", arguments: { url: "data:text/html,<title>turno</title>ok" } });
+  const res = await r.client.callTool({
+    name: "browser_navigate",
+    arguments: { url: "data:text/html,<title>turno</title>ok" },
+  });
   expect(res.isError ?? false, JSON.stringify(res.content)).toBe(false);
 }
 
@@ -89,7 +90,8 @@ async function site(): Promise<{ url: string; close(): Promise<void> }> {
   const server: Server = createServer((req, res) => {
     res.setHeader("content-type", "text/html; charset=utf-8");
     const path = new URL(req.url ?? "/", "http://x").pathname;
-    if (path === "/challenge") res.end("<title>Just a moment...</title><body>Checking your browser before you continue</body>");
+    if (path === "/challenge")
+      res.end("<title>Just a moment...</title><body>Checking your browser before you continue</body>");
     else if (path === "/account") res.end("<title>Account</title><body><h1>Welcome back, Alice</h1></body>");
     else if (path === "/signed-out") res.end("<title>Sign in</title><body><form><input name=user></form></body>");
     else res.end(`<title>echo</title><body><pre id="lang">${req.headers["accept-language"] ?? ""}</pre></body>`);
@@ -163,7 +165,10 @@ describe.skipIf(reason !== undefined)(reason ? `real Chrome (skipped: ${reason})
     process.kill(pid, "SIGSTOP");
     process.kill(r.pid, "SIGKILL");
     expect(await waitFor(() => !alive(r.pid), 5_000)).toBe(true);
-    expect(await waitFor(() => sandboxProcesses(sb.home).some((p) => p.pid === pid && p.ppid !== r.pid), 5_000), "Chrome reparented").toBe(true);
+    expect(
+      await waitFor(() => sandboxProcesses(sb.home).some((p) => p.pid === pid && p.ppid !== r.pid), 5_000),
+      "Chrome reparented",
+    ).toBe(true);
 
     const next = await start("orphan");
     await navigate(next);
@@ -192,7 +197,13 @@ describe.skipIf(reason !== undefined)(reason ? `real Chrome (skipped: ${reason})
   it("gives a turno tool the same browser context the stock tools drive", async () => {
     const z = turnoZod();
     const title: TurnoTool = {
-      schema: { name: "turno_test_title", title: "Page title (test)", description: "Title of the first page.", inputSchema: z.object({}), type: "readOnly" },
+      schema: {
+        name: "turno_test_title",
+        title: "Page title (test)",
+        description: "Title of the first page.",
+        inputSchema: z.object({}),
+        type: "readOnly",
+      },
       async handle({ browserContext }) {
         return { content: [{ type: "text", text: `title: ${await browserContext!.pages()[0]!.title()}` }] };
       },
@@ -214,16 +225,24 @@ describe.skipIf(reason !== undefined)(reason ? `real Chrome (skipped: ${reason})
         else process.env[key] = value;
       }
     });
-    const config = await upstream().tools.resolveCLIConfigForMCP({ browser: "chrome", userDataDir: profileDir("inproc"), headless: !HEADED, outputDir: join(sb.home, "output") }, {});
+    const config = await upstream().tools.resolveCLIConfigForMCP(
+      { browser: "chrome", userDataDir: profileDir("inproc"), headless: !HEADED, outputDir: join(sb.home, "output") },
+      {},
+    );
     const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
     await serve(createHost({ config, cliOptions: {}, turnoTools: [title] }), serverSide);
     const client = new Client({ name: "inproc", version: "0.0.0" });
     await client.connect(clientSide);
     try {
-      const nav = await client.callTool({ name: "browser_navigate", arguments: { url: "data:text/html,<title>same context</title>ok" } });
+      const nav = await client.callTool({
+        name: "browser_navigate",
+        arguments: { url: "data:text/html,<title>same context</title>ok" },
+      });
       expect(nav.isError ?? false, JSON.stringify(nav.content)).toBe(false);
       const pid = chromePid("inproc");
-      expect(await client.callTool({ name: "turno_test_title", arguments: {} })).toEqual({ content: [{ type: "text", text: "title: same context" }] });
+      expect(await client.callTool({ name: "turno_test_title", arguments: {} })).toEqual({
+        content: [{ type: "text", text: "title: same context" }],
+      });
       await client.close();
       expect(await waitFor(() => !alive(pid), 10_000), "Chrome closed with the session").toBe(true);
     } finally {
@@ -242,7 +261,10 @@ describe.skipIf(reason !== undefined)(reason ? `real Chrome (skipped: ${reason})
     expect(nav.isError ?? false, textOf(nav)).toBe(false);
     const res = await r.client.callTool({
       name: "browser_evaluate",
-      arguments: { function: "() => JSON.stringify({ header: document.getElementById('lang').textContent, languages: navigator.languages, zone: Intl.DateTimeFormat().resolvedOptions().timeZone })" },
+      arguments: {
+        function:
+          "() => JSON.stringify({ header: document.getElementById('lang').textContent, languages: navigator.languages, zone: Intl.DateTimeFormat().resolvedOptions().timeZone })",
+      },
     });
     expect(res.isError ?? false, textOf(res)).toBe(false);
     const json = /\{\\?"header[^\n]*\}/.exec(textOf(res))?.[0]?.replace(/\\"/g, '"');
@@ -253,12 +275,19 @@ describe.skipIf(reason !== undefined)(reason ? `real Chrome (skipped: ${reason})
     const r = await start("locked");
     await navigate(r);
     const pid = chromePid("locked");
-    expect(readRuntimeLock("locked", sb.env)).toMatchObject({ nodePid: r.pid, chromePid: pid, pgid: pid, holder: "mcp" });
+    expect(readRuntimeLock("locked", sb.env)).toMatchObject({
+      nodePid: r.pid,
+      chromePid: pid,
+      pgid: pid,
+      holder: "mcp",
+    });
 
     const second = await start("locked");
     const res = await second.client.callTool({ name: "browser_navigate", arguments: { url: "data:text/html,second" } });
     expect(res.isError).toBe(true);
-    expect(textOf(res)).toContain(`browser identity "locked" is in use by turno-browser-mcp (pid ${r.pid}, Chrome pid ${pid})`);
+    expect(textOf(res)).toContain(
+      `browser identity "locked" is in use by turno-browser-mcp (pid ${r.pid}, Chrome pid ${pid})`,
+    );
     expect(textOf(res)).toContain(`kill ${r.pid}`);
     expect(alive(pid), "the first Chrome is untouched").toBe(true);
 
@@ -274,7 +303,10 @@ describe.skipIf(reason !== undefined)(reason ? `real Chrome (skipped: ${reason})
     await navigate(r);
     const first = chromePid("idlelock");
     expect(await waitFor(() => !alive(first), 15_000)).toBe(true);
-    expect(await waitFor(() => readRuntimeLock("idlelock", sb.env) === undefined, 5_000), "released with the idle close").toBe(true);
+    expect(
+      await waitFor(() => readRuntimeLock("idlelock", sb.env) === undefined, 5_000),
+      "released with the idle close",
+    ).toBe(true);
     await navigate(r);
     expect(readRuntimeLock("idlelock", sb.env)).toMatchObject({ nodePid: r.pid, chromePid: chromePid("idlelock") });
   }, 60_000);
@@ -286,10 +318,18 @@ describe.skipIf(reason !== undefined)(reason ? `real Chrome (skipped: ${reason})
     const r = await start("health");
     const res = await r.client.callTool({ name: "browser_navigate", arguments: { url: "data:text/html,hi" } });
     expect(res.isError).toBe(true);
-    expect(textOf(res)).toMatch(/NEEDS_AUTH: browser identity "health" is not signed in: the page did not show "Welcome back"/);
+    expect(textOf(res)).toMatch(
+      /NEEDS_AUTH: browser identity "health" is not signed in: the page did not show "Welcome back"/,
+    );
     expect(textOf(res)).toContain("turno browser login health");
     expect(readHealth("health", sb.env)).toMatchObject({ status: "needs_auth" });
-    expect(await waitFor(() => readLockPid(profileDir("health")) === undefined || !alive(readLockPid(profileDir("health"))!), 10_000), "Chrome closed").toBe(true);
+    expect(
+      await waitFor(
+        () => readLockPid(profileDir("health")) === undefined || !alive(readLockPid(profileDir("health"))!),
+        10_000,
+      ),
+      "Chrome closed",
+    ).toBe(true);
 
     writeIdentitySettings("health", { health: { url: `${web.url}/account`, text: "Welcome back" } }, sb.env);
     await navigate(r);
@@ -300,11 +340,24 @@ describe.skipIf(reason !== undefined)(reason ? `real Chrome (skipped: ${reason})
     const web = await site();
     onTestFinished(() => web.close());
     const r = await start("rep");
-    const nav = await r.client.callTool({ name: "browser_navigate", arguments: { url: `${web.url}/challenge?session=secret` } });
+    const nav = await r.client.callTool({
+      name: "browser_navigate",
+      arguments: { url: `${web.url}/challenge?session=secret` },
+    });
     expect(nav.isError ?? false, textOf(nav)).toBe(false);
     expect(await waitFor(() => readChallenges("rep", sb.env).length > 0, 10_000)).toBe(true);
-    expect(readChallenges("rep", sb.env)).toEqual([{ ts: expect.any(String), site: "127.0.0.1", kind: "captcha", markers: ["checking your browser", "just a moment"] }]);
-    const raw = readFileSync(join(sb.home, ".local", "state", "turno", "browser", "identities", "rep", "reputation.jsonl"), "utf8");
+    expect(readChallenges("rep", sb.env)).toEqual([
+      {
+        ts: expect.any(String),
+        site: "127.0.0.1",
+        kind: "captcha",
+        markers: ["checking your browser", "just a moment"],
+      },
+    ]);
+    const raw = readFileSync(
+      join(sb.home, ".local", "state", "turno", "browser", "identities", "rep", "reputation.jsonl"),
+      "utf8",
+    );
     expect(raw).not.toMatch(/secret|challenge\?/);
   }, 60_000);
 

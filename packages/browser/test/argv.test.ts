@@ -27,7 +27,10 @@ describe("buildArgv", () => {
   });
 
   it("returns turno's tuning flags apart and never passes them to upstream", () => {
-    const b = buildArgv(["--identity", "school", "--max-tabs", "3", "--headless"], { env: sb.env, makeTempDir: fakeTemp });
+    const b = buildArgv(["--identity", "school", "--max-tabs", "3", "--headless"], {
+      env: sb.env,
+      makeTempDir: fakeTemp,
+    });
     expect(b.tuning).toEqual({ maxTabs: 3 });
     expect(b.args).not.toContain("--max-tabs");
     expect(b.args).toContain("--headless");
@@ -54,7 +57,10 @@ describe("buildArgv", () => {
   });
 
   it("keeps user flags and lets them win over defaults", () => {
-    const b = buildArgv(["--browser", "msedge", "--user-data-dir", "/x/profile", "--headless"], { env: sb.env, makeTempDir: fakeTemp });
+    const b = buildArgv(["--browser", "msedge", "--user-data-dir", "/x/profile", "--headless"], {
+      env: sb.env,
+      makeTempDir: fakeTemp,
+    });
     expect(b.args.slice(0, 5)).toEqual(["--browser", "msedge", "--user-data-dir", "/x/profile", "--headless"]);
     expect(b.userDataDir).toBeUndefined();
   });
@@ -71,13 +77,21 @@ describe("buildArgv", () => {
 
   it("keeps --isolated in memory without a profile dir", () => {
     const b = buildArgv(["--isolated"], { env: sb.env, makeTempDir: fakeTemp });
-    expect(b.args).toEqual(["--isolated", "--browser", "chrome", "--config", "/tmp/turno-browser-test/mcp-config.json"]);
+    expect(b.args).toEqual([
+      "--isolated",
+      "--browser",
+      "chrome",
+      "--config",
+      "/tmp/turno-browser-test/mcp-config.json",
+    ]);
     expect(b.userDataDir).toBeUndefined();
     expect(b.tempDir).toBe("/tmp/turno-browser-test");
   });
 
   it("rejects an identity combined with another profile source", () => {
-    expect(() => buildArgv(["--identity", "school", "--user-data-dir", "/x"], { env: sb.env })).toThrow(/cannot be combined/);
+    expect(() => buildArgv(["--identity", "school", "--user-data-dir", "/x"], { env: sb.env })).toThrow(
+      /cannot be combined/,
+    );
     expect(() => buildArgv(["--identity", "school", "--isolated"], { env: sb.env })).toThrow(/cannot be combined/);
   });
 
@@ -88,16 +102,23 @@ describe("buildArgv", () => {
   });
 
   it("refuses to serve a signed-in identity over HTTP without an explicit opt-in", () => {
-    expect(() => buildArgv(["--identity", "school", "--port", "8931"], { env: sb.env })).toThrow(/--allow-http-identity/);
+    expect(() => buildArgv(["--identity", "school", "--port", "8931"], { env: sb.env })).toThrow(
+      /--allow-http-identity/,
+    );
     expect(() => buildArgv(["--identity=school", "--port=8931"], { env: sb.env })).toThrow(/--allow-http-identity/);
-    expect(() => buildArgv(["--identity", "school", "--host", "127.0.0.1"], { env: sb.env })).toThrow(/--allow-http-identity/);
+    expect(() => buildArgv(["--identity", "school", "--host", "127.0.0.1"], { env: sb.env })).toThrow(
+      /--allow-http-identity/,
+    );
   });
 
   it("with --allow-http-identity binds to 127.0.0.1 only and drops the turno flag", () => {
     const b = buildArgv(["--identity", "school", "--port", "8931", "--allow-http-identity"], { env: sb.env });
     expect(b.args).not.toContain("--allow-http-identity");
     expect(b.args.slice(0, 4)).toEqual(["--port", "8931", "--host", "127.0.0.1"]);
-    const local = buildArgv(["--identity", "school", "--port", "8931", "--host", "localhost", "--allow-http-identity"], { env: sb.env });
+    const local = buildArgv(
+      ["--identity", "school", "--port", "8931", "--host", "localhost", "--allow-http-identity"],
+      { env: sb.env },
+    );
     expect(local.args.filter((a) => a === "--host")).toHaveLength(1);
   });
 
@@ -111,7 +132,9 @@ describe("buildArgv", () => {
   it("keeps --port without an identity (temporary profile, nothing signed in)", () => {
     const b = buildArgv(["--port", "8931"], { env: sb.env, makeTempDir: fakeTemp });
     expect(b.args.slice(0, 2)).toEqual(["--port", "8931"]);
-    expect(() => buildArgv(["--port", "8931", "--allow-http-identity"], { env: sb.env, makeTempDir: fakeTemp })).toThrow(/only with --identity/);
+    expect(() =>
+      buildArgv(["--port", "8931", "--allow-http-identity"], { env: sb.env, makeTempDir: fakeTemp }),
+    ).toThrow(/only with --identity/);
   });
 });
 
@@ -127,9 +150,15 @@ describe("generated Playwright MCP config", () => {
   });
 
   it("takes the idle limit from TURNO_BROWSER_IDLE", () => {
-    expect(buildArgv(["--identity", "school"], { env: { ...sb.env, TURNO_BROWSER_IDLE: "2s" } }).config?.data).toEqual({ timeouts: { idle: 2000 } });
-    expect(buildArgv(["--identity", "school"], { env: { ...sb.env, TURNO_BROWSER_IDLE: "0" } }).config?.data).toEqual({ timeouts: { idle: 0 } });
-    expect(() => buildArgv(["--identity", "school"], { env: { ...sb.env, TURNO_BROWSER_IDLE: "soon" } })).toThrow(/TURNO_BROWSER_IDLE/);
+    expect(buildArgv(["--identity", "school"], { env: { ...sb.env, TURNO_BROWSER_IDLE: "2s" } }).config?.data).toEqual({
+      timeouts: { idle: 2000 },
+    });
+    expect(buildArgv(["--identity", "school"], { env: { ...sb.env, TURNO_BROWSER_IDLE: "0" } }).config?.data).toEqual({
+      timeouts: { idle: 0 },
+    });
+    expect(() => buildArgv(["--identity", "school"], { env: { ...sb.env, TURNO_BROWSER_IDLE: "soon" } })).toThrow(
+      /TURNO_BROWSER_IDLE/,
+    );
   });
 
   it("follows TURNO_STATE_DIR for the identity's config", () => {

@@ -1,4 +1,15 @@
-import { accessSync, chmodSync, closeSync, constants, fchmodSync, fstatSync, mkdirSync, openSync, statSync, writeSync } from "node:fs";
+import {
+  accessSync,
+  chmodSync,
+  closeSync,
+  constants,
+  fchmodSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  statSync,
+  writeSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, dirname, isAbsolute, join, relative, sep } from "node:path";
 

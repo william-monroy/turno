@@ -54,7 +54,14 @@ export function matching(state: Pick<PickState, "items" | "query">): PickItem[] 
 
 /** The first state: the cursor on `initial` when it is one of the items. */
 export function initialState(items: readonly PickItem[], initial?: string): PickState {
-  return { items, query: "", cursor: Math.max(0, items.findIndex((i) => i.value === initial)) };
+  return {
+    items,
+    query: "",
+    cursor: Math.max(
+      0,
+      items.findIndex((i) => i.value === initial),
+    ),
+  };
 }
 
 /** The item under the cursor, if any matches. */
@@ -109,7 +116,8 @@ export function reduce(state: PickState, key: PickKey): { state: PickState; outc
     case "clear":
       return { state: requery(state, "") };
     case "char":
-      if (!state.query && (key.ch === "j" || key.ch === "k")) return reduce(state, { name: key.ch === "j" ? "down" : "up" });
+      if (!state.query && (key.ch === "j" || key.ch === "k"))
+        return reduce(state, { name: key.ch === "j" ? "down" : "up" });
       if (!state.query && key.ch === " ") return { state };
       return { state: requery(state, state.query + key.ch) };
   }
@@ -193,7 +201,9 @@ export function renderPicker(state: PickState, s: Style, opts: RenderOptions): s
   out.push(...s.table(cells, { indent: 1, columns: [{}, { drop: 2 }, { drop: 1 }, {}] }));
   const hidden = shown.length - page.length;
   if (hidden > 0) out.push(`  ${s.muted(`${hidden} more`)}`);
-  const hint = ascii ? "up/down or j/k move, type to filter, enter choose, esc cancel" : "↑↓ or j/k move · type to filter · enter choose · esc cancel";
+  const hint = ascii
+    ? "up/down or j/k move, type to filter, enter choose, esc cancel"
+    : "↑↓ or j/k move · type to filter · enter choose · esc cancel";
   out.push(`  ${s.muted(hint)}`);
   return out;
 }
@@ -210,7 +220,13 @@ export interface Terminal {
   start(onData: (chunk: string) => void, onResize?: () => void): () => void;
 }
 
-type RawInput = NodeJS.EventEmitter & { isRaw?: boolean; setRawMode(mode: boolean): unknown; setEncoding(enc: BufferEncoding): unknown; resume(): unknown; pause(): unknown };
+type RawInput = NodeJS.EventEmitter & {
+  isRaw?: boolean;
+  setRawMode(mode: boolean): unknown;
+  setEncoding(enc: BufferEncoding): unknown;
+  resume(): unknown;
+  pause(): unknown;
+};
 type Output = NodeJS.EventEmitter & { columns?: number; rows?: number; write(text: string): unknown };
 type Proc = Pick<NodeJS.Process, "on" | "off" | "kill" | "pid">;
 
@@ -222,7 +238,11 @@ const SIGNALS: NodeJS.Signals[] = ["SIGINT", "SIGTERM", "SIGHUP"];
  * The real terminal: raw stdin, drawing on stderr. A signal while the picker is open restores
  * the terminal (raw mode off, cursor shown) and then ends the process as the signal would.
  */
-export function realTerminal(input: RawInput = process.stdin as unknown as RawInput, output: Output = process.stderr, proc: Proc = process): Terminal {
+export function realTerminal(
+  input: RawInput = process.stdin as unknown as RawInput,
+  output: Output = process.stderr,
+  proc: Proc = process,
+): Terminal {
   return {
     columns: () => output.columns || 80,
     rows: () => output.rows || 24,
@@ -287,7 +307,12 @@ export interface RunOptions extends RenderOptions {
  * Run the picker on `term`. Resolves with the chosen value, or undefined when cancelled. The
  * picker's lines are erased at the end, and the terminal is restored on every path.
  */
-export function runPicker(term: Terminal, s: Style, items: readonly PickItem[], opts: RunOptions): Promise<string | undefined> {
+export function runPicker(
+  term: Terminal,
+  s: Style,
+  items: readonly PickItem[],
+  opts: RunOptions,
+): Promise<string | undefined> {
   return new Promise((resolve, reject) => {
     let state = initialState(items, opts.initial);
     let drawn = 0;
@@ -395,7 +420,11 @@ export interface PickProfileOptions {
 export type PickIo = Io & { terminal?: Terminal };
 
 /** "alice@example.com", "not logged in", or the launcher of an agent without account details. */
-async function accountText(name: string, agent: AgentId, env: NodeJS.ProcessEnv): Promise<{ text: string; warn: boolean }> {
+async function accountText(
+  name: string,
+  agent: AgentId,
+  env: NodeJS.ProcessEnv,
+): Promise<{ text: string; warn: boolean }> {
   if (!launcherPath(name, env, agent)) return { text: "not set up", warn: true };
   // turno reads no account for these agents (Codex, Copilot, Cursor).
   if (!adapter(agent).accountDetails) return { text: "-", warn: false };
@@ -412,7 +441,10 @@ async function accountText(name: string, agent: AgentId, env: NodeJS.ProcessEnv)
 export async function pickProfile(io: PickIo, opts: PickProfileOptions): Promise<string> {
   const config = loadConfig(io.env);
   const names = listProfiles(config, io.env, opts.agent);
-  if (!names.length) return fail(`no profiles yet${opts.agent && opts.agent !== DEFAULT_AGENT ? ` for ${adapter(opts.agent).label}` : ""}; create one with turno profile add <name>`);
+  if (!names.length)
+    return fail(
+      `no profiles yet${opts.agent && opts.agent !== DEFAULT_AGENT ? ` for ${adapter(opts.agent).label}` : ""}; create one with turno profile add <name>`,
+    );
   if (!io.ask) return needsAnswer(opts.command, `a profile: ${[...names, ...(opts.extra ?? [])].join(", ")}`);
 
   const dir = opts.dir ?? process.cwd();
@@ -423,7 +455,8 @@ export async function pickProfile(io: PickIo, opts: PickProfileOptions): Promise
     const chosen = resolveProfile(dir, config, io.env, roots, agent).chosen;
     if (chosen) here.set(chosen, true);
   }
-  const folderPick = names.find((n) => here.has(n) && agentOf(n, config) === DEFAULT_AGENT) ?? names.find((n) => here.has(n));
+  const folderPick =
+    names.find((n) => here.has(n) && agentOf(n, config) === DEFAULT_AGENT) ?? names.find((n) => here.has(n));
   // What `turno auto` would open here (Claude Code, as `turno run auto` does).
   const auto = opts.auto ? resolveProfile(dir, config, io.env, roots, DEFAULT_AGENT) : undefined;
   const autoTo = auto?.chosen && names.includes(auto.chosen) ? auto.chosen : undefined;
@@ -452,12 +485,19 @@ export async function pickProfile(io: PickIo, opts: PickProfileOptions): Promise
     ? [
         {
           value: "auto",
-          cells: [autoName(s), adapter(DEFAULT_AGENT).label, s.muted(auto!.reason), auto!.note ? s.warn(`${auto!.assigned} ${auto!.note}`) : ""],
+          cells: [
+            autoName(s),
+            adapter(DEFAULT_AGENT).label,
+            s.muted(auto!.reason),
+            auto!.note ? s.warn(`${auto!.assigned} ${auto!.note}`) : "",
+          ],
           search: `auto ${autoTo}`,
         },
       ]
     : [];
-  const withAccounts = Promise.all(names.map(async (n) => item(n, await accountText(n, agentOf(n, config), io.env)))).then((items) => [...first, ...items]);
+  const withAccounts = Promise.all(
+    names.map(async (n) => item(n, await accountText(n, agentOf(n, config), io.env))),
+  ).then((items) => [...first, ...items]);
 
   let value: string | undefined;
   if (term) {
@@ -480,7 +520,13 @@ export async function pickProfile(io: PickIo, opts: PickProfileOptions): Promise
  * The picker as a numbered question, for a person who can answer but not on a raw terminal
  * (an `ask` without a TTY on stdin): a number, a name, or Enter for the marked one.
  */
-async function askByNumber(io: PickIo, s: Style, items: PickItem[], title: string, initial: string | undefined): Promise<string | undefined> {
+async function askByNumber(
+  io: PickIo,
+  s: Style,
+  items: PickItem[],
+  title: string,
+  initial: string | undefined,
+): Promise<string | undefined> {
   io.err(`${s.accent("?")} ${s.bold(title)}`);
   const rows = items.map((it, i) => [s.muted(String(i + 1)), ...it.cells]);
   for (const line of s.table(rows, { columns: [{ align: "right" }] })) io.err(line);

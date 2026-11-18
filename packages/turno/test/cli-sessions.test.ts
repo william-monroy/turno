@@ -38,7 +38,15 @@ function livePid(): number {
 function session(pid: number, extra: Record<string, unknown> = {}) {
   sb.write(
     `.claude/sessions/${pid}.json`,
-    JSON.stringify({ pid, sessionId: `abcdef12-${pid}`, cwd: join(sb.home, "code"), entrypoint: "cli", status: "busy", procStart: procStartUtc(new Date()), ...extra }),
+    JSON.stringify({
+      pid,
+      sessionId: `abcdef12-${pid}`,
+      cwd: join(sb.home, "code"),
+      entrypoint: "cli",
+      status: "busy",
+      procStart: procStartUtc(new Date()),
+      ...extra,
+    }),
   );
 }
 

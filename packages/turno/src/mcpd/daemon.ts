@@ -28,7 +28,16 @@ import { describeOwner, peerPid, portOwner } from "./peerpid.js";
 import { memoryPressureProbe } from "./pressure.js";
 import { RssSampler } from "./rss.js";
 import { pidAlive } from "../core/fsutil.js";
-import { type StartError, answersAsMcpd, daemonFiles, ensureToken, isMcpdProcess, loadConfigSafe, readLock, readToken } from "./state.js";
+import {
+  type StartError,
+  answersAsMcpd,
+  daemonFiles,
+  ensureToken,
+  isMcpdProcess,
+  loadConfigSafe,
+  readLock,
+  readToken,
+} from "./state.js";
 
 export { daemonFiles, loadConfigSafe, masterToken, mcpdPort, readStartError, readToken, rotateToken } from "./state.js";
 
@@ -71,7 +80,9 @@ function acquireLock(env: NodeJS.ProcessEnv): void {
     }
     const held = readLock(env);
     if (held && isMcpdProcess(held.pid)) {
-      throw new AlreadyRunningError(`mcpd is already running (pid ${held.pid}${held.port ? `, port ${held.port}` : ""}); stop it with: turno mcp daemon stop`);
+      throw new AlreadyRunningError(
+        `mcpd is already running (pid ${held.pid}${held.port ? `, port ${held.port}` : ""}); stop it with: turno mcp daemon stop`,
+      );
     }
     // Stale: remove it only if nobody replaced it since we read it.
     try {
@@ -88,7 +99,8 @@ function releaseLock(env: NodeJS.ProcessEnv, port: number): void {
   if (readLock(env)?.pid !== process.pid) return;
   rmSync(f.lock, { force: true });
   try {
-    if (Number.parseInt(readFileSync(paths(env).mcpdPort, "utf8"), 10) === port) rmSync(paths(env).mcpdPort, { force: true });
+    if (Number.parseInt(readFileSync(paths(env).mcpdPort, "utf8"), 10) === port)
+      rmSync(paths(env).mcpdPort, { force: true });
   } catch {
     /* no port file */
   }
@@ -120,7 +132,10 @@ export interface Logger {
  * error handler so a full disk never takes the daemon down. Timestamps are UTC ISO;
  * `turno mcp daemon logs` shows them in local time.
  */
-export function createLogger(file: string, opts: { maxBytes?: number; keep?: number; toStdout?: boolean; env?: NodeJS.ProcessEnv } = {}): Logger {
+export function createLogger(
+  file: string,
+  opts: { maxBytes?: number; keep?: number; toStdout?: boolean; env?: NodeJS.ProcessEnv } = {},
+): Logger {
   const maxBytes = opts.maxBytes ?? 5 * 1024 * 1024;
   const keep = opts.keep ?? 2;
   let stream: WriteStream | undefined;
@@ -157,7 +172,8 @@ export function createLogger(file: string, opts: { maxBytes?: number; keep?: num
   const rotate = () => {
     stream?.end();
     try {
-      for (let i = keep - 1; i >= 1; i--) if (existsSync(`${file}.${i}`)) renameSync(`${file}.${i}`, `${file}.${i + 1}`);
+      for (let i = keep - 1; i >= 1; i--)
+        if (existsSync(`${file}.${i}`)) renameSync(`${file}.${i}`, `${file}.${i + 1}`);
       renameSync(file, `${file}.1`);
     } catch (err) {
       onError(err as Error);
@@ -182,7 +198,18 @@ export function createLogger(file: string, opts: { maxBytes?: number; keep?: num
 }
 
 /** Errors a socket or the disk raises that do not leave the daemon in a bad state. */
-const RECOVERABLE = new Set(["EPIPE", "ECONNRESET", "ECONNABORTED", "ETIMEDOUT", "ENOSPC", "EIO", "EAGAIN", "ERR_STREAM_DESTROYED", "ERR_STREAM_WRITE_AFTER_END", "ERR_STREAM_PREMATURE_CLOSE"]);
+const RECOVERABLE = new Set([
+  "EPIPE",
+  "ECONNRESET",
+  "ECONNABORTED",
+  "ETIMEDOUT",
+  "ENOSPC",
+  "EIO",
+  "EAGAIN",
+  "ERR_STREAM_DESTROYED",
+  "ERR_STREAM_WRITE_AFTER_END",
+  "ERR_STREAM_PREMATURE_CLOSE",
+]);
 
 /**
  * For the daemon process only (not for tests that start mcpd in process): log unhandled
@@ -190,7 +217,8 @@ const RECOVERABLE = new Set(["EPIPE", "ECONNRESET", "ECONNABORTED", "ETIMEDOUT",
  * cleanly and exit 1 so the service manager restarts mcpd.
  */
 export function installCrashGuards(log: (line: string) => void, stop: () => Promise<void>): () => void {
-  const onRejection = (reason: unknown) => log(`unhandled rejection, still running: ${(reason as Error)?.stack ?? String(reason)}`);
+  const onRejection = (reason: unknown) =>
+    log(`unhandled rejection, still running: ${(reason as Error)?.stack ?? String(reason)}`);
   const onException = (err: Error) => {
     const code = (err as NodeJS.ErrnoException).code;
     if (code && RECOVERABLE.has(code)) {
@@ -304,11 +332,17 @@ export interface RunningDaemon {
  * busy it fails with PortBusyError naming the owner, because every synced profile points at
  * that port. A broken mcp.toml or config.toml never stops it from starting.
  */
-export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number; logToStdout?: boolean; logMaxBytes?: number } = {}): Promise<RunningDaemon> {
+export async function startDaemon(
+  opts: { env?: NodeJS.ProcessEnv; port?: number; logToStdout?: boolean; logMaxBytes?: number } = {},
+): Promise<RunningDaemon> {
   const env = opts.env ?? process.env;
   const p = paths(env);
   const files = daemonFiles(env);
-  const log = createLogger(files.log, { env, toStdout: Boolean(opts.logToStdout), ...(opts.logMaxBytes ? { maxBytes: opts.logMaxBytes } : {}) });
+  const log = createLogger(files.log, {
+    env,
+    toStdout: Boolean(opts.logToStdout),
+    ...(opts.logMaxBytes ? { maxBytes: opts.logMaxBytes } : {}),
+  });
 
   const { config, error: firstConfigError } = loadConfigSafe(env);
   let configError = firstConfigError;
@@ -317,7 +351,8 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
   let folderRules = config.projects;
   const wanted = opts.port ?? config.mcpd.port;
   const fail = async (err: Error): Promise<never> => {
-    if (!(err instanceof AlreadyRunningError)) writeStartError(env, { at: new Date().toISOString(), message: err.message, port: wanted });
+    if (!(err instanceof AlreadyRunningError))
+      writeStartError(env, { at: new Date().toISOString(), message: err.message, port: wanted });
     log(`mcpd could not start: ${err.message}`);
     await log.close();
     throw err;
@@ -347,7 +382,9 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
         vars: env,
         builtins: await loadBuiltins(),
         baseEnv: Object.fromEntries(
-          ["PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TMPDIR"].flatMap((k) => (env[k] ? [[k, env[k] as string]] : [])),
+          ["PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TMPDIR"].flatMap((k) =>
+            env[k] ? [[k, env[k] as string]] : [],
+          ),
         ),
       }),
       home: p.home,
@@ -371,7 +408,11 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
       version: packageInfo().version,
       port,
       startedAt,
-      manifest: { source: state.source, servers: Object.keys(state.manifest.servers).length, error: state.error ?? null },
+      manifest: {
+        source: state.source,
+        servers: Object.keys(state.manifest.servers).length,
+        error: state.error ?? null,
+      },
       config: { error: configError ?? null, folderSets: folderRules.filter((r) => r.mcp || r.mcpDeny).length },
       callLog: { enabled: Boolean(calls) },
       serverRss: sampler.samples(),
@@ -383,18 +424,25 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
       await gateway.close().catch(() => {});
       if ((err as NodeJS.ErrnoException).code !== "EADDRINUSE") throw err;
       const ours = await answersAsMcpd(wanted, token);
-      if (ours) throw new AlreadyRunningError(`mcpd is already running on port ${wanted}${ours.pid ? ` (pid ${ours.pid})` : ""}`);
+      if (ours)
+        throw new AlreadyRunningError(
+          `mcpd is already running on port ${wanted}${ours.pid ? ` (pid ${ours.pid})` : ""}`,
+        );
       const owner = await portOwner(wanted, { env });
       throw new PortBusyError(
         `port ${wanted} is in use by ${describeOwner(owner)}. mcpd does not move to another port, because every synced profile points at this one: free the port, or pick another with \`turno config set mcpd.port <port>\` and run \`turno mcp sync\``,
         wanted,
       );
     }
-    writeFileSync(files.lock, `${JSON.stringify({ pid: process.pid, port, startedAt })}\n`, { mode: PRIVATE_FILE_MODE });
+    writeFileSync(files.lock, `${JSON.stringify({ pid: process.pid, port, startedAt })}\n`, {
+      mode: PRIVATE_FILE_MODE,
+    });
     ensurePrivateDir(dirname(p.mcpdPort), env);
     atomicWrite(p.mcpdPort, `${port}\n`, PRIVATE_FILE_MODE);
     writeStartError(env, undefined);
-    log(`mcpd ${packageInfo().version} listening on 127.0.0.1:${port} with ${Object.keys(state.manifest.servers).length} servers`);
+    log(
+      `mcpd ${packageInfo().version} listening on 127.0.0.1:${port} with ${Object.keys(state.manifest.servers).length} servers`,
+    );
 
     const reload = async (why: string) => {
       const next = loadManifestSafe(env);
@@ -456,7 +504,10 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
           }
           if (file !== "mcp.toml") return;
           clearTimeout(debounce);
-          debounce = setTimeout(() => void reload("mcp.toml changed").catch((e) => log(`reload failed: ${(e as Error).message}`)), 300);
+          debounce = setTimeout(
+            () => void reload("mcp.toml changed").catch((e) => log(`reload failed: ${(e as Error).message}`)),
+            300,
+          );
         });
         watcher.on("error", (e) => log(`config watch failed: ${e.message}`));
       } catch (e) {
@@ -508,7 +559,8 @@ export async function startDaemon(opts: { env?: NodeJS.ProcessEnv; port?: number
           manager.flushLogins().catch(() => [] as string[]),
           new Promise<string[]>((r) => setTimeout(() => r([]), 3000).unref()),
         ]);
-        if (lost.length) log(`OAuth tokens not saved, a new login is needed for: ${lost.join(", ")} (turno mcp login <server>)`);
+        if (lost.length)
+          log(`OAuth tokens not saved, a new login is needed for: ${lost.join(", ")} (turno mcp login <server>)`);
         await manager.stopAll();
         await gateway.close();
         releaseLock(env, port);

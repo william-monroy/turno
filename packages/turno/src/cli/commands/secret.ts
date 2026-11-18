@@ -57,18 +57,29 @@ async function list(args: string[], io: Io): Promise<number> {
   const s = refs.length ? store(io) : undefined;
   const found = s ? await Promise.all(refs.map((r) => s.has(r))) : [];
   if (json) {
-    emit(io, p, LIST_JSON, refs.map((r, i) => ({ service: r, stored: found[i] })));
+    emit(
+      io,
+      p,
+      LIST_JSON,
+      refs.map((r, i) => ({ service: r, stored: found[i] })),
+    );
     return 0;
   }
   if (!refs.length) io.out(`no keychain: references in ${tildify(paths(io.env).mcpFile, io.env)}`);
-  for (const [i, r] of refs.entries()) io.out(`${found[i] ? "stored " : "MISSING"}  keychain:${r}${found[i] ? "" : `  (turno secret set ${r})`}`);
+  for (const [i, r] of refs.entries())
+    io.out(`${found[i] ? "stored " : "MISSING"}  keychain:${r}${found[i] ? "" : `  (turno secret set ${r})`}`);
   return found.every(Boolean) ? 0 : 1;
 }
 
 export const command: Command = {
   summary: "store MCP secrets in the Keychain (macOS) or the Secret Service (Linux)",
   usage: USAGE,
-  subcommands: { set: { args: ["any"] }, has: { args: ["any"] }, rm: { args: ["any"] }, list: { flags: flagsOf(JSON_FLAG) } },
+  subcommands: {
+    set: { args: ["any"] },
+    has: { args: ["any"] },
+    rm: { args: ["any"] },
+    list: { flags: flagsOf(JSON_FLAG) },
+  },
   async run(args, io) {
     const [sub] = args;
     const rest = args.slice(1);
@@ -90,7 +101,10 @@ export const command: Command = {
           if (!value) return fail("empty value");
           await s.set(service, value);
           io.out(`stored keychain:${service}`);
-          nextStep(io, `use it in mcp.toml as "keychain:${service}"; turno secret list shows which references are stored`);
+          nextStep(
+            io,
+            `use it in mcp.toml as "keychain:${service}"; turno secret list shows which references are stored`,
+          );
           return 0;
         }
         case "has":

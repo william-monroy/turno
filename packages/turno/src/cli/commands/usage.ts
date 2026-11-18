@@ -20,11 +20,16 @@ export interface AuthStatus {
 }
 
 /** Why `claude auth status` gave no answer, in a few words for the account column. */
-function authFailure(err: (Error & { code?: unknown; killed?: boolean; signal?: unknown }) | null, stdout: string, stderr: string): string {
+function authFailure(
+  err: (Error & { code?: unknown; killed?: boolean; signal?: unknown }) | null,
+  stdout: string,
+  stderr: string,
+): string {
   if (err?.code === "ENOENT") return "claude is not on PATH";
   if (err?.killed || err?.signal === "SIGTERM") return "claude auth status timed out";
   const line = (stderr || stdout).trim().split("\n")[0]?.trim();
-  if (err && typeof err.code === "number") return `claude auth status exited with ${err.code}${line ? `: ${line.slice(0, 120)}` : ""}`;
+  if (err && typeof err.code === "number")
+    return `claude auth status exited with ${err.code}${line ? `: ${line.slice(0, 120)}` : ""}`;
   return "claude auth status gave no JSON";
 }
 
@@ -66,7 +71,10 @@ function recordPlan(profile: string, s: AuthStatus, env: NodeJS.ProcessEnv): voi
  * so `turno`, `turno status` and `turno profile list` do not start one claude per profile on
  * every run; logging in or out changes those files and asks again. Failures are not kept.
  */
-function authStatusResult(profile: string, env: NodeJS.ProcessEnv = process.env): Promise<{ status?: AuthStatus; why?: string }> {
+function authStatusResult(
+  profile: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<{ status?: AuthStatus; why?: string }> {
   const dir = profileDir(profile, env);
   const cacheFile = join(paths(env).state, "cache", `auth-${profile}.json`);
   const now = Date.now() / 1000;
@@ -103,7 +111,11 @@ function authStatusResult(profile: string, env: NodeJS.ProcessEnv = process.env)
         recordPlan(profile, s, env);
         try {
           // Keyed after the call, so a claude that touches its own files still finds the entry.
-          writePrivateFile(cacheFile, JSON.stringify({ key: authFingerprint(dir), at: Math.trunc(now), status: s }), env);
+          writePrivateFile(
+            cacheFile,
+            JSON.stringify({ key: authFingerprint(dir), at: Math.trunc(now), status: s }),
+            env,
+          );
         } catch {
           // without the cache the next run asks claude again
         }
@@ -114,7 +126,10 @@ function authStatusResult(profile: string, env: NodeJS.ProcessEnv = process.env)
 }
 
 /** `claude auth status --json` of a profile, or undefined when it fails (authStatusResult says why). */
-export async function authStatus(profile: string, env: NodeJS.ProcessEnv = process.env): Promise<AuthStatus | undefined> {
+export async function authStatus(
+  profile: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<AuthStatus | undefined> {
   return (await authStatusResult(profile, env)).status;
 }
 
@@ -129,7 +144,8 @@ export interface UsageSnapshot {
 }
 
 /** The status line's usage snapshot: its windows are read field by field, so the shape check is light. */
-const isSnapshot = (v: unknown): v is UsageSnapshot => isRecord(v) && (v.rate_limits === undefined || isRecord(v.rate_limits));
+const isSnapshot = (v: unknown): v is UsageSnapshot =>
+  isRecord(v) && (v.rate_limits === undefined || isRecord(v.rate_limits));
 
 function readSnapshot(file: string): UsageSnapshot | undefined {
   return readState(file, isSnapshot);
@@ -224,18 +240,33 @@ export function renderUsage(
       const reset = typeof w.resets_at === "number" ? w.resets_at : undefined;
       if (reset && reset < now) pct = 0;
       const when = reset ? resetText(reset, now) : "";
-      out.push(s.wrap(`  ${s.muted(label.padEnd(7))}  ${s.bar(pct, BAR_CELLS)}  `, pct >= 100 ? s.err(`used up, ${when}`) : s.muted(when)).trimEnd());
+      out.push(
+        s
+          .wrap(
+            `  ${s.muted(label.padEnd(7))}  ${s.bar(pct, BAR_CELLS)}  `,
+            pct >= 100 ? s.err(`used up, ${when}`) : s.muted(when),
+          )
+          .trimEnd(),
+      );
     }
     const exhausted = exhaustedUntil(p, io.env);
     if (exhausted !== undefined && exhausted > now) {
-      out.push(s.note("err", `${s.err(`exhausted until ${shortTime(exhausted)}`)}${s.muted(": its projects open with the fallback, if one is set")}`));
+      out.push(
+        s.note(
+          "err",
+          `${s.err(`exhausted until ${shortTime(exhausted)}`)}${s.muted(": its projects open with the fallback, if one is set")}`,
+        ),
+      );
     }
     if (!hasLimits) {
       const why =
-        plan === "team" ? "the Team plan does not report these limits" : "shows up once a session of this account gets a response";
+        plan === "team"
+          ? "the Team plan does not report these limits"
+          : "shows up once a session of this account gets a response";
       out.push(s.muted(`  no usage data yet: ${why}`));
     }
-    if (hasLimits && typeof data.updated_at === "number") out.push(s.muted(`  data from ${agoText(data.updated_at, now)}`));
+    if (hasLimits && typeof data.updated_at === "number")
+      out.push(s.muted(`  data from ${agoText(data.updated_at, now)}`));
     out.push("");
   }
   return `${out.join("\n").trimEnd()}\n`;
@@ -261,7 +292,9 @@ export const command: Command = {
     }
     return new Promise<number>((resolve) => {
       const draw = () => {
-        io.out(`\x1b[2J\x1b[H${renderUsage(profiles, accounts, io, { colors: config.profiles })}\n${style(io).muted("refreshes every 30 s · Ctrl+C to quit")}`);
+        io.out(
+          `\x1b[2J\x1b[H${renderUsage(profiles, accounts, io, { colors: config.profiles })}\n${style(io).muted("refreshes every 30 s · Ctrl+C to quit")}`,
+        );
       };
       draw();
       const timer = setInterval(draw, 30_000);

@@ -1,4 +1,20 @@
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  readlinkSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  rmdirSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { createHash } from "node:crypto";
 import { basename, dirname, join } from "node:path";
 import { PRIVATE_FILE_MODE, ensurePrivateDir, isPrivatePath, paths } from "./paths.js";
@@ -290,7 +306,8 @@ export interface JournalInfo {
 }
 
 const isManifest = (v: unknown): v is JournalManifest =>
-  hasFields(v, { stamp: "string", command: "string", entries: "array" }) && (v.entries as unknown[]).every((e) => hasFields(e, { path: "string" }));
+  hasFields(v, { stamp: "string", command: "string", entries: "array" }) &&
+  (v.entries as unknown[]).every((e) => hasFields(e, { path: "string" }));
 
 /** Backup folders, newest first. */
 export function listJournals(env: NodeJS.ProcessEnv): JournalInfo[] {
@@ -344,7 +361,8 @@ function undoTreeEntry(e: JournalEntry, journal: Journal): UndoStep | undefined 
   switch (e.kind) {
     case "symlink": {
       if (!st) return undefined;
-      if (!st.isSymbolicLink() || readlinkSync(e.path) !== e.target) return { path: e.path, action: "skip", reason: "no longer the link turno made; left as it is" };
+      if (!st.isSymbolicLink() || readlinkSync(e.path) !== e.target)
+        return { path: e.path, action: "skip", reason: "no longer the link turno made; left as it is" };
       journal.unlink(e.path);
       return { path: e.path, action: "unlink" };
     }
@@ -354,14 +372,16 @@ function undoTreeEntry(e: JournalEntry, journal: Journal): UndoStep | undefined 
       return { path: e.path, action: "link" };
     }
     case "move": {
-      if (st) return { path: e.path, action: "skip", reason: `something is there now; the moved copy stays at ${e.to}` };
+      if (st)
+        return { path: e.path, action: "skip", reason: `something is there now; the moved copy stays at ${e.to}` };
       if (!lstatOf(e.to!)) return { path: e.path, action: "skip", reason: `${e.to} is gone` };
       journal.move(e.to!, e.path);
       return { path: e.path, action: "move", from: e.to! };
     }
     case "mkdir": {
       if (!st) return undefined;
-      if (!st.isDirectory() || !isEmptyDir(e.path)) return { path: e.path, action: "keep", reason: "not empty (it holds files made since)" };
+      if (!st.isDirectory() || !isEmptyDir(e.path))
+        return { path: e.path, action: "keep", reason: "not empty (it holds files made since)" };
       journal.rmdir(e.path);
       return { path: e.path, action: "rmdir" };
     }
@@ -385,7 +405,8 @@ function chmodStep(e: JournalEntry, st: ReturnType<typeof lstatOf>): UndoStep | 
   if (!st || e.mode === undefined) return undefined;
   const now = st.mode & 0o777;
   if (now === e.mode) return undefined;
-  if (now !== e.newMode) return { path: e.path, action: "skip", reason: `its mode changed since (now ${now.toString(8)}); left as it is` };
+  if (now !== e.newMode)
+    return { path: e.path, action: "skip", reason: `its mode changed since (now ${now.toString(8)}); left as it is` };
   return { path: e.path, action: "chmod", mode: e.mode };
 }
 
@@ -395,16 +416,25 @@ function planTreeEntry(e: JournalEntry): UndoStep | undefined {
   switch (e.kind) {
     case "symlink":
       if (!st) return undefined;
-      return st.isSymbolicLink() && readlinkSync(e.path) === e.target ? { path: e.path, action: "unlink" } : { path: e.path, action: "skip", reason: "no longer the link turno made; left as it is" };
+      return st.isSymbolicLink() && readlinkSync(e.path) === e.target
+        ? { path: e.path, action: "unlink" }
+        : { path: e.path, action: "skip", reason: "no longer the link turno made; left as it is" };
     case "unlink":
-      return st ? { path: e.path, action: "skip", reason: `something else is there now; it linked to ${e.target}` } : { path: e.path, action: "link" };
+      return st
+        ? { path: e.path, action: "skip", reason: `something else is there now; it linked to ${e.target}` }
+        : { path: e.path, action: "link" };
     case "move":
-      if (st) return { path: e.path, action: "skip", reason: `something is there now; the moved copy stays at ${e.to}` };
-      return lstatOf(e.to!) ? { path: e.path, action: "move", from: e.to! } : { path: e.path, action: "skip", reason: `${e.to} is gone` };
+      if (st)
+        return { path: e.path, action: "skip", reason: `something is there now; the moved copy stays at ${e.to}` };
+      return lstatOf(e.to!)
+        ? { path: e.path, action: "move", from: e.to! }
+        : { path: e.path, action: "skip", reason: `${e.to} is gone` };
     case "mkdir":
       if (!st) return undefined;
       // In a dry run nothing inside was removed yet: report the folder as removable.
-      return st.isDirectory() ? { path: e.path, action: "rmdir" } : { path: e.path, action: "keep", reason: "not a folder any more" };
+      return st.isDirectory()
+        ? { path: e.path, action: "rmdir" }
+        : { path: e.path, action: "keep", reason: "not a folder any more" };
     case "rmdir":
       return st ? undefined : { path: e.path, action: "mkdir" };
     case "chmod":

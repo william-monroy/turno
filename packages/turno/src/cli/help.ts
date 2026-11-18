@@ -18,7 +18,14 @@ const EXAMPLES: [string, string][] = [
 ];
 
 /** Rows of `left  summary`, with summaries wrapped under their column within the width. */
-function rows(left: readonly string[], right: readonly string[], leftWidth: number, width: number, paintLeft: (s: string) => string, paintRight: (s: string) => string): string[] {
+function rows(
+  left: readonly string[],
+  right: readonly string[],
+  leftWidth: number,
+  width: number,
+  paintLeft: (s: string) => string,
+  paintRight: (s: string) => string,
+): string[] {
   const out: string[] = [];
   const col = 2 + leftWidth + 2;
   for (const [i, l] of left.entries()) {
@@ -44,14 +51,19 @@ export function renderHelp(io: Pick<Io, "env" | "isTty" | "color">, sections: re
   out.push(s.color ? `${s.bold(s.accent("turno"))}${s.bold(first[0]!.slice("turno".length))}` : first[0]!);
   for (const l of first.slice(1)) out.push(s.bold(l));
   out.push("");
-  out.push(`${s.lead("next", "Start here:")} ${s.bold(s.accent("turno init"))}, or ${s.accent("turno demo")} to try turno in a throwaway HOME.`);
+  out.push(
+    `${s.lead("next", "Start here:")} ${s.bold(s.accent("turno init"))}, or ${s.accent("turno demo")} to try turno in a throwaway HOME.`,
+  );
 
   const usage = ["turno <command> [flags]", "turno <profile> [args...]"];
   out.push("", s.header("Usage"));
   out.push(
     ...rows(
       usage,
-      ["a command below; turno <command> --help shows its flags", "open that profile with its agent; the arguments after it go to the agent"],
+      [
+        "a command below; turno <command> --help shows its flags",
+        "open that profile with its agent; the arguments after it go to the agent",
+      ],
       Math.max(...usage.map((u) => u.length)),
       width,
       (l) => `${s.muted("turno")}${l.slice("turno".length)}`,

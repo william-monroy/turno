@@ -17,12 +17,27 @@ let cached: PackageInfo | undefined;
 export function packageInfo(): PackageInfo {
   if (cached) return cached;
   const root = fileURLToPath(new URL("../../", import.meta.url));
-  const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { name: string; version: string; private?: boolean };
+  const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
+    name: string;
+    version: string;
+    private?: boolean;
+  };
   cached = { name: pkg.name, version: pkg.version, private: Boolean(pkg.private), root: root.replace(/\/$/, "") };
   return cached;
 }
 
-type InstallMethod = "npm" | "pnpm" | "yarn" | "bun" | "volta" | "brew" | "npx" | "pnpm-dlx" | "bunx" | "source" | "unknown";
+type InstallMethod =
+  | "npm"
+  | "pnpm"
+  | "yarn"
+  | "bun"
+  | "volta"
+  | "brew"
+  | "npx"
+  | "pnpm-dlx"
+  | "bunx"
+  | "source"
+  | "unknown";
 
 export interface Install {
   method: InstallMethod;
@@ -47,7 +62,8 @@ function oneOffMethod(path: string): OneOffMethod | undefined {
   if (parts.includes("_npx")) return "npx";
   // pnpm dlx: <pnpm cache>/dlx/<hash>/<stamp>/node_modules/... (~/.cache/pnpm, ~/Library/Caches/pnpm).
   const dlx = parts.indexOf("dlx");
-  if (dlx > 0 && (parts[dlx - 1] === "pnpm" || parts.includes(".pnpm") || parts.includes(".pacquet"))) return "pnpm-dlx";
+  if (dlx > 0 && (parts[dlx - 1] === "pnpm" || parts.includes(".pnpm") || parts.includes(".pacquet")))
+    return "pnpm-dlx";
   // bunx: $TMPDIR/bunx-<uid>-<pkg>@<version>/node_modules/<pkg>.
   if (parts.some((p) => p.startsWith("bunx-"))) return "bunx";
   return undefined;
@@ -101,7 +117,8 @@ export function detectInstall(root = packageInfo().root): Install {
     return { method, root: real };
   }
   for (let dir = real; dir !== dirname(dir); dir = dirname(dir)) {
-    if (existsSync(join(dir, ".git")) && existsSync(join(dir, "pnpm-workspace.yaml"))) return { method: "source", root: real, repo: dir };
+    if (existsSync(join(dir, ".git")) && existsSync(join(dir, "pnpm-workspace.yaml")))
+      return { method: "source", root: real, repo: dir };
   }
   return { method: "unknown", root: real };
 }
@@ -122,7 +139,10 @@ export function upgradeCommand(install: Install, name: string, spec: string): st
       return [["volta", "install", target]];
     case "brew":
       // The formula follows the newest release; brew cannot install an arbitrary version.
-      return [["brew", "update"], ["brew", "upgrade", "turno"]];
+      return [
+        ["brew", "update"],
+        ["brew", "upgrade", "turno"],
+      ];
     case "source":
       return [
         ["git", "-C", install.repo!, "pull", "--ff-only"],

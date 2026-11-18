@@ -68,9 +68,13 @@ if (built.config && !help) {
 if (built.userDataDir && !help) {
   const swept = await sweepOrphan(built.userDataDir);
   if (swept.action === "exited" || swept.action === "killed") {
-    process.stderr.write(`turno-browser-mcp: closed a Chrome an earlier run left open on this profile (pid ${swept.pid})\n`);
+    process.stderr.write(
+      `turno-browser-mcp: closed a Chrome an earlier run left open on this profile (pid ${swept.pid})\n`,
+    );
   } else if (swept.action === "survived") {
-    process.stderr.write(`turno-browser-mcp: a Chrome an earlier run left open on this profile (pid ${swept.pid}) did not stop\n`);
+    process.stderr.write(
+      `turno-browser-mcp: a Chrome an earlier run left open on this profile (pid ${swept.pid}) did not stop\n`,
+    );
   }
   installShutdownGuard(built.userDataDir);
 }

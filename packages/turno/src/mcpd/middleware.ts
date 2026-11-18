@@ -70,7 +70,12 @@ function filterStage(manifest: () => Manifest): CallStage {
       const filter = toolFilterOf(manifest(), call.client.ctx);
       if (filter && !toolAllowed(filter, call.tool)) {
         const { serverName, profile } = call.client.ctx;
-        return Promise.resolve(rpcError(ErrorCode.InvalidParams, `tool ${call.tool} of ${serverName} is not available to profile ${profile ?? "default"} (tools.allow / tools.deny in mcp.toml)`));
+        return Promise.resolve(
+          rpcError(
+            ErrorCode.InvalidParams,
+            `tool ${call.tool} of ${serverName} is not available to profile ${profile ?? "default"} (tools.allow / tools.deny in mcp.toml)`,
+          ),
+        );
       }
       return next(call);
     },
@@ -89,7 +94,15 @@ function callLogStage(sink: () => ((event: CallEvent) => void) | undefined): Cal
       const record = sink();
       if (record) {
         try {
-          record({ ctx: call.client.ctx, method: "tools/call", params, ...(call.variant ? { variant: call.variant } : {}), outcome, startedAt, durationMs: performance.now() - t0 });
+          record({
+            ctx: call.client.ctx,
+            method: "tools/call",
+            params,
+            ...(call.variant ? { variant: call.variant } : {}),
+            outcome,
+            startedAt,
+            durationMs: performance.now() - t0,
+          });
         } catch {
           /* observing a call never fails it */
         }
@@ -115,7 +128,10 @@ function sessionStage(): CallStage {
         id = randomUUID();
         ids.set(call.client, id);
       }
-      const meta = typeof call.params._meta === "object" && call.params._meta !== null ? (call.params._meta as Record<string, unknown>) : {};
+      const meta =
+        typeof call.params._meta === "object" && call.params._meta !== null
+          ? (call.params._meta as Record<string, unknown>)
+          : {};
       call.params = { ...call.params, _meta: { ...meta, [SESSION_META]: id } };
       return next(call);
     },
@@ -145,8 +161,21 @@ export class CallPipeline {
   }
 
   /** Relay one tools/call through every stage, then `InstanceManager.forward`. */
-  call(client: ClientHandle, params: Record<string, unknown>, originId: Id, cancelled: () => boolean): Promise<Outcome> {
-    const relay: NextStage = (c) => this.manager.forward(c.client, "tools/call", c.params, c.originId, c.cancelled, (variant) => (c.variant = variant));
+  call(
+    client: ClientHandle,
+    params: Record<string, unknown>,
+    originId: Id,
+    cancelled: () => boolean,
+  ): Promise<Outcome> {
+    const relay: NextStage = (c) =>
+      this.manager.forward(
+        c.client,
+        "tools/call",
+        c.params,
+        c.originId,
+        c.cancelled,
+        (variant) => (c.variant = variant),
+      );
     const run = this.stages.reduceRight<NextStage>((next, stage) => (c) => stage.run(c, next), relay);
     return run({ client, tool: typeof params.name === "string" ? params.name : "", params, originId, cancelled });
   }
@@ -165,6 +194,12 @@ export interface PipelineOptions {
 /** mcpd's pipeline: the built-in stages around the opt-in ones. */
 export function createCallPipeline(opts: PipelineOptions): CallPipeline {
   const stages = opts.stages ?? [];
-  for (const s of stages) if ((BUILT_IN as readonly string[]).includes(s.name)) throw new Error(`call stage "${s.name}" is registered twice`);
-  return new CallPipeline(opts.manager, [filterStage(opts.manifest), ...stages, callLogStage(opts.callLog ?? (() => undefined)), sessionStage()]);
+  for (const s of stages)
+    if ((BUILT_IN as readonly string[]).includes(s.name)) throw new Error(`call stage "${s.name}" is registered twice`);
+  return new CallPipeline(opts.manager, [
+    filterStage(opts.manifest),
+    ...stages,
+    callLogStage(opts.callLog ?? (() => undefined)),
+    sessionStage(),
+  ]);
 }

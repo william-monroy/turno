@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { publishOrder } from "./release-plan.mjs";
 
-const pkg = (dir, name, dependencies = {}, extra = {}) => ({ dir, manifest: { name, version: "1.0.0", dependencies, ...extra } });
+const pkg = (dir, name, dependencies = {}, extra = {}) => ({
+  dir,
+  manifest: { name, version: "1.0.0", dependencies, ...extra },
+});
 
 test("publishes a workspace package before the packages that depend on it", () => {
   const order = publishOrder([
@@ -15,5 +18,8 @@ test("publishes a workspace package before the packages that depend on it", () =
 });
 
 test("refuses a dependency cycle", () => {
-  assert.throws(() => publishOrder([pkg("a", "a", { b: "workspace:*" }), pkg("b", "b", { a: "workspace:*" })]), /cycle: a -> b -> a/);
+  assert.throws(
+    () => publishOrder([pkg("a", "a", { b: "workspace:*" }), pkg("b", "b", { a: "workspace:*" })]),
+    /cycle: a -> b -> a/,
+  );
 });

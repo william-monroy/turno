@@ -68,7 +68,20 @@ export interface Config {
 
 /** Every key config.toml may hold, by table ("" is the top level; `*` stands for any name). */
 const KNOWN_KEYS: Record<string, readonly string[]> = {
-  "": ["system", "default", "fallback", "icons", "nerd_terminals", "update_check", "hints", "profiles", "agents", "projects", "open", "mcpd"],
+  "": [
+    "system",
+    "default",
+    "fallback",
+    "icons",
+    "nerd_terminals",
+    "update_check",
+    "hints",
+    "profiles",
+    "agents",
+    "projects",
+    "open",
+    "mcpd",
+  ],
   "profiles.*": ["agent", "browser", "color"],
   "agents.*": ["default", "fallback"],
   "projects[]": ["path", "profile", "mcp", "mcp_deny"],
@@ -76,7 +89,19 @@ const KNOWN_KEYS: Record<string, readonly string[]> = {
   mcpd: ["port", "call_log", "max_request_body", "idle_under_pressure"],
 };
 
-const SIZE_UNITS: Record<string, number> = { "": 1, b: 1, k: 1024, kb: 1000, kib: 1024, m: 1024 ** 2, mb: 1000 ** 2, mib: 1024 ** 2, g: 1024 ** 3, gb: 1000 ** 3, gib: 1024 ** 3 };
+const SIZE_UNITS: Record<string, number> = {
+  "": 1,
+  b: 1,
+  k: 1024,
+  kb: 1000,
+  kib: 1024,
+  m: 1024 ** 2,
+  mb: 1000 ** 2,
+  mib: 1024 ** 2,
+  g: 1024 ** 3,
+  gb: 1000 ** 3,
+  gib: 1024 ** 3,
+};
 /** Bounds of `mcpd.max_request_body`: below 1 MiB ordinary tool calls fail, above 1 GiB a client can exhaust memory. */
 const MIN_REQUEST_BODY = 1024 ** 2;
 const MAX_REQUEST_BODY = 1024 ** 3;
@@ -96,7 +121,8 @@ export function parseSize(v: unknown): number | undefined {
 /** Check `mcpd.max_request_body`; the message when it is out of bounds or not a size. */
 export function requestBodyProblem(v: unknown): string | undefined {
   const n = parseSize(v);
-  if (n === undefined || n < MIN_REQUEST_BODY || n > MAX_REQUEST_BODY) return 'mcpd.max_request_body must be a size between 1MiB and 1GiB, in bytes or like "64MiB"';
+  if (n === undefined || n < MIN_REQUEST_BODY || n > MAX_REQUEST_BODY)
+    return 'mcpd.max_request_body must be a size between 1MiB and 1GiB, in bytes or like "64MiB"';
   return undefined;
 }
 
@@ -119,7 +145,8 @@ export function parseIdleUnderPressure(v: unknown): number | undefined {
   return secs !== undefined && Number.isFinite(secs) && secs >= 30 && secs <= 24 * 3600 ? secs : undefined;
 }
 
-export const IDLE_UNDER_PRESSURE_PROBLEM = 'mcpd.idle_under_pressure must be a duration between 30s and 24h, like "5m", or false';
+export const IDLE_UNDER_PRESSURE_PROBLEM =
+  'mcpd.idle_under_pressure must be a duration between 30s and 24h, like "5m", or false';
 
 /** The known key closest to `key`, when it is a likely typo (or `colour` for `color`). */
 export function suggestKey(key: string, known: readonly string[]): string | undefined {
@@ -131,7 +158,12 @@ export function suggestKey(key: string, known: readonly string[]): string | unde
   return best?.k;
 }
 
-function unknownKeys(table: Record<string, unknown>, known: readonly string[], prefix: string, warnings: string[]): void {
+function unknownKeys(
+  table: Record<string, unknown>,
+  known: readonly string[],
+  prefix: string,
+  warnings: string[],
+): void {
   for (const key of Object.keys(table)) {
     if (known.includes(key)) continue;
     const near = suggestKey(key, known);
@@ -171,7 +203,8 @@ function str(v: unknown, file: string, key: string): string | undefined {
 /** A list of MCP server names (`[[projects]] mcp`), or undefined when unset. */
 function names(v: unknown, file: string, key: string): string[] | undefined {
   if (v === undefined) return undefined;
-  if (!Array.isArray(v) || v.some((x) => typeof x !== "string" || !x)) throw new ConfigError(file, `${key} must be an array of server names, like ["issues", "docs"]`);
+  if (!Array.isArray(v) || v.some((x) => typeof x !== "string" || !x))
+    throw new ConfigError(file, `${key} must be an array of server names, like ["issues", "docs"]`);
   return v as string[];
 }
 
@@ -252,7 +285,10 @@ export function parseConfig(text: string, path = "config.toml", env: NodeJS.Proc
   const agents = table(raw.agents, file, "agents");
   for (const [id, value] of Object.entries(agents)) {
     if (!isAgentId(id) || id === DEFAULT_AGENT) {
-      throw new ConfigError(file, `[agents.${id}]: use one of ${AGENT_IDS.filter((a) => a !== DEFAULT_AGENT).join(", ")} (${adapter(DEFAULT_AGENT).label} uses the top-level default and fallback)`);
+      throw new ConfigError(
+        file,
+        `[agents.${id}]: use one of ${AGENT_IDS.filter((a) => a !== DEFAULT_AGENT).join(", ")} (${adapter(DEFAULT_AGENT).label} uses the top-level default and fallback)`,
+      );
     }
     const v = table(value, file, `agents.${id}`);
     unknownKeys(v, KNOWN_KEYS["agents.*"]!, `agents.${id}.`, warnings);
@@ -273,8 +309,14 @@ export function parseConfig(text: string, path = "config.toml", env: NodeJS.Proc
     const profile = str(v.profile, file, `projects[${i}].profile`);
     const mcp = names(v.mcp, file, `projects[${i}].mcp`);
     const mcpDeny = names(v.mcp_deny, file, `projects[${i}].mcp_deny`);
-    if (!path || (!profile && !mcp && !mcpDeny)) throw new ConfigError(file, `projects[${i}] needs path and profile, mcp or mcp_deny`);
-    cfg.projects.push({ path: expandHome(path, env), ...(profile ? { profile } : {}), ...(mcp ? { mcp } : {}), ...(mcpDeny ? { mcpDeny } : {}) });
+    if (!path || (!profile && !mcp && !mcpDeny))
+      throw new ConfigError(file, `projects[${i}] needs path and profile, mcp or mcp_deny`);
+    cfg.projects.push({
+      path: expandHome(path, env),
+      ...(profile ? { profile } : {}),
+      ...(mcp ? { mcp } : {}),
+      ...(mcpDeny ? { mcpDeny } : {}),
+    });
   }
 
   const open = table(raw.open, file, "open");

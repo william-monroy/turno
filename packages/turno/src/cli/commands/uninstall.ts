@@ -104,7 +104,9 @@ function safeConfig(env: NodeJS.ProcessEnv): Config {
 function serverNames(file: string): string[] {
   try {
     const text = readFileSync(file, "utf8");
-    const servers = file.endsWith(".toml") ? (parseToml(text) as Record<string, unknown>).mcp_servers : (JSON.parse(text) as Record<string, unknown>).mcpServers;
+    const servers = file.endsWith(".toml")
+      ? (parseToml(text) as Record<string, unknown>).mcp_servers
+      : (JSON.parse(text) as Record<string, unknown>).mcpServers;
     return servers && typeof servers === "object" ? Object.keys(servers) : [];
   } catch {
     return [];
@@ -145,7 +147,9 @@ function statusLineBefore(file: string, env: NodeJS.ProcessEnv): StatusLine | un
     if (!e.existed || !e.backup) return undefined;
     let before: StatusLine | undefined;
     try {
-      before = (JSON.parse(readFileSync(join(j.dir, e.backup), "utf8")) as Record<string, unknown>).statusLine as StatusLine | undefined;
+      before = (JSON.parse(readFileSync(join(j.dir, e.backup), "utf8")) as Record<string, unknown>).statusLine as
+        | StatusLine
+        | undefined;
     } catch {
       return undefined;
     }
@@ -185,9 +189,20 @@ function purgeable(path: string, home: string): boolean {
   return dir !== sep && dir !== h && !h.startsWith(dir + sep);
 }
 
-export async function planUninstall(env: NodeJS.ProcessEnv, opts: { keepConfig?: boolean; purge?: boolean } = {}): Promise<UninstallPlan> {
+export async function planUninstall(
+  env: NodeJS.ProcessEnv,
+  opts: { keepConfig?: boolean; purge?: boolean } = {},
+): Promise<UninstallPlan> {
   const p = paths(env);
-  const plan: UninstallPlan = { configs: [], launchers: [], completions: [], profileTokens: [], purge: [], manual: [], kept: [] };
+  const plan: UninstallPlan = {
+    configs: [],
+    launchers: [],
+    completions: [],
+    profileTokens: [],
+    purge: [],
+    manual: [],
+    kept: [],
+  };
 
   // Only a service whose file is in this HOME: never ask the service manager about one it is not.
   const { installedBackend } = await import("../../mcpd/service.js");
@@ -250,9 +265,13 @@ export async function planUninstall(env: NodeJS.ProcessEnv, opts: { keepConfig?:
   const config = safeConfig(env);
   for (const name of listProfiles(config, env)) {
     const dir = agentProfileDir(name, agentOf(name, config), env);
-    if (existsSync(dir)) plan.kept.push(`${tildify(dir, env)} (profile ${name}: its login and history) stays; delete it by hand when you no longer need it`);
+    if (existsSync(dir))
+      plan.kept.push(
+        `${tildify(dir, env)} (profile ${name}: its login and history) stays; delete it by hand when you no longer need it`,
+      );
   }
-  if (existsSync(p.chromeProfilesDir)) plan.kept.push(`${tildify(p.chromeProfilesDir, env)} (browser profiles with their logins) stays`);
+  if (existsSync(p.chromeProfilesDir))
+    plan.kept.push(`${tildify(p.chromeProfilesDir, env)} (browser profiles with their logins) stays`);
   const cache = dirname(compileCacheDir(env));
   if (opts.purge) {
     const targets = [
@@ -262,7 +281,8 @@ export async function planUninstall(env: NodeJS.ProcessEnv, opts: { keepConfig?:
       { path: dirname(p.mcpdCacheDir), what: "mcpd's caches" },
     ];
     for (const t of targets) if (lstat(t.path) && purgeable(t.path, p.home)) plan.purge.push(t);
-    if (existsSync(p.browserDir)) plan.kept.push(`${tildify(p.browserDir, env)} (turno-browser profiles with their logins) stays`);
+    if (existsSync(p.browserDir))
+      plan.kept.push(`${tildify(p.browserDir, env)} (turno-browser profiles with their logins) stays`);
   } else {
     if (existsSync(p.data)) plan.kept.push(`${tildify(p.data, env)} (installed MCP servers, caches) stays`);
     plan.kept.push(`${tildify(p.state, env)} (backups for turno undo, logs) stays`);
@@ -300,7 +320,10 @@ function describe(plan: UninstallPlan, env: NodeJS.ProcessEnv): string[] {
   for (const l of plan.launchers) out.push(`launcher ${t(l)}`);
   for (const c of plan.completions) out.push(`completion ${t(c)}`);
   if (plan.token) out.push(`the gateway token ${t(plan.token)}`);
-  if (plan.profileTokens.length) out.push(`${plan.profileTokens.length} profile gateway token file${plan.profileTokens.length === 1 ? "" : "s"} in ${t(dirname(plan.profileTokens[0]!))}`);
+  if (plan.profileTokens.length)
+    out.push(
+      `${plan.profileTokens.length} profile gateway token file${plan.profileTokens.length === 1 ? "" : "s"} in ${t(dirname(plan.profileTokens[0]!))}`,
+    );
   if (plan.turnoConfig) {
     const names = plan.turnoConfig.files.map((f) => f.slice(plan.turnoConfig!.root.length + 1));
     out.push(`${t(plan.turnoConfig.root)}${names.length ? ` (${names.join(", ")})` : ""}`);
@@ -402,7 +425,16 @@ export const command: Command = {
   usage: USAGE,
   flags: ["--dry-run", "--yes", "--keep-config", "--purge"],
   async run(args, io) {
-    const p = parseFlags(args, { ...DRY_RUN, yes: { type: "boolean", short: "y" }, "keep-config": { type: "boolean" }, purge: { type: "boolean" } }, 0);
+    const p = parseFlags(
+      args,
+      {
+        ...DRY_RUN,
+        yes: { type: "boolean", short: "y" },
+        "keep-config": { type: "boolean" },
+        purge: { type: "boolean" },
+      },
+      0,
+    );
     const dry = bool(p, "dry-run");
     const plan = await planUninstall(io.env, { keepConfig: bool(p, "keep-config"), purge: bool(p, "purge") });
     const remove = describe(plan, io.env);
@@ -441,7 +473,9 @@ export const command: Command = {
     io.out("Done.");
     if (plan.purge.length) io.out("--purge removed turno's backups too, so turno undo cannot put this back.");
     else if (journal.used) {
-      io.out(`Changed your mind? turno undo ${journal.stamp} puts it all back while turno is still installed (then turno mcp daemon start).`);
+      io.out(
+        `Changed your mind? turno undo ${journal.stamp} puts it all back while turno is still installed (then turno mcp daemon start).`,
+      );
     }
     io.out(last);
     return 0;

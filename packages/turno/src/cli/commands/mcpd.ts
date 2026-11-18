@@ -58,7 +58,8 @@ export async function downReasons(env: NodeJS.ProcessEnv): Promise<string[]> {
   const e = readStartError(env);
   if (e) out.push(`last start failed at ${localTime(e.at)}: ${e.message}`);
   const lock = readLock(env);
-  if (lock) out.push(`stale lock from pid ${lock.pid} (${tildify(daemonFiles(env).lock, env)}); the next start clears it`);
+  if (lock)
+    out.push(`stale lock from pid ${lock.pid} (${tildify(daemonFiles(env).lock, env)}); the next start clears it`);
   return out;
 }
 
@@ -98,9 +99,12 @@ async function status(args: string[], io: Io): Promise<number> {
   }
   const instances = (s.instances as Record<string, unknown>[]) ?? [];
   const rss = await rssOf([Number(s.pid), ...instances.map((i) => Number(i.pid)).filter(Boolean)]);
-  io.out(`${paint(io, "mcpd", "1")} pid ${s.pid}${s.port ? ` · port ${s.port}` : ""} · ${mb(rss.get(Number(s.pid)) ?? 0)} · ${plural(Number(s.sessions) || 0, "client session")}`);
+  io.out(
+    `${paint(io, "mcpd", "1")} pid ${s.pid}${s.port ? ` · port ${s.port}` : ""} · ${mb(rss.get(Number(s.pid)) ?? 0)} · ${plural(Number(s.sessions) || 0, "client session")}`,
+  );
   const manifest = s.manifest as { source: string; error: string | null } | undefined;
-  if (manifest?.error) io.out(`  ${paint(io, "warn", "33")} mcp.toml is invalid, serving the ${manifest.source}: ${manifest.error}`);
+  if (manifest?.error)
+    io.out(`  ${paint(io, "warn", "33")} mcp.toml is invalid, serving the ${manifest.source}: ${manifest.error}`);
   const config = s.config as { error: string | null } | undefined;
   if (config?.error) io.out(`  ${paint(io, "warn", "33")} config.toml is invalid, using defaults: ${config.error}`);
   if (!instances.length) {
@@ -180,14 +184,19 @@ async function runDaemon(args: string[], io: Io): Promise<number> {
   let port: number | undefined;
   if (raw !== undefined) {
     port = Number(raw);
-    if (!Number.isInteger(port) || port < 0 || port > 65535 || String(port) !== raw.trim()) fail("--port must be an integer between 0 and 65535");
+    if (!Number.isInteger(port) || port < 0 || port > 65535 || String(port) !== raw.trim())
+      fail("--port must be an integer between 0 and 65535");
   }
   const { AlreadyRunningError, PortBusyError, installCrashGuards, startDaemon } = await import("../../mcpd/daemon.js");
   const service = isService(io.env);
   let waiting = false;
   for (;;) {
     try {
-      const d = await startDaemon({ env: io.env, logToStdout: Boolean(process.stdout.isTTY) && !service, ...(port !== undefined ? { port } : {}) });
+      const d = await startDaemon({
+        env: io.env,
+        logToStdout: Boolean(process.stdout.isTTY) && !service,
+        ...(port !== undefined ? { port } : {}),
+      });
       io.err(`mcpd listening on 127.0.0.1:${d.port}`);
       const unguard = installCrashGuards(d.log, () => d.stop());
       await new Promise<void>((resolve) => {
@@ -257,7 +266,10 @@ async function waitFor(check: () => Promise<boolean>, ms: number): Promise<boole
 }
 
 /** Write (or rewrite) the service file and (re)load it. Shared by `start` and `upgrade --finish`. */
-export async function installDaemonService(io: Io, opts: { dryRun?: boolean; command?: string; journal?: Journal } = {}): Promise<number> {
+export async function installDaemonService(
+  io: Io,
+  opts: { dryRun?: boolean; command?: string; journal?: Journal } = {},
+): Promise<number> {
   const backend = await backendOrReport(io);
   if (!backend) return 1;
   return serviceStep(io, async () => {
@@ -273,7 +285,10 @@ export async function installDaemonService(io: Io, opts: { dryRun?: boolean; com
       io.out(`would write ${tildify(r.file, io.env)}${r.changed ? "" : " (unchanged)"} and load the ${backend.noun}:`);
       io.out("");
       io.out(r.text.trimEnd());
-    } else io.out(style(io).note("ok", `${backend.noun} ${r.changed ? "written" : "unchanged"}: ${tildify(r.file, io.env)}`));
+    } else
+      io.out(
+        style(io).note("ok", `${backend.noun} ${r.changed ? "written" : "unchanged"}: ${tildify(r.file, io.env)}`),
+      );
     if (choice.warning) io.err(style(io).note("warn", `warning: ${choice.warning}`));
     const hint = opts.journal ? undefined : journal.hint();
     if (hint) io.out(hint);
@@ -317,7 +332,9 @@ async function stop(args: string[], io: Io): Promise<number> {
     if (backend) {
       const r = await removeService(backend, io.env, journal);
       if (r.existed) {
-        io.out(`${dryRun ? "would remove" : "removed"} ${tildify(r.file, io.env)} (turno mcp daemon start installs it again)`);
+        io.out(
+          `${dryRun ? "would remove" : "removed"} ${tildify(r.file, io.env)} (turno mcp daemon start installs it again)`,
+        );
         did = true;
       }
     }
@@ -384,13 +401,25 @@ async function token(args: string[], io: Io): Promise<number> {
     } else io.out("mcpd is not running; it uses the new token when it starts");
     return 0;
   });
-  io.out("Every profile token derives from it and stopped working: run `turno mcp sync` so each profile gets its new one; open sessions need a restart.");
+  io.out(
+    "Every profile token derives from it and stopped working: run `turno mcp sync` so each profile gets its new one; open sessions need a restart.",
+  );
   return code;
 }
 
 const SUBS: Record<string, Sub> = {
-  start: { synopsis: "[--dry-run]", summary: "install the service (LaunchAgent or systemd user unit) and start mcpd", flags: ["--dry-run"], run: start },
-  stop: { synopsis: "[--dry-run]", summary: "stop mcpd and remove the service, so it does not start at login", flags: ["--dry-run"], run: stop },
+  start: {
+    synopsis: "[--dry-run]",
+    summary: "install the service (LaunchAgent or systemd user unit) and start mcpd",
+    flags: ["--dry-run"],
+    run: start,
+  },
+  stop: {
+    synopsis: "[--dry-run]",
+    summary: "stop mcpd and remove the service, so it does not start at login",
+    flags: ["--dry-run"],
+    run: stop,
+  },
   restart: { summary: "restart the service (open sessions reconnect)", run: restart },
   status: {
     synopsis: "[--json]",
@@ -399,9 +428,25 @@ const SUBS: Record<string, Sub> = {
     json: STATUS_JSON,
     run: status,
   },
-  logs: { synopsis: "[-n N] [--utc]", summary: "last lines of the mcpd log, in local time", flags: ["--tail", "--utc"], run: logs },
-  run: { synopsis: "[--port N]", summary: "run the gateway in the foreground (what the service runs)", flags: ["--port"], run: runDaemon },
-  token: { synopsis: "rotate [--dry-run]", summary: "replace the gateway token (then turno mcp sync)", args: ["any"], flags: ["--dry-run"], run: token },
+  logs: {
+    synopsis: "[-n N] [--utc]",
+    summary: "last lines of the mcpd log, in local time",
+    flags: ["--tail", "--utc"],
+    run: logs,
+  },
+  run: {
+    synopsis: "[--port N]",
+    summary: "run the gateway in the foreground (what the service runs)",
+    flags: ["--port"],
+    run: runDaemon,
+  },
+  token: {
+    synopsis: "rotate [--dry-run]",
+    summary: "replace the gateway token (then turno mcp sync)",
+    args: ["any"],
+    flags: ["--dry-run"],
+    run: token,
+  },
 };
 
 export const tokenCommand: Command = {

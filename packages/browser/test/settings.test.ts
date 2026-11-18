@@ -38,14 +38,22 @@ describe("identity.json location", () => {
     // An identity made before identity.json existed: only the profile dir.
     mkdirSync(identityDir("plain", sb.env), { recursive: true });
     expect(readIdentitySettings("plain", sb.env)).toBeUndefined();
-    expect(checkIdentitySettings("plain", sb.env)).toEqual({ path: identitySettingsPath("plain", sb.env), problems: [] });
+    expect(checkIdentitySettings("plain", sb.env)).toEqual({
+      path: identitySettingsPath("plain", sb.env),
+      problems: [],
+    });
     expect(launchSettings(undefined, [], "America/Monterrey")).toEqual({ args: [] });
   });
 });
 
 describe("writeIdentitySettings", () => {
   it("creates the file with the schema version and timestamps, mode 600", () => {
-    const s = writeIdentitySettings("school", { timezone: "America/Monterrey", languages: ["es-MX", "es", "en"], region: "mx" }, sb.env, T0);
+    const s = writeIdentitySettings(
+      "school",
+      { timezone: "America/Monterrey", languages: ["es-MX", "es", "en"], region: "mx" },
+      sb.env,
+      T0,
+    );
     expect(s).toEqual({
       version: 1,
       timezone: "America/Monterrey",
@@ -62,7 +70,12 @@ describe("writeIdentitySettings", () => {
 
   it("merges a patch, keeps created, bumps updated and removes keys set to null", () => {
     writeIdentitySettings("school", { timezone: "America/Monterrey", locale: "es-MX" }, sb.env, T0);
-    const s = writeIdentitySettings("school", { locale: null, health: { url: "https://mail.example.com/", text: "Inbox" } }, sb.env, T1);
+    const s = writeIdentitySettings(
+      "school",
+      { locale: null, health: { url: "https://mail.example.com/", text: "Inbox" } },
+      sb.env,
+      T1,
+    );
     expect(s).toEqual({
       version: 1,
       timezone: "America/Monterrey",
@@ -75,12 +88,24 @@ describe("writeIdentitySettings", () => {
   it("canonicalizes locales and refuses bad values without writing", () => {
     expect(writeIdentitySettings("school", { locale: "es-mx" }, sb.env, T0).locale).toBe("es-MX");
     const before = readFileSync(identitySettingsPath("school", sb.env), "utf8");
-    expect(() => writeIdentitySettings("school", { timezone: "Mars/Olympus" }, sb.env, T1)).toThrow(/timezone "Mars\/Olympus" is not an IANA time zone/);
-    expect(() => writeIdentitySettings("school", { locale: "not a locale!" }, sb.env, T1)).toThrow(/locale "not a locale!"/);
-    expect(() => writeIdentitySettings("school", { languages: [] }, sb.env, T1)).toThrow(/languages needs at least one/);
-    expect(() => writeIdentitySettings("school", { region: "Mexico" }, sb.env, T1)).toThrow(/region "Mexico" must be a two-letter country code/);
-    expect(() => writeIdentitySettings("school", { health: { url: "file:///etc/passwd", text: "x" } }, sb.env, T1)).toThrow(/health.url must start with http/);
-    expect(() => writeIdentitySettings("school", { health: { url: "https://example.com/" } }, sb.env, T1)).toThrow(/health needs text or selector/);
+    expect(() => writeIdentitySettings("school", { timezone: "Mars/Olympus" }, sb.env, T1)).toThrow(
+      /timezone "Mars\/Olympus" is not an IANA time zone/,
+    );
+    expect(() => writeIdentitySettings("school", { locale: "not a locale!" }, sb.env, T1)).toThrow(
+      /locale "not a locale!"/,
+    );
+    expect(() => writeIdentitySettings("school", { languages: [] }, sb.env, T1)).toThrow(
+      /languages needs at least one/,
+    );
+    expect(() => writeIdentitySettings("school", { region: "Mexico" }, sb.env, T1)).toThrow(
+      /region "Mexico" must be a two-letter country code/,
+    );
+    expect(() =>
+      writeIdentitySettings("school", { health: { url: "file:///etc/passwd", text: "x" } }, sb.env, T1),
+    ).toThrow(/health.url must start with http/);
+    expect(() => writeIdentitySettings("school", { health: { url: "https://example.com/" } }, sb.env, T1)).toThrow(
+      /health needs text or selector/,
+    );
     expect(readFileSync(identitySettingsPath("school", sb.env), "utf8")).toBe(before);
   });
 
@@ -97,7 +122,17 @@ describe("reading and checking", () => {
     expect(() => readIdentitySettings("bad", sb.env)).toThrow(/identity\.json of "bad" .* is not valid JSON/);
     expect(checkIdentitySettings("bad", sb.env).problems).toEqual([expect.stringMatching(/not valid JSON/)]);
 
-    writeFileSync(file, JSON.stringify({ version: 1, timezone: 5, languages: "es", created: "x", updated: T0.toISOString(), extra: true }));
+    writeFileSync(
+      file,
+      JSON.stringify({
+        version: 1,
+        timezone: 5,
+        languages: "es",
+        created: "x",
+        updated: T0.toISOString(),
+        extra: true,
+      }),
+    );
     const { problems } = checkIdentitySettings("bad", sb.env);
     expect(problems).toEqual([
       "timezone must be a string",
@@ -110,12 +145,22 @@ describe("reading and checking", () => {
 
   it("refuses a newer schema version instead of guessing", () => {
     addIdentity("newer", sb.env);
-    writeFileSync(identitySettingsPath("newer", sb.env), JSON.stringify({ version: 99, created: T0.toISOString(), updated: T0.toISOString() }));
-    expect(checkIdentitySettings("newer", sb.env).problems).toEqual([`is format 99, from a newer turno-browser (this one reads up to ${IDENTITY_FORMAT_VERSION}); update turno-browser`]);
+    writeFileSync(
+      identitySettingsPath("newer", sb.env),
+      JSON.stringify({ version: 99, created: T0.toISOString(), updated: T0.toISOString() }),
+    );
+    expect(checkIdentitySettings("newer", sb.env).problems).toEqual([
+      `is format 99, from a newer turno-browser (this one reads up to ${IDENTITY_FORMAT_VERSION}); update turno-browser`,
+    ]);
   });
 
   it("writes format 2 only while a browser key (tabs, backgroundThrottling) is set", () => {
-    const s = writeIdentitySettings("tuned", { tabs: { max: 4, popups: "keep", park: "2m", close: "0" }, backgroundThrottling: true }, sb.env, T0);
+    const s = writeIdentitySettings(
+      "tuned",
+      { tabs: { max: 4, popups: "keep", park: "2m", close: "0" }, backgroundThrottling: true },
+      sb.env,
+      T0,
+    );
     expect(s).toEqual({
       version: 2,
       tabs: { max: 4, popups: "keep", park: "2m", close: "0" },
@@ -129,12 +174,22 @@ describe("reading and checking", () => {
 
   it("names every bad browser key and leaves the file as it was", () => {
     expect(() =>
-      writeIdentitySettings("tuned", { tabs: { max: -1, popups: "never" as "keep", park: "soon", close: "5x" }, backgroundThrottling: "yes" as unknown as boolean }, sb.env),
+      writeIdentitySettings(
+        "tuned",
+        {
+          tabs: { max: -1, popups: "never" as "keep", park: "soon", close: "5x" },
+          backgroundThrottling: "yes" as unknown as boolean,
+        },
+        sb.env,
+      ),
     ).toThrow(
       /tabs\.max must be a whole number from 0 \(no cap\) to 100; tabs\.popups must be "close" or "keep"; tabs\.park must be a duration like "5m" or "0" \(off\); tabs\.close must be a duration.*; backgroundThrottling must be true or false/,
     );
     addIdentity("odd", sb.env);
-    writeFileSync(identitySettingsPath("odd", sb.env), JSON.stringify({ version: 2, tabs: { size: 3 }, created: T0.toISOString(), updated: T0.toISOString() }));
+    writeFileSync(
+      identitySettingsPath("odd", sb.env),
+      JSON.stringify({ version: 2, tabs: { size: 3 }, created: T0.toISOString(), updated: T0.toISOString() }),
+    );
     expect(checkIdentitySettings("odd", sb.env).problems).toEqual(['unknown key "tabs.size"']);
   });
 
@@ -152,7 +207,15 @@ describe("reading and checking", () => {
     ).toThrow(
       /settle must be a duration from "0" to "10s".*; block\.trackers must be true or false; block\.types must be a list of "image", "media", "font"; block\.patterns must be a list of host names.*; cache\.maxSize must be a size from "1MB" to "10GB"/,
     );
-    const ok = writeIdentitySettings("res", { settle: "0", block: { trackers: true, types: ["image", "font"], patterns: ["ads.example", "*/promo/*"] }, cache: { maxSize: "200MB" } }, sb.env);
+    const ok = writeIdentitySettings(
+      "res",
+      {
+        settle: "0",
+        block: { trackers: true, types: ["image", "font"], patterns: ["ads.example", "*/promo/*"] },
+        cache: { maxSize: "200MB" },
+      },
+      sb.env,
+    );
     expect(ok.version).toBe(2);
     expect(readIdentitySettings("res", sb.env)?.cache).toEqual({ maxSize: "200MB" });
   });
@@ -178,7 +241,12 @@ describe("addIdentity and removeIdentity", () => {
     addIdentity("pinned", sb.env);
     expect(readFileSync(file, "utf8")).toBe(before);
     addIdentity("pinned", sb.env, { region: "MX" }, T1);
-    expect(readIdentitySettings("pinned", sb.env)).toMatchObject({ timezone: "UTC", region: "MX", created: T0.toISOString(), updated: T1.toISOString() });
+    expect(readIdentitySettings("pinned", sb.env)).toMatchObject({
+      timezone: "UTC",
+      region: "MX",
+      created: T0.toISOString(),
+      updated: T1.toISOString(),
+    });
   });
 
   it("deletes identity.json and the identity's state with the profile", () => {
@@ -195,22 +263,31 @@ describe("launch settings", () => {
   const base = { version: 1, created: T0.toISOString(), updated: T0.toISOString() };
 
   it("passes languages as Chrome's own --accept-lang, so the header keeps its q-values", () => {
-    expect(launchSettings({ ...base, languages: ["es-MX", "es", "en"] }, [], "UTC")).toEqual({ args: ["--accept-lang=es-MX,es,en"] });
+    expect(launchSettings({ ...base, languages: ["es-MX", "es", "en"] }, [], "UTC")).toEqual({
+      args: ["--accept-lang=es-MX,es,en"],
+    });
   });
 
   it("derives the languages from the locale, and adds --lang for Chrome's UI and Intl", () => {
     expect(acceptLanguages({ ...base, locale: "es-MX" })).toEqual(["es-MX", "es"]);
     expect(acceptLanguages({ ...base, locale: "en" })).toEqual(["en"]);
-    expect(launchSettings({ ...base, locale: "es-MX" }, [], "UTC")).toEqual({ args: ["--lang=es-MX", "--accept-lang=es-MX,es"] });
+    expect(launchSettings({ ...base, locale: "es-MX" }, [], "UTC")).toEqual({
+      args: ["--lang=es-MX", "--accept-lang=es-MX,es"],
+    });
   });
 
   it("emulates the time zone only when it differs from the system's", () => {
-    expect(launchSettings({ ...base, timezone: "Asia/Tokyo" }, [], "America/Monterrey")).toEqual({ args: [], timezoneId: "Asia/Tokyo" });
+    expect(launchSettings({ ...base, timezone: "Asia/Tokyo" }, [], "America/Monterrey")).toEqual({
+      args: [],
+      timezoneId: "Asia/Tokyo",
+    });
     expect(launchSettings({ ...base, timezone: "America/Monterrey" }, [], "America/Monterrey")).toEqual({ args: [] });
   });
 
   it("never overrides flags or context options the user set", () => {
     const user = ["--lang=fr", "--accept-lang=fr-FR"];
-    expect(launchSettings({ ...base, locale: "es-MX", timezone: "Asia/Tokyo" }, user, "UTC", { timezoneId: "Europe/Paris" })).toEqual({ args: [] });
+    expect(
+      launchSettings({ ...base, locale: "es-MX", timezone: "Asia/Tokyo" }, user, "UTC", { timezoneId: "Europe/Paris" }),
+    ).toEqual({ args: [] });
   });
 });

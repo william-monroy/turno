@@ -61,12 +61,16 @@ function setup(policy: Partial<TabPolicy> = {}, initial = ["https://a.example/"]
   const context = new FakeContext();
   for (const url of initial) context.all.push(new FakePage(url));
   let current: FakePage | undefined = context.all[0];
-  const governor = new TabGovernor(context as unknown as BrowserContext, { ...DEFAULT_TABS, ...policy }, {
-    current: () => current as unknown as Page | undefined,
-    tabs: () => context.pages() as unknown as Page[],
-    now: () => t,
-    timer: false,
-  });
+  const governor = new TabGovernor(
+    context as unknown as BrowserContext,
+    { ...DEFAULT_TABS, ...policy },
+    {
+      current: () => current as unknown as Page | undefined,
+      tabs: () => context.pages() as unknown as Page[],
+      now: () => t,
+      timer: false,
+    },
+  );
   governor.start();
   return {
     context,
@@ -119,8 +123,14 @@ describe("tab governor: cap", () => {
     // a is current again; c is the least recently used one now.
     const d = new FakePage("https://d.example/");
     await g.call(a!, () => void g.context.open(d));
-    expect(g.context.pages().map((p) => p.url())).toEqual(["https://a.example/", "https://b.example/", "https://d.example/"]);
-    expect(g.governor.takeNotes()).toEqual(["closed the least recently used tab (https://c.example/): more than 3 were open; tab numbers changed, list them again before selecting one"]);
+    expect(g.context.pages().map((p) => p.url())).toEqual([
+      "https://a.example/",
+      "https://b.example/",
+      "https://d.example/",
+    ]);
+    expect(g.governor.takeNotes()).toEqual([
+      "closed the least recently used tab (https://c.example/): more than 3 were open; tab numbers changed, list them again before selecting one",
+    ]);
   });
 
   it("does nothing with max 0", async () => {
@@ -144,7 +154,9 @@ describe("tab governor: popups", () => {
     const ad = g.context.open(new FakePage("https://ads.example/", a!));
     await g.governor.settled();
     expect(ad.closed).toBe(true);
-    expect(g.governor.takeNotes()).toEqual(["closed a popup that https://a.example/ opened while no tool call was running"]);
+    expect(g.governor.takeNotes()).toEqual([
+      "closed a popup that https://a.example/ opened while no tool call was running",
+    ]);
   });
 
   it("keeps a popup that opens just after a call ended, and a page without an opener", async () => {
@@ -183,7 +195,9 @@ describe("tab governor: parking", () => {
     expect(b.url()).toBe("about:blank");
     expect(g.governor.parkedUrl(b as unknown as Page)).toBe("https://b.example/inbox");
     expect(a!.gotos).toEqual([]);
-    expect(g.governor.takeNotes()).toEqual(["parked a tab unused for 5 minutes on about:blank (https://b.example/inbox); using it again loads that page"]);
+    expect(g.governor.takeNotes()).toEqual([
+      "parked a tab unused for 5 minutes on about:blank (https://b.example/inbox); using it again loads that page",
+    ]);
 
     g.advance(10 * 60_000);
     await g.governor.sweep();

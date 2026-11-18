@@ -8,7 +8,15 @@ import { type TopSnapshot, computeSavings, renderTop, top } from "../src/cli/com
 import { main } from "../src/cli/main.js";
 import { parseConfig } from "../src/core/config.js";
 import { parseManifest } from "../src/core/manifest.js";
-import { type CallEvent, type CallRecord, createCallLog, followCalls, readCalls, redact, toRecord } from "../src/mcpd/calllog.js";
+import {
+  type CallEvent,
+  type CallRecord,
+  createCallLog,
+  followCalls,
+  readCalls,
+  redact,
+  toRecord,
+} from "../src/mcpd/calllog.js";
 import { type RunningDaemon, readToken, startDaemon } from "../src/mcpd/daemon.js";
 import { ErrorCode } from "../src/mcpd/jsonrpc.js";
 import { RssSampler, parsePs, procfsTable, processTable, treeRss } from "../src/mcpd/rss.js";
@@ -59,7 +67,10 @@ async function run(args: string[], env = sb.env) {
 /** A real mcpd in this process, on a free port, with the fixture server in mcp.toml. */
 async function daemon(config = ""): Promise<RunningDaemon> {
   sb.write(".config/turno/config.toml", config);
-  sb.write(".config/turno/mcp.toml", `[server.fx]\ncommand = ${JSON.stringify(process.execPath)}\nargs = [${JSON.stringify(FIXTURE)}]\ncall_timeout = "0.5s"\n`);
+  sb.write(
+    ".config/turno/mcp.toml",
+    `[server.fx]\ncommand = ${JSON.stringify(process.execPath)}\nargs = [${JSON.stringify(FIXTURE)}]\ncall_timeout = "0.5s"\n`,
+  );
   const d = await startDaemon({ env: sb.env, port: 0 });
   daemons.push(d);
   return d;
@@ -69,7 +80,12 @@ async function connect(d: RunningDaemon, headers: Record<string, string> = {}): 
   const client = new Client({ name: "observer-test", version: "1" }, { capabilities: {} });
   const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${d.port}/mcp/fx`), {
     // Sessions authenticate with a profile token (ADR 0023); the master token only opens /status.
-    requestInit: { headers: { Authorization: `Bearer ${profileToken(readToken(sb.env)!, headers["X-Turno-Profile"] ?? "default")}`, ...headers } },
+    requestInit: {
+      headers: {
+        Authorization: `Bearer ${profileToken(readToken(sb.env)!, headers["X-Turno-Profile"] ?? "default")}`,
+        ...headers,
+      },
+    },
   });
   await client.connect(transport);
   clients.push(client);
@@ -101,12 +117,17 @@ describe("call records (ADR 0026)", () => {
     const err = (code: number, message: string) => toRecord(event({ outcome: { error: { code, message } } }))!;
     expect(err(ErrorCode.RequestCancelled, "cancelled by the client").outcome).toBe("cancelled");
     expect(err(ErrorCode.RequestTimeout, "fx: tools/call timed out after 1s").outcome).toBe("timeout");
-    const failed = err(ErrorCode.Unavailable, "upstream said: Authorization: Bearer abcdefghijklmnop0123 api_key=hunter2hunter2");
+    const failed = err(
+      ErrorCode.Unavailable,
+      "upstream said: Authorization: Bearer abcdefghijklmnop0123 api_key=hunter2hunter2",
+    );
     expect(failed.outcome).toBe("error");
     expect(failed.error).not.toContain("abcdefghijklmnop0123");
     expect(failed.error).not.toContain("hunter2");
     expect(err(ErrorCode.Internal, "x".repeat(1000)).error).toHaveLength(300);
-    const toolError = toRecord(event({ outcome: { result: { isError: true, content: [{ type: "text", text: "secret detail" }] } } }))!;
+    const toolError = toRecord(
+      event({ outcome: { result: { isError: true, content: [{ type: "text", text: "secret detail" }] } } }),
+    )!;
     expect(toolError.outcome).toBe("error");
     expect(JSON.stringify(toolError)).not.toContain("secret detail");
     expect(toRecord(event({ method: "resources/read" }))).toBeUndefined();
@@ -115,14 +136,22 @@ describe("call records (ADR 0026)", () => {
   it("redacts tokens but keeps ordinary words and paths", () => {
     expect(redact("token ghp_abcdefghijklmnopqrstuvwxyz0123")).not.toContain("ghp_");
     expect(redact("key sk-live-0123456789abcdef")).toBe("key [redacted]");
-    expect(redact("cannot open /Users/someone/projects/a_really_long_folder_name/file.txt")).toContain("a_really_long_folder_name");
+    expect(redact("cannot open /Users/someone/projects/a_really_long_folder_name/file.txt")).toContain(
+      "a_really_long_folder_name",
+    );
     expect(redact("hash 3f2a9c8e7d6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f")).toBe("hash [redacted]");
   });
 
   it("appends JSON lines with mode 600, rotates by size and reads the last records across files", () => {
     const file = join(sb.home, "state", "calls.jsonl");
     const log = createCallLog(file, { maxBytes: 1200, keep: 2 });
-    for (let i = 0; i < 12; i++) log.record(event({ ctx: { serverName: i % 2 ? "a" : "b", sessionId: "s", profile: i % 3 ? "work" : "personal" }, params: { name: `t${i}` } }));
+    for (let i = 0; i < 12; i++)
+      log.record(
+        event({
+          ctx: { serverName: i % 2 ? "a" : "b", sessionId: "s", profile: i % 3 ? "work" : "personal" },
+          params: { name: `t${i}` },
+        }),
+      );
     log.record(event({ method: "ping" }));
     log.close();
     expect(statSync(file).mode & 0o777).toBe(0o600);
@@ -178,7 +207,9 @@ describe("process memory", () => {
   it("counts a process group led by a descendant, so a browser's helpers left without a parent still count", () => {
     // 20 is a server; 30 a browser it started in its own group (30); 31 a helper of it; 32 a
     // helper reparented to init but still in group 30; 40 an unrelated group.
-    const t = parsePs(["1 0 1 10", "20 1 1 100", "30 20 30 1000", "31 30 30 200", "32 1 30 50", "40 1 40 7"].join("\n"));
+    const t = parsePs(
+      ["1 0 1 10", "20 1 1 100", "30 20 30 1000", "31 30 30 200", "32 1 30 50", "40 1 40 7"].join("\n"),
+    );
     expect(t.get(32)).toEqual({ ppid: 1, pgid: 30, rss: 50 * 1024 });
     expect(treeRss(t, 20)).toBe(1350 * 1024);
     expect(treeRss(t, 40)).toBe(7 * 1024);
@@ -241,8 +272,30 @@ describe("savings estimate", () => {
       { pid: null, profile: "work", agent: null, servers: ["big"] },
     ],
     instances: [
-      { key: "k1", server: "big", variant: "work", scope: "shared", pid: 200, clients: 1, inflight: 0, idleSeconds: 1, startedAt: 0, holder: null },
-      { key: "k2", server: "small", variant: "default", scope: "shared", pid: 300, clients: 1, inflight: 0, idleSeconds: 1, startedAt: 0, holder: null },
+      {
+        key: "k1",
+        server: "big",
+        variant: "work",
+        scope: "shared",
+        pid: 200,
+        clients: 1,
+        inflight: 0,
+        idleSeconds: 1,
+        startedAt: 0,
+        holder: null,
+      },
+      {
+        key: "k2",
+        server: "small",
+        variant: "default",
+        scope: "shared",
+        pid: 300,
+        clients: 1,
+        inflight: 0,
+        idleSeconds: 1,
+        startedAt: 0,
+        holder: null,
+      },
     ],
     serverRss: { "big@default": { bytes: 250_000 * 1024, at: "2026-11-15T10:00:00.000Z" } },
   };
@@ -271,7 +324,9 @@ describe("turno mcp log, top and savings", () => {
     await c.callTool({ name: "counter", arguments: {} });
     await expect(c.callTool({ name: "hang", arguments: { ms: 10_000 } })).rejects.toThrow(/timed out/);
     const ac = new AbortController();
-    const cancelled = c.callTool({ name: "hang", arguments: { ms: 10_000 } }, undefined, { signal: ac.signal }).catch(() => "cancelled");
+    const cancelled = c
+      .callTool({ name: "hang", arguments: { ms: 10_000 } }, undefined, { signal: ac.signal })
+      .catch(() => "cancelled");
     await waitFor(() => d.manager.list().some((i) => i.upstream.inflight > 0), "the call in flight");
     ac.abort();
     await cancelled;
@@ -295,7 +350,9 @@ describe("turno mcp log, top and savings", () => {
     const text = await run(["mcp", "log", "-n", "1"]);
     expect(text.out.split("\n")).toHaveLength(1);
     expect(text.out).toMatch(/cancelled .* hang .*observer-test/);
-    expect((await run(["mcp", "log", "--server", "nope"])).out).toBe("no tool calls logged yet (mcpd adds one line per tool call it relays)");
+    expect((await run(["mcp", "log", "--server", "nope"])).out).toBe(
+      "no tool calls logged yet (mcpd adds one line per tool call it relays)",
+    );
     expect((await run(["mcp", "log", "--profile", "work", "--json"])).out).toBe("");
   });
 
@@ -337,8 +394,11 @@ describe("turno mcp log, top and savings", () => {
   });
 
   it("mcp list marks the servers mcpd runs now", async () => {
-    const d = await daemon('[profiles.work]\n');
-    sb.write(".config/turno/mcp.toml", `${readFileSync(join(sb.home, ".config/turno/mcp.toml"), "utf8")}[server.idle]\ncommand = "idle-mcp"\n`);
+    const d = await daemon("[profiles.work]\n");
+    sb.write(
+      ".config/turno/mcp.toml",
+      `${readFileSync(join(sb.home, ".config/turno/mcp.toml"), "utf8")}[server.idle]\ncommand = "idle-mcp"\n`,
+    );
     await (await connect(d)).callTool({ name: "echo", arguments: { text: "x" } });
     const r = await run(["mcp", "list"]);
     expect(r.code).toBe(0);
@@ -350,22 +410,41 @@ describe("turno mcp log, top and savings", () => {
   it("top shows the memory pressure, and the idle cap when memory is tight", () => {
     const base: TopSnapshot = {
       running: true,
-      mcpd: { pid: 100, version: "1.2.3", uptimeSeconds: 60, sessions: 1, agents: 1, rssBytes: null, totalRssBytes: null },
+      mcpd: {
+        pid: 100,
+        version: "1.2.3",
+        uptimeSeconds: 60,
+        sessions: 1,
+        agents: 1,
+        rssBytes: null,
+        totalRssBytes: null,
+      },
       instances: [],
       memoryKnown: true,
     };
     const lines = (p: TopSnapshot["memoryPressure"]) => renderTop(fakeIo(sb.env), { ...base, memoryPressure: p });
     // Not reported (an older mcpd) or not watched (idle_under_pressure off): no line.
     expect(lines(null).join("\n")).not.toContain("pressure");
-    expect(lines({ level: null, idleUnderPressureSeconds: 0, idleCapSeconds: null }).join("\n")).not.toContain("pressure");
+    expect(lines({ level: null, idleUnderPressureSeconds: 0, idleCapSeconds: null }).join("\n")).not.toContain(
+      "pressure",
+    );
     // The header stays as it was; the level goes on its own line.
-    expect(lines({ level: "normal", idleUnderPressureSeconds: 300, idleCapSeconds: null })[0]).toBe(renderTop(fakeIo(sb.env), base)[0]);
-    expect(lines({ level: "normal", idleUnderPressureSeconds: 300, idleCapSeconds: null })[1]).toMatch(/memory pressure normal: servers keep their own idle limits$/);
-    expect(lines({ level: "warn", idleUnderPressureSeconds: 300, idleCapSeconds: 300 })[1]).toMatch(/memory pressure warn: idle servers stop after 5m 0s \(mcpd.idle_under_pressure\)$/);
-    expect(lines({ level: "critical", idleUnderPressureSeconds: 300, idleCapSeconds: 75 })[1]).toMatch(/memory pressure critical: idle servers stop after 1m 15s/);
+    expect(lines({ level: "normal", idleUnderPressureSeconds: 300, idleCapSeconds: null })[0]).toBe(
+      renderTop(fakeIo(sb.env), base)[0],
+    );
+    expect(lines({ level: "normal", idleUnderPressureSeconds: 300, idleCapSeconds: null })[1]).toMatch(
+      /memory pressure normal: servers keep their own idle limits$/,
+    );
+    expect(lines({ level: "warn", idleUnderPressureSeconds: 300, idleCapSeconds: 300 })[1]).toMatch(
+      /memory pressure warn: idle servers stop after 5m 0s \(mcpd.idle_under_pressure\)$/,
+    );
+    expect(lines({ level: "critical", idleUnderPressureSeconds: 300, idleCapSeconds: 75 })[1]).toMatch(
+      /memory pressure critical: idle servers stop after 1m 15s/,
+    );
     // On a terminal the level is painted: yellow for warn, red for critical.
     const tty = { ...fakeIo({ ...sb.env, FORCE_COLOR: "1" }), isTty: true };
-    const paint = (level: "warn" | "critical", cap: number) => renderTop(tty, { ...base, memoryPressure: { level, idleUnderPressureSeconds: 300, idleCapSeconds: cap } })[1];
+    const paint = (level: "warn" | "critical", cap: number) =>
+      renderTop(tty, { ...base, memoryPressure: { level, idleUnderPressureSeconds: 300, idleCapSeconds: cap } })[1];
     expect(paint("warn", 300)).toContain("\x1b[33mmemory pressure warn");
     expect(paint("critical", 75)).toContain("\x1b[31mmemory pressure critical");
   });

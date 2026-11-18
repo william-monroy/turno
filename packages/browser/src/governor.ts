@@ -247,7 +247,9 @@ export class TabGovernor {
     for (const page of victims) {
       const url = this.pages.get(page)?.parkedUrl ?? page.url();
       await page.close().catch(() => {});
-      this.note(`closed the least recently used tab (${shortUrl(url)}): more than ${max} were open; tab numbers changed, list them again before selecting one`);
+      this.note(
+        `closed the least recently used tab (${shortUrl(url)}): more than ${max} were open; tab numbers changed, list them again before selecting one`,
+      );
     }
   }
 
@@ -258,7 +260,9 @@ export class TabGovernor {
     try {
       await page.goto("about:blank", { timeout: 5_000 });
       state.parkedUrl = url;
-      this.note(`parked a tab unused for ${minutes(unused)} on about:blank (${shortUrl(url)}); using it again loads that page`);
+      this.note(
+        `parked a tab unused for ${minutes(unused)} on about:blank (${shortUrl(url)}); using it again loads that page`,
+      );
     } catch {
       /* the page would not leave (a slow unload): try again on the next sweep */
     } finally {
@@ -275,7 +279,9 @@ export class TabGovernor {
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
       this.note(`loaded ${shortUrl(url)} again in a tab that was parked`);
     } catch (error) {
-      this.note(`could not load ${shortUrl(url)} again in a parked tab: ${String((error as Error).message ?? error).split("\n")[0]}`);
+      this.note(
+        `could not load ${shortUrl(url)} again in a parked tab: ${String((error as Error).message ?? error).split("\n")[0]}`,
+      );
     } finally {
       state.moving = false;
       state.parkedUrl = undefined;

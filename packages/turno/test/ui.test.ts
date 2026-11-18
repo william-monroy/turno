@@ -76,17 +76,25 @@ describe("installFonts", () => {
     }) as unknown as typeof fetch;
     const res = await installFonts(good, { env: sb.env, dir, fetch: fetchOk });
     expect(res.every((r) => r.action === "downloaded")).toBe(true);
-    expect(urls[0]).toBe("https://raw.githubusercontent.com/ryanoasis/nerd-fonts/v3.4.0/patched-fonts/Meslo/S/Regular/MesloLGSNerdFont-Regular.ttf");
+    expect(urls[0]).toBe(
+      "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/v3.4.0/patched-fonts/Meslo/S/Regular/MesloLGSNerdFont-Regular.ttf",
+    );
 
     const bad = (async () => new Response("not a font")) as unknown as typeof fetch;
-    await expect(installFonts(good, { env: sb.env, dir: join(sb.home, "bad"), fetch: bad })).rejects.toThrow(/checksum mismatch/);
+    await expect(installFonts(good, { env: sb.env, dir: join(sb.home, "bad"), fetch: bad })).rejects.toThrow(
+      /checksum mismatch/,
+    );
     expect(() => readdirSync(join(sb.home, "bad"))).toThrow();
   });
 });
 
 describe("installFonts on Linux", () => {
   it("runs fc-cache with the install env, so its cache lands under that HOME", async () => {
-    fakeCommand(sb, "fc-cache", 'mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/fontconfig" && echo "$HOME" > "${XDG_CACHE_HOME:-$HOME/.cache}/fontconfig/seen"');
+    fakeCommand(
+      sb,
+      "fc-cache",
+      'mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/fontconfig" && echo "$HOME" > "${XDG_CACHE_HOME:-$HOME/.cache}/fontconfig/seen"',
+    );
     const dir = join(sb.home, ".local/share/fonts");
     await installFonts(await fontSource(), { dir, platform: "linux", env: sb.env });
     expect(readFileSync(join(sb.home, ".cache/fontconfig/seen"), "utf8").trim()).toBe(sb.home);
@@ -98,7 +106,9 @@ describe("terminals", () => {
     expect(currentTerminal({ TERM_PROGRAM: "WarpTerminal" })).toBe("warp");
     expect(currentTerminal({ TERM_PROGRAM: "vscode" })).toBe("vscode");
     expect(currentTerminal({ TERM_PROGRAM: "vscode", CURSOR_TRACE_ID: "x" })).toBe("cursor");
-    expect(currentTerminal({ TERM_PROGRAM: "vscode", __CFBundleIdentifier: "com.todesktop.230313mzl4w4u92" })).toBe("cursor");
+    expect(currentTerminal({ TERM_PROGRAM: "vscode", __CFBundleIdentifier: "com.todesktop.230313mzl4w4u92" })).toBe(
+      "cursor",
+    );
     expect(currentTerminal({ TERM: "xterm-kitty" })).toBe("kitty");
     expect(currentTerminal({ ALACRITTY_WINDOW_ID: "1" })).toBe("alacritty");
     expect(currentTerminal({ TERM_PROGRAM: "Orca" })).toBe("orca");
@@ -129,11 +139,16 @@ describe("terminals", () => {
     expect(tomlGet(warp, "appearance.text", "font_name")).toBe("Hack");
     const set = tomlSet(warp, "appearance.text", "font_name", "MesloLGS NF");
     expect(set).toBe('[appearance.text]\nnotebook_font_size = 14.0\nfont_name = "MesloLGS NF"\n\n[agents]\nx = 1\n');
-    const added = tomlSet('[appearance.text]\nfont_size = 13.0\n\n[agents]\n', "appearance.text", "font_name", "MesloLGS NF");
+    const added = tomlSet(
+      "[appearance.text]\nfont_size = 13.0\n\n[agents]\n",
+      "appearance.text",
+      "font_name",
+      "MesloLGS NF",
+    );
     expect(added).toBe('[appearance.text]\nfont_size = 13.0\nfont_name = "MesloLGS NF"\n\n[agents]\n');
     expect(tomlSet("", "font.normal", "family", "MesloLGS NF")).toBe('[font.normal]\nfamily = "MesloLGS NF"\n');
     expect(tomlSet("a = 1", "font.normal", "family", "X")).toBe('a = 1\n\n[font.normal]\nfamily = "X"\n');
-    expect(tomlGet("[agents]\nfont_name = \"x\"\n", "appearance.text", "font_name")).toBeUndefined();
+    expect(tomlGet('[agents]\nfont_name = "x"\n', "appearance.text", "font_name")).toBeUndefined();
   });
 
   it("edits VS Code settings without touching comments", () => {
@@ -142,21 +157,29 @@ describe("terminals", () => {
     expect(jsoncSet(text, "terminal.integrated.fontFamily", "MesloLGS NF")).toBe(
       '{\n  // my terminal\n  "terminal.integrated.fontFamily": "MesloLGS NF",\n  "editor.fontSize": 13,\n}\n',
     );
-    expect(jsoncSet('{\n  "a": 1\n}\n', "terminal.integrated.fontFamily", "X")).toBe('{\n  "terminal.integrated.fontFamily": "X",\n  "a": 1\n}\n');
+    expect(jsoncSet('{\n  "a": 1\n}\n', "terminal.integrated.fontFamily", "X")).toBe(
+      '{\n  "terminal.integrated.fontFamily": "X",\n  "a": 1\n}\n',
+    );
     expect(jsoncSet("{}", "terminal.integrated.fontFamily", "X")).toBe('{\n  "terminal.integrated.fontFamily": "X"}');
     expect(jsoncSet("", "k", "X")).toBe('{\n  "k": "X"\n}\n');
   });
 
   it("detects terminals that already use a Nerd Font", () => {
     sb.write(".warp/settings.toml", '[appearance.text]\nfont_name = "MesloLGS NF"\n');
-    sb.write("Library/Application Support/Code/User/settings.json", '{ "terminal.integrated.fontFamily": "monospace" }');
+    sb.write(
+      "Library/Application Support/Code/User/settings.json",
+      '{ "terminal.integrated.fontFamily": "monospace" }',
+    );
     expect(detectNerdTerminals(sb.env, "darwin")).toEqual(["warp"]);
   });
 });
 
 describe("settings", () => {
   it("points the hub status line at turno through the profile symlinks", () => {
-    const hub = sb.write(".claude/settings.json", JSON.stringify({ theme: "dark", statusLine: { type: "command", command: "python3 ~/x.py", padding: 1 } }));
+    const hub = sb.write(
+      ".claude/settings.json",
+      JSON.stringify({ theme: "dark", statusLine: { type: "command", command: "python3 ~/x.py", padding: 1 } }),
+    );
     mkdirSync(join(sb.home, ".claude-work"));
     symlinkSync(hub, join(sb.home, ".claude-work", "settings.json"));
     const journal = new Journal(sb.env, "test");
@@ -165,8 +188,13 @@ describe("settings", () => {
     expect(r.file).toBe(hub);
     expect(lstatSync(join(sb.home, ".claude-work", "settings.json")).isSymbolicLink()).toBe(true);
     const after = JSON.parse(readFileSync(hub, "utf8"));
-    expect(after).toEqual({ theme: "dark", statusLine: { type: "command", command: "~/.local/bin/turno statusline", padding: 1, refreshInterval: 30 } });
-    expect(JSON.parse(readFileSync(join(journal.dir, "files", "0-settings.json"), "utf8")).statusLine.command).toBe("python3 ~/x.py");
+    expect(after).toEqual({
+      theme: "dark",
+      statusLine: { type: "command", command: "~/.local/bin/turno statusline", padding: 1, refreshInterval: 30 },
+    });
+    expect(JSON.parse(readFileSync(join(journal.dir, "files", "0-settings.json"), "utf8")).statusLine.command).toBe(
+      "python3 ~/x.py",
+    );
     expect(setStatusLine(hub, "~/.local/bin/turno statusline", journal).changed).toBe(false);
     expect(isTurnoStatusLine(after.statusLine)).toBe(true);
     expect(isTurnoStatusLine({ type: "command", command: "python3 ~/.claude/statusline-claudio.py" })).toBe(false);
@@ -193,10 +221,12 @@ describe("settings", () => {
   });
 
   it("sets nerd_terminals before the first table and replaces it later", () => {
-    const text = "# hi\nsystem = \"work\"\n\n[open]\nchrome_dir = \"x\"\n";
+    const text = '# hi\nsystem = "work"\n\n[open]\nchrome_dir = "x"\n';
     const one = withNerdTerminals(text, ["warp"]);
     expect(one).toBe('# hi\nsystem = "work"\nnerd_terminals = ["warp"]\n\n[open]\nchrome_dir = "x"\n');
-    expect(withNerdTerminals(one, ["vscode", "warp"])).toBe('# hi\nsystem = "work"\nnerd_terminals = ["vscode", "warp"]\n\n[open]\nchrome_dir = "x"\n');
+    expect(withNerdTerminals(one, ["vscode", "warp"])).toBe(
+      '# hi\nsystem = "work"\nnerd_terminals = ["vscode", "warp"]\n\n[open]\nchrome_dir = "x"\n',
+    );
     expect(withNerdTerminals("", ["warp"])).toBe('nerd_terminals = ["warp"]\n');
     expect(parseConfig(one).nerdTerminals).toEqual(["warp"]);
   });
@@ -210,7 +240,12 @@ describe("settings", () => {
 describe("turno ui", () => {
   it("install sets up font, status line, terminal font and config, and status reports it", async () => {
     fakeCommand(sb, "turno", "exit 0");
-    sb.write(".claude/settings.json", JSON.stringify({ statusLine: { type: "command", command: "python3 ~/.claude/statusline-claudio.py", refreshInterval: 30 } }));
+    sb.write(
+      ".claude/settings.json",
+      JSON.stringify({
+        statusLine: { type: "command", command: "python3 ~/.claude/statusline-claudio.py", refreshInterval: 30 },
+      }),
+    );
     sb.write(".warp/settings.toml", '[appearance.text]\nfont_size = 19.0\nfont_name = "Hack"\n');
     sb.write(".config/turno/config.toml", 'system = "work"\n\n[profiles.work]\nbrowser = "chrome"\n');
     sb.env.TERM_PROGRAM = "WarpTerminal";
@@ -234,7 +269,14 @@ describe("turno ui", () => {
     const { listJournals } = await import("../src/core/journal.js");
     const [journal] = listJournals(sb.env);
     const touched = journal!.manifest!.entries.map((e) => e.path.replace(sb.home, "~"));
-    expect(touched).toEqual(expect.arrayContaining(["~/.claude/settings.json", "~/.warp/settings.toml", "~/.config/turno/config.toml", "~/fonts/MesloLGSNerdFont-Regular.ttf"]));
+    expect(touched).toEqual(
+      expect.arrayContaining([
+        "~/.claude/settings.json",
+        "~/.warp/settings.toml",
+        "~/.config/turno/config.toml",
+        "~/fonts/MesloLGSNerdFont-Regular.ttf",
+      ]),
+    );
     expect(out).toContain(`undo with: turno undo ${journal!.stamp}`);
 
     const again = fakeIo(sb.env);
@@ -269,7 +311,9 @@ describe("turno ui", () => {
     sb.write(".config/turno/config.toml", 'nerd_terminals = ["warp"]\n');
     const io2 = fakeIo(sb.env);
     await ui.run(["status"], io2);
-    expect(io2.lines.join("\n")).toContain("Nerd icons (turno ui install --terminal warp switches it to MesloLGS Nerd Font)");
+    expect(io2.lines.join("\n")).toContain(
+      "Nerd icons (turno ui install --terminal warp switches it to MesloLGS Nerd Font)",
+    );
   });
 
   it("leaves config.toml to migrate while the legacy config is still there", async () => {
@@ -281,7 +325,9 @@ describe("turno ui", () => {
     expect(() => lstatSync(join(sb.home, ".config/turno/config.toml"))).toThrow();
     const status = fakeIo(sb.env);
     await ui.run(["status"], status);
-    expect(status.lines.join("\n")).toContain("Warp: font MesloLGS Nerd Font, Unicode icons (turno migrate records it)");
+    expect(status.lines.join("\n")).toContain(
+      "Warp: font MesloLGS Nerd Font, Unicode icons (turno migrate records it)",
+    );
   });
 
   it("rejects unknown terminals and options", async () => {

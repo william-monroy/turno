@@ -1,6 +1,13 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { NO_SECRET_STORE, SecretError, keychainAddLine, requireSecretStore, secretStore, securityQuote } from "../src/secrets.js";
+import {
+  NO_SECRET_STORE,
+  SecretError,
+  keychainAddLine,
+  requireSecretStore,
+  secretStore,
+  securityQuote,
+} from "../src/secrets.js";
 import { fakeSecretStore } from "./helpers/fake-secret-store.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
@@ -43,7 +50,9 @@ describe("secret store, against the fake security and secret-tool", () => {
 
   it("quotes security -i words", () => {
     expect(securityQuote('a b"c\\d')).toBe('"a b\\"c\\\\d"');
-    expect(keychainAddLine("svc", "x")).toBe('add-generic-password -U -a "turno" -s "svc" -w "x" -T /usr/bin/security\n');
+    expect(keychainAddLine("svc", "x")).toBe(
+      'add-generic-password -U -a "turno" -s "svc" -w "x" -T /usr/bin/security\n',
+    );
     expect(() => keychainAddLine("svc", "two\nlines")).toThrow(/line break/);
   });
 

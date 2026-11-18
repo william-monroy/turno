@@ -26,7 +26,9 @@ function manifestOf(file) {
 /** name -> { manifest, file, bytes } for every .tgz in the folder. */
 export function readTarballs(folder) {
   const out = new Map();
-  for (const name of readdirSync(folder).filter((n) => n.endsWith(".tgz")).sort()) {
+  for (const name of readdirSync(folder)
+    .filter((n) => n.endsWith(".tgz"))
+    .sort()) {
     const file = join(folder, name);
     out.set(manifestOf(file).name, { manifest: manifestOf(file), file, bytes: readFileSync(file) });
   }
@@ -78,7 +80,9 @@ export function serve(folder, port = 0) {
       res.end(String(err));
     }
   });
-  return new Promise((ok) => server.listen(port, "127.0.0.1", () => ok({ url: `http://127.0.0.1:${server.address().port}/`, server })));
+  return new Promise((ok) =>
+    server.listen(port, "127.0.0.1", () => ok({ url: `http://127.0.0.1:${server.address().port}/`, server })),
+  );
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

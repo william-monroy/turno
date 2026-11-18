@@ -19,7 +19,11 @@ function hintsOn(env: NodeJS.ProcessEnv): boolean {
  * Print `Next: <steps joined by "; ">`. `stream: "err"` keeps stdout clean for commands whose
  * stdout is a file (`turno mcp export > file.toml`).
  */
-export function nextStep(io: Io, steps: string | readonly string[], opts: { json?: boolean; stream?: "out" | "err" } = {}): void {
+export function nextStep(
+  io: Io,
+  steps: string | readonly string[],
+  opts: { json?: boolean; stream?: "out" | "err" } = {},
+): void {
   const list = (typeof steps === "string" ? [steps] : steps).filter(Boolean);
   if (!list.length || opts.json || !hintsOn(io.env)) return;
   const line = `Next: ${list.join("; ")}`;

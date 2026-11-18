@@ -76,10 +76,12 @@ async function site() {
     if (req.url === "/api/save") {
       let body = "";
       req.on("data", (d) => (body += d));
-      req.on("end", () => setTimeout(() => {
-        res.setHeader("content-type", "application/json");
-        res.end(JSON.stringify({ message: `Saved ${JSON.parse(body).name}` }));
-      }, 50));
+      req.on("end", () =>
+        setTimeout(() => {
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify({ message: `Saved ${JSON.parse(body).name}` }));
+        }, 50),
+      );
       return;
     }
     res.setHeader("content-type", "text/html; charset=utf-8");
@@ -172,7 +174,12 @@ try {
   for (const mode of values.modes.split(",")) {
     const runs = [];
     for (let i = 0; i < RUNS; i++) runs.push(await runOnce(mode, web.url));
-    results[mode] = { ms: Math.round(median(runs.map((r) => r.ms))), cdp: median(runs.map((r) => r.cdp)), calls: runs[0].calls, bytes: median(runs.map((r) => r.bytes)) };
+    results[mode] = {
+      ms: Math.round(median(runs.map((r) => r.ms))),
+      cdp: median(runs.map((r) => r.cdp)),
+      calls: runs[0].calls,
+      bytes: median(runs.map((r) => r.bytes)),
+    };
     if (!values.json) process.stderr.write(`${mode}: ${JSON.stringify(results[mode])}\n`);
     if (values.methods) {
       const top = [...runs.at(-1).methods].sort((a, b) => b[1] - a[1]);
@@ -186,5 +193,7 @@ try {
 if (values.json) process.stdout.write(`${JSON.stringify(results, null, 2)}\n`);
 else {
   const rows = Object.entries(results).map(([mode, r]) => `| ${mode} | ${r.ms} | ${r.cdp} | ${r.calls} | ${r.bytes} |`);
-  process.stdout.write(`${["| mode | wall ms | CDP commands | MCP calls | result bytes |", "|---|---|---|---|---|", ...rows].join("\n")}\n`);
+  process.stdout.write(
+    `${["| mode | wall ms | CDP commands | MCP calls | result bytes |", "|---|---|---|---|---|", ...rows].join("\n")}\n`,
+  );
 }

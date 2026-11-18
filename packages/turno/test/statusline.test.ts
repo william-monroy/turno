@@ -80,10 +80,14 @@ describe("render", () => {
   it("warns when the folder belongs to another account or a fallback is active", () => {
     expect(plain(render({ ...base, chosen: "personal", assigned: "personal" }))).toContain("personal is back");
     expect(plain(render({ ...base, chosen: "personal", assigned: "other" }))).toContain("project uses personal");
-    expect(plain(render({ ...base, chosen: "work", assigned: "personal", exhaustedAssigned: 5000, when: () => "Thu 15:00" }))).toContain(
-      "fallback for personal until Thu 15:00",
+    expect(
+      plain(
+        render({ ...base, chosen: "work", assigned: "personal", exhaustedAssigned: 5000, when: () => "Thu 15:00" }),
+      ),
+    ).toContain("fallback for personal until Thu 15:00");
+    expect(plain(render({ ...base, exhaustedMine: 5000, when: () => "Thu 15:00" }))).toContain(
+      "exhausted until Thu 15:00",
     );
-    expect(plain(render({ ...base, exhaustedMine: 5000, when: () => "Thu 15:00" }))).toContain("exhausted until Thu 15:00");
   });
 
   it("zeroes a window that already reset", () => {
@@ -94,7 +98,11 @@ describe("render", () => {
 
 describe("pill colors", () => {
   it("uses names, codes and stable defaults", () => {
-    const c = parseConfig('[profiles.work]\ncolor = "violet"\n[profiles.home]\ncolor = 33\n[profiles.lab]\n', "c", sb.env);
+    const c = parseConfig(
+      '[profiles.work]\ncolor = "violet"\n[profiles.home]\ncolor = 33\n[profiles.lab]\n',
+      "c",
+      sb.env,
+    );
     expect(pillColor(c, "work")).toBe(91);
     expect(pillColor(c, "home")).toBe(33);
     expect(pillColor(c, "lab")).toBe(91); // third default
@@ -141,7 +149,9 @@ describe("cost", () => {
 describe("prices", () => {
   it("normalizes Bedrock, Vertex and dated ids", () => {
     expect(normalizeModel("us.anthropic.claude-sonnet-4-5-20250929-v1:0")).toBe("claude-sonnet-4-5");
-    expect(normalizeModel("arn:aws:bedrock:us-east-1:123:inference-profile/global.anthropic.claude-opus-4-5-20251101-v1:0")).toBe("claude-opus-4-5");
+    expect(
+      normalizeModel("arn:aws:bedrock:us-east-1:123:inference-profile/global.anthropic.claude-opus-4-5-20251101-v1:0"),
+    ).toBe("claude-opus-4-5");
     expect(normalizeModel("claude-opus-4-1@20250805")).toBe("claude-opus-4-1");
     expect(normalizeModel("claude-opus-5-5[1m]")).toBe("claude-opus-5-5");
     expect(normalizeModel("claude-opus-4-20250514")).toBe("claude-opus-4");
@@ -178,7 +188,11 @@ describe("prices", () => {
     const out = join(sb.home, ".local/state/turno/cache/cost-s1.json");
     const st = computeCost(t, out);
     expect(st.unknown).toEqual(["claude-future-9"]);
-    const withCc = collect({ session_id: "s1", transcript_path: t, cost: { total_cost_usd: 1.23 } }, env, st.updated_at);
+    const withCc = collect(
+      { session_id: "s1", transcript_path: t, cost: { total_cost_usd: 1.23 } },
+      env,
+      st.updated_at,
+    );
     expect(withCc.cost).toEqual({ total: 1.23, sub: 0 });
     expect(plain(render(withCc))).toContain("$1.23");
     const without = collect({ session_id: "s1", transcript_path: t }, env, st.updated_at);
@@ -190,7 +204,12 @@ describe("prices", () => {
   it("ignores a cost state from an older version", () => {
     sb.write(".local/state/turno/cache/cost-s1.json", JSON.stringify({ files: {}, total: 0, sub: 0, updated_at: 100 }));
     const jobs: Job[] = [];
-    const r = collect({ session_id: "s1", transcript_path: "/nope.jsonl", cost: { total_cost_usd: 2 } }, sb.env, 110, jobs);
+    const r = collect(
+      { session_id: "s1", transcript_path: "/nope.jsonl", cost: { total_cost_usd: 2 } },
+      sb.env,
+      110,
+      jobs,
+    );
     expect(r.cost).toBeUndefined();
     expect(plain(render(r))).toContain("$2.00…");
     expect(jobs).toHaveLength(1); // recomputed in the background
@@ -226,13 +245,53 @@ describe("status line robustness", () => {
       { session_id: "../../escape", prompt_id: 3, transcript_path: {} },
       { session_id: null, cwd: null, prompt_cache: { caching_observed: "yes", expires_at: "later" } },
     ];
-    const values: unknown[] = [null, undefined, 0, -1, 1e308, Number.NaN, "", "x", "../..", true, [], [null], {}, { a: 1 }];
-    const keys = ["session_id", "prompt_id", "cwd", "transcript_path", "workspace", "model", "effort", "cost", "context_window", "prompt_cache", "rate_limits"];
+    const values: unknown[] = [
+      null,
+      undefined,
+      0,
+      -1,
+      1e308,
+      Number.NaN,
+      "",
+      "x",
+      "../..",
+      true,
+      [],
+      [null],
+      {},
+      { a: 1 },
+    ];
+    const keys = [
+      "session_id",
+      "prompt_id",
+      "cwd",
+      "transcript_path",
+      "workspace",
+      "model",
+      "effort",
+      "cost",
+      "context_window",
+      "prompt_cache",
+      "rate_limits",
+    ];
     const r = rng(7);
     const any = (depth: number): unknown => {
       if (depth > 0 && r() < 0.4) {
         const o: Record<string, unknown> = {};
-        for (const k of ["current_dir", "repo", "name", "display_name", "level", "total_cost_usd", "used_percentage", "resets_at", "five_hour", "seven_day", "warm", "expires_at"]) {
+        for (const k of [
+          "current_dir",
+          "repo",
+          "name",
+          "display_name",
+          "level",
+          "total_cost_usd",
+          "used_percentage",
+          "resets_at",
+          "five_hour",
+          "seven_day",
+          "warm",
+          "expires_at",
+        ]) {
           if (r() < 0.3) o[k] = any(depth - 1);
         }
         return o;
@@ -256,7 +315,9 @@ describe("status line robustness", () => {
 
   it("keeps only typed fields of the payload", () => {
     expect(sanitize(null)).toEqual({});
-    expect(sanitize({ session_id: "../x", rate_limits: { five_hour: { used_percentage: "5", resets_at: 9 } } })).toEqual({
+    expect(
+      sanitize({ session_id: "../x", rate_limits: { five_hour: { used_percentage: "5", resets_at: 9 } } }),
+    ).toEqual({
       rate_limits: { five_hour: { resets_at: 9 } },
     });
   });
@@ -270,7 +331,12 @@ describe("status line robustness", () => {
     sb.write(`${st}/usage/work.json`, '{"rate_limits":{"five_hour":{"used_percentage":"80"}},"updated_at":"now"}');
     sb.write(`${st}/exhausted/work`, "garbage");
     mkdirSync(join(sb.home, `${st}/plan/work`), { recursive: true }); // a folder where a file should be
-    const payload = { session_id: "s1", prompt_id: "p1", transcript_path: "/x.jsonl", rate_limits: { five_hour: { used_percentage: 30, resets_at: 9000 } } };
+    const payload = {
+      session_id: "s1",
+      prompt_id: "p1",
+      transcript_path: "/x.jsonl",
+      rate_limits: { five_hour: { used_percentage: 30, resets_at: 9000 } },
+    };
     const r = collect(payload, env, 1000);
     expect(r.limits.five_hour?.used_percentage).toBe(30);
     expect(rows(render(r))).toBe(2);
@@ -281,7 +347,17 @@ describe("status line robustness", () => {
     const blocker = sb.write("blocker", "a file, not a folder");
     const env = { ...work(), TURNO_STATE_DIR: join(blocker, "state") };
     const jobs: Job[] = [];
-    const r = collect({ session_id: "s1", prompt_id: "p", transcript_path: "/x.jsonl", rate_limits: { five_hour: { used_percentage: 3 } } }, env, 1000, jobs);
+    const r = collect(
+      {
+        session_id: "s1",
+        prompt_id: "p",
+        transcript_path: "/x.jsonl",
+        rate_limits: { five_hour: { used_percentage: 3 } },
+      },
+      env,
+      1000,
+      jobs,
+    );
     expect(r.account).toBe("work");
     expect(rows(render(r))).toBe(2);
     expect(r.plan).toBe("");
@@ -307,7 +383,7 @@ describe("plan", () => {
   });
 
   it("does not record an empty plan", async () => {
-    fakeCommand(sb, "claude", 'echo \'{"loggedIn":false}\'');
+    fakeCommand(sb, "claude", "echo '{\"loggedIn\":false}'");
     sb.write(".local/state/turno/plan/work", "");
     const old = Date.now() / 1000 - 3600;
     utimesSync(planFile(), old, old);
@@ -348,7 +424,11 @@ describe("cache", () => {
   });
 
   it("rewrites the turn history only when it changes", () => {
-    const payload = { session_id: "s1", prompt_id: "p1", rate_limits: { five_hour: { used_percentage: 10, resets_at: 9000 } } };
+    const payload = {
+      session_id: "s1",
+      prompt_id: "p1",
+      rate_limits: { five_hour: { used_percentage: 10, resets_at: 9000 } },
+    };
     collect(payload, env(), 1000);
     const file = join(cache(), "turns-s1.json");
     utimesSync(file, 500, 500);

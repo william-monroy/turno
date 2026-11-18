@@ -3,7 +3,15 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseManifest } from "../src/core/manifest.js";
 import { keychainResolver } from "../src/core/secrets.js";
-import { argSecrets, collectSources, foundSummary, importServers, maskSecret, mergeSources, urlSecrets } from "../src/mcpd/importer.js";
+import {
+  argSecrets,
+  collectSources,
+  foundSummary,
+  importServers,
+  maskSecret,
+  mergeSources,
+  urlSecrets,
+} from "../src/mcpd/importer.js";
 import { fakeIo } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
@@ -53,7 +61,9 @@ describe("secret detection and masking", () => {
   });
 
   it("finds secrets in args and URL query strings", () => {
-    expect(argSecrets(["--api-key=k3y-value-123", "--token", "tok-value-456", "--verbose", "--port", "8080", GHP])).toEqual(["k3y-value-123", "tok-value-456", GHP]);
+    expect(
+      argSecrets(["--api-key=k3y-value-123", "--token", "tok-value-456", "--verbose", "--port", "8080", GHP]),
+    ).toEqual(["k3y-value-123", "tok-value-456", GHP]);
     expect(argSecrets(["--config", "/etc/x.json", "--key-file", "~/k.pem"])).toEqual([]);
     expect(urlSecrets("https://api.example.com/mcp?api_key=abc123def&region=eu")).toEqual(["abc123def"]);
     expect(urlSecrets("https://api.example.com/mcp")).toEqual([]);
@@ -82,14 +92,27 @@ describe("${VAR} references", () => {
   it("translates whole variables to env: references and never plans to store a placeholder", async () => {
     const report = await importServers(
       {
-        gh: { command: "gh-mcp", env: { GITHUB_TOKEN: "${GITHUB_TOKEN}", REGION: "${REGION:-eu}", CUR: "${env:CUR_KEY}", MIXED_TOKEN: "pre-${X}" } },
+        gh: {
+          command: "gh-mcp",
+          env: {
+            GITHUB_TOKEN: "${GITHUB_TOKEN}",
+            REGION: "${REGION:-eu}",
+            CUR: "${env:CUR_KEY}",
+            MIXED_TOKEN: "pre-${X}",
+          },
+        },
         rem: { type: "http", url: "https://rem.example.com/mcp", headers: { Authorization: "Bearer ${REM_TOKEN}" } },
       },
       { moveSecrets: true },
     );
     const m = parseManifest(report.toml);
     const gh = m.servers.gh!;
-    expect(gh.kind === "stdio" && gh.env).toEqual({ GITHUB_TOKEN: "env:GITHUB_TOKEN", REGION: "env:REGION:-eu", CUR: "env:CUR_KEY", MIXED_TOKEN: "pre-${X}" });
+    expect(gh.kind === "stdio" && gh.env).toEqual({
+      GITHUB_TOKEN: "env:GITHUB_TOKEN",
+      REGION: "env:REGION:-eu",
+      CUR: "env:CUR_KEY",
+      MIXED_TOKEN: "pre-${X}",
+    });
     const rem = m.servers.rem!;
     // Kept as written and direct, so Claude Code expands it as it did before the import.
     expect(rem.kind === "remote" && rem.proxy).toBe(false);
@@ -116,20 +139,33 @@ describe("sources", () => {
     sb.write(
       ".claude.json",
       JSON.stringify({
-        mcpServers: { user1: { command: "u-mcp" }, gw: { type: "http", url: "http://127.0.0.1:47821/mcp/gw", headers: { "X-Turno-Profile": "work" } } },
+        mcpServers: {
+          user1: { command: "u-mcp" },
+          gw: { type: "http", url: "http://127.0.0.1:47821/mcp/gw", headers: { "X-Turno-Profile": "work" } },
+        },
         projects: { [join(sb.home, "code/app")]: { mcpServers: { filesystem: { command: "fs-mcp", args: ["."] } } } },
       }),
     );
     sb.write("work/.mcp.json", JSON.stringify({ mcpServers: { folder1: { command: "f-mcp" } } }));
-    sb.write(".codex/config.toml", '[mcp_servers.context7]\ncommand = "npx"\nargs = ["-y", "@upstash/context7-mcp"]\nenv_vars = ["CTX_KEY"]\n\n[mcp_servers.gwc]\nurl = "http://127.0.0.1:47821/mcp/gwc"\nbearer_token_env_var = "TURNO_MCPD_TOKEN"\n');
+    sb.write(
+      ".codex/config.toml",
+      '[mcp_servers.context7]\ncommand = "npx"\nargs = ["-y", "@upstash/context7-mcp"]\nenv_vars = ["CTX_KEY"]\n\n[mcp_servers.gwc]\nurl = "http://127.0.0.1:47821/mcp/gwc"\nbearer_token_env_var = "TURNO_MCPD_TOKEN"\n',
+    );
     sb.write(".cursor/mcp.json", JSON.stringify({ mcpServers: { cur1: { url: "https://cur.example.com/mcp" } } }));
-    sb.write(".copilot/mcp-config.json", JSON.stringify({ mcpServers: { cop1: { type: "local", command: "c-mcp", tools: ["*"] }, user1: { command: "other" } } }));
+    sb.write(
+      ".copilot/mcp-config.json",
+      JSON.stringify({
+        mcpServers: { cop1: { type: "local", command: "c-mcp", tools: ["*"] }, user1: { command: "other" } },
+      }),
+    );
     const { sources, problems } = collectSources(sb.env, join(sb.home, "work"));
     expect(problems).toEqual([]);
     const merged = mergeSources(sources);
     expect(Object.keys(merged.servers).sort()).toEqual(["context7", "cop1", "cur1", "filesystem", "folder1", "user1"]);
     expect(merged.servers.context7!.env).toEqual({ CTX_KEY: "${CTX_KEY}" });
-    expect(merged.notes.join("\n")).toContain("user1: also in ~/.copilot/mcp-config.json with other settings; kept the one from ~/.claude.json");
+    expect(merged.notes.join("\n")).toContain(
+      "user1: also in ~/.copilot/mcp-config.json with other settings; kept the one from ~/.claude.json",
+    );
     const summary = foundSummary(Object.keys(merged.servers), merged.from);
     expect(summary).toMatch(/^found 6 servers: /);
     expect(summary).toContain("1 in ~/.codex/config.toml (context7)");
@@ -146,7 +182,10 @@ describe("turno mcp import", () => {
   }
 
   it("previews without writing or storing anything, with secrets masked", async () => {
-    sb.write(".claude.json", JSON.stringify({ mcpServers: { gh: { command: "gh-mcp", env: { GITHUB_PERSONAL_ACCESS_TOKEN: GHP } } } }));
+    sb.write(
+      ".claude.json",
+      JSON.stringify({ mcpServers: { gh: { command: "gh-mcp", env: { GITHUB_PERSONAL_ACCESS_TOKEN: GHP } } } }),
+    );
     for (const flags of [[], ["--move-secrets"], ["--dry-run", "--move-secrets"]]) {
       const { code, io, all } = await main(flags);
       expect(code).toBe(0);
@@ -158,7 +197,12 @@ describe("turno mcp import", () => {
   });
 
   it("stores secrets only with --write --move-secrets", async () => {
-    sb.write(".claude.json", JSON.stringify({ mcpServers: { gh: { command: "gh-mcp", env: { GITHUB_PERSONAL_ACCESS_TOKEN: GHP, OTHER_TOKEN: "${OTHER}" } } } }));
+    sb.write(
+      ".claude.json",
+      JSON.stringify({
+        mcpServers: { gh: { command: "gh-mcp", env: { GITHUB_PERSONAL_ACCESS_TOKEN: GHP, OTHER_TOKEN: "${OTHER}" } } },
+      }),
+    );
     const { code, all } = await main(["--write", "--move-secrets"]);
     expect(code).toBe(0);
     expect(all).not.toContain(GHP);
@@ -167,14 +211,19 @@ describe("turno mcp import", () => {
     expect(log).toContain("turno/gh/github-personal-access-token");
     expect(log).not.toContain("${");
     // The value never reaches argv on either store.
-    expect(log.split("\n").filter((l) => l.startsWith("argv: ")).join("\n")).not.toContain(GHP);
+    expect(
+      log
+        .split("\n")
+        .filter((l) => l.startsWith("argv: "))
+        .join("\n"),
+    ).not.toContain(GHP);
     const text = readFileSync(join(sb.home, ".config/turno/mcp.toml"), "utf8");
     expect(text).toContain('"keychain:turno/gh/github-personal-access-token"');
     expect(text).toContain('"env:OTHER"');
   });
 
   it("reads the MCP servers of turno profiles too", async () => {
-    sb.write(".config/turno/config.toml", "[profiles.work]\n\n[profiles.cx]\nagent = \"codex\"\n");
+    sb.write(".config/turno/config.toml", '[profiles.work]\n\n[profiles.cx]\nagent = "codex"\n');
     sb.write(".claude-work/.claude.json", JSON.stringify({ mcpServers: { w1: { command: "w-mcp" } } }));
     sb.write(".codex-cx/config.toml", '[mcp_servers.c1]\ncommand = "c-mcp"\n');
     const { code, all } = await main([]);
@@ -186,7 +235,10 @@ describe("turno mcp import", () => {
   it("asks npm for command names only with --write", async () => {
     const log = join(sb.home, "npm.log");
     writeFileSync(join(sb.home, "fakebin", "npm"), `#!/bin/sh\necho "$*" >> "${log}"\necho null\n`);
-    sb.write(".claude.json", JSON.stringify({ mcpServers: { mem: { command: "npx", args: ["-y", "@modelcontextprotocol/server-memory"] } } }));
+    sb.write(
+      ".claude.json",
+      JSON.stringify({ mcpServers: { mem: { command: "npx", args: ["-y", "@modelcontextprotocol/server-memory"] } } }),
+    );
     const preview = await main([]);
     expect(preview.code).toBe(0);
     expect(existsSync(log)).toBe(false);
@@ -194,7 +246,9 @@ describe("turno mcp import", () => {
     const write = await main(["--write"]);
     expect(write.code).toBe(0);
     expect(readFileSync(log, "utf8")).toContain("view @modelcontextprotocol/server-memory bin --json");
-    expect(write.all).toContain("mem: npm did not name the command of @modelcontextprotocol/server-memory; using server-memory, check it");
+    expect(write.all).toContain(
+      "mem: npm did not name the command of @modelcontextprotocol/server-memory; using server-memory, check it",
+    );
   });
 
   it("works for a Codex-only user and says so clearly when nothing is found", async () => {

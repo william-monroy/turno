@@ -3,7 +3,13 @@ import { type Manifest, parseManifest } from "../src/core/manifest.js";
 import type { CallEvent } from "../src/mcpd/calllog.js";
 import type { ClientContext, ClientHandle, InstanceManager } from "../src/mcpd/instances.js";
 import { ErrorCode, type Outcome } from "../src/mcpd/jsonrpc.js";
-import { type CallStage, CallPipeline, SESSION_META, type ToolCall, createCallPipeline } from "../src/mcpd/middleware.js";
+import {
+  type CallStage,
+  CallPipeline,
+  SESSION_META,
+  type ToolCall,
+  createCallPipeline,
+} from "../src/mcpd/middleware.js";
 
 /**
  * The call middleware (ADR 0047): every tools/call of both protocol paths goes through one
@@ -22,10 +28,19 @@ function client(over: Partial<ClientContext> = {}): ClientHandle {
 }
 
 /** A manager whose forward records what it was asked to relay and answers ok on variant "work". */
-function fakeManager(answer: (params: Record<string, unknown> | undefined) => Outcome = () => ({ result: { content: [] } })) {
+function fakeManager(
+  answer: (params: Record<string, unknown> | undefined) => Outcome = () => ({ result: { content: [] } }),
+) {
   const relayed: { method: string; params: Record<string, unknown> | undefined }[] = [];
   const manager = {
-    async forward(_c: ClientHandle, method: string, params: Record<string, unknown> | undefined, _id: unknown, _cancelled?: () => boolean, onVariant?: (v: string) => void) {
+    async forward(
+      _c: ClientHandle,
+      method: string,
+      params: Record<string, unknown> | undefined,
+      _id: unknown,
+      _cancelled?: () => boolean,
+      onVariant?: (v: string) => void,
+    ) {
       relayed.push({ method, params });
       onVariant?.("work");
       return answer(params);
@@ -40,7 +55,14 @@ const manifest = (toml: string): (() => Manifest) => {
 };
 const FX = '[server.fx]\ncommand = "fx"\n';
 
-function pipeline(o: { toml?: string; stages?: CallStage[]; events?: CallEvent[]; answer?: (p: Record<string, unknown> | undefined) => Outcome } = {}) {
+function pipeline(
+  o: {
+    toml?: string;
+    stages?: CallStage[];
+    events?: CallEvent[];
+    answer?: (p: Record<string, unknown> | undefined) => Outcome;
+  } = {},
+) {
   const fake = fakeManager(o.answer);
   const p = createCallPipeline({
     manager: fake.manager,
@@ -65,7 +87,8 @@ function probe(name: string, trail: string[], seen?: Record<string, unknown>[]):
   };
 }
 
-const call = (p: CallPipeline, c: ClientHandle, params: Record<string, unknown>, id: string | number = 1) => p.call(c, params, id, () => false);
+const call = (p: CallPipeline, c: ClientHandle, params: Record<string, unknown>, id: string | number = 1) =>
+  p.call(c, params, id, () => false);
 
 describe("the call pipeline", () => {
   it("runs filter, the opt-in stages in their order, call log and session, then the relay", async () => {
@@ -88,15 +111,24 @@ describe("the call pipeline", () => {
   it("refuses a tool the profile's filter hides before any other stage, and logs nothing", async () => {
     const trail: string[] = [];
     const events: CallEvent[] = [];
-    const { p, relayed } = pipeline({ toml: `${FX}tools = { deny = ["hang"] }\n`, stages: [probe("test-a", trail)], events });
+    const { p, relayed } = pipeline({
+      toml: `${FX}tools = { deny = ["hang"] }\n`,
+      stages: [probe("test-a", trail)],
+      events,
+    });
     const out = await call(p, client(), { name: "hang", arguments: {} });
     expect(out).toEqual({
-      error: { code: ErrorCode.InvalidParams, message: "tool hang of fx is not available to profile work (tools.allow / tools.deny in mcp.toml)" },
+      error: {
+        code: ErrorCode.InvalidParams,
+        message: "tool hang of fx is not available to profile work (tools.allow / tools.deny in mcp.toml)",
+      },
     });
     expect(trail).toEqual([]);
     expect(relayed).toEqual([]);
     expect(events).toEqual([]);
-    expect(await call(p, client({ profile: undefined }), { name: "hang" })).toMatchObject({ error: { message: /not available to profile default/ } });
+    expect(await call(p, client({ profile: undefined }), { name: "hang" })).toMatchObject({
+      error: { message: /not available to profile default/ },
+    });
     expect(await call(p, client(), { name: "echo" })).toEqual({ result: { content: [] } });
   });
 
@@ -107,7 +139,8 @@ describe("the call pipeline", () => {
   it("refuses two stages with one name, and the built-in names", () => {
     const noop = (name: string): CallStage => ({ name, run: (c, next) => next(c) });
     expect(() => pipeline({ stages: [noop("trim"), noop("trim")] })).toThrow('call stage "trim" is registered twice');
-    for (const reserved of ["filter", "calllog", "session"]) expect(() => pipeline({ stages: [noop(reserved)] })).toThrow(`call stage "${reserved}" is registered twice`);
+    for (const reserved of ["filter", "calllog", "session"])
+      expect(() => pipeline({ stages: [noop(reserved)] })).toThrow(`call stage "${reserved}" is registered twice`);
     expect(() => pipeline({ stages: [noop("Bad Name")] })).toThrow(/must match/);
     expect(() => new CallPipeline({} as InstanceManager, [noop("a"), noop("a")])).toThrow(/twice/);
   });
@@ -130,12 +163,20 @@ describe("the call pipeline", () => {
 
   it("logs each call with the variant the relay used and the arguments as the client sent them", async () => {
     const events: CallEvent[] = [];
-    const { p } = pipeline({ events, answer: () => ({ error: { code: ErrorCode.RequestTimeout, message: "timed out" } }) });
+    const { p } = pipeline({
+      events,
+      answer: () => ({ error: { code: ErrorCode.RequestTimeout, message: "timed out" } }),
+    });
     const before = Date.now();
     await call(p, client(), { name: "echo", arguments: { text: "x" } });
     expect(events).toHaveLength(1);
     const e = events[0]!;
-    expect(e).toMatchObject({ method: "tools/call", variant: "work", params: { name: "echo", arguments: { text: "x" } }, outcome: { error: { code: ErrorCode.RequestTimeout } } });
+    expect(e).toMatchObject({
+      method: "tools/call",
+      variant: "work",
+      params: { name: "echo", arguments: { text: "x" } },
+      outcome: { error: { code: ErrorCode.RequestTimeout } },
+    });
     expect(e.ctx.serverName).toBe("fx");
     expect(e.startedAt).toBeGreaterThanOrEqual(before);
     expect(e.durationMs).toBeGreaterThanOrEqual(0);
@@ -145,8 +186,17 @@ describe("the call pipeline", () => {
     let sink: ((e: CallEvent) => void) | undefined;
     const events: CallEvent[] = [];
     const fake = fakeManager();
-    const boom: CallStage = { name: "test-boom", run: async (c, next) => ((c.params as { name?: string }).name === "boom" ? Promise.reject(new Error("stage failed")) : next(c)) };
-    const p = createCallPipeline({ manager: fake.manager, manifest: manifest(FX), callLog: () => sink, stages: [boom] });
+    const boom: CallStage = {
+      name: "test-boom",
+      run: async (c, next) =>
+        (c.params as { name?: string }).name === "boom" ? Promise.reject(new Error("stage failed")) : next(c),
+    };
+    const p = createCallPipeline({
+      manager: fake.manager,
+      manifest: manifest(FX),
+      callLog: () => sink,
+      stages: [boom],
+    });
     await call(p, client(), { name: "echo" });
     sink = (e) => events.push(e);
     await call(p, client(), { name: "echo" });

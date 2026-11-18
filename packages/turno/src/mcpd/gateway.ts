@@ -11,8 +11,26 @@ import type { ServerDescription } from "./cache.js";
 import { type CallEvent, cleanAgentName } from "./calllog.js";
 import type { ClientNames } from "./client-names.js";
 import { folderRoots } from "./folder-sets.js";
-import { type ClientContext, type ClientHandle, type InstanceManager, isDirectory, processCwd, projectRoot, scopeOf } from "./instances.js";
-import { ErrorCode, type Id, type Message, type Outcome, isNotification, isRequest, isResponse, rpcError, toResponse } from "./jsonrpc.js";
+import {
+  type ClientContext,
+  type ClientHandle,
+  type InstanceManager,
+  isDirectory,
+  processCwd,
+  projectRoot,
+  scopeOf,
+} from "./instances.js";
+import {
+  ErrorCode,
+  type Id,
+  type Message,
+  type Outcome,
+  isNotification,
+  isRequest,
+  isResponse,
+  rpcError,
+  toResponse,
+} from "./jsonrpc.js";
 import { type CallPipeline, type CallStage, createCallPipeline, toolFilterOf } from "./middleware.js";
 import { StatelessFront, isInitialize, readJsonBody, wantsModern } from "./modern.js";
 import { tokenProfile } from "./tokens.js";
@@ -82,7 +100,9 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 function negotiateVersion(requested: unknown): string {
-  return typeof requested === "string" && SUPPORTED_PROTOCOL_VERSIONS.includes(requested) ? requested : LATEST_PROTOCOL_VERSION;
+  return typeof requested === "string" && SUPPORTED_PROTOCOL_VERSIONS.includes(requested)
+    ? requested
+    : LATEST_PROTOCOL_VERSION;
 }
 
 /**
@@ -176,7 +196,9 @@ class ClientSession implements ClientHandle {
 
   notify(method: string, params: Record<string, unknown> | undefined, related?: Id): void {
     const m: Message = { jsonrpc: "2.0", method, ...(params ? { params } : {}) };
-    void this.transport.send(m as never, related !== undefined ? { relatedRequestId: related } : undefined).catch(() => {});
+    void this.transport
+      .send(m as never, related !== undefined ? { relatedRequestId: related } : undefined)
+      .catch(() => {});
   }
 
   request(method: string, params: Record<string, unknown> | undefined, related?: Id): Promise<Outcome> {
@@ -188,11 +210,13 @@ class ClientSession implements ClientHandle {
       }, this.gw.clientRequestTimeoutMs);
       this.waiting.set(id, { resolve, timer });
       const m: Message = { jsonrpc: "2.0", id, method, ...(params ? { params } : {}) };
-      this.transport.send(m as never, related !== undefined ? { relatedRequestId: related } : undefined).catch((err) => {
-        clearTimeout(timer);
-        this.waiting.delete(id);
-        resolve(rpcError(ErrorCode.Internal, `cannot reach client: ${(err as Error).message}`));
-      });
+      this.transport
+        .send(m as never, related !== undefined ? { relatedRequestId: related } : undefined)
+        .catch((err) => {
+          clearTimeout(timer);
+          this.waiting.delete(id);
+          resolve(rpcError(ErrorCode.Internal, `cannot reach client: ${(err as Error).message}`));
+        });
     });
   }
 
@@ -236,13 +260,18 @@ class ClientSession implements ClientHandle {
       // Outside the folder's server set (ADR 0031): answer from mcpd, never start the server.
       const hidden = this.gw.hiddenBySet(this);
       if (hidden) {
-        const agent = method === "initialize" ? cleanAgentName((m.params?.clientInfo as { name?: unknown } | undefined)?.name) : undefined;
+        const agent =
+          method === "initialize"
+            ? cleanAgentName((m.params?.clientInfo as { name?: unknown } | undefined)?.name)
+            : undefined;
         if (agent) this.gw.nameClient(this, agent);
         this.reply(id, hiddenAnswer(m, this.ctx.serverName, hidden));
         return;
       }
       if (method === "initialize") {
-        const init = m.params as { capabilities?: Record<string, unknown>; clientInfo?: { name?: unknown } } | undefined;
+        const init = m.params as
+          | { capabilities?: Record<string, unknown>; clientInfo?: { name?: unknown } }
+          | undefined;
         this.ctx.clientCapabilities = init?.capabilities ?? {};
         const agent = cleanAgentName(init?.clientInfo?.name);
         if (agent) this.gw.nameClient(this, agent);
@@ -289,7 +318,12 @@ class ClientSession implements ClientHandle {
           this.reply(id, rpcError(ErrorCode.InvalidParams, `${method} needs a uri`));
           return;
         }
-        this.reply(id, method === "resources/subscribe" ? await manager.subscribe(this, uri, id) : await manager.unsubscribe(this, uri, id));
+        this.reply(
+          id,
+          method === "resources/subscribe"
+            ? await manager.subscribe(this, uri, id)
+            : await manager.unsubscribe(this, uri, id),
+        );
         return;
       }
       this.reply(id, await manager.forward(this, method, m.params, id, () => state.cancelled));
@@ -316,7 +350,8 @@ class ClientSession implements ClientHandle {
       return;
     }
     if (!inst) return;
-    if (method === "notifications/roots/list_changed" && (scopeOf(inst.server) === "shared" || inst.workdirKnown)) return;
+    if (method === "notifications/roots/list_changed" && (scopeOf(inst.server) === "shared" || inst.workdirKnown))
+      return;
     inst.upstream.notify(method, m.params, this);
   }
 }
@@ -427,7 +462,10 @@ export class Gateway {
    * are not told: they see the change when their list results expire (`ttlMs`).
    */
   beforeViewChange(): () => number {
-    const view = (s: ClientSession) => ({ hidden: this.hiddenBySet(s) !== undefined, filter: JSON.stringify(this.toolFilter(s.ctx) ?? null) });
+    const view = (s: ClientSession) => ({
+      hidden: this.hiddenBySet(s) !== undefined,
+      filter: JSON.stringify(this.toolFilter(s.ctx) ?? null),
+    });
     const before = new Map([...this.sessions.values()].map((s) => [s, view(s)] as const));
     return () => {
       let told = 0;
@@ -483,7 +521,9 @@ export class Gateway {
   private refuseMaster(res: ServerResponse, name: string | undefined): void {
     if (Date.now() - this.lastMasterWarning > 60_000) {
       this.lastMasterWarning = Date.now();
-      this.opts.log?.(`refused a session for ${name ?? "?"} that sent the master token: an agent config predates per-profile tokens (turno mcp sync fixes it)`);
+      this.opts.log?.(
+        `refused a session for ${name ?? "?"} that sent the master token: an agent config predates per-profile tokens (turno mcp sync fixes it)`,
+      );
     }
     json(res, 403, { error: MASTER_TOKEN_REFUSED });
   }
@@ -556,7 +596,11 @@ export class Gateway {
         return;
       }
       if (sid) {
-        json(res, 400, { jsonrpc: "2.0", id: null, error: { code: ErrorCode.InvalidRequest, message: "initialize cannot carry an Mcp-Session-Id" } });
+        json(res, 400, {
+          jsonrpc: "2.0",
+          id: null,
+          error: { code: ErrorCode.InvalidRequest, message: "initialize cannot carry an Mcp-Session-Id" },
+        });
         return;
       }
       // A dual-era client asking for a 2025-era session: the SDK takes it from here.
@@ -566,7 +610,8 @@ export class Gateway {
       let s = open;
       // mcpd restarted (upgrade, refresh, crash): rebuild the session under the same id from
       // the request headers instead of a 404 that ends the client's conversation.
-      if (!s && (req.method === "POST" || req.method === "GET") && SESSION_ID.test(sid)) s = await this.recreate(req, name, sid, caller.profile);
+      if (!s && (req.method === "POST" || req.method === "GET") && SESSION_ID.test(sid))
+        s = await this.recreate(req, name, sid, caller.profile);
       if (!s || s.ctx.serverName !== name || s.ctx.profile !== caller.profile) {
         json(res, 404, { jsonrpc: "2.0", error: { code: -32001, message: "Session not found" }, id: null });
         return;
@@ -600,7 +645,9 @@ export class Gateway {
    */
   private handleLogout(name: string, variants: string[], res: ServerResponse): void {
     this.manager.forgetLogin(name, variants.length ? variants : undefined);
-    this.opts.log?.(`${name}: OAuth login removed (${variants.length ? variants.join(", ") : "every variant"}); reading the secret store again`);
+    this.opts.log?.(
+      `${name}: OAuth login removed (${variants.length ? variants.join(", ") : "every variant"}); reading the secret store again`,
+    );
     json(res, 200, { server: name, variants: variants.length ? variants : null });
   }
 
@@ -629,7 +676,12 @@ export class Gateway {
   }
 
   /** One recreation per id, even when the client's GET stream and next POST arrive together. */
-  private recreate(req: IncomingMessage, name: string, sid: string, profile: string): Promise<ClientSession | undefined> {
+  private recreate(
+    req: IncomingMessage,
+    name: string,
+    sid: string,
+    profile: string,
+  ): Promise<ClientSession | undefined> {
     let p = this.recreating.get(sid);
     if (!p) {
       p = this.createSession(req, name, profile, sid);
@@ -639,7 +691,12 @@ export class Gateway {
     return p;
   }
 
-  private async createSession(req: IncomingMessage, name: string, profile: string, fixedId?: string): Promise<ClientSession | undefined> {
+  private async createSession(
+    req: IncomingMessage,
+    name: string,
+    profile: string,
+    fixedId?: string,
+  ): Promise<ClientSession | undefined> {
     const ctx = await this.sessionContext(req, name, profile);
     const folders = ctx.cwd && this.opts.folderRules ? await folderRoots(ctx.cwd) : [];
     let session: ClientSession | undefined;
@@ -669,7 +726,10 @@ export class Gateway {
       s.id = fixedId;
       ctx.sessionId = fixedId;
       // A rebuilt session never sees initialize: take the name its process gave before.
-      const known = ctx.pid ? ([...this.sessions.values()].find((o) => o.ctx.pid === ctx.pid && o.ctx.clientName)?.ctx.clientName ?? this.opts.clientNames?.get(ctx.pid)) : undefined;
+      const known = ctx.pid
+        ? ([...this.sessions.values()].find((o) => o.ctx.pid === ctx.pid && o.ctx.clientName)?.ctx.clientName ??
+          this.opts.clientNames?.get(ctx.pid))
+        : undefined;
       if (known) ctx.clientName = known;
       this.sessions.set(fixedId, s);
       this.manager.register(s);
@@ -680,10 +740,18 @@ export class Gateway {
 
   /** Agent processes behind the open sessions: one entry per client PID (or per session without one). */
   agents(): { pid: number | null; profile: string | null; agent: string | null; servers: string[] }[] {
-    const by = new Map<string, { pid: number | null; profile: string | null; agent: string | null; servers: string[] }>();
+    const by = new Map<
+      string,
+      { pid: number | null; profile: string | null; agent: string | null; servers: string[] }
+    >();
     for (const s of [...this.sessions.values(), ...this.front.list()]) {
       const key = s.ctx.pid ? `pid:${s.ctx.pid}` : `sid:${s.id}`;
-      const a = by.get(key) ?? { pid: s.ctx.pid ?? null, profile: s.ctx.profile ?? null, agent: s.ctx.clientName ?? null, servers: [] };
+      const a = by.get(key) ?? {
+        pid: s.ctx.pid ?? null,
+        profile: s.ctx.profile ?? null,
+        agent: s.ctx.clientName ?? null,
+        servers: [],
+      };
       if (!a.servers.includes(s.ctx.serverName)) a.servers.push(s.ctx.serverName);
       a.agent ??= s.ctx.clientName ?? null;
       by.set(key, a);

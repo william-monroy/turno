@@ -52,17 +52,28 @@ type StatusBase = Awaited<ReturnType<typeof statusBase>>;
 /** First thing that keeps this machine from working fully, in the order a person would fix it. */
 async function nextStep(env: NodeJS.ProcessEnv, d: StatusBase): Promise<NextStep | null> {
   if (d.migrationPending) return { command: "turno migrate", why: "the bash claudio config is not moved to turno yet" };
-  if (!d.profiles.length) return { command: "turno init", why: "no profiles yet; init finds your agents, folders and MCP servers" };
+  if (!d.profiles.length)
+    return { command: "turno init", why: "no profiles yet; init finds your agents, folders and MCP servers" };
   const notSetUp = d.profiles.find((x) => !x.setUp);
-  if (notSetUp) return { command: `turno profile repair ${notSetUp.name}`, why: `profile ${notSetUp.name} has no folder or launcher yet` };
+  if (notSetUp)
+    return {
+      command: `turno profile repair ${notSetUp.name}`,
+      why: `profile ${notSetUp.name} has no folder or launcher yet`,
+    };
   const servers = manifestServers(env);
-  if (servers && !d.mcpd.running) return { command: "turno mcp daemon start", why: `mcp.toml has ${plural(servers, "server")} and the gateway is not running` };
+  if (servers && !d.mcpd.running)
+    return {
+      command: "turno mcp daemon start",
+      why: `mcp.toml has ${plural(servers, "server")} and the gateway is not running`,
+    };
   if (servers) {
     const pending = await syncPending(env);
-    if (pending) return { command: "turno mcp sync", why: `${plural(pending, "agent config")} do not point at the gateway yet` };
+    if (pending)
+      return { command: "turno mcp sync", why: `${plural(pending, "agent config")} do not point at the gateway yet` };
   }
   if (d.update) return { command: "turno upgrade", why: `turno ${d.update} is available` };
-  if (d.look.statusLine !== "turno") return { command: "turno ui install", why: "optional: the status line with account, usage and gateway" };
+  if (d.look.statusLine !== "turno")
+    return { command: "turno ui install", why: "optional: the status line with account, usage and gateway" };
   return null;
 }
 
@@ -74,7 +85,11 @@ export async function statusData(env: NodeJS.ProcessEnv, cwd = process.cwd()) {
 
 async function statusBase(env: NodeJS.ProcessEnv, cwd: string) {
   const config = loadConfig(env);
-  const [profiles, limits, mcpd] = await Promise.all([profilesData(env, config), limitsData(env, false), mcpdStatus(env, config)]);
+  const [profiles, limits, mcpd] = await Promise.all([
+    profilesData(env, config),
+    limitsData(env, false),
+    mcpdStatus(env, config),
+  ]);
   const all = resolveAll(cwd, config, env);
   const here = all[0]!.r;
   const sessions = sessionsData(env);
@@ -94,7 +109,9 @@ async function statusBase(env: NodeJS.ProcessEnv, cwd: string) {
       chosen: here.chosen || null,
       reason: here.reason,
       note: here.note || null,
-      agents: Object.fromEntries(all.map(({ agent, r }) => [agent, { chosen: r.chosen || null, text: usingText(agent, r, env, config) }])),
+      agents: Object.fromEntries(
+        all.map(({ agent, r }) => [agent, { chosen: r.chosen || null, text: usingText(agent, r, env, config) }]),
+      ),
     },
     profiles: profiles.map((p) => {
       const l = limits.find((x) => x.profile === p.name);
@@ -130,22 +147,35 @@ export function resetIn(resetsAt: number | null, now: number): string {
 type StatusData = Awaited<ReturnType<typeof statusData>>;
 
 /** The status screen as lines: the same layout with colors on a terminal and as plain text. */
-export function renderStatus(d: StatusData, io: Io, opts: { now?: number; colors?: Record<string, { color?: string | number }> } = {}): string[] {
+export function renderStatus(
+  d: StatusData,
+  io: Io,
+  opts: { now?: number; colors?: Record<string, { color?: string | number }> } = {},
+): string[] {
   const now = opts.now ?? Date.now() / 1000;
   const s = style(io, { nerd: d.look.icons === "nerd" });
   const pill = (name: string) => s.profile(name, opts.colors ? profileColor(opts.colors, name) : undefined);
   const out: string[] = [];
   // system = "" leaves plain claude without an account: say so rather than "plain claude".
-  const plain = d.here.agents[DEFAULT_AGENT]?.text.startsWith(NO_DEFAULT_ACCOUNT) ? s.warn("no profile") : "plain claude";
+  const plain = d.here.agents[DEFAULT_AGENT]?.text.startsWith(NO_DEFAULT_ACCOUNT)
+    ? s.warn("no profile")
+    : "plain claude";
   const using = d.here.chosen ? pill(d.here.chosen) : plain;
   out.push(s.wrap(`${s.bold(s.accent("turno"))} ${s.muted(d.version)}  `, `${d.here.dir} ${s.icon("arrow")} ${using}`));
   if (d.update) out.push(s.warn(`${s.icon("info")} turno ${d.update} is available: turno upgrade`));
-  if (d.migrationPending) out.push(s.warn(`${s.icon("warn")} the bash claudio config is not migrated yet: turno migrate`));
+  if (d.migrationPending)
+    out.push(s.warn(`${s.icon("warn")} the bash claudio config is not migrated yet: turno migrate`));
 
   // Here: what each agent opens in this folder.
   out.push("", s.header("Here"));
   const why = d.here.note ? `${d.here.assigned} ${d.here.note}` : d.here.reason;
-  const here: string[][] = [[s.muted(DEFAULT_AGENT), d.here.chosen ? pill(d.here.chosen) : plain, s.muted(plain === "plain claude" ? why : `${why}; system = "" (turno auto exits 3)`)]];
+  const here: string[][] = [
+    [
+      s.muted(DEFAULT_AGENT),
+      d.here.chosen ? pill(d.here.chosen) : plain,
+      s.muted(plain === "plain claude" ? why : `${why}; system = "" (turno auto exits 3)`),
+    ],
+  ];
   for (const [agent, a] of Object.entries(d.here.agents)) {
     if (agent === DEFAULT_AGENT) continue;
     const m = /^(.*) \((.*)\)$/.exec(a.text);
@@ -164,10 +194,24 @@ export function renderStatus(d: StatusData, io: Io, opts: { now?: number; colors
     };
     const rows: string[][] = [["", s.muted("5 hours"), "", s.muted("week"), "", s.muted("account")]];
     for (const x of d.profiles) {
-      const who = !x.setUp ? s.warn("not set up") : !adapter(x.agent).accountDetails ? adapter(x.agent).label : x.email ? x.email : s.warn("not logged in");
-      const flags = [...x.roles, x.exhaustedUntil ? `exhausted until ${shortTime(x.exhaustedUntil)}` : ""].filter(Boolean).join(", ");
-      const usage = adapter(x.agent).accountDetails ? [...win(x.fiveHour), ...win(x.week)] : [s.muted("-"), "", s.muted("-"), ""];
-      rows.push([pill(x.name), ...usage, `${who}${x.plan ? s.muted(` · ${x.plan}`) : ""}${flags ? s.muted(`  ${flags}`) : ""}`]);
+      const who = !x.setUp
+        ? s.warn("not set up")
+        : !adapter(x.agent).accountDetails
+          ? adapter(x.agent).label
+          : x.email
+            ? x.email
+            : s.warn("not logged in");
+      const flags = [...x.roles, x.exhaustedUntil ? `exhausted until ${shortTime(x.exhaustedUntil)}` : ""]
+        .filter(Boolean)
+        .join(", ");
+      const usage = adapter(x.agent).accountDetails
+        ? [...win(x.fiveHour), ...win(x.week)]
+        : [s.muted("-"), "", s.muted("-"), ""];
+      rows.push([
+        pill(x.name),
+        ...usage,
+        `${who}${x.plan ? s.muted(` · ${x.plan}`) : ""}${flags ? s.muted(`  ${flags}`) : ""}`,
+      ]);
     }
     out.push(...s.table(rows, { columns: [{}, {}, { drop: 3 }, {}, { drop: 4 }, {}] }));
   }
@@ -186,9 +230,14 @@ export function renderStatus(d: StatusData, io: Io, opts: { now?: number; colors
       : d.look.statusLine
         ? `status line ${statusLineLabel({ type: "command", command: d.look.statusLine }, io.env, 40)}`
         : "no status line";
-  const look = [lineText, d.look.font ? "font installed" : `font missing ${s.muted("(turno ui install)")}`, `${d.look.icons} icons here`].join(s.muted(" · "));
+  const look = [
+    lineText,
+    d.look.font ? "font installed" : `font missing ${s.muted("(turno ui install)")}`,
+    `${d.look.icons} icons here`,
+  ].join(s.muted(" · "));
   out.push(s.kv("gateway", gateway, 8));
-  for (const problem of d.mcpd.problems) out.push(s.wrap(`  ${" ".repeat(8)}  ${s.warn(s.icon("warn"))} `, s.warn(problem)));
+  for (const problem of d.mcpd.problems)
+    out.push(s.wrap(`  ${" ".repeat(8)}  ${s.warn(s.icon("warn"))} `, s.warn(problem)));
   out.push(s.kv("sessions", `${plural(d.sessions.total, "live session")}${by ? s.muted(` (${by})`) : ""}`, 8));
   out.push(s.kv("look", look, 8));
 
@@ -205,11 +254,22 @@ function nextLines(s: Style, next: NextStep | null): string[] {
 }
 
 /** `turno status --json` (ADR 0045). */
-const STATUS_JSON = jsonOutput(["version", "update", "migrationPending", "here", "profiles", "sessions", "mcpd", "look", "next"]);
+const STATUS_JSON = jsonOutput([
+  "version",
+  "update",
+  "migrationPending",
+  "here",
+  "profiles",
+  "sessions",
+  "mcpd",
+  "look",
+  "next",
+]);
 
 export const command: Command = {
   summary: "one screen with everything: this folder, profiles and usage, sessions, mcpd and the look",
-  usage: "Usage: turno status [--json]\n\nturno doctor checks each part in depth and can fix problems.\n\nExamples:\n  $ turno status\n  $ turno status --json=here,mcpd",
+  usage:
+    "Usage: turno status [--json]\n\nturno doctor checks each part in depth and can fix problems.\n\nExamples:\n  $ turno status\n  $ turno status --json=here,mcpd",
   flags: ["--json"],
   json: STATUS_JSON,
   async run(args, io: Io) {

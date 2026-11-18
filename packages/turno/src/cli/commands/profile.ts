@@ -1,7 +1,15 @@
 import { existsSync, statSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 import { delimiter } from "node:path";
-import { type AgentId, DEFAULT_AGENT, adapter, agentHub, agentProfileDir, isAgentId, AGENT_IDS } from "../../agents/index.js";
+import {
+  type AgentId,
+  DEFAULT_AGENT,
+  adapter,
+  agentHub,
+  agentProfileDir,
+  isAgentId,
+  AGENT_IDS,
+} from "../../agents/index.js";
 import { editConfig } from "../../core/config-edit.js";
 import { type Config, type ProjectRule, loadConfig } from "../../core/config.js";
 import { exhaustedUntil } from "../../core/exhausted.js";
@@ -9,7 +17,14 @@ import { Journal } from "../../core/journal.js";
 import { expandHome, paths, tildify } from "../../core/paths.js";
 import { agentOf, listProfiles } from "../../core/profiles.js";
 import { candidateRoots, folderMcpSet, resolveProfile } from "../../core/resolve.js";
-import { type TomlValue, addArrayTable, ensureTable, removeArrayTables, removeTable, setValue } from "../../core/toml-edit.js";
+import {
+  type TomlValue,
+  addArrayTable,
+  ensureTable,
+  removeArrayTables,
+  removeTable,
+  setValue,
+} from "../../core/toml-edit.js";
 import { NAMED_COLORS } from "../../statusline/render.js";
 import { DRY_RUN, type FlagSpec, JSON_FLAG, bool, flagsOf, parseFlags, str } from "../args.js";
 import { Exit, exitName } from "../exit.js";
@@ -30,14 +45,17 @@ export function parseColor(v: string, label = "--color"): string | number {
     if (n > 255) fail(`${label} ${v}: a 256-color code goes from 0 to 255`);
     return n;
   }
-  if (NAMED_COLORS[v.toLowerCase()] === undefined) fail(`${label} ${v}: use a number (0-255) or one of ${Object.keys(NAMED_COLORS).join(", ")}`);
+  if (NAMED_COLORS[v.toLowerCase()] === undefined)
+    fail(`${label} ${v}: use a number (0-255) or one of ${Object.keys(NAMED_COLORS).join(", ")}`);
   return v.toLowerCase();
 }
 
 export async function profilesData(env: NodeJS.ProcessEnv, config: Config, withAccounts = true) {
   const names = listProfiles(config, env);
   // Account details come from `claude auth status`; other agents show whether they are set up.
-  const auth = withAccounts ? await Promise.all(names.map((n) => (adapter(agentOf(n, config)).accountDetails ? authStatus(n, env) : undefined))) : [];
+  const auth = withAccounts
+    ? await Promise.all(names.map((n) => (adapter(agentOf(n, config)).accountDetails ? authStatus(n, env) : undefined)))
+    : [];
   return names.map((name, i) => {
     const s = auth[i];
     const agent = agentOf(name, config);
@@ -47,10 +65,16 @@ export async function profilesData(env: NodeJS.ProcessEnv, config: Config, withA
       agent,
       dir: tildify(dir, env),
       setUp: existsSync(dir) && Boolean(launcherPath(name, env, agent)),
-      ...(withAccounts ? { email: s?.loggedIn ? (s.email ?? null) : null, plan: s?.loggedIn ? (s.subscriptionType ?? null) : null } : {}),
+      ...(withAccounts
+        ? { email: s?.loggedIn ? (s.email ?? null) : null, plan: s?.loggedIn ? (s.subscriptionType ?? null) : null }
+        : {}),
       color: config.profiles[name]?.color ?? null,
       browser: config.profiles[name]?.browser ?? "chrome",
-      roles: [config.system === name && "system", config.default === name && "default", config.fallback === name && "fallback"].filter(Boolean),
+      roles: [
+        config.system === name && "system",
+        config.default === name && "default",
+        config.fallback === name && "fallback",
+      ].filter(Boolean),
       projects: config.projects.filter((r) => r.profile === name).length,
       exhaustedUntil: exhaustedUntil(name, env) ?? null,
     };
@@ -58,7 +82,19 @@ export async function profilesData(env: NodeJS.ProcessEnv, config: Config, withA
 }
 
 /** `turno profile list --json`: one element per profile (ADR 0045). */
-const LIST_JSON = jsonOutput(["name", "agent", "dir", "setUp", "email", "plan", "color", "browser", "roles", "projects", "exhaustedUntil"]);
+const LIST_JSON = jsonOutput([
+  "name",
+  "agent",
+  "dir",
+  "setUp",
+  "email",
+  "plan",
+  "color",
+  "browser",
+  "roles",
+  "projects",
+  "exhaustedUntil",
+]);
 
 async function list(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, JSON_FLAG, 0);
@@ -81,7 +117,12 @@ async function list(args: string[], io: Io): Promise<number> {
  * folders use it, and its roles. Plain text (a pipe, NO_COLOR) keeps one row per profile
  * starting with its name.
  */
-export function renderProfiles(rows: Awaited<ReturnType<typeof profilesData>>, config: Config, io: Io, now = Date.now() / 1000): string[] {
+export function renderProfiles(
+  rows: Awaited<ReturnType<typeof profilesData>>,
+  config: Config,
+  io: Io,
+  now = Date.now() / 1000,
+): string[] {
   const s = style(io);
   const table = rows.map((r) => {
     const a = adapter(r.agent);
@@ -92,14 +133,26 @@ export function renderProfiles(rows: Awaited<ReturnType<typeof profilesData>>, c
         : r.email
           ? `${r.email}${r.plan ? s.muted(` · ${r.plan}`) : ""}`
           : s.warn("not logged in");
-    const exhausted = r.exhaustedUntil && r.exhaustedUntil > now ? s.warn(`exhausted until ${shortTime(r.exhaustedUntil)}`) : "";
+    const exhausted =
+      r.exhaustedUntil && r.exhaustedUntil > now ? s.warn(`exhausted until ${shortTime(r.exhaustedUntil)}`) : "";
     const flags = [r.roles.join(", "), exhausted].filter(Boolean).join(s.muted(" · "));
-    return [s.profile(r.name, profileColor(config.profiles, r.name)), s.muted(a.label), who, s.muted(r.projects ? plural(r.projects, "folder") : "no folders"), flags];
+    return [
+      s.profile(r.name, profileColor(config.profiles, r.name)),
+      s.muted(a.label),
+      who,
+      s.muted(r.projects ? plural(r.projects, "folder") : "no folders"),
+      flags,
+    ];
   });
   if (!s.color) return s.table(table, { indent: 0 });
   // turno reads no account for agents without account details: a "-" there, not the launcher.
   const head = ["", "agent", "account", "folders", "role"].map((h) => s.muted(h));
-  return [s.header("Profiles"), ...s.table([head, ...table], { columns: [{}, { drop: 2 }, {}, { drop: 1 }, {}] }), "", s.muted("turno <name> opens one; turno profile assign <dir> gives a folder its profile.")];
+  return [
+    s.header("Profiles"),
+    ...s.table([head, ...table], { columns: [{}, { drop: 2 }, {}, { drop: 1 }, {}] }),
+    "",
+    s.muted("turno <name> opens one; turno profile assign <dir> gives a folder its profile."),
+  ];
 }
 
 /** The PATH line for a shell, or undefined when `dir` is on PATH. */
@@ -116,7 +169,9 @@ export function pathAdvice(env: NodeJS.ProcessEnv, dir = paths(env).bin): string
 export function warnPath(io: Io, launcher: string): boolean {
   const advice = pathAdvice(io.env);
   if (!advice) return false;
-  io.err(`warning: ${tildify(paths(io.env).bin, io.env)} is not on your PATH, so ${launcher} will not be found. ${advice}`);
+  io.err(
+    `warning: ${tildify(paths(io.env).bin, io.env)} is not on your PATH, so ${launcher} will not be found. ${advice}`,
+  );
   return true;
 }
 
@@ -148,7 +203,10 @@ const ADD_SPEC: FlagSpec = {
 async function add(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, ADD_SPEC, 1);
   const name = p.positionals[0];
-  if (!name) return fail(`usage: turno profile add <name> [--agent ${AGENT_IDS.join("|")}] [--color <c>] [--browser chrome|default]`);
+  if (!name)
+    return fail(
+      `usage: turno profile add <name> [--agent ${AGENT_IDS.join("|")}] [--color <c>] [--browser chrome|default]`,
+    );
   checkName(name);
   const agent = str(p, "agent") ?? DEFAULT_AGENT;
   if (!isAgentId(agent)) fail(`--agent must be one of ${AGENT_IDS.join(", ")}`);
@@ -172,9 +230,12 @@ async function add(args: string[], io: Io): Promise<number> {
   });
   io.out(`${changed ? "+" : "="} [${table}] in ${tildify(paths(io.env).configFile, io.env)}${dry ? " (dry run)" : ""}`);
   const a = adapter(agent);
-  if (!findOnPath(a.command, io.env)) io.err(`warning: ${a.command} is not installed yet (${a.install}); the profile works once it is`);
+  if (!findOnPath(a.command, io.env))
+    io.err(`warning: ${a.command} is not installed yet (${a.install}); the profile works once it is`);
   if (dry) {
-    io.out(`(dry run) would set up ${tildify(agentProfileDir(name, agent, io.env), io.env)} and the ${launcherName(name, agent)} command`);
+    io.out(
+      `(dry run) would set up ${tildify(agentProfileDir(name, agent, io.env), io.env)} and the ${launcherName(name, agent)} command`,
+    );
     return 0;
   }
   // The same journal as the config.toml change: one `turno undo` reverts the whole profile add.
@@ -184,7 +245,10 @@ async function add(args: string[], io: Io): Promise<number> {
   // `turno <name>` works without ~/.local/bin on PATH.
   const run = offPath ? `turno ${name}` : launcher;
   const sub = adapter(agent).loginSubcommand;
-  nextStep(io, `${sub ? `run ${run} ${sub}` : `run ${run} and sign in with /login`}. turno profile list shows the profile.`);
+  nextStep(
+    io,
+    `${sub ? `run ${run} ${sub}` : `run ${run} and sign in with /login`}. turno profile list shows the profile.`,
+  );
   const hint = journal.hint();
   if (hint) io.out(hint);
   return 0;
@@ -207,11 +271,14 @@ async function remove(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, DRY_RUN, 1);
   const dry = bool(p, "dry-run");
   const picked = !p.positionals[0];
-  const name = p.positionals[0] ?? (await (await import("../picker.js")).pickProfile(io, { command: "profile remove", title: "Profile to remove" }));
+  const name =
+    p.positionals[0] ??
+    (await (await import("../picker.js")).pickProfile(io, { command: "profile remove", title: "Profile to remove" }));
   const config = loadConfig(io.env);
   if (!listProfiles(config, io.env).includes(name)) fail(`no profile '${name}'`);
   for (const role of ["system", "default", "fallback"] as const) {
-    if (config[role] === name) fail(`${name} is the ${role} profile; point ${role} elsewhere first (turno config set ${role} <profile>)`);
+    if (config[role] === name)
+      fail(`${name} is the ${role} profile; point ${role} elsewhere first (turno config set ${role} <profile>)`);
   }
   // A profile chosen in the picker is confirmed: one key should not remove an account.
   if (picked && !dry && !(await confirm(io, `Remove ${name} from config.toml and its launcher? Its folder stays.`))) {
@@ -223,7 +290,11 @@ async function remove(args: string[], io: Io): Promise<number> {
   editConfig(io.env, journal, (t) => {
     const r = removeArrayTables(removeTable(t, `profiles.${name}`), "projects", (e) => e.profile === name);
     rules = r.removed;
-    return keepSets(r.text, config.projects.filter((x) => x.profile === name), io.env);
+    return keepSets(
+      r.text,
+      config.projects.filter((x) => x.profile === name),
+      io.env,
+    );
   });
   const agent = agentOf(name, config);
   const launcher = launcherPath(name, io.env, agent);
@@ -231,7 +302,9 @@ async function remove(args: string[], io: Io): Promise<number> {
   const d = dry ? " (dry run)" : "";
   io.out(`- [profiles.${name}] and ${plural(rules, "project rule")} from config.toml${d}`);
   if (launcher) io.out(`- ${tildify(launcher, io.env)}${d}`);
-  io.out(`${tildify(agentProfileDir(name, agent, io.env), io.env)} stays (sign-in, history); delete it by hand when you no longer need it.`);
+  io.out(
+    `${tildify(agentProfileDir(name, agent, io.env), io.env)} stays (sign-in, history); delete it by hand when you no longer need it.`,
+  );
   const hint = journal.hint();
   if (hint) io.out(hint);
   return 0;
@@ -245,13 +318,17 @@ function setKeys(rule: ProjectRule | undefined): Record<string, TomlValue> {
 /** Write back, as rules of their own, the server sets of removed profile rules: the folder keeps them. */
 function keepSets(text: string, removed: ProjectRule[], env: NodeJS.ProcessEnv): string {
   let out = text;
-  for (const r of removed) if (r.mcp || r.mcpDeny) out = addArrayTable(out, "projects", { path: tildify(r.path, env), ...setKeys(r) });
+  for (const r of removed)
+    if (r.mcp || r.mcpDeny) out = addArrayTable(out, "projects", { path: tildify(r.path, env), ...setKeys(r) });
   return out;
 }
 
 /** "only docs, not mail": what a folder's server set lets sessions see. */
 function setText(set: ProjectRule): string {
-  const parts = [set.mcp ? `only ${set.mcp.join(", ") || "none"}` : "", set.mcpDeny ? `${set.mcp ? "not" : "all but"} ${set.mcpDeny.join(", ")}` : ""];
+  const parts = [
+    set.mcp ? `only ${set.mcp.join(", ") || "none"}` : "",
+    set.mcpDeny ? `${set.mcp ? "not" : "all but"} ${set.mcpDeny.join(", ")}` : "",
+  ];
   return parts.filter(Boolean).join(", ");
 }
 
@@ -275,7 +352,12 @@ export function resolveAll(dir: string, config: Config, env: NodeJS.ProcessEnv, 
 }
 
 /** "work (project ~/code)", or the plain agent and its home. */
-export function usingText(agent: AgentId, r: { chosen: string; assigned: string; note: string; reason: string }, env: NodeJS.ProcessEnv, config?: Pick<Config, "system">): string {
+export function usingText(
+  agent: AgentId,
+  r: { chosen: string; assigned: string; note: string; reason: string },
+  env: NodeJS.ProcessEnv,
+  config?: Pick<Config, "system">,
+): string {
   if (r.note) return `${r.chosen} (${r.assigned} ${r.note})`;
   if (r.chosen) return `${r.chosen} (${r.reason})`;
   if (agent === DEFAULT_AGENT && config?.system === "") return `${NO_DEFAULT_ACCOUNT} (${r.reason})`;
@@ -301,18 +383,43 @@ export interface WhichCheck {
  * or a rule naming a missing profile; 4 the profile's account is not signed in (agents turno
  * reads an account for: Claude Code); 1 its launcher is missing or the sign-in is unknown.
  */
-export async function checkFolder(where: string, agent: AgentId, r: { chosen: string; reason: string }, config: Config, env: NodeJS.ProcessEnv): Promise<WhichCheck> {
+export async function checkFolder(
+  where: string,
+  agent: AgentId,
+  r: { chosen: string; reason: string },
+  config: Config,
+  env: NodeJS.ProcessEnv,
+): Promise<WhichCheck> {
   const a = adapter(agent);
   const assign = `turno profile assign ${where} <profile>`;
-  if (!r.chosen) return { exitCode: Exit.noProfile, message: `${where} has no ${a.label} profile (${r.reason}); give it one: ${assign}` };
+  if (!r.chosen)
+    return {
+      exitCode: Exit.noProfile,
+      message: `${where} has no ${a.label} profile (${r.reason}); give it one: ${assign}`,
+    };
   if (!listProfiles(config, env, agent).includes(r.chosen)) {
-    return { exitCode: Exit.noProfile, message: `${where} uses the ${r.chosen} profile (${r.reason}), but there is no such profile: turno profile add ${r.chosen}${agent === DEFAULT_AGENT ? "" : ` --agent ${agent}`}, or ${assign}` };
+    return {
+      exitCode: Exit.noProfile,
+      message: `${where} uses the ${r.chosen} profile (${r.reason}), but there is no such profile: turno profile add ${r.chosen}${agent === DEFAULT_AGENT ? "" : ` --agent ${agent}`}, or ${assign}`,
+    };
   }
-  if (!launcherPath(r.chosen, env, agent)) return { exitCode: Exit.failure, message: `${r.chosen} is not set up (its launcher is missing): turno profile repair ${r.chosen}` };
+  if (!launcherPath(r.chosen, env, agent))
+    return {
+      exitCode: Exit.failure,
+      message: `${r.chosen} is not set up (its launcher is missing): turno profile repair ${r.chosen}`,
+    };
   if (a.accountDetails) {
     const s = await authStatus(r.chosen, env);
-    if (!s) return { exitCode: Exit.failure, message: `could not tell whether ${r.chosen} is signed in (claude auth status gave no answer)` };
-    if (!s.loggedIn) return { exitCode: Exit.notSignedIn, message: `${r.chosen} is not signed in: run ${launcherName(r.chosen, agent)}, then /login` };
+    if (!s)
+      return {
+        exitCode: Exit.failure,
+        message: `could not tell whether ${r.chosen} is signed in (claude auth status gave no answer)`,
+      };
+    if (!s.loggedIn)
+      return {
+        exitCode: Exit.notSignedIn,
+        message: `${r.chosen} is not signed in: run ${launcherName(r.chosen, agent)}, then /login`,
+      };
   }
   return { exitCode: Exit.ok, message: `${where} uses ${r.chosen} (${r.reason})` };
 }
@@ -327,7 +434,8 @@ export async function whichCommand(args: string[], io: Io): Promise<number> {
   const set = folderMcpSet(roots, config.projects, r.chosen || undefined);
   const wanted = str(p, "agent");
   if (wanted !== undefined && !bool(p, "check")) fail("--agent goes with --check");
-  if (wanted !== undefined && !isAgentId(wanted)) fail(`--agent must be ${AGENT_IDS.slice(0, -1).join(", ")} or ${AGENT_IDS.at(-1)}`);
+  if (wanted !== undefined && !isAgentId(wanted))
+    fail(`--agent must be ${AGENT_IDS.slice(0, -1).join(", ")} or ${AGENT_IDS.at(-1)}`);
   let check: WhichCheck | undefined;
   if (bool(p, "check")) {
     const agent = (wanted ?? DEFAULT_AGENT) as AgentId;
@@ -335,10 +443,30 @@ export async function whichCommand(args: string[], io: Io): Promise<number> {
     check = await checkFolder(tildify(dir, io.env), agent, x, config, io.env);
   }
   if (bool(p, "json")) {
-    const one = (x: typeof r) => ({ assigned: x.assigned || null, chosen: x.chosen || null, reason: x.reason, note: x.note || null });
+    const one = (x: typeof r) => ({
+      assigned: x.assigned || null,
+      chosen: x.chosen || null,
+      reason: x.reason,
+      note: x.note || null,
+    });
     const mcp = set ? { rule: tildify(set.path, io.env), allow: set.mcp ?? null, deny: set.mcpDeny ?? null } : null;
-    const checked = check ? { check: { ok: check.exitCode === Exit.ok, code: exitName(check.exitCode), exitCode: check.exitCode, message: check.message } } : {};
-    emit(io, p, WHICH_JSON, { dir: tildify(dir, io.env), ...one(r), agents: Object.fromEntries(all.map(({ agent, r: x }) => [agent, one(x)])), mcp, ...checked });
+    const checked = check
+      ? {
+          check: {
+            ok: check.exitCode === Exit.ok,
+            code: exitName(check.exitCode),
+            exitCode: check.exitCode,
+            message: check.message,
+          },
+        }
+      : {};
+    emit(io, p, WHICH_JSON, {
+      dir: tildify(dir, io.env),
+      ...one(r),
+      agents: Object.fromEntries(all.map(({ agent, r: x }) => [agent, one(x)])),
+      mcp,
+      ...checked,
+    });
     return check?.exitCode ?? 0;
   }
   if (check) {
@@ -348,7 +476,11 @@ export async function whichCommand(args: string[], io: Io): Promise<number> {
   }
   io.out(tildify(dir, io.env));
   io.out(`  assigned: ${r.assigned || "none"} (${r.reason})`);
-  io.out(r.note ? `  using now: ${r.chosen} (${r.assigned} ${r.note})` : `  using now: ${r.chosen || (config.system === "" ? NO_DEFAULT_ACCOUNT : "plain claude")}`);
+  io.out(
+    r.note
+      ? `  using now: ${r.chosen} (${r.assigned} ${r.note})`
+      : `  using now: ${r.chosen || (config.system === "" ? NO_DEFAULT_ACCOUNT : "plain claude")}`,
+  );
   for (const { agent, r: x } of all.slice(1)) io.out(`  ${agent}: ${usingText(agent, x, io.env)}`);
   if (set) io.out(`  mcp: ${setText(set)} (rule ${tildify(set.path, io.env)})`);
   return 0;
@@ -357,13 +489,20 @@ export async function whichCommand(args: string[], io: Io): Promise<number> {
 async function assign(args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, DRY_RUN, 2);
   const [dirArg, given] = p.positionals;
-  if (dirArg && !given && !existsSync(expandHome(dirArg, io.env)) && listProfiles(loadConfig(io.env), io.env).includes(dirArg)) {
+  if (
+    dirArg &&
+    !given &&
+    !existsSync(expandHome(dirArg, io.env)) &&
+    listProfiles(loadConfig(io.env), io.env).includes(dirArg)
+  ) {
     fail(`no such folder: ${dirArg} (to give this folder the profile ${dirArg}: turno profile assign . ${dirArg})`);
   }
   const dir = folder(dirArg, io);
   const name =
     given ??
-    (await (await import("../picker.js")).pickProfile(io, { command: "profile assign", title: `Profile for ${tildify(dir, io.env)}`, dir }));
+    (await (
+      await import("../picker.js")
+    ).pickProfile(io, { command: "profile assign", title: `Profile for ${tildify(dir, io.env)}`, dir }));
   const config = loadConfig(io.env);
   if (!listProfiles(config, io.env).includes(name)) fail(`no profile '${name}' (turno profile list)`);
   const dry = bool(p, "dry-run");
@@ -374,14 +513,27 @@ async function assign(args: string[], io: Io): Promise<number> {
   // passes its set on to the new one.
   const agent = agentOf(name, config);
   const same = (e: { path?: string; profile?: string }) =>
-    e.profile !== undefined && resolvePath(expandHome(e.path ?? "", io.env)) === dir && agentOf(e.profile, config) === agent;
+    e.profile !== undefined &&
+    resolvePath(expandHome(e.path ?? "", io.env)) === dir &&
+    agentOf(e.profile, config) === agent;
   const carried = config.projects.find((r) => same(r) && (r.mcp || r.mcpDeny));
-  editConfig(io.env, journal, (t) => addArrayTable(removeArrayTables(t, "projects", same).text, "projects", { path: shown, profile: name, ...setKeys(carried) }));
+  editConfig(io.env, journal, (t) =>
+    addArrayTable(removeArrayTables(t, "projects", same).text, "projects", {
+      path: shown,
+      profile: name,
+      ...setKeys(carried),
+    }),
+  );
   io.out(`${shown} -> ${name}${dry ? " (dry run)" : ""}`);
-  if (!dry && existsSync(agentProfileDir(name, agent, io.env))) (await import("./setup.js")).applyRuleFolders(name, io, journal);
+  if (!dry && existsSync(agentProfileDir(name, agent, io.env)))
+    (await import("./setup.js")).applyRuleFolders(name, io, journal);
   const hint = journal.hint();
   if (hint) io.out(hint);
-  if (!dry) nextStep(io, `${agent === DEFAULT_AGENT ? "turno auto" : `turno auto --agent ${agent}`} in ${shown} opens ${name} (turno profile which ${shown} says why)`);
+  if (!dry)
+    nextStep(
+      io,
+      `${agent === DEFAULT_AGENT ? "turno auto" : `turno auto --agent ${agent}`} in ${shown} opens ${name} (turno profile which ${shown} says why)`,
+    );
   return 0;
 }
 
@@ -392,7 +544,8 @@ async function unassign(args: string[], io: Io): Promise<number> {
   const journal = new Journal(io.env, `profile unassign ${tildify(dir, io.env)}`, dry);
   const config = loadConfig(io.env);
   // Profile rules only: the folder keeps its server set (ADR 0031).
-  const own = (e: { path?: string; profile?: string }) => e.profile !== undefined && resolvePath(expandHome(e.path ?? "", io.env)) === dir;
+  const own = (e: { path?: string; profile?: string }) =>
+    e.profile !== undefined && resolvePath(expandHome(e.path ?? "", io.env)) === dir;
   let removed = 0;
   editConfig(io.env, journal, (t) => {
     const r = removeArrayTables(t, "projects", own);
@@ -413,11 +566,18 @@ export const command = group(
   "profile",
   "accounts (profiles) for each agent: list, add, repair, remove, and which folders use each",
   {
-    list: { summary: "each profile, its account and roles", synopsis: "[--json]", flags: ["--json"], json: LIST_JSON, run: list },
+    list: {
+      summary: "each profile, its account and roles",
+      synopsis: "[--json]",
+      flags: ["--json"],
+      json: LIST_JSON,
+      run: list,
+    },
     add: {
       summary:
         "declare a profile in config.toml and set up its folder and launcher (claude-<name>, codex-<name>, ...); asks before moving your own files aside (--yes skips the question), -v lists every shared item; turno undo reverts all of it",
-      synopsis: "<name> [--agent claude|codex|copilot|cursor] [--color <c>] [--browser chrome|default] [--dry-run] [--yes] [-v]",
+      synopsis:
+        "<name> [--agent claude|codex|copilot|cursor] [--color <c>] [--browser chrome|default] [--dry-run] [--yes] [-v]",
       args: ["any"],
       flags: flagsOf(ADD_SPEC),
       run: add,
@@ -430,14 +590,16 @@ export const command = group(
       run: repair,
     },
     remove: {
-      summary: "drop a profile from config.toml and its launcher (its folder stays); without a name, choose one and confirm",
+      summary:
+        "drop a profile from config.toml and its launcher (its folder stays); without a name, choose one and confirm",
       synopsis: "[name] [--dry-run]",
       args: ["profile"],
       flags: ["--dry-run"],
       run: remove,
     },
     which: {
-      summary: "which profile auto uses in a folder for each agent, and why; --check answers with the exit code instead",
+      summary:
+        "which profile auto uses in a folder for each agent, and why; --check answers with the exit code instead",
       synopsis: "[dir] [--json] [--check [--agent <agent>]]",
       args: ["dir"],
       flags: flagsOf(WHICH_SPEC),
@@ -452,8 +614,18 @@ export const command = group(
     },
     assign: {
       summary: "make a folder (and everything under it) use a profile; without a profile, choose one from a list",
-      synopsis: "[dir] [profile] [--dry-run]", args: ["dir", "profile"], flags: ["--dry-run"], run: assign },
-    unassign: { summary: "remove a folder's own rule", synopsis: "[dir] [--dry-run]", args: ["dir"], flags: ["--dry-run"], run: unassign },
+      synopsis: "[dir] [profile] [--dry-run]",
+      args: ["dir", "profile"],
+      flags: ["--dry-run"],
+      run: assign,
+    },
+    unassign: {
+      summary: "remove a folder's own rule",
+      synopsis: "[dir] [--dry-run]",
+      args: ["dir"],
+      flags: ["--dry-run"],
+      run: unassign,
+    },
   },
   {
     fallback: "list",

@@ -132,7 +132,8 @@ function parseDuration(v: unknown, file: string, key: string): number {
 
 function strArray(v: unknown, file: string, key: string): string[] {
   if (v === undefined) return [];
-  if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) throw new ConfigError(file, `${key} must be an array of strings`);
+  if (!Array.isArray(v) || v.some((x) => typeof x !== "string"))
+    throw new ConfigError(file, `${key} must be an array of strings`);
   return v as string[];
 }
 
@@ -158,12 +159,15 @@ const TOOL_PATTERN = /^[^\s]{1,128}$/;
 /** `tools = { allow = [...], deny = [...] }`: a table with only those keys, each a list of patterns. */
 function toolFilterOf(v: unknown, file: string, key: string): ToolFilter | undefined {
   if (v === undefined) return undefined;
-  if (typeof v !== "object" || v === null || Array.isArray(v)) throw new ConfigError(file, `${key} must be a table with allow and/or deny`);
+  if (typeof v !== "object" || v === null || Array.isArray(v))
+    throw new ConfigError(file, `${key} must be a table with allow and/or deny`);
   const out: ToolFilter = {};
   for (const [k, val] of Object.entries(v)) {
-    if (k !== "allow" && k !== "deny") throw new ConfigError(file, `${key}.${k} is not a tool filter key (allow, deny)`);
+    if (k !== "allow" && k !== "deny")
+      throw new ConfigError(file, `${key}.${k} is not a tool filter key (allow, deny)`);
     const list = strArray(val, file, `${key}.${k}`);
-    for (const p of list) if (!TOOL_PATTERN.test(p)) throw new ConfigError(file, `${key}.${k}: invalid tool pattern ${JSON.stringify(p)}`);
+    for (const p of list)
+      if (!TOOL_PATTERN.test(p)) throw new ConfigError(file, `${key}.${k}: invalid tool pattern ${JSON.stringify(p)}`);
     out[k] = list;
   }
   return out;
@@ -179,21 +183,31 @@ const OAUTH_KEYS: Record<string, keyof OAuthSettings> = {
 };
 
 /** `auth = "oauth"` and the optional `[server.<name>.oauth]` table; undefined without OAuth. */
-function oauthOf(v: Record<string, unknown>, file: string, key: string, headers: Record<string, string>): OAuthSettings | undefined {
+function oauthOf(
+  v: Record<string, unknown>,
+  file: string,
+  key: string,
+  headers: Record<string, string>,
+): OAuthSettings | undefined {
   if (v.auth === undefined) {
     if (v.oauth !== undefined) throw new ConfigError(file, `${key}.oauth needs auth = "oauth"`);
     return undefined;
   }
   if (v.auth !== "oauth") throw new ConfigError(file, `${key}.auth must be "oauth"`);
   if (Object.keys(headers).some((h) => h.toLowerCase() === "authorization")) {
-    throw new ConfigError(file, `${key}: auth = "oauth" sets the Authorization header itself; remove headers.Authorization`);
+    throw new ConfigError(
+      file,
+      `${key}: auth = "oauth" sets the Authorization header itself; remove headers.Authorization`,
+    );
   }
   const raw = v.oauth ?? {};
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new ConfigError(file, `${key}.oauth must be a table`);
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+    throw new ConfigError(file, `${key}.oauth must be a table`);
   const out: OAuthSettings = {};
   for (const [k, val] of Object.entries(raw)) {
     const field = OAUTH_KEYS[k];
-    if (!field) throw new ConfigError(file, `${key}.oauth.${k} is not an OAuth setting (${Object.keys(OAUTH_KEYS).join(", ")})`);
+    if (!field)
+      throw new ConfigError(file, `${key}.oauth.${k} is not an OAuth setting (${Object.keys(OAUTH_KEYS).join(", ")})`);
     if (field === "callbackPort") {
       if (typeof val !== "number" || !Number.isInteger(val) || val < 1024 || val > 65535) {
         throw new ConfigError(file, `${key}.oauth.callback_port must be a port number from 1024 to 65535`);
@@ -203,7 +217,10 @@ function oauthOf(v: Record<string, unknown>, file: string, key: string, headers:
     }
     const s = optStr(val, file, `${key}.oauth.${k}`) as string;
     if (field === "clientSecret" && !isSecretRef(s)) {
-      throw new ConfigError(file, `${key}.oauth.client_secret must be a keychain: or env: reference (turno secret set <name>), not the secret itself`);
+      throw new ConfigError(
+        file,
+        `${key}.oauth.client_secret must be a keychain: or env: reference (turno secret set <name>), not the secret itself`,
+      );
     }
     if ((field === "clientMetadataUrl" || field === "authorizationServer") && !/^https?:\/\/\S+$/.test(s)) {
       throw new ConfigError(file, `${key}.oauth.${k} must be a URL`);
@@ -215,7 +232,8 @@ function oauthOf(v: Record<string, unknown>, file: string, key: string, headers:
 
 function profilesOf(v: unknown, file: string, key: string): string[] {
   const list = v === undefined ? ["*"] : strArray(v, file, key);
-  for (const p of list) if (p !== "*" && !isValidProfileName(p)) throw new ConfigError(file, `${key}: invalid profile "${p}"`);
+  for (const p of list)
+    if (p !== "*" && !isValidProfileName(p)) throw new ConfigError(file, `${key}: invalid profile "${p}"`);
   return list;
 }
 
@@ -242,11 +260,18 @@ export function parseManifest(text: string, file = "mcp.toml"): Manifest {
       const proxy = oauth !== undefined || Object.values(headers).some(isSecretRef);
       const tools = toolFilterOf(v.tools, file, `${key}.tools`);
       if (tools && !proxy) {
-        throw new ConfigError(file, `${key}.tools only works for servers that go through mcpd; a remote server does when a header uses keychain: or env:, or with auth = "oauth"`);
+        throw new ConfigError(
+          file,
+          `${key}.tools only works for servers that go through mcpd; a remote server does when a header uses keychain: or env:, or with auth = "oauth"`,
+        );
       }
       const remoteVariants: Record<string, RemoteVariant> = {};
       for (const [prof, vv] of Object.entries((v.variant ?? {}) as Record<string, unknown>)) {
-        if (!oauth) throw new ConfigError(file, `${key}.variant: a remote server has variants only with auth = "oauth" (one login per variant)`);
+        if (!oauth)
+          throw new ConfigError(
+            file,
+            `${key}.variant: a remote server has variants only with auth = "oauth" (one login per variant)`,
+          );
         if (!isValidProfileName(prof)) throw new ConfigError(file, `${key}.variant: invalid profile "${prof}"`);
         const o = (vv ?? {}) as Record<string, unknown>;
         const variant: RemoteVariant = {};
@@ -302,7 +327,8 @@ export function parseManifest(text: string, file = "mcp.toml"): Manifest {
       args: strArray(v.args, file, `${key}.args`),
       env: strRecord(v.env, file, `${key}.env`),
       scope,
-      idle: v.idle === undefined ? (scope === "shared" ? 30 * 60 : 20 * 60) : parseDuration(v.idle, file, `${key}.idle`),
+      idle:
+        v.idle === undefined ? (scope === "shared" ? 30 * 60 : 20 * 60) : parseDuration(v.idle, file, `${key}.idle`),
       exclusive,
       lease: v.lease === undefined ? 5 * 60 : parseDuration(v.lease, file, `${key}.lease`),
       profiles,
@@ -362,10 +388,15 @@ const MAX_STOP_GRACE = 60;
 export function effectiveStopGrace(server: StdioServer, variant: string): number {
   if (server.stopGrace !== undefined) return server.stopGrace;
   const { command, args } = effectiveLaunch(server, variant);
-  return [command, ...args].some((a) => a.split(/[\\/]/).pop() === "turno-browser-mcp") ? BROWSER_STOP_GRACE : SDK_STOP_GRACE;
+  return [command, ...args].some((a) => a.split(/[\\/]/).pop() === "turno-browser-mcp")
+    ? BROWSER_STOP_GRACE
+    : SDK_STOP_GRACE;
 }
 
-export function effectiveLaunch(server: StdioServer, variant: string): { command: string; args: string[]; env: Record<string, string>; cwd?: string } {
+export function effectiveLaunch(
+  server: StdioServer,
+  variant: string,
+): { command: string; args: string[]; env: Record<string, string>; cwd?: string } {
   const v = server.variants[variant];
   const out: { command: string; args: string[]; env: Record<string, string>; cwd?: string } = {
     command: v?.command ?? server.command,
@@ -385,7 +416,10 @@ export function toolFilterFor(server: ServerDef, profile: string | undefined): T
 }
 
 function globRegExp(pattern: string): RegExp {
-  const body = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".");
+  const body = pattern
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*/g, ".*")
+    .replace(/\?/g, ".");
   return new RegExp(`^${body}$`);
 }
 

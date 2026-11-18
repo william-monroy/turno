@@ -1,4 +1,14 @@
-import { closeSync, fchmodSync, fstatSync, mkdirSync, openSync, readSync, renameSync, statSync, writeSync } from "node:fs";
+import {
+  closeSync,
+  fchmodSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  readSync,
+  renameSync,
+  statSync,
+  writeSync,
+} from "node:fs";
 import { join } from "node:path";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -56,7 +66,8 @@ function withStopGrace(transport: StdioClientTransport, graceMs: number): void {
     const running = () => proc !== undefined && proc.exitCode === null && proc.signalCode === null;
     if (proc && running()) {
       const closed = new Promise<void>((resolve) => proc.once("close", () => resolve()));
-      const wait = (ms: number) => Promise.race([closed, new Promise<void>((resolve) => setTimeout(resolve, ms).unref())]);
+      const wait = (ms: number) =>
+        Promise.race([closed, new Promise<void>((resolve) => setTimeout(resolve, ms).unref())]);
       try {
         proc.stdin?.end();
       } catch {

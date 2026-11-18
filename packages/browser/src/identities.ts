@@ -47,7 +47,12 @@ export function listIdentities(env: NodeJS.ProcessEnv = process.env): IdentityIn
  * zone and languages from then on (ADR 0044). Adding an existing identity changes nothing,
  * unless settings are given: then they are written to its identity.json.
  */
-export function addIdentity(id: string, env: NodeJS.ProcessEnv = process.env, settings: SettingsPatch = {}, now: Date = new Date()): IdentityInfo {
+export function addIdentity(
+  id: string,
+  env: NodeJS.ProcessEnv = process.env,
+  settings: SettingsPatch = {},
+  now: Date = new Date(),
+): IdentityInfo {
   const dir = identityDir(id, env);
   const created = !existsSync(dir);
   const given = Object.values(settings).some((v) => v !== undefined);
@@ -72,7 +77,10 @@ export function removeIdentity(id: string, env: NodeJS.ProcessEnv = process.env)
   const holder = inUseBy(id, env);
   if (holder) throw new IdentityError(`${holder} Remove it after that.`);
   if (isInUse(id, env)) throw new IdentityError(`identity "${id}" is in use by a running Chrome; close it first`);
-  if (vaultHasSites(id, env)) throw new IdentityError(`identity "${id}" still has vault credentials; remove them first (turno browser remove does)`);
+  if (vaultHasSites(id, env))
+    throw new IdentityError(
+      `identity "${id}" still has vault credentials; remove them first (turno browser remove does)`,
+    );
   rmSync(dir, { recursive: true, force: true });
   rmSync(vaultPath(id, env), { force: true });
   rmSync(identitySettingsPath(id, env), { force: true });

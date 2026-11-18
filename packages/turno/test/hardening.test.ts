@@ -101,23 +101,39 @@ describe("turno doctor --security", () => {
     chmodSync(cfg(""), 0o777);
     const { code, lines } = await security();
     expect(code).toBe(1);
-    expect(lines.find((l) => l.includes("permissions:"))).toMatch(/^ {2}x +permissions: .*can be changed by other users: ~\/\.config\/turno/);
-    expect(scanPermissions(sb.env).wide.map((f) => f.path)).not.toContain(join(sb.home, ".local/share/turno/servers/fx/node_modules/pkg/index.js"));
+    expect(lines.find((l) => l.includes("permissions:"))).toMatch(
+      /^ {2}x +permissions: .*can be changed by other users: ~\/\.config\/turno/,
+    );
+    expect(scanPermissions(sb.env).wide.map((f) => f.path)).not.toContain(
+      join(sb.home, ".local/share/turno/servers/fx/node_modules/pkg/index.js"),
+    );
   });
 
   it("finds literal secrets in mcp.toml, agent configs and backups, never printing them", async () => {
-    sb.write(".config/turno/mcp.toml", `[server.gh]\ncommand = "gh-mcp"\nenv = { GITHUB_TOKEN = "${GH}", LOG = "info" }\n`, 0o600);
+    sb.write(
+      ".config/turno/mcp.toml",
+      `[server.gh]\ncommand = "gh-mcp"\nenv = { GITHUB_TOKEN = "${GH}", LOG = "info" }\n`,
+      0o600,
+    );
     sb.write(
       ".claude.json",
       JSON.stringify({
         mcpServers: {
           linear: { type: "http", url: "https://mcp.example.com/sse", headers: { Authorization: `Bearer ${SK}` } },
-          fx: { type: "http", url: "http://127.0.0.1:47821/mcp/fx", headers: { Authorization: "Bearer 0123456789abcdef0123456789abcdef", "X-Turno-Profile": "work" } },
+          fx: {
+            type: "http",
+            url: "http://127.0.0.1:47821/mcp/fx",
+            headers: { Authorization: "Bearer 0123456789abcdef0123456789abcdef", "X-Turno-Profile": "work" },
+          },
           fine: { command: "x", env: { API_KEY: "env:API_KEY" } },
         },
       }),
     );
-    sb.write(".local/state/turno/backups/20261101-120000/files/0-.claude.json", JSON.stringify({ mcpServers: { gh: { command: "x", args: [`--token=${GH}`] } } }), 0o600);
+    sb.write(
+      ".local/state/turno/backups/20261101-120000/files/0-.claude.json",
+      JSON.stringify({ mcpServers: { gh: { command: "x", args: [`--token=${GH}`] } } }),
+      0o600,
+    );
     const { lines } = await security();
     const text = lines.join("\n");
     expect(text).toContain("literal secrets in ~/.config/turno/mcp.toml: gh.env.GITHUB_TOKEN");
@@ -143,7 +159,9 @@ describe("turno doctor --security", () => {
     );
     const text = (await security()).lines.join("\n");
     expect(text).toContain("loose (package loose-mcp@^1.2.0)");
-    expect(text).toContain("manual: write an exact version (pkg@1.2.3) in each command in mcp.toml; turno mcp install loose pins the npm packages");
+    expect(text).toContain(
+      "manual: write an exact version (pkg@1.2.3) in each command in mcp.toml; turno mcp install loose pins the npm packages",
+    );
     expect(text).toContain("npx (npx @scope/fresh-mcp fetches the newest version at each start)");
     expect(text).not.toMatch(/pinned \(|uv \(/);
     expect(text).toContain("pinned but not installed, so npx downloads them at each start: fixed");
@@ -157,19 +175,36 @@ describe("turno doctor --security", () => {
     expect((await security()).lines.join("\n")).toMatch(/ok +the mcpd token is 0 days old/);
     const old = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000);
     utimesSync(file, old, old);
-    expect((await security()).lines.join("\n")).toMatch(/! +the mcpd token is 120 days old .*\n +fix: turno mcp token rotate && turno mcp sync$/m);
+    expect((await security()).lines.join("\n")).toMatch(
+      /! +the mcpd token is 120 days old .*\n +fix: turno mcp token rotate && turno mcp sync$/m,
+    );
   });
 
   it("checks the audit log's hash chain", async () => {
     for (const task of ["one", "two", "three"]) {
-      appendAudit({ caller: { profile: "work", pid: 1 }, account: "linear:work", owner: "work", write: false, task, outcome: "ok", detail: "", durationMs: 1, costUsd: null }, sb.env);
+      appendAudit(
+        {
+          caller: { profile: "work", pid: 1 },
+          account: "linear:work",
+          owner: "work",
+          write: false,
+          task,
+          outcome: "ok",
+          detail: "",
+          durationMs: 1,
+          costUsd: null,
+        },
+        sb.env,
+      );
     }
     expect((await security()).lines.join("\n")).toMatch(/ok +audit log: hash chain intact \(3 lines\)/);
     const file = paths(sb.env).auditLog;
     writeFileSync(file, readFileSync(file, "utf8").replace('"two"', '"TWO"'));
     const { code, lines } = await security();
     expect(code).toBe(1);
-    expect(lines.join("\n")).toMatch(/x +audit log: line 3: hash does not match.*\n +manual: .*turno identity log --verify shows the line/);
+    expect(lines.join("\n")).toMatch(
+      /x +audit log: line 3: hash does not match.*\n +manual: .*turno identity log --verify shows the line/,
+    );
   });
 
   it("names a port holder that is not mcpd", async () => {
@@ -186,16 +221,24 @@ describe("turno doctor --security", () => {
   it("shows the secret store, and fails when keychain: references have none", async () => {
     fakeCommand(sb, "security", "exit 44");
     fakeCommand(sb, "secret-tool", "exit 1");
-    expect((await security()).lines.join("\n")).toMatch(/ok +secret store: (macOS Keychain \(security\)|Secret Service \(secret-tool\))/);
+    expect((await security()).lines.join("\n")).toMatch(
+      /ok +secret store: (macOS Keychain \(security\)|Secret Service \(secret-tool\))/,
+    );
     const doctorIo = fakeIo(sb.env);
     await doctor(doctorIo);
     expect(doctorIo.lines.join("\n")).toMatch(/secret store: (macOS Keychain|Secret Service)/);
 
-    sb.write(".config/turno/mcp.toml", '[server.gh]\ncommand = "gh-mcp"\nenv = { GITHUB_TOKEN = "keychain:gh" }\n', 0o600);
+    sb.write(
+      ".config/turno/mcp.toml",
+      '[server.gh]\ncommand = "gh-mcp"\nenv = { GITHUB_TOKEN = "keychain:gh" }\n',
+      0o600,
+    );
     const bare = { ...sb.env, PATH: join(sb.home, "nothing") };
     const { code, lines } = await security(bare);
     expect(code).toBe(1);
-    expect(lines.join("\n")).toMatch(/x +secret store: none found .*keychain: references that cannot resolve\n +manual: install secret-tool/);
+    expect(lines.join("\n")).toMatch(
+      /x +secret store: none found .*keychain: references that cannot resolve\n +manual: install secret-tool/,
+    );
   });
 
   it("prints JSON with --json", async () => {
@@ -208,7 +251,17 @@ describe("turno doctor --security", () => {
 });
 
 describe("audit log verify", () => {
-  const entry = (task: string) => ({ caller: { profile: "work", pid: 1 }, account: "linear:work", owner: "work", write: false, task, outcome: "ok" as const, detail: "", durationMs: 1, costUsd: null });
+  const entry = (task: string) => ({
+    caller: { profile: "work", pid: 1 },
+    account: "linear:work",
+    owner: "work",
+    write: false,
+    task,
+    outcome: "ok" as const,
+    detail: "",
+    durationMs: 1,
+    costUsd: null,
+  });
 
   it("identity log --verify and accounts log --verify check the chain", async () => {
     appendAudit(entry("one"), sb.env);
@@ -222,7 +275,9 @@ describe("audit log verify", () => {
     writeFileSync(file, `${[lines[1], lines[0]].join("\n")}\n`);
     io = fakeIo(sb.env);
     expect(await accounts.run(["log", "--verify"], io)).toBe(1);
-    expect(io.lines[0]).toMatch(/broken +~\/\.local\/state\/turno\/audit\.jsonl: line 1: first line does not start the chain/);
+    expect(io.lines[0]).toMatch(
+      /broken +~\/\.local\/state\/turno\/audit\.jsonl: line 1: first line does not start the chain/,
+    );
 
     io = fakeIo(sb.env);
     expect(await identity.run(["log", "--verify", "--json"], io)).toBe(1);
@@ -259,11 +314,19 @@ describe("${VAR} expansion in mcpd", () => {
   });
 
   it("expands ${VAR} in a stdio server's args and env values", async () => {
-    const m = parseManifest(`[server.fx]\ncommand = ${JSON.stringify(process.execPath)}\nargs = [${JSON.stringify(FIXTURE)}, "--region=\${REGION}"]\nenv = { URL = "https://\${HOST}/x" }\n`);
+    const m = parseManifest(
+      `[server.fx]\ncommand = ${JSON.stringify(process.execPath)}\nargs = [${JSON.stringify(FIXTURE)}, "--region=\${REGION}"]\nenv = { URL = "https://\${HOST}/x" }\n`,
+    );
     const vars = { REGION: "eu", HOST: "example.com" };
-    const connector = new DefaultConnector({ resolve: keychainResolver(vars, "linux"), serversDir: join(sb.home, "servers"), logsDir: join(sb.home, "logs"), vars });
+    const connector = new DefaultConnector({
+      resolve: keychainResolver(vars, "linux"),
+      serversDir: join(sb.home, "servers"),
+      logsDir: join(sb.home, "logs"),
+      vars,
+    });
     const { transport } = await connector.connect(m.servers.fx!, "default", { sessionId: "s" } as never, sb.home);
-    const params = (transport as unknown as { _serverParams: { args: string[]; env: Record<string, string> } })._serverParams;
+    const params = (transport as unknown as { _serverParams: { args: string[]; env: Record<string, string> } })
+      ._serverParams;
     expect(params.args).toEqual([FIXTURE, "--region=eu"]);
     expect(params.env.URL).toBe("https://example.com/x");
   });
@@ -341,7 +404,10 @@ describe("[mcpd] max_request_body", () => {
 
   it("reaches the gateway", async () => {
     sb.write(".config/turno/config.toml", '[mcpd]\nmax_request_body = "1MiB"\n');
-    sb.write(".config/turno/mcp.toml", `[server.fx]\ncommand = ${JSON.stringify(process.execPath)}\nargs = [${JSON.stringify(FIXTURE)}]\n`);
+    sb.write(
+      ".config/turno/mcp.toml",
+      `[server.fx]\ncommand = ${JSON.stringify(process.execPath)}\nargs = [${JSON.stringify(FIXTURE)}]\n`,
+    );
     const d = await startDaemon({ env: sb.env, port: 0 });
     daemons.push(d);
     const token = readFileSync(state("mcpd.token"), "utf8").trim();
@@ -349,7 +415,11 @@ describe("[mcpd] max_request_body", () => {
       method: "POST",
       body: "x".repeat(2 * 1024 * 1024),
       // MCP sessions take a profile token (ADR 0023).
-      headers: { authorization: `Bearer ${profileToken(token, "default")}`, "content-type": "application/json", accept: "application/json, text/event-stream" },
+      headers: {
+        authorization: `Bearer ${profileToken(token, "default")}`,
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
     });
     expect(res.status).toBe(413);
   });
@@ -364,7 +434,9 @@ describe("small fixes", () => {
   });
 
   it("daemon status shows calls in flight per client session", () => {
-    expect(inflightText({ "1f2e3d4c-aaaa-bbbb-cccc-111111111111": 2, "9a8b7c6d-aaaa-bbbb-cccc-222222222222": 1 })).toBe("3 calls in flight: 1f2e3d4c 2, 9a8b7c6d 1");
+    expect(inflightText({ "1f2e3d4c-aaaa-bbbb-cccc-111111111111": 2, "9a8b7c6d-aaaa-bbbb-cccc-222222222222": 1 })).toBe(
+      "3 calls in flight: 1f2e3d4c 2, 9a8b7c6d 1",
+    );
     expect(inflightText({})).toBeUndefined();
   });
 });
@@ -390,7 +462,14 @@ describe("talking to a running mcpd", () => {
 
   it("mcp refresh reports the instances a 200 says failed", async () => {
     sb.write(".config/turno/mcp.toml", '[server.fx]\ncommand = "fx-mcp"\n', 0o600);
-    await fakeMcpd({ "POST /refresh/fx": { server: "fx", refreshed: ["fx@work"], forgotten: [], errors: { "fx@default": "relist failed: boom\nstack" } } });
+    await fakeMcpd({
+      "POST /refresh/fx": {
+        server: "fx",
+        refreshed: ["fx@work"],
+        forgotten: [],
+        errors: { "fx@default": "relist failed: boom\nstack" },
+      },
+    });
     const io = fakeIo(sb.env);
     expect(await main(["mcp", "refresh", "fx"], io)).toBe(1);
     expect(io.errors).toContain("fx@default: mcpd could not refresh it: relist failed: boom");
@@ -403,7 +482,16 @@ describe("talking to a running mcpd", () => {
         pid: process.pid,
         port: 1,
         sessions: 1,
-        instances: [{ server: "fx", variant: "default", pid: null, clients: 1, idleSeconds: 3, inflightByClient: { "abcdef12-0000-0000-0000-000000000000": 1 } }],
+        instances: [
+          {
+            server: "fx",
+            variant: "default",
+            pid: null,
+            clients: 1,
+            idleSeconds: 3,
+            inflightByClient: { "abcdef12-0000-0000-0000-000000000000": 1 },
+          },
+        ],
       },
     });
     const io = fakeIo(sb.env);
@@ -417,7 +505,11 @@ describe("talking to a running mcpd", () => {
 
   it("turno status says why mcpd is down", async () => {
     sb.write(".config/turno/config.toml", `[mcpd]\nport = ${await freePort()}\n`);
-    sb.write(".local/state/turno/mcpd.error.json", JSON.stringify({ at: "2026-11-16T12:00:00.000Z", message: "port 47821 is in use by node (pid 42)" }), 0o600);
+    sb.write(
+      ".local/state/turno/mcpd.error.json",
+      JSON.stringify({ at: "2026-11-16T12:00:00.000Z", message: "port 47821 is in use by node (pid 42)" }),
+      0o600,
+    );
     const io = fakeIo(sb.env);
     expect(await main(["status"], io)).toBe(0);
     const text = io.lines.join("\n");
@@ -425,6 +517,8 @@ describe("talking to a running mcpd", () => {
     expect(text).toMatch(/last start failed at .*: port 47821 is in use by node \(pid 42\)/);
     const json = fakeIo(sb.env);
     await main(["status", "--json"], json);
-    expect((JSON.parse(json.lines.join("\n")) as { mcpd: { problems: string[] } }).mcpd.problems[0]).toContain("last start failed");
+    expect((JSON.parse(json.lines.join("\n")) as { mcpd: { problems: string[] } }).mcpd.problems[0]).toContain(
+      "last start failed",
+    );
   });
 });

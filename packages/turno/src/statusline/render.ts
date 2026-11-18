@@ -218,7 +218,8 @@ export function render(i: RenderInput): string {
 
   const pc = data.prompt_cache ?? {};
   if (pc.caching_observed) {
-    if (pc.warm && pc.expires_at && rel(pc.expires_at, now)) row1.push(ic("fire", WARM) + fg(WARM, rel(pc.expires_at, now)));
+    if (pc.warm && pc.expires_at && rel(pc.expires_at, now))
+      row1.push(ic("fire", WARM) + fg(WARM, rel(pc.expires_at, now)));
     else if (pc.recache_tokens_if_cold) row1.push(ic("snow", COLD) + fg(COLD, `+${tokens(pc.recache_tokens_if_cold)}`));
   }
 
