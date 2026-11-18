@@ -17,6 +17,14 @@ export function launcherPath(name: string, env: NodeJS.ProcessEnv = process.env,
   return executable(file) ? file : undefined;
 }
 
+/** `--no-gateway` before any `--`, or TURNO_SAFE on: safe mode (cli/safe.ts holds the rest). */
+export function wantsSafe(args: readonly string[], env: NodeJS.ProcessEnv): boolean {
+  const end = args.indexOf("--");
+  if ((end < 0 ? args : args.slice(0, end)).includes("--no-gateway")) return true;
+  const v = env.TURNO_SAFE;
+  return v !== undefined && v !== "" && v !== "0" && v.toLowerCase() !== "false";
+}
+
 /** Terminal signals already reach the child (same process group); these are passed on. */
 const FORWARDED: NodeJS.Signals[] = ["SIGTERM", "SIGHUP"];
 const IGNORED: NodeJS.Signals[] = ["SIGINT", "SIGQUIT"];
@@ -58,8 +66,26 @@ export async function execLauncher(file: string, args: string[], env: NodeJS.Pro
   });
 }
 
-/** `turno <profile> [args]`: exec the profile's launcher. */
-export async function launchProfile(name: string, args: string[], io: Io): Promise<number> {
+/**
+ * `turno <profile> [args]`: exec the profile's launcher. `--no-gateway` among turno's arguments,
+ * or TURNO_SAFE=1, opens it in safe mode instead (cli/safe.ts).
+ */
+export async function launchProfile(name: string, given: string[], io: Io): Promise<number> {
+  let args = given;
+  // Checked here without loading safe.ts, so a normal launch pays nothing for it.
+  if (wantsSafe(given, io.env)) {
+    const { launchSafe, takeSafeFlag } = await import("./safe.js");
+    args = takeSafeFlag(given).args;
+    if (!isValidProfileName(name)) throw new UsageError(`unknown command '${name}' (turno --help)`);
+    let config;
+    try {
+      config = loadConfig(io.env);
+    } catch (err) {
+      throw new CliError((err as Error).message);
+    }
+    if (!listProfiles(config, io.env).includes(name)) throw new UsageError(`no profile '${name}' (turno profile list shows them; turno profile add ${name} creates it)`);
+    return launchSafe(profileAgent(name, io.env), name, args, io);
+  }
   const file = launcherPath(name, io.env);
   if (!file) {
     if (!isValidProfileName(name)) throw new UsageError(`unknown command '${name}' (turno --help)`);

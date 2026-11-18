@@ -541,6 +541,7 @@ meta("reference/meta.json", { title: "Reference", description: "Generated from t
     "turno doctor --fix            # run every repair that is safe to run, then check again",
     "turno doctor --security       # file modes, the port owner, literal secrets, unpinned servers, token age, the audit log",
     "turno doctor --summary        # one line, for hooks and status lines",
+    "turno doctor --report         # a Markdown block for an issue: versions, agents, paths, mcpd, findings",
     "turno browser doctor          # Chrome and every browser identity (needs turno-browser)",
     "```",
     "",
@@ -558,9 +559,13 @@ meta("reference/meta.json", { title: "Reference", description: "Generated from t
     "turno mcp daemon logs -n 100  # the gateway log, in local time",
     "turno mcp log --server <name> # its recent tool calls, with errors and durations",
     "turno mcp refresh <name>      # forget a cached tool list; a running mcpd relearns it",
+    "turno mcp call <name> [tool]  # list a server's tools, or call one, as a profile's session would",
+    "turno run <profile> --no-gateway  # the same account without the gateway or the status line",
     "```",
     "",
-    `Each server also has its own stderr log under \`~/.local/state/turno/logs/\`. If you are still stuck, ask in [Discussions](${REPO}/discussions) or open an [issue](${REPO}/issues).`,
+    "If a problem goes away with `--no-gateway` (or `TURNO_SAFE=1`), it comes from turno's gateway or status line; if it stays, from the agent or its account.",
+    "",
+    `Each server also has its own stderr log under \`~/.local/state/turno/logs/\`. If you are still stuck, ask in [Discussions](${REPO}/discussions) or open an [issue](${REPO}/issues) with the output of \`turno doctor --report\`, which holds no tokens or secret values.`,
   );
   emit("troubleshooting/index.mdx", page({ title: "Troubleshooting", description: "Run turno doctor, then find the row it flags: one page per finding, with its fix.", body: intro.join("\n") }));
   meta("troubleshooting/meta.json", { title: "Troubleshooting", pages: sidebar });

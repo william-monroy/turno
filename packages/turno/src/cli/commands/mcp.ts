@@ -18,6 +18,7 @@ import { duration, profileColor, style } from "../style.js";
 import { emit, jsonOutput } from "../output.js";
 import { LOG_FLAGS, LOG_JSON, SAVINGS_FLAGS, SAVINGS_JSON, TOP_FLAGS, TOP_JSON } from "./mcp-observe.js";
 import { LOGIN_FLAGS, LOGIN_JSON, LOGOUT_FLAGS, type LoginRow, describeLogin, oauthLogins } from "./mcp-oauth.js";
+import { CALL_FLAGS, CALL_JSON } from "./mcp-call.js";
 
 const run = promisify(execFile);
 
@@ -203,6 +204,11 @@ async function runningServers(env: NodeJS.ProcessEnv): Promise<Set<string> | und
 
 // sync ---------------------------------------------------------------------------------------
 
+/** The profile the hub config (plain claude) gets gateway entries for: `system`, else "default". */
+export function hubProfileOf(config: Pick<Config, "system">): string {
+  return config.system || "default";
+}
+
 interface Target {
   profile: string;
   file: string;
@@ -226,8 +232,9 @@ function targets(io: Io, config: Config, only: string[]): Target[] {
     }
     out.push({ profile: name, file: mcpFileFor(name, agent, io.env), agent });
   }
-  // The hub config belongs to the system profile (the default agent started without a launcher).
-  const hubProfile = config.system ?? "default";
+  // The hub config belongs to the system profile (the default agent started without a launcher);
+  // without one (unset, or system = "") its entries carry the token of the "default" name.
+  const hubProfile = hubProfileOf(config);
   const hubFile = adapter(DEFAULT_AGENT).mcp.hubFile(io.env);
   if ((!only.length || only.includes(hubProfile) || only.includes("hub")) && existsSync(hubFile)) {
     out.push({ profile: hubProfile, file: hubFile, agent: DEFAULT_AGENT, plain: true });
@@ -272,7 +279,7 @@ export async function syncProfiles(io: Io, opts: SyncOptions = {}): Promise<{ ch
   const force = Boolean(opts.force);
   const only = opts.only ?? [];
   const config = loadConfig(io.env);
-  const known = new Set([...listProfiles(config, io.env), config.system ?? "default", "hub"]);
+  const known = new Set([...listProfiles(config, io.env), hubProfileOf(config), "hub"]);
   for (const name of only) if (!known.has(name)) fail(`no profile '${name}' (turno profile list shows them)`);
   const { profileServers, readManaged, syncServers, writeManaged } = await import("../../mcpd/sync.js");
   const { ensureToken, mcpdPort, readToken } = await import("../../mcpd/state.js");
@@ -828,6 +835,16 @@ const SUBS: Record<string, Sub> = {
     details: "Compares mcpd plus its servers now with an estimate where each live agent session\nstarts its own copy of every stdio server its profile uses.",
     run: async (rest, io) => (await import("./mcp-observe.js")).savings(rest, io),
   },
+  call: {
+    synopsis: "<server> [tool] [--args JSON] [--arg k=v ...] [--profile <p>] [--json]",
+    summary: "call one tool through mcpd, as a profile's session would",
+    args: ["server", "any"],
+    flags: flagsOf(CALL_FLAGS),
+    json: CALL_JSON,
+    details:
+      "For debugging a server without opening an agent. The call goes through mcpd\nwith the token of --profile (default: the profile this folder resolves to,\nelse the system one) and this folder, so tool filters and [[projects]] server\nsets apply as they would to an agent here. --args takes a JSON object;\n--arg key=value adds a string and --arg key:=json any JSON value. Without a\ntool it lists the server's tools. Exits 1 when the tool returns isError, 5\nwhen mcpd is not running.",
+    run: async (rest, io) => (await import("./mcp-call.js")).call(rest, io),
+  },
   daemon: {
     synopsis: "<start|stop|restart|status|logs>",
     summary: "the gateway daemon (same as turno mcpd)",
@@ -864,6 +881,9 @@ Docs: docs/mcp.md in the turno repository.`,
     "turno mcp log -f --server github",
     "turno mcp top --watch --json  # one JSON line every 2 s",
     "turno mcp savings",
+    "turno mcp call github",
+    "turno mcp call github search_issues --arg query=bug --arg limit:=5",
+    "turno mcp call fs read_file --args '{\"path\": \"README.md\"}' --profile work --json",
     "turno mcp daemon status",
     "turno mcp token rotate",
   ],

@@ -316,7 +316,7 @@ export async function collectChecks(env: NodeJS.ProcessEnv): Promise<Check[]> {
     const b = await bypassingServers(env);
     for (const s of b.plugins) add("mcp", "info", `plugin server ${s.plugin}/${s.name} starts in every session`, { hint: "turno mcp doctor" });
     // turno mcp sync replaces a hub entry with the gateway's when mcp.toml serves it to the profile the hub belongs to.
-    const hubProfile = config?.system ?? "default";
+    const hubProfile = config?.system || "default";
     for (const d of b.direct) {
       const def = manifest?.servers[d.name];
       const how = !d.inManifest
@@ -492,11 +492,42 @@ function renderDoctor(checks: readonly Check[], io: Pick<Io, "env" | "isTty">, o
   return out;
 }
 
-export async function doctor(io: Io, opts: { fix?: boolean; json?: boolean; security?: boolean; summary?: boolean; parsed?: Parsed } = {}): Promise<number> {
+/**
+ * `--report`: a Markdown block for an issue (versions, OS, agents, paths, mcpd, the findings),
+ * with no tokens or secret values. Exits like doctor does.
+ */
+async function report(io: Io, checks: readonly Check[], security: boolean): Promise<number> {
+  let config: Config | undefined;
+  try {
+    config = loadConfig(io.env);
+  } catch {
+    config = undefined;
+  }
+  const mcpd = await mcpdStatus(io.env, config);
+  let status: Record<string, unknown> | undefined;
+  if (mcpd.running) {
+    const { mcpdRequest } = await import("./mcp.js");
+    const r = await mcpdRequest(io.env, "GET", "/status");
+    if (r !== "down" && r.status === 200 && typeof r.body === "object" && r.body !== null) status = r.body as Record<string, unknown>;
+  }
+  const { reportMarkdown } = await import("../diagnostics.js");
+  const lines = await reportMarkdown(io.env, {
+    counts: countChecks(checks),
+    checks: checks.map((c) => ({ status: statusOf(c.level), area: c.area, text: c.text, ...(fixCommand(c) ? { fix: fixCommand(c)! } : {}) })),
+    mcpd,
+    ...(status ? { status } : {}),
+    security,
+  });
+  for (const l of lines) io.out(l);
+  return checks.some((c) => c.level === "fail") ? 1 : 0;
+}
+
+export async function doctor(io: Io, opts: { fix?: boolean; json?: boolean; security?: boolean; summary?: boolean; report?: boolean; parsed?: Parsed } = {}): Promise<number> {
   const start = Date.now();
   const collect = opts.security ? securitySection : collectChecks;
   const quiet = opts.json || opts.summary;
   let checks = await collect(io.env);
+  if (opts.report) return report(io, checks, Boolean(opts.security));
   if (opts.fix) {
     const fixes = new Map<string, Fix>();
     for (const c of checks) if (c.fix && isProblem(c) && !fixes.has(c.fix.label)) fixes.set(c.fix.label, c.fix);
@@ -548,7 +579,7 @@ function lookOf(env: NodeJS.ProcessEnv): { nerd: boolean; colors?: Record<string
 export const command: Command = {
   summary: "check everything (system, config, profiles, MCP, look, mcpd) and fix what is safe to fix",
   usage: [
-    "Usage: turno doctor [--security] [--fix] [--json | --summary]",
+    "Usage: turno doctor [--security] [--fix] [--json | --summary | --report]",
     "",
     "One row per check, in sections. Under each problem: the command that fixes it",
     "(fix: ...) or the manual step. Exits 1 when a check fails; warnings exit 0.",
@@ -560,6 +591,11 @@ export const command: Command = {
     "command or null), auto (whether --fix runs it) and manual, plus counts, ms and",
     "next (the fix commands, failures first).",
     "",
+    "--report prints a Markdown block to paste in an issue: turno, Node and OS",
+    "versions, each agent and its version, mcpd's state, the warnings and failures,",
+    "and every path turno uses. It holds no tokens or secret values; profile and",
+    "server names appear.",
+    "",
     "--security runs the security checks instead: who can read turno's folders, who",
     "holds the mcpd port, literal secrets in mcp.toml, agent configs and backups, MCP",
     "servers without an exact version, the age of the mcpd token and the audit log's",
@@ -570,12 +606,15 @@ export const command: Command = {
     "  $ turno doctor --fix",
     "  $ turno doctor --summary",
     "  $ turno doctor --security --json",
+    "  $ turno doctor --report | pbcopy  # paste it in an issue",
   ].join("\n"),
-  flags: ["--security", "--fix", "--json", "--summary"],
+  flags: ["--security", "--fix", "--json", "--summary", "--report"],
   json: DOCTOR_JSON,
   async run(args, io) {
-    const p = parseFlags(args, { security: { type: "boolean" }, fix: { type: "boolean" }, summary: { type: "boolean" }, ...JSON_FLAG }, 0);
-    if (bool(p, "json") && bool(p, "summary")) return fail("--json and --summary do not go together");
-    return doctor(io, { fix: bool(p, "fix"), json: bool(p, "json"), security: bool(p, "security"), summary: bool(p, "summary"), parsed: p });
+    const p = parseFlags(args, { security: { type: "boolean" }, fix: { type: "boolean" }, summary: { type: "boolean" }, report: { type: "boolean" }, ...JSON_FLAG }, 0);
+    const modes = (["json", "summary", "report"] as const).filter((m) => bool(p, m));
+    if (modes.length > 1) return fail(`${modes.map((m) => `--${m}`).join(" and ")} do not go together`);
+    if (bool(p, "report") && bool(p, "fix")) return fail("--report only reads; run turno doctor --fix first, then --report");
+    return doctor(io, { fix: bool(p, "fix"), json: bool(p, "json"), security: bool(p, "security"), summary: bool(p, "summary"), report: bool(p, "report"), parsed: p });
   },
 };

@@ -8,7 +8,9 @@ description: "Open the agent with the account assigned to this folder (turno-aut
 Open the agent with the account assigned to this folder (turno-auto)
 
 ```text title="turno auto --help"
-Usage: turno auto [--agent claude|codex|copilot|cursor] [agent args]
+Usage: turno auto [--agent <agent>] [--no-gateway] [agent args]
+
+<agent> is claude (the default), codex, copilot or cursor.
 
 Resolves the profile of that agent (Claude Code by default) for the current
 folder (a git worktree counts as its main repository), switches to the fallback
@@ -22,8 +24,13 @@ or config.toml does not parse, and says how to fix it (turno help exit-codes).
 TURNO_ALLOW_PLAIN=1 runs the plain agent despite a broken config.toml;
 system = "" in config.toml makes folders without a rule an error too.
 
+--no-gateway (or TURNO_SAFE=1) opens the same account in safe mode: no mcpd
+entries and no status line, to tell whether a problem comes from turno (turno
+run --help).
+
 Examples:
   $ turno auto
   $ turno auto --resume
   $ turno auto --agent codex
+  $ turno auto --no-gateway
 ```

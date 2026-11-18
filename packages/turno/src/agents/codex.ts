@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { paths } from "../core/paths.js";
 import { setValue } from "../core/toml-edit.js";
-import { type AgentAdapter, type SetupStep, TOML_MCP_SERVERS, gatewayUrl } from "./adapter.js";
+import { type AgentAdapter, type SafePlan, type SafeStep, type SetupStep, TOML_MCP_SERVERS, gatewayNames, gatewayUrl } from "./adapter.js";
 
 /** A Codex `[mcp_servers.<name>]` table in Claude Code's shape. */
 function fromCodex(e: Record<string, unknown>): Record<string, unknown> {
@@ -47,6 +47,28 @@ function prepareConfig(s: SetupStep): void {
   chmodSync(file, 0o600);
 }
 
+/** Safe mode: `-c mcp_servers.<name>.enabled=false` for each gateway entry of config.toml. */
+function safeMode(s: SafeStep): SafePlan {
+  let cfg: Record<string, unknown> = {};
+  try {
+    cfg = parseToml(readFileSync(s.file, "utf8")) as Record<string, unknown>;
+  } catch {
+    /* no config: nothing to turn off */
+  }
+  const names = gatewayNames(cfg.mcp_servers);
+  // `-c` splits its key at dots, so a name with one cannot be addressed; mcpd refuses it anyway
+  // (safe mode leaves the token out).
+  const plain = names.filter((n) => /^[A-Za-z0-9_-]+$/.test(n));
+  const odd = names.filter((n) => !plain.includes(n));
+  return {
+    args: plain.flatMap((n) => ["-c", `mcp_servers.${n}.enabled=false`]),
+    notes: [
+      plain.length ? `turned off the gateway entries ${plain.join(", ")} for this run` : "no gateway entries to turn off",
+      ...(odd.length ? [`${odd.join(", ")}: a name with a dot cannot be turned off for one run; without the token mcpd refuses it`] : []),
+    ],
+  };
+}
+
 export const codex: AgentAdapter = {
   id: "codex",
   label: "Codex CLI",
@@ -81,6 +103,7 @@ export const codex: AgentAdapter = {
       env_http_headers: { "X-Turno-Pid": "TURNO_SESSION_PID", "X-Turno-Cwd-B64": "TURNO_SESSION_CWD_B64" },
     }),
   },
+  safeMode,
   setup: { after: prepareConfig },
   doctorWarnings(dir) {
     let store: unknown;

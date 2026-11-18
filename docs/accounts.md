@@ -20,6 +20,19 @@ MCP servers behind the gateway are the exception: mcpd starts them, not the sess
 see mcpd's environment. turno tells mcpd which profile and session a request comes from; see
 [mcp.md](mcp.md) for servers that need one process per profile.
 
+Two cases inside a session do lose the variable:
+
+- `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` makes Claude Code remove `CLAUDE_CONFIG_DIR` (among
+  others) from the environment of the commands it runs. A `claude -p` started from the Bash tool
+  then uses the hub's account, not the session's. Leave it unset, or pass the profile again in
+  the command (`claude-work -p ...`, `turno work -p ...`).
+- A command that rebuilds its environment from scratch (`env -i`, `sudo`, `su -`, a container,
+  some task runners) drops it like any other variable.
+
+`CLAUDE_CONFIG_DIR` in the `env` of a project's or a folder's `.claude/settings*.json` is ignored
+by Claude Code, so a repository cannot move a session to another account that way; folder rules
+(`turno profile assign`) are turno's way.
+
 ## Outside a session: the default account
 
 Anything started without the variable uses the agent's own folder (`~/.claude`, `~/.codex`,
@@ -42,6 +55,24 @@ work repository. Three ways to avoid that:
    folder without a rule (and without a `default`) exits with an error instead of running the
    plain agent. turno does not wrap the plain `claude` command, so this does not change what
    item 2 covers.
+
+### `system = ""`, what each command does
+
+`system` names the profile signed in to the hub. Unset, turno does not know which account that
+is; `""` says there is none (usually after item 2). With `system = ""`:
+
+| Command | What it does |
+|---|---|
+| `turno auto` | exits 3 in a folder without a rule or a `default`, and names the fix (`turno profile assign`) |
+| `turno profile which --check` | exits 3 there too |
+| `turno status`, `turno profile which` | show "no profile" for Claude Code there, instead of "plain claude" |
+| `turno session list` | shows plain `claude` sessions without a profile (`"profile": null` in `--json`) |
+| `turno open <url>` without a profile, outside a launcher | the default browser, since no profile owns the hub |
+| the rate-limit hook | marks no profile exhausted for a plain `claude` session |
+| `turno mcp sync` | still writes gateway entries into `~/.claude.json`, with the token of the name `default`, as when `system` is unset; servers whose `profiles` leave `default` out are not offered there |
+
+`turno config set system <profile>` names the hub's account again, and `turno config unset
+system` goes back to not knowing.
 
 ## What turno auto never does
 

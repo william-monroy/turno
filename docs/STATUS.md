@@ -155,6 +155,12 @@ Last updated: 2026-11-17.
   too new; one call middleware in mcpd for every `tools/call` of both protocol paths (tool
   filter, call log, session id; named opt-in stages, none yet); `_meta["io.turno/session"]` on
   forwarded calls, read by turno-browser's host into its tools' context.
+- **Diagnostics and safe mode** (ADR 0049): `turno mcp call <server> [tool]` through mcpd with a
+  profile's token and this folder; `turno doctor --report` (a Markdown block for issues, no
+  secrets) and `turno config path --all`; `--no-gateway` and `TURNO_SAFE=1` for `turno run`,
+  `turno <profile>` and `turno auto`, per agent through the adapter's `safeMode`; Copilot CLI
+  and Cursor CLI gateway entries send the session folder header; `system = ""` reads as "no
+  account" in status, which, sessions and the hub's gateway token.
 
 ## Known gaps
 
@@ -249,15 +255,15 @@ Last updated: 2026-11-17.
 3. Phase 3 of the command proposal: the Claude Code plugin with slash commands, exhaustion
    warnings and auto handoff, external `turno-<x>` subcommands, export and import.
 4. **Follow-ups** from the three waves, still open on main (checked 2026-11-16):
-   - mcpd: a random port per install instead of 47821; the session folder header for Copilot
-     and Cursor (only Claude Code and Codex send it); tools-only variants sharing the default
+   - mcpd: a random port per install instead of 47821; check the Copilot CLI header expansion
+     of `X-Turno-Cwd-B64` against the real CLI (ADR 0049); tools-only variants sharing the default
      process (today a variant with only `tools` is its own process and, for OAuth, its own
      login); `list_changed` for stateless 2026-07-28 clients (sessions get it since 0.2).
    - MCP SDK v2 migration: elicitation and sampling for 2026-07-28 clients, 2026-07-28-only
      upstreams; an end-to-end test once an agent defaults to 2026-07-28.
    - OAuth: host a turno Client ID Metadata Document at a project HTTPS URL; `mcp import`
      setting `auth = "oauth"` for remotes that need it.
-   - CLI: `turno mcp call`; Codex
+   - CLI: Codex
      `[projects]` trust entries for folder rules; the OAuth login state for doctor without the
      MCP SDK (`loginState` lives in `mcpd/oauth.ts`, which imports it).
    - Accounts bridge: a rate limit per session; opt-in extra environment for runs (Bedrock,

@@ -16,7 +16,7 @@ import { type Style, profileColor, style, visibleWidth } from "../style.js";
 import { mcpdStatus } from "./doctor.js";
 import { DEFAULT_AGENT, adapter } from "../../agents/index.js";
 import { limitsData } from "./limit.js";
-import { profilesData, resolveAll, usingText } from "./profile.js";
+import { NO_DEFAULT_ACCOUNT, profilesData, resolveAll, usingText } from "./profile.js";
 import { sessionsData } from "./session.js";
 import { shortTime } from "./usage.js";
 
@@ -94,7 +94,7 @@ async function statusBase(env: NodeJS.ProcessEnv, cwd: string) {
       chosen: here.chosen || null,
       reason: here.reason,
       note: here.note || null,
-      agents: Object.fromEntries(all.map(({ agent, r }) => [agent, { chosen: r.chosen || null, text: usingText(agent, r, env) }])),
+      agents: Object.fromEntries(all.map(({ agent, r }) => [agent, { chosen: r.chosen || null, text: usingText(agent, r, env, config) }])),
     },
     profiles: profiles.map((p) => {
       const l = limits.find((x) => x.profile === p.name);
@@ -135,7 +135,9 @@ export function renderStatus(d: StatusData, io: Io, opts: { now?: number; colors
   const s = style(io, { nerd: d.look.icons === "nerd" });
   const pill = (name: string) => s.profile(name, opts.colors ? profileColor(opts.colors, name) : undefined);
   const out: string[] = [];
-  const using = d.here.chosen ? pill(d.here.chosen) : "plain claude";
+  // system = "" leaves plain claude without an account: say so rather than "plain claude".
+  const plain = d.here.agents[DEFAULT_AGENT]?.text.startsWith(NO_DEFAULT_ACCOUNT) ? s.warn("no profile") : "plain claude";
+  const using = d.here.chosen ? pill(d.here.chosen) : plain;
   out.push(s.wrap(`${s.bold(s.accent("turno"))} ${s.muted(d.version)}  `, `${d.here.dir} ${s.icon("arrow")} ${using}`));
   if (d.update) out.push(s.warn(`${s.icon("info")} turno ${d.update} is available: turno upgrade`));
   if (d.migrationPending) out.push(s.warn(`${s.icon("warn")} the bash claudio config is not migrated yet: turno migrate`));
@@ -143,7 +145,7 @@ export function renderStatus(d: StatusData, io: Io, opts: { now?: number; colors
   // Here: what each agent opens in this folder.
   out.push("", s.header("Here"));
   const why = d.here.note ? `${d.here.assigned} ${d.here.note}` : d.here.reason;
-  const here: string[][] = [[s.muted(DEFAULT_AGENT), d.here.chosen ? pill(d.here.chosen) : "plain claude", s.muted(why)]];
+  const here: string[][] = [[s.muted(DEFAULT_AGENT), d.here.chosen ? pill(d.here.chosen) : plain, s.muted(plain === "plain claude" ? why : `${why}; system = "" (turno auto exits 3)`)]];
   for (const [agent, a] of Object.entries(d.here.agents)) {
     if (agent === DEFAULT_AGENT) continue;
     const m = /^(.*) \((.*)\)$/.exec(a.text);

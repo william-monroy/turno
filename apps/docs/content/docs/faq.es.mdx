@@ -39,6 +39,14 @@ pass a profile: personal, work
 
 Para scripts, los comandos de lectura aceptan `--json` y los [códigos de salida](/es/docs/reference/exit-codes) son estables.
 
+## Un comando que corre desde una sesión usa otra cuenta. ¿Por qué?
+
+Cada proceso que abre una sesión hereda su cuenta (`CLAUDE_CONFIG_DIR` en Claude Code), y los subagentes de Claude Code corren dentro del mismo proceso, así que la comparten. Dos casos la pierden: `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, que hace que Claude Code quite la variable de los comandos que ejecuta, y los comandos que rehacen su entorno (`env -i`, `sudo`, contenedores). Entonces un `claude -p` usa la cuenta del agente sin perfil. Deja el scrub apagado, o nombra el perfil en el comando (`turno work -p ...`). `turno config set system ""` le dice a turno que el agente sin perfil no tiene una cuenta tuya, así que `turno auto` se detiene en vez de usarlo. Detalles: [Cuentas](https://github.com/wimo-dev/turno/blob/main/docs/accounts.md).
+
+## ¿Cómo sé si un problema viene de turno?
+
+Abre la misma cuenta sin la pasarela de turno: `turno run work --no-gateway` (o `TURNO_SAFE=1 turno work`). El agente recibe la cuenta y la configuración del perfil, pero sin entradas de mcpd, sin el token de la pasarela y, en Claude Code, sin status line ni hooks. Si el problema desaparece, viene de la pasarela o de la status line de turno; `turno doctor --report` imprime un bloque para pegar en un issue, sin tokens ni valores secretos.
+
 ## ¿Cómo lo deshago?
 
 Cada comando que escribe guarda una copia de lo que cambia: `turno undo --list` las muestra y `turno undo <stamp>` las restaura (las copias de más de 30 días se borran, conservando las 10 más recientes).

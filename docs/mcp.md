@@ -16,7 +16,9 @@ Every profile's `.claude.json` lists local MCP servers as HTTP entries pointing 
 ```
 
 `turno mcp sync` writes these. Claude Code expands the `${...}` values when it connects, so
-mcpd learns which session (launcher PID) and folder each connection comes from. The launcher
+mcpd learns which session (launcher PID) and folder each connection comes from. Codex, Copilot
+CLI and Cursor CLI send the same two headers, each in its own syntax
+([agents.md](agents.md#which-folder-a-session-is-in)). The launcher
 exports the folder base64url-encoded, because a raw path outside Latin-1 (an accent typed in
 NFD form, CJK, an emoji) is not a valid header value and the client would refuse to connect.
 Without the variable (a plain `claude`), mcpd reads the folder of the client process (`/proc`
@@ -386,7 +388,31 @@ turno mcp daemon logs -n 100  # gateway log, in local time (--utc for the raw li
 turno mcp log --server <name>  # its recent tool calls, with errors and durations
 ls ~/.local/state/turno/logs/   # one stderr log per server (and variant)
 turno mcp refresh <name>   # forget a cached tool list; a running mcpd relearns it
+turno mcp call <name>      # the tools a profile's session sees, through mcpd
+turno run <profile> --no-gateway  # the agent without the gateway, to see whether mcpd is the cause
 ```
+
+### Calling a tool from the terminal
+
+`turno mcp call` talks to mcpd as an agent session would, so a server can be checked without
+opening an agent:
+
+```sh
+turno mcp call github                                    # the tools profile sessions here see
+turno mcp call github search_issues --arg query=bug --arg limit:=5
+turno mcp call fs read_file --args '{"path": "README.md"}' --profile work --json
+```
+
+It uses the token of `--profile` (default: the profile the current folder resolves to, else the
+`system` one) and sends the current folder, so tool filters, profile variants and `[[projects]]`
+server sets apply exactly as they do to an agent here; a hidden server answers with the rule
+that hides it. `--args` is a JSON object; `--arg key=value` adds a string and `--arg key:=json`
+any JSON value (a number, `true`, a list), on top of `--args`. It prints the text of each content
+item (other items as one bracketed line), or with `--json` the whole result with `schemaVersion`.
+It exits 1 when the tool returns `isError` or mcpd refuses the call, 5 when mcpd is not running.
+The call shows up in `turno mcp log` with the agent `turno-mcp-call`. Remote servers that agents
+reach directly (no `keychain:` or `env:` header, no OAuth) do not go through mcpd and cannot be
+called this way.
 
 ## The daemon as a service
 

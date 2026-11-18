@@ -198,5 +198,6 @@ export function profileFromConfigDir(
     if (base.startsWith(".claude-")) return base.slice(".claude-".length);
     if (dir !== p.hub) return undefined;
   }
-  return config.system;
+  // system = "" says the hub is no profile's account.
+  return config.system || undefined;
 }

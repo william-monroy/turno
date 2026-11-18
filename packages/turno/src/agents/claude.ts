@@ -1,8 +1,8 @@
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { paths, tildify } from "../core/paths.js";
 import { plural } from "../cli/io.js";
-import { type AgentAdapter, JSON_MCP_SERVERS, type SetupStep, gatewayUrl } from "./adapter.js";
+import { type AgentAdapter, JSON_MCP_SERVERS, type SafePlan, type SafeStep, type SetupStep, gatewayUrl, isGatewayEntry } from "./adapter.js";
 import { isObject, readJsonFile } from "../core/fsutil.js";
 
 /**
@@ -87,6 +87,48 @@ export function gatewayEntry(name: string, port: number, token: string, profile:
       "X-Turno-Pid": "${TURNO_SESSION_PID:-0}",
       "X-Turno-Cwd-B64": "${TURNO_SESSION_CWD_B64:-}",
     },
+  };
+}
+
+/**
+ * Safe mode: `--strict-mcp-config` with a `--mcp-config` holding the profile's own servers (user
+ * scope, this folder's project scope and its .mcp.json) minus the gateway entries, and
+ * `--settings {"disableAllHooks":true}`, the documented switch that turns off a custom status
+ * line (and hooks). The file is private: a server's env may hold a literal secret.
+ */
+function safeMode(s: SafeStep): SafePlan {
+  const cfg = readJsonFile(s.file);
+  const kept: Record<string, unknown> = {};
+  const dropped = new Set<string>();
+  const keep = (map: unknown) => {
+    if (!isObject(map)) return;
+    for (const [n, e] of Object.entries(map)) {
+      if (isGatewayEntry(e)) dropped.add(n);
+      else if (!(n in kept)) kept[n] = e;
+    }
+  };
+  let real = s.cwd;
+  try {
+    real = realpathSync(s.cwd);
+  } catch {
+    /* keep it */
+  }
+  const projects = isObject(cfg) && isObject(cfg.projects) ? cfg.projects : {};
+  const project = projects[s.cwd] ?? projects[real];
+  keep(isObject(project) ? project.mcpServers : undefined);
+  const folder = readJsonFile(join(s.cwd, ".mcp.json"));
+  keep(isObject(folder) ? folder.mcpServers : undefined);
+  keep(isObject(cfg) ? cfg.mcpServers : undefined);
+  writeFileSync(s.scratch, `${JSON.stringify({ mcpServers: kept }, null, 2)}\n`, { mode: 0o600 });
+  chmodSync(s.scratch, 0o600);
+  const names = Object.keys(kept).sort();
+  return {
+    args: ["--strict-mcp-config", "--mcp-config", s.scratch, "--settings", JSON.stringify({ disableAllHooks: true })],
+    notes: [
+      dropped.size ? `left out the gateway entries ${[...dropped].sort().join(", ")}` : "no gateway entries to leave out",
+      `kept ${names.length ? names.join(", ") : "no other MCP servers"} (${tildify(s.scratch, s.env)}; plugin servers are skipped too)`,
+      "no status line and no hooks (disableAllHooks)",
+    ],
   };
 }
 
@@ -176,6 +218,7 @@ export const claude: AgentAdapter = {
     directRemote: true,
     gatewayEntry,
   },
+  safeMode,
   setup: {
     before(s) {
       if (existsSync(s.hub)) return;

@@ -190,6 +190,7 @@ change, and print the `turno undo <stamp>` that puts them back. `turno mcp impor
 | `turno auto [--agent codex\|copilot\|cursor]` | the profile assigned to the current folder |
 | `turno profile list\|add\|repair\|remove\|which [--check]\|assign\|unassign` | the profiles, and which folders use each; `which --check` exits 0, 3 or 4 for scripts |
 | `turno mcp list\|sync\|config\|import\|install\|refresh\|doctor` | the MCP gateway's servers, and entries for other agents |
+| `turno mcp call <server> [tool]` | list a server's tools or call one through mcpd, as a profile's session here would |
 | `turno mcp login\|logout <server>` | log mcpd in to an OAuth remote server, once per account |
 | `turno mcp log\|top\|savings` | the gateway's tool call log, memory per server, and what it saves |
 | `turno mcp daemon start\|stop\|restart\|status\|logs`, `turno mcp token rotate` | the gateway service, and its token |
@@ -201,7 +202,8 @@ change, and print the `turno undo <stamp>` that puts them back. `turno mcp impor
 | `turno secret set\|has\|rm\|list` | MCP secrets in the macOS Keychain or the Linux Secret Service |
 | `turno ui status\|install` | the status line, its font and icons in every terminal |
 | `turno doctor [--fix]`, `turno doctor --security [--fix]` | check everything and repair what is safe to repair; `--security` checks file modes, the port owner, literal secrets, unpinned servers, token age and the audit log |
-| `turno config path\|get\|set\|unset\|edit\|check` | config.toml without losing its comments |
+| `turno doctor --report`, `turno run <p> --no-gateway` | a Markdown block for an issue (no secrets); the agent without turno's gateway, to tell whether a problem is turno's |
+| `turno config path [--all]\|get\|set\|unset\|edit\|check` | config.toml without losing its comments; `path --all` lists every path turno uses |
 | `turno undo [--list] [<stamp>\|last]`, `turno undo --prune` | put back the files a command changed; prune old backups |
 | `turno upgrade [--check]`, `turno version` | update turno the way it was installed |
 | `turno uninstall [--dry-run] [--yes] [--keep-config] [--purge]` | remove what turno set up (profile folders stay); `--purge` also removes its state and caches |

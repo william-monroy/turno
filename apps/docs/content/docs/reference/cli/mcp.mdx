@@ -36,6 +36,10 @@ Usage:
                                       memory, sessions and calls of each running
                                       server
   turno mcp savings [--json]          memory mcpd saves compared with no gateway
+  turno mcp call <server> [tool] [--args JSON] [--arg k=v ...] [--profile
+      <p>] [--json]
+                                      call one tool through mcpd, as a profile's
+                                      session would
   turno mcp daemon <start|stop|restart|status|logs>
                                       the gateway daemon (same as turno mcpd)
   turno mcp token rotate [--dry-run]  replace the gateway token, then run turno
@@ -59,6 +63,9 @@ Examples:
   $ turno mcp log -f --server github
   $ turno mcp top --watch --json  # one JSON line every 2 s
   $ turno mcp savings
+  $ turno mcp call github
+  $ turno mcp call github search_issues --arg query=bug --arg limit:=5
+  $ turno mcp call fs read_file --args '{"path": "README.md"}' --profile work --json
   $ turno mcp daemon status
   $ turno mcp token rotate
 ```
@@ -210,6 +217,28 @@ starts its own copy of every stdio server its profile uses.
 
 Examples:
   $ turno mcp savings
+```
+
+### turno mcp call
+
+```text
+Usage:
+  turno mcp call <server> [tool] [--args JSON] [--arg k=v ...] [--profile
+      <p>] [--json]
+    call one tool through mcpd, as a profile's session would
+
+For debugging a server without opening an agent. The call goes through mcpd
+with the token of --profile (default: the profile this folder resolves to,
+else the system one) and this folder, so tool filters and [[projects]] server
+sets apply as they would to an agent here. --args takes a JSON object;
+--arg key=value adds a string and --arg key:=json any JSON value. Without a
+tool it lists the server's tools. Exits 1 when the tool returns isError, 5
+when mcpd is not running.
+
+Examples:
+  $ turno mcp call github
+  $ turno mcp call github search_issues --arg query=bug --arg limit:=5
+  $ turno mcp call fs read_file --args '{"path": "README.md"}' --profile work --json
 ```
 
 ### turno mcp daemon

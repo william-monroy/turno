@@ -274,10 +274,15 @@ export function resolveAll(dir: string, config: Config, env: NodeJS.ProcessEnv, 
 }
 
 /** "work (project ~/code)", or the plain agent and its home. */
-export function usingText(agent: AgentId, r: { chosen: string; assigned: string; note: string; reason: string }, env: NodeJS.ProcessEnv): string {
+export function usingText(agent: AgentId, r: { chosen: string; assigned: string; note: string; reason: string }, env: NodeJS.ProcessEnv, config?: Pick<Config, "system">): string {
   if (r.note) return `${r.chosen} (${r.assigned} ${r.note})`;
-  return r.chosen ? `${r.chosen} (${r.reason})` : `plain ${adapter(agent).command} with ${tildify(agentHub(agent, env), env)} (${r.reason})`;
+  if (r.chosen) return `${r.chosen} (${r.reason})`;
+  if (agent === DEFAULT_AGENT && config?.system === "") return `${NO_DEFAULT_ACCOUNT} (${r.reason})`;
+  return `plain ${adapter(agent).command} with ${tildify(agentHub(agent, env), env)} (${r.reason})`;
 }
+
+/** What a folder without a Claude Code profile uses when `system = ""`: nothing, turno auto exits 3. */
+export const NO_DEFAULT_ACCOUNT = 'no profile: system = "" (turno auto exits 3)';
 
 export const WHICH_SPEC: FlagSpec = { ...JSON_FLAG, check: { type: "boolean" }, agent: { type: "string" } };
 
@@ -342,7 +347,7 @@ export async function whichCommand(args: string[], io: Io): Promise<number> {
   }
   io.out(tildify(dir, io.env));
   io.out(`  assigned: ${r.assigned || "none"} (${r.reason})`);
-  io.out(r.note ? `  using now: ${r.chosen} (${r.assigned} ${r.note})` : `  using now: ${r.chosen || "plain claude"}`);
+  io.out(r.note ? `  using now: ${r.chosen} (${r.assigned} ${r.note})` : `  using now: ${r.chosen || (config.system === "" ? NO_DEFAULT_ACCOUNT : "plain claude")}`);
   for (const { agent, r: x } of all.slice(1)) io.out(`  ${agent}: ${usingText(agent, x, io.env)}`);
   if (set) io.out(`  mcp: ${setText(set)} (rule ${tildify(set.path, io.env)})`);
   return 0;

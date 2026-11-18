@@ -17,8 +17,12 @@ import { highlightToml } from "../highlight.js";
 import { CliError, type Io, colors, columns, fail, paint } from "../io.js";
 import { parseColor } from "./profile.js";
 
-/** `turno config path --json`: one entry per file, each {path, exists} (ADR 0045). */
-const PATH_JSON = jsonOutput(["config", "mcp", "accounts", "state", "backups"]);
+/**
+ * `turno config path --json`: one entry per file, each {path, exists} (ADR 0045); with --all,
+ * `all` lists every path turno uses, each {name, path, exists, about}.
+ */
+const PATH_JSON = jsonOutput(["config", "mcp", "accounts", "state", "backups", "all"]);
+const PATH_FLAGS = { all: { type: "boolean" as const }, ...JSON_FLAG };
 
 /** Keys `config set` may change; tables of their own have their own commands. */
 const KEYS: Record<string, string> = {
@@ -69,12 +73,21 @@ function lookup(doc: Record<string, unknown>, key: string): unknown {
 }
 
 async function path(args: string[], io: Io): Promise<number> {
-  const p = parseFlags(args, JSON_FLAG, 0);
+  const p = parseFlags(args, PATH_FLAGS, 0);
   const env = io.env;
   const pp = paths(env);
   const files = { config: pp.configFile, mcp: pp.mcpFile, accounts: pp.accountsFile, state: pp.state, backups: pp.backupsDir };
+  const all = bool(p, "all") ? (await import("../diagnostics.js")).allPaths(env) : undefined;
   if (bool(p, "json")) {
-    emit(io, p, PATH_JSON, Object.fromEntries(Object.entries(files).map(([k, v]) => [k, { path: tildify(v, env), exists: existsSync(v) }])));
+    emit(io, p, PATH_JSON, {
+      ...Object.fromEntries(Object.entries(files).map(([k, v]) => [k, { path: tildify(v, env), exists: existsSync(v) }])),
+      ...(all ? { all: all.map((e) => ({ name: e.name, path: tildify(e.path, env), exists: existsSync(e.path), about: e.about })) } : {}),
+    });
+    return 0;
+  }
+  if (all) {
+    const w = Math.max(...all.map((e) => e.name.length));
+    for (const e of all) io.out(`${e.name.padEnd(w)}  ${tildify(e.path, env)}${existsSync(e.path) ? "" : paint(io, "  (not there yet)", "2")}  ${paint(io, e.about, "2")}`);
     return 0;
   }
   for (const [k, v] of Object.entries(files)) io.out(`${k.padEnd(9)} ${tildify(v, env)}${existsSync(v) ? "" : paint(io, "  (not there yet)", "2")}`);
@@ -229,7 +242,15 @@ export const command = group(
   "config",
   "read and change config.toml without losing its comments; check every config file",
   {
-    path: { summary: "where each config and state file lives", synopsis: "[--json]", flags: ["--json"], json: PATH_JSON, run: path },
+    path: {
+      summary: "where each config and state file lives (--all: every path turno uses)",
+      synopsis: "[--all] [--json]",
+      flags: flagsOf(PATH_FLAGS),
+      json: PATH_JSON,
+      details:
+        "--all adds the logs, tokens, caches, service file, launchers, each agent's\nfolder and each profile's folder and launcher, with what turno keeps there.\nThe paths only, never what is in them.",
+      run: path,
+    },
     get: { summary: "print a value (the whole file as JSON without a key)", synopsis: "[key] [--json]", args: ["key"], flags: ["--json"], run: get },
     set: { summary: "set a value, checked like profile add checks it", synopsis: "<key> <value> [--dry-run]", args: ["key", "any"], flags: flagsOf(SET_SPEC), run: set },
     unset: { summary: "remove a value", synopsis: "<key> [--dry-run]", args: ["key"], flags: ["--dry-run"], run: unset },
@@ -242,6 +263,7 @@ export const command = group(
 A [[projects]] rule with mcp = [...] limits the servers of that folder.`,
     examples: [
       "turno config path --json",
+      "turno config path --all",
       "turno config get default",
       "turno config get mcpd --json",
       "turno config set default work",
