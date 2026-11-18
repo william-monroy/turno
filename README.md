@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <b>One MCP gateway and per-folder accounts for Claude Code, Codex, Copilot CLI and Cursor CLI.</b>
+  <b>Switch accounts. Keep everything else.</b>
 </p>
 
 <p align="center">
@@ -20,12 +20,28 @@
   English · <a href="README.es.md">Español</a>
 </p>
 
-Every coding-agent session starts its own copy of every MCP server. Eight sessions with six
-common servers is **3,163 MiB in 56 processes**. turno starts each server once,
-only when a tool is called, behind one local gateway that every session of every agent shares:
-**847 MiB while all six run, 103 MiB while they sit idle**
-([benchmark](BENCHMARKS.md)). It also gives each folder its own account, so work repositories
-open with your work login and everything else with your personal one.
+**Switching accounts? Keep talking.** The same session continues on your other account, with
+its whole context, its MCP servers already signed in and a browser profile that keeps its
+sign-ins. turno is for people who use a work account and a personal account with their coding
+agents.
+
+- **Your conversation.** A Claude Code session started with one account continues under
+  another, or forks into a second one: `turno session handoff work` prints the command.
+- **Your MCP sign-ins.** One local gateway logs in to each remote OAuth server once per account
+  (`turno mcp login <server>`), and every agent session of that account reaches it through the
+  gateway.
+- **Your browser session.** A real Chrome profile per identity that keeps its sign-ins (the
+  separate `turno-browser` package), and claude.ai links that open with the session's account
+  (`turno open`).
+- **Your control.** Three skills of the Claude Code plugin move work between accounts from
+  inside a session: `/switch-account`, `/fork-session` and `/copy-artifact`.
+- **The right account by itself.** Each project folder gets its account, in Claude Code, Codex,
+  Copilot CLI and Cursor CLI.
+- **Easy to try, easy to undo.** `npx turno-cli demo` runs in a throwaway HOME, and
+  `turno undo` puts back every file a command changed.
+
+The same gateway starts each MCP server once and shares it between sessions; the measured
+memory saving is in [Benchmark](#benchmark).
 
 ![turno demo: two profiles, one gateway, the status line, the picker and turno doctor, in a throwaway HOME](docs/assets/demo.gif)
 
@@ -44,6 +60,11 @@ traffic.
 
 ## What it does
 
+- **Per-folder accounts and MCP server sets.** `turno profile assign ~/code/acme work` and every
+  agent you open in that repository uses your work login; `turno auto` picks it, and
+  `turno status` shows who is logged in where. The same folder rule can choose which MCP servers
+  sessions there see. Conversations, skills and settings stay shared between your Claude Code
+  profiles, so `turno work --resume <id>` continues a session started with another account.
 - **One MCP gateway for every session.** `mcpd` listens on `127.0.0.1`, answers `initialize` and
   the tool lists from a cache, starts a server the first time one of its tools is called, shares
   that process between sessions where it is safe (`shared`, `project` or `session` scope) and
@@ -51,11 +72,6 @@ traffic.
   same endpoint, logs in to OAuth remote servers once per account (`turno mcp login`), and
   `turno mcp log`, `top` and `savings` show its calls, memory and saving. Secrets live in the
   macOS Keychain or the Linux Secret Service, not in agent configs. See [docs/mcp.md](docs/mcp.md).
-- **Per-folder accounts and MCP server sets.** `turno profile assign ~/code/acme work` and every
-  agent you open in that repository uses your work login; `turno auto` picks it, and
-  `turno status` shows who is logged in where. The same folder rule can choose which MCP servers
-  sessions there see. Conversations, skills and settings stay shared between your Claude Code
-  profiles, so `turno work --resume <id>` continues a session started with another account.
 - **Four agents, one setup.** The same profiles, folder rules and gateway for:
 
   | Agent | Profile | Gateway entries | Example |

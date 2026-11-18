@@ -1,6 +1,6 @@
 {
   "name": "turno",
-  "description": "The turno companion plugin: profile status, session resume and artifact copies for turno profiles.",
+  "description": "The turno companion plugin: switch accounts and keep the conversation, with profile status, session resume and artifact copies.",
   "owner": {
     "name": "turno contributors"
   },

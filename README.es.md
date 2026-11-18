@@ -6,20 +6,35 @@
 </p>
 
 <p align="center">
-  <b>Un gateway MCP y una cuenta por carpeta para Claude Code, Codex, Copilot CLI y Cursor CLI.</b>
+  <b>Cambia de cuenta. Conserva todo lo demás.</b>
 </p>
 
 <p align="center">
   <a href="README.md">English</a> · Español
 </p>
 
-Cada sesión de un agente de código arranca su propia copia de cada servidor MCP. Ocho sesiones
-con seis servidores comunes ocupan **3,163 MiB en 56 procesos**. turno arranca cada servidor una
-sola vez, solo cuando se llama una de sus herramientas, detrás de un gateway local que comparten
-todas las sesiones de todos los agentes: **847 MiB con los seis servidores corriendo y 103 MiB
-mientras están inactivos** ([benchmark](BENCHMARKS.md)). Además, cada carpeta usa su propia
-cuenta y su propio conjunto de servidores MCP: los repositorios del trabajo abren con tu cuenta
-del trabajo y lo demás con la personal.
+**¿Cambias de cuenta? La conversación sigue.** La misma sesión continúa en tu otra cuenta, con
+todo su contexto, sus servidores MCP con la sesión ya iniciada y un perfil de navegador que
+conserva sus inicios de sesión. turno es para quien usa una cuenta de trabajo y una personal con
+sus agentes de código.
+
+- **Tu conversación.** Una sesión de Claude Code que empezó con una cuenta sigue con otra, o se
+  bifurca en una segunda: `turno session handoff trabajo` imprime el comando.
+- **Tus sesiones de MCP.** Un gateway local inicia sesión en cada servidor remoto con OAuth una
+  vez por cuenta (`turno mcp login <servidor>`), y todas las sesiones de agente de esa cuenta
+  llegan a él a través del gateway.
+- **Tu sesión del navegador.** Un perfil real de Chrome por identidad que conserva sus inicios
+  de sesión (el paquete aparte `turno-browser`), y enlaces de claude.ai que abren con la cuenta
+  de la sesión (`turno open`).
+- **Tu control.** Tres skills del plugin de Claude Code mueven trabajo entre cuentas desde dentro
+  de una sesión: `/switch-account`, `/fork-session` y `/copy-artifact`.
+- **La cuenta correcta, sola.** Cada carpeta de proyecto tiene su cuenta, en Claude Code, Codex,
+  Copilot CLI y Cursor CLI.
+- **Fácil de probar, fácil de deshacer.** `npx turno-cli demo` corre en un HOME desechable, y
+  `turno undo` regresa cada archivo que un comando cambió.
+
+El mismo gateway arranca cada servidor MCP una sola vez y lo comparte entre sesiones; el ahorro
+de memoria medido está en [BENCHMARKS.md](BENCHMARKS.md).
 
 ![turno demo: dos perfiles, un gateway, la status line, el selector y turno doctor, en un HOME desechable](docs/assets/demo.gif)
 

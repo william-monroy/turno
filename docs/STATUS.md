@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-11-17.
+Last updated: 2026-11-18.
 
 ## Done
 
@@ -221,7 +221,7 @@ Last updated: 2026-11-17.
 0. **Public release** (2026-11-16): the owner accepted the trademark risk of the name and chose
    to publish under `github.com/william-monroy/turno`, moved the same day to
    `github.com/wimo-dev/turno` (ADR 0015). Done in the repository: README rewritten
-   around the measured gateway saving ([BENCHMARKS.md](../BENCHMARKS.md), `bench/`), Spanish
+   with the measured gateway saving ([BENCHMARKS.md](../BENCHMARKS.md), `bench/`), Spanish
    README, logo, VHS demo (`docs/demo/`), social preview, package metadata, changelogs for
    0.1.0, `server.json` for the MCP Registry, plugin texts without rate-limit wording.
    Published the same day: `turno-cli`, `turno-browser` and `turno-fonts` 0.1.0 on npm (the
@@ -231,6 +231,9 @@ Last updated: 2026-11-17.
    `io.github.william-monroy/turno-browser`, now deprecated in favour of
    `io.github.wimo-dev/turno-browser`);
    cobalt logo and social preview; Discussions with an Español category and the pinned roadmap.
+   Narrative changed since: the READMEs, package descriptions and social preview now lead with
+   switching accounts ("Switch accounts. Keep everything else.", hook "Switching accounts? Keep
+   talking."); the gateway's memory numbers stay in the Benchmark section and BENCHMARKS.md.
    Left:
    GitHub Actions never started on the owner's personal account (a billing lock); in the
    `wimo-dev` organization it runs. The first CI run found that `node --test scripts/` only

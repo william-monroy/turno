@@ -1,7 +1,7 @@
 {
   "name": "turno",
   "version": "0.2.0",
-  "description": "Companion plugin for the turno CLI. A status hook records each profile's account state, which turno status shows. Three skills: two print the command that resumes or forks the current session under a turno profile you choose, and one copies a claude.ai artifact from one profile to another.",
+  "description": "Switch accounts without losing the conversation. Companion plugin for the turno CLI. A status hook records each profile's account state, which turno status shows. Three skills: two print the command that resumes or forks the current session under a turno profile you choose, and one copies a claude.ai artifact from one profile to another.",
   "author": {
     "name": "William Frank Monroy Mamani"
   },
