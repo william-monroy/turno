@@ -91,7 +91,23 @@ turno browser vault submit school auto      # browser_login also submits (defaul
 - **TOTP** follows RFC 6238 (SHA1, SHA256, SHA512, 6 to 8 digits), from a base32 secret or the
   `otpauth://` URI of the QR code.
 
-Threat model: [SECURITY.md](https://github.com/wimo-dev/turno/blob/main/SECURITY.md#the-credential-vault).
+## Session export and import
+
+```sh
+turno browser export school --out school.session --expires 2d   # asks for a passphrase twice
+turno browser import school.session --as school-laptop
+```
+
+The file holds the identity's cookies, localStorage and IndexedDB, encrypted with the
+passphrase (scrypt and AES-256-GCM), and is refused after its expiry. It never holds vault
+credentials. Importing into an existing identity replaces its session and asks first.
+Details: [ADR 0055](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0055-browser-session-export-import.md).
+
+`"keychain": "system"` in identity.json makes Chrome encrypt the profile's cookies with the OS
+keychain's key instead of Playwright's fixed mock key
+([ADR 0059](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0059-browser-cookie-keychain.md)).
+
+Vault threat model: [SECURITY.md](https://github.com/wimo-dev/turno/blob/main/SECURITY.md#the-credential-vault).
 Details: [ADR 0054](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0054-browser-credential-vault.md).
 
 ## Acceptable use

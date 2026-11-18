@@ -26,7 +26,7 @@ export interface VaultInput {
   stdin(): Promise<string>;
 }
 
-const terminalInput: VaultInput = { isTty: stdinIsTty, hidden: readHidden, visible: readVisible, stdin: readStdinText };
+export const terminalInput: VaultInput = { isTty: stdinIsTty, hidden: readHidden, visible: readVisible, stdin: readStdinText };
 
 const ADD_FLAGS = {
   url: { type: "string", multiple: true },

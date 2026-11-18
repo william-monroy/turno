@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import type { Browser, BrowserContext } from "patchright-core";
 import { findProfileChrome, readLockPid } from "./lifecycle.js";
 import { acquireRuntimeLock } from "./runtime-lock.js";
-import { launchSettings, readIdentitySettings, systemTimezone } from "./settings.js";
+import { keychainArgs, launchSettings, readIdentitySettings, systemTimezone } from "./settings.js";
 import { type Tuning, launchTuning } from "./tuning.js";
 import { type ClientInfo, type IdleTimerLike, type McpConfig, playwright, upstream } from "./upstream.js";
 
@@ -178,7 +178,8 @@ const chromeEngine: Engine = {
         ...(applied.timezoneId ? { timezoneId: applied.timezoneId } : {}),
         handleSIGINT: false,
         handleSIGTERM: false,
-        ignoreDefaultArgs: ignore === true ? true : ["--disable-extensions", ...tuned.ignoreDefaultArgs, ...(Array.isArray(ignore) ? ignore : [])],
+        ignoreDefaultArgs:
+          ignore === true ? true : ["--disable-extensions", ...tuned.ignoreDefaultArgs, ...(keychainArgs(settings).ignoreDefaultArgs ?? []), ...(Array.isArray(ignore) ? ignore : [])],
       };
       try {
         context = await playwright()[config.browser.browserName].launchPersistentContext(userDataDir, launchOptions);

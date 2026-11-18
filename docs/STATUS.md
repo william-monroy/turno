@@ -169,6 +169,12 @@ Last updated: 2026-11-18.
   `pidAlive` are gone. The shrinkwrap locks the sibling at its exact version without
   integrity, the release plan publishes it first, and its first version is published by hand
   (RELEASING.md, "A new package").
+- **Wave 7, stage 5: session export and the cookie key** (ADRs 0055, 0059): `turno browser
+  export <id> --out <file>` and `turno browser import <file> [--as <id>]` move an identity's
+  cookies, localStorage and IndexedDB as one file sealed with scrypt and AES-256-GCM, with the
+  expiry inside the ciphertext; the vault is never part of it. The mock keychain stays the
+  default (measured: cookies decrypt with the public mock key); `"keychain": "system"` in
+  identity.json (format 3) drops it per identity. turno-browser's API is 1.2.
 - **Wave 7, stage 5: credential vault** (ADR 0054): `turno browser vault add|list|remove|submit`
   keeps a username, a password and a TOTP secret per site of a browser identity in the secret
   store only, with an index of names and origins; the `browser_login` turno tool fills them on

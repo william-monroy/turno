@@ -255,6 +255,7 @@ export function show(m: BrowserApi, id: string, args: string[], io: Io): number 
     if (settings.settle !== undefined) rows.push(["settle", settings.settle]);
     if (settings.block) rows.push(["blocking", describeBlock(settings.block) || s.muted("(nothing)")]);
     if (settings.cache) rows.push(["cache", `on, up to ${settings.cache.maxSize ?? "100MB"}`]);
+    if (settings.keychain === "system") rows.push(["cookie key", "the system keychain (identity.json keychain)"]);
     rows.push(["created", settings.created]);
     rows.push(["updated", settings.updated]);
   }

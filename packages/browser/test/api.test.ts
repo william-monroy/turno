@@ -35,11 +35,15 @@ const MEMBERS = [
   "vaultList",
   "vaultRemove",
   "vaultSetSubmit",
+  // 1.2: session export and import (ADR 0055).
+  "exportSession",
+  "importSession",
+  "readSessionExport",
 ];
 
 describe("the public API object", () => {
-  it("is version 1.1, frozen, with integer parts", () => {
-    expect(API_VERSION).toEqual({ major: 1, minor: 1 });
+  it("is version 1.2, frozen, with integer parts", () => {
+    expect(API_VERSION).toEqual({ major: 1, minor: 2 });
     expect(Object.isFrozen(API_VERSION)).toBe(true);
     expect(Number.isInteger(API_VERSION.major) && Number.isInteger(API_VERSION.minor)).toBe(true);
   });

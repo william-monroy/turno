@@ -130,6 +130,17 @@ turno browser vault list school
 
 The password and the TOTP secret are asked with hidden prompts (or read from stdin). An agent then calls `browser_login` with the site name on that sign-in page: the tool fills the username, the password and the current one-time code without the agent seeing them, only on the origins given with `--url`, and hides the values from every later result. It does not submit the form unless you run `turno browser vault submit school auto`. See [ADR 0054](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0054-browser-credential-vault.md) and the threat model in SECURITY.md.
 
+## Moving a session
+
+```sh
+turno browser export school --out school.session --expires 2d
+turno browser import school.session --as school-laptop
+```
+
+The export holds the identity's cookies, localStorage and IndexedDB, encrypted with a passphrase you type (asked twice, or the first line of stdin), and is refused after its expiry (7 days by default, at most 90). It never holds vault credentials. Importing into an identity that exists replaces its session, so turno asks first (or needs `--yes`). See [ADR 0055](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0055-browser-session-export-import.md).
+
+By default Chrome encrypts an identity's cookies with a fixed key that is the same on every machine, so the profile folder is as sensitive as the sessions in it. `"keychain": "system"` in identity.json makes Chrome use the macOS Keychain or the Linux Secret Service instead. Changing it signs the identity out (its cookies were encrypted with the other key): export first and import after. See [ADR 0059](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0059-browser-cookie-keychain.md).
+
 ## Session health
 
 An optional health check names a page and what it shows only when signed in:
