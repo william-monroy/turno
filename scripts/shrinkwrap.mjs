@@ -5,7 +5,10 @@
 //   node scripts/shrinkwrap.mjs --check <package dir>...  exit 1 if a file is missing or stale
 // Offline: versions come from the pnpm install (node_modules), integrity from pnpm-lock.yaml.
 // The layout is npm's: every package as high as it fits, nested only on a version conflict.
-import { existsSync, lstatSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+// A dependency on another package of this workspace (`workspace:*`, ADR 0053) is published as
+// its exact version, the way pnpm pack writes it; its entry has no integrity, because the
+// tarball of a sibling released in the same run does not exist yet when this file is written.
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,6 +32,48 @@ export function installScripts(manifest, dir) {
   const found = INSTALL_SCRIPTS.filter((s) => manifest.scripts?.[s]);
   if (!found.length && dir && existsSync(join(dir, "binding.gyp"))) found.push("install (binding.gyp)");
   return found;
+}
+
+/** The packages of the workspace above `from` (`packages/*`): name -> version. Empty outside one. */
+export function workspaceVersions(from) {
+  const out = new Map();
+  let root;
+  try {
+    root = workspaceRoot(from);
+  } catch {
+    return out;
+  }
+  const dir = join(root, "packages");
+  for (const name of existsSync(dir) ? readdirSync(dir) : []) {
+    const file = join(dir, name, "package.json");
+    if (!existsSync(file)) continue;
+    const m = readJson(file);
+    out.set(m.name, m.version);
+  }
+  return out;
+}
+
+const DEP_FIELDS = ["dependencies", "optionalDependencies", "peerDependencies"];
+
+/**
+ * The manifest as pnpm publishes it: `workspace:*` becomes the sibling's exact version,
+ * `workspace:^` and `workspace:~` a range on it, `workspace:<spec>` the spec itself.
+ */
+export function publishedManifest(manifest, versions) {
+  const out = { ...manifest };
+  for (const f of DEP_FIELDS) {
+    if (!manifest[f]) continue;
+    out[f] = Object.fromEntries(
+      Object.entries(manifest[f]).map(([n, spec]) => {
+        if (typeof spec !== "string" || !spec.startsWith("workspace:")) return [n, spec];
+        const rest = spec.slice("workspace:".length);
+        const version = versions.get(n);
+        if (version === undefined) throw new Error(`${manifest.name} depends on ${n}@${spec}, which is not a package of this workspace`);
+        return [n, rest === "*" ? version : rest === "^" || rest === "~" ? `${rest}${version}` : rest];
+      }),
+    );
+  }
+  return out;
 }
 
 /** Declared edges of a manifest: name -> { spec, optional }. Dev dependencies never count. */
@@ -63,8 +108,8 @@ function locate(dir, name, isRoot) {
  * The installed production tree of the package in `pkgDir`: nodes keyed by name@version, each
  * with its manifest, folder and resolved edges (name -> key).
  */
-export function collectGraph(pkgDir) {
-  const root = readJson(join(pkgDir, "package.json"));
+export function collectGraph(pkgDir, versions = workspaceVersions(pkgDir)) {
+  const root = publishedManifest(readJson(join(pkgDir, "package.json")), versions);
   const nodes = new Map();
   const resolveEdges = (dir, manifest, isRoot, who) => {
     const edges = new Map();
@@ -87,7 +132,9 @@ export function collectGraph(pkgDir) {
       const key = keyOf(m.name, m.version);
       edges.set(name, key);
       if (!nodes.has(key)) {
-        const node = { key, name: m.name, version: m.version, dir: at, manifest: m, edges: new Map() };
+        // A sibling of the workspace is linked from its own folder, never from a node_modules.
+        const workspace = !at.includes("/node_modules/") && versions.get(m.name) === m.version;
+        const node = { key, name: m.name, version: m.version, dir: at, manifest: m, edges: new Map(), workspace };
         nodes.set(key, node);
         node.edges = resolveEdges(at, m, false, key);
       } else if (nodes.get(key).dir !== at) {
@@ -186,8 +233,8 @@ export function buildShrinkwrap(graph, integrity) {
   for (const path of [...placed.keys()].sort((a, b) => a.localeCompare(b, "en"))) {
     const node = nodes.get(placed.get(path));
     const hash = integrity.get(node.key);
-    if (!hash) throw new Error(`${node.key} is not in pnpm-lock.yaml; run pnpm install`);
-    const extra = { version: node.version, resolved: tarballUrl(node.name, node.version), integrity: hash };
+    if (!hash && !node.workspace) throw new Error(`${node.key} is not in pnpm-lock.yaml; run pnpm install`);
+    const extra = { version: node.version, resolved: tarballUrl(node.name, node.version), ...(hash ? { integrity: hash } : {}) };
     if (node.name !== basename(path) && !path.endsWith(`/${node.name}`)) extra.name = node.name;
     const e = entry(node.manifest, extra);
     if (installScripts(node.manifest, node.dir).length) e.hasInstallScript = true;
@@ -205,7 +252,7 @@ const EXACT = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 /** Dependencies of a published manifest that are not pinned to one exact version. */
 export function inexactDependencies(manifest) {
   const out = [];
-  for (const f of ["dependencies", "optionalDependencies", "peerDependencies"]) {
+  for (const f of DEP_FIELDS) {
     for (const [n, spec] of Object.entries(manifest[f] ?? {})) if (!EXACT.test(spec)) out.push(`${f}.${n}: ${spec}`);
   }
   return out;
@@ -224,13 +271,15 @@ export function shrinkwrapProblems(manifest, shrinkwrap, graph) {
   if (root.name !== manifest.name || root.version !== manifest.version) problems.push(`root is ${root.name}@${root.version}, package is ${manifest.name}@${manifest.version}`);
   if (JSON.stringify(root.dependencies ?? {}) !== JSON.stringify(manifest.dependencies ?? {})) problems.push("root dependencies differ from package.json");
   const want = new Set([...graph.nodes.keys()]);
+  const siblings = new Set([...graph.nodes.values()].filter((n) => n.workspace).map((n) => n.key));
   const have = new Set();
   for (const [path, e] of Object.entries(shrinkwrap.packages)) {
     if (!path) continue;
     const name = e.name ?? path.slice(path.lastIndexOf("node_modules/") + "node_modules/".length);
-    have.add(keyOf(name, e.version));
+    const key = keyOf(name, e.version);
+    have.add(key);
     if (!e.resolved?.startsWith(`${REGISTRY}/`)) problems.push(`${path}: resolved is not on ${REGISTRY}`);
-    if (!e.integrity?.startsWith("sha512-")) problems.push(`${path}: no sha512 integrity`);
+    if (!siblings.has(key) && !e.integrity?.startsWith("sha512-")) problems.push(`${path}: no sha512 integrity`);
     if (e.hasInstallScript) problems.push(`${path}: has an install script`);
     if (e.dev || e.link) problems.push(`${path}: dev or link entry in a published shrinkwrap`);
   }

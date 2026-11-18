@@ -1,6 +1,6 @@
-import { execFileSync } from "node:child_process";
 import { readlinkSync, realpathSync } from "node:fs";
 import { join } from "node:path";
+import { type ProcTable, parentIsInit, pidAlive as processAlive, readProcTable, signalProcess as sendSignal } from "turno-core/process";
 import { parseSingletonLock } from "./identities.js";
 
 /**
@@ -20,42 +20,7 @@ import { parseSingletonLock } from "./identities.js";
  *   gives a server before it kills it.
  */
 
-interface ProcInfo {
-  pid: number;
-  ppid: number;
-  pgid: number;
-  command: string;
-}
-
-export type ProcTable = Map<number, ProcInfo>;
-
-/** `ps -o pid=,ppid=,pgid=,command=` output. */
-export function parseProcTable(stdout: string): ProcTable {
-  const t: ProcTable = new Map();
-  for (const line of stdout.split("\n")) {
-    const m = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(.*\S)\s*$/.exec(line);
-    if (!m) continue;
-    const pid = Number(m[1]);
-    t.set(pid, { pid, ppid: Number(m[2]), pgid: Number(m[3]), command: m[4]! });
-  }
-  return t;
-}
-
-/** Every process with its full command line, or undefined when `ps` is not available. */
-function readProcTable(): ProcTable | undefined {
-  try {
-    const out = execFileSync("ps", ["-A", "-ww", "-o", "pid=,ppid=,pgid=,command="], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-      env: { PATH: process.env.PATH || "/bin:/usr/bin", LC_ALL: "C" },
-      maxBuffer: 64 * 1024 * 1024,
-      timeout: 5000,
-    });
-    return parseProcTable(out);
-  } catch {
-    return undefined;
-  }
-}
+export { type ProcTable, parseProcTable } from "turno-core/process";
 
 /** The PID in the profile's `SingletonLock` (`<host>-<pid>`), if there is one. */
 export function readLockPid(userDataDir: string): number | undefined {
@@ -107,29 +72,6 @@ export interface ProfileChrome {
 
 type Alive = (pid: number) => boolean;
 type Signal = (pid: number, signal: NodeJS.Signals) => void;
-
-function processAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return (err as NodeJS.ErrnoException).code === "EPERM";
-  }
-}
-
-function sendSignal(pid: number, signal: NodeJS.Signals): void {
-  try {
-    process.kill(pid, signal);
-  } catch {
-    /* already gone */
-  }
-}
-
-/** A parent that means "nobody": init, launchd, a `systemd --user` subreaper, or none at all. */
-function parentIsInit(ppid: number, table: ProcTable): boolean {
-  const parent = table.get(ppid);
-  return ppid <= 1 || !parent || /(^|\/)(launchd|systemd|init)(\s|$)/.test(parent.command);
-}
 
 export interface FindOptions {
   /** The process table to use (tests); read with `ps` when missing. */

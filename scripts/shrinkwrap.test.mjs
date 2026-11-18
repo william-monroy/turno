@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -10,6 +10,7 @@ import {
   installScripts,
   layout,
   lockIntegrity,
+  publishedManifest,
   resolveIn,
   shrinkwrapProblems,
 } from "./shrinkwrap.mjs";
@@ -133,6 +134,43 @@ test("refuses a required dependency that is not installed", () => {
   try {
     writeFileSync(join(app, "package.json"), JSON.stringify({ name: "app", version: "0.1.0", dependencies: { a: "1.0.0", missing: "1.0.0" } }));
     assert.throws(() => collectGraph(app), /needs missing@1.0.0/);
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test("publishes workspace: dependencies the way pnpm pack writes them", () => {
+  const versions = new Map([["turno-core", "0.3.0"]]);
+  const m = { name: "app", version: "1.0.0", dependencies: { "turno-core": "workspace:*", a: "1.0.0" }, peerDependencies: { "turno-core": "workspace:^" } };
+  assert.deepEqual(publishedManifest(m, versions).dependencies, { "turno-core": "0.3.0", a: "1.0.0" });
+  assert.deepEqual(publishedManifest(m, versions).peerDependencies, { "turno-core": "^0.3.0" });
+  assert.deepEqual(inexactDependencies(publishedManifest(m, versions)), ["peerDependencies.turno-core: ^0.3.0"]);
+  assert.throws(() => publishedManifest({ name: "x", dependencies: { other: "workspace:*" } }, versions), /not a package of this workspace/);
+});
+
+test("a sibling workspace package goes in the shrinkwrap at its exact version, without integrity", () => {
+  const { base, app } = fakeInstall();
+  try {
+    const core = join(base, "packages", "core");
+    mkdirSync(core, { recursive: true });
+    writeFileSync(join(core, "package.json"), JSON.stringify({ name: "turno-core", version: "0.3.0", license: "Apache-2.0", devDependencies: { vitest: "^5" } }));
+    symlinkSync(core, join(app, "node_modules", "turno-core"));
+    writeFileSync(join(app, "package.json"), JSON.stringify({ name: "app", version: "0.1.0", dependencies: { a: "1.0.0", "turno-core": "workspace:*" } }));
+    const versions = new Map([["turno-core", "0.3.0"], ["app", "0.1.0"]]);
+    const graph = collectGraph(app, versions);
+    const sw = buildShrinkwrap(graph, new Map([["a@1.0.0", "sha512-a"], ["b@2.1.0", "sha512-b"]]));
+    assert.deepEqual(sw.packages[""].dependencies, { a: "1.0.0", "turno-core": "0.3.0" });
+    assert.deepEqual(sw.packages["node_modules/turno-core"], {
+      version: "0.3.0",
+      resolved: "https://registry.npmjs.org/turno-core/-/turno-core-0.3.0.tgz",
+      license: "Apache-2.0",
+    });
+    const manifest = publishedManifest(JSON.parse(readFileSync(join(app, "package.json"), "utf8")), versions);
+    const problems = shrinkwrapProblems(manifest, sw, graph);
+    assert.ok(!problems.some((p) => p.includes("turno-core")), problems.join("\n"));
+    // A registry package without integrity is still a problem.
+    delete sw.packages["node_modules/a"].integrity;
+    assert.ok(shrinkwrapProblems(manifest, sw, graph).includes("node_modules/a: no sha512 integrity"));
   } finally {
     rmSync(base, { recursive: true, force: true });
   }

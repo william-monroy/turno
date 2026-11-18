@@ -52,7 +52,7 @@ export {
 export { CHALLENGE_MARKERS, type ChallengeKind, classifyChallenge, detectChallenge, parseRebrowser, parseSannysoft } from "./detectors.js";
 export { type LoginOptions, loginIdentity } from "./login.js";
 export { mcpEntryPath } from "./patchright.js";
-export { paths } from "./paths.js";
+export { browserPaths as paths } from "turno-core/paths";
 
 /** Absolute path of the `turno-browser-mcp` executable script of this install. */
 export function mcpBinPath(): string {

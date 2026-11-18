@@ -7,7 +7,7 @@
  * Variables of a live session (TURNO_*, CLAUDE*, CODEX_*, CURSOR_*, ANTHROPIC_*) are cleared too,
  * except the switches that select tests (TURNO_SKIP_E2E, TURNO_E2E_NETWORK, TURNO_SKIP_CHROME).
  */
-import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -36,6 +36,17 @@ export default function setup(): () => void {
   process.env.XDG_DATA_HOME = join(home, ".local", "share");
   process.env.XDG_CACHE_HOME = join(home, ".cache");
   process.env.TURNO_NO_UPDATE_CHECK = "1";
+  // No test reaches the real secret store: stand-ins for `security` and `secret-tool` that refuse
+  // come first on PATH. A real Keychain call can open a macOS dialog that blocks the whole
+  // session; tests use test/helpers/fake-secret-store.ts, which goes in front of these.
+  const guard = join(root, "no-secret-store");
+  mkdirSync(guard);
+  for (const name of ["security", "secret-tool"]) {
+    const file = join(guard, name);
+    writeFileSync(file, `#!/bin/sh\necho "${name}: the real secret store is off in tests; use test/helpers/fake-secret-store.ts" >&2\nexit 1\n`);
+    chmodSync(file, 0o755);
+  }
+  process.env.PATH = `${guard}:${process.env.PATH ?? ""}`;
   return () => {
     const found = guardFindings(home);
     rmSync(root, { recursive: true, force: true });

@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { pidAlive } from "turno-core/process";
 import { IdentityError, identityStateDir } from "./ids.js";
 
 /**
@@ -75,18 +76,9 @@ export function readRuntimeLock(id: string, env: NodeJS.ProcessEnv = process.env
   }
 }
 
-function alive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return (err as NodeJS.ErrnoException).code === "EPERM";
-  }
-}
-
 /** True while the lock's Node process lives. */
 export function runtimeLockAlive(lock: RuntimeLock): boolean {
-  return alive(lock.nodePid);
+  return pidAlive(lock.nodePid);
 }
 
 /** Who holds the identity and how to get it back, for errors and `turno browser doctor`. */
