@@ -17,8 +17,10 @@ Last updated: 2026-11-17.
   `lsof` fallback that finds the client PID when a session sends none. An end-to-end test drives
   the real `claude mcp list` through the gateway (skipped when `claude` is missing; set
   `TURNO_SKIP_E2E=1` to skip it).
-- **Browser package** (`packages/browser`): `turno-browser-mcp` over Patchright's own MCP
-  entry, identities, `login`, `bench`. Findings in ADR 0005; a separate package and a developer
+- **Browser package** (`packages/browser`): `turno-browser-mcp`, identities, `login`, `bench`.
+  Since ADR 0043 (stage 1) it is the MCP server host: it parses upstream's flags, launches Chrome
+  through one engine module, runs the 25 stock tools through upstream's `BrowserBackend` and has
+  a turno tool registry (empty for now). Findings in ADR 0005; a separate package and a developer
   diagnostic since ADR 0019. Lifecycle (ADR 0042, stage 0 of the browser plan): Chrome closes
   after 15 idle minutes headed too (a generated `--config`), a Chrome left by a killed server is
   swept on the next start, shutdown is bounded to fit mcpd's 4 seconds, one scope advice

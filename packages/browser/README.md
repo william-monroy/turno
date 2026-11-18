@@ -2,8 +2,10 @@
 
 An MCP server that lets a coding agent drive your installed Google Chrome with a persistent
 profile per identity: you sign into a site once by hand, and the agent works in that same
-signed-in browser afterwards. It is the Playwright MCP program, run on Patchright (a Playwright
-fork that drives Chrome without the automation flags Playwright adds).
+signed-in browser afterwards. It serves the Playwright MCP tools and flags, run on Patchright (a
+Playwright fork that drives Chrome without the automation flags Playwright adds), from its own
+MCP server, which launches Chrome itself
+([ADR 0043](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0043-browser-host-inversion.md)).
 
 It is a separate package from [turno](https://www.npmjs.com/package/turno-cli), not installed
 with it; turno works without it.
