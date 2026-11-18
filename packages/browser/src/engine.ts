@@ -29,6 +29,11 @@ export interface LaunchedBrowser {
   pid?: number;
   /** Closes the session's browser (or leaves a shared one to the last session). */
   close(): Promise<void>;
+  /**
+   * False once the browser started closing (idle limit, a crash). Playwright may report the
+   * close a moment after Chrome has exited, so the host asks before reusing a browser.
+   */
+  isOpen(): boolean;
   /** Closes the browser after the configured time without a tool call. */
   idleTimer?: IdleTimerLike;
 }
@@ -149,10 +154,14 @@ const chromeEngine: Engine = {
       await browser.close().catch(() => {});
       throw err;
     }
+    let closing = false;
     const idleMs = config.timeouts?.idle ?? (config.browser.launchOptions.headless ? HEADLESS_IDLE_MS : undefined);
     let idleTimer: IdleTimer | undefined;
     if (idleMs) {
-      const timer = new IdleTimer(idleMs, () => void browser.close().catch(() => {}));
+      const timer = new IdleTimer(idleMs, () => {
+        closing = true;
+        void browser.close().catch(() => {});
+      });
       browser.once("disconnected", () => timer.dispose());
       idleTimer = timer;
     }
@@ -162,7 +171,9 @@ const chromeEngine: Engine = {
       context,
       ...(pid !== undefined ? { pid } : {}),
       ...(idleTimer ? { idleTimer } : {}),
+      isOpen: () => !closing && browser.isConnected(),
       async close() {
+        closing = true;
         idleTimer?.dispose();
         await context.close().catch(() => {});
         await browser.close().catch(() => {});
@@ -240,6 +251,7 @@ export function createUpstreamEngine(): Engine {
       return {
         engine: "upstream",
         context,
+        isOpen: () => browser.isConnected(),
         ...(info.idleTimer ? { idleTimer: info.idleTimer } : {}),
         async close() {
           clients--;

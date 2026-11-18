@@ -96,6 +96,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
   private current: Promise<{ backend: BrowserBackendInstance; launched: LaunchedBrowser }> | undefined;
   /** The backend of the running browser, for the WebMCP tools a page registers. */
   private live: BrowserBackendInstance | undefined;
+  private launched: LaunchedBrowser | undefined;
   private disposed = false;
 
   constructor(
@@ -121,16 +122,26 @@ class SessionBackend extends EventEmitter implements ServerBackend {
   /** The browser of this session, launched on first use and again after it closed. */
   private browser(): Promise<{ backend: BrowserBackendInstance; launched: LaunchedBrowser }> {
     if (this.disposed) return Promise.reject(new Error("the session is closed"));
+    if (this.current && this.launched && !this.launched.isOpen()) {
+      // Closed (idle limit, crash) before Playwright reported it: let it go and launch again.
+      const stale = this.current;
+      this.current = undefined;
+      this.live = undefined;
+      this.launched = undefined;
+      void stale.then(({ backend }) => backend.dispose()).catch(() => {});
+    }
     if (this.current) return this.current;
     const clientInfo = this.info();
     const { config, cliOptions, stock, engine } = this.host;
     const promise = (async () => {
       const launched = await engine.launch({ config, clientInfo, cliOptions, title: this.title(clientInfo) });
       const { BrowserBackend } = upstream().tools;
+      const isCurrent = () => this.current === promise;
       const gone = () => {
-        if (this.current === promise) {
+        if (isCurrent()) {
           this.current = undefined;
           this.live = undefined;
+          this.launched = undefined;
         }
       };
       const backend = new BrowserBackend(config, launched.context, stock, {
@@ -151,7 +162,10 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         gone();
         void backend.dispose().catch(() => {});
       });
-      this.live = backend;
+      if (isCurrent()) {
+        this.live = backend;
+        this.launched = launched;
+      }
       return { backend, launched };
     })();
     promise.catch(() => {
@@ -190,6 +204,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     const current = this.current;
     this.current = undefined;
     this.live = undefined;
+    this.launched = undefined;
     if (current) await current.then(({ backend }) => backend.dispose()).catch(() => {});
   }
 }

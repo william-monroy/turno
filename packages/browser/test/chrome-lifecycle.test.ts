@@ -246,12 +246,17 @@ describe.skipIf(reason !== undefined)(reason ? `real Chrome (skipped: ${reason})
         return { content: [{ type: "text", text: `title: ${await browserContext!.pages()[0]!.title()}` }] };
       },
     };
-    // Upstream registers a bound browser under the cache dir (HOME on macOS, XDG_CACHE_HOME on
-    // Linux; read once per process, and this is the only test here that launches Chrome in
-    // process): keep it in the sandbox.
-    const saved = { HOME: process.env.HOME, XDG_CACHE_HOME: process.env.XDG_CACHE_HOME };
+    // Chrome started in process inherits this process's env: on Linux it writes crash reports
+    // under XDG_CONFIG_HOME, and upstream registers the bound browser under the cache dir (HOME
+    // on macOS, XDG_CACHE_HOME on Linux; read once per process, and this is the only test here
+    // that launches Chrome in process). Keep all of it in the sandbox.
+    const keys = ["HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"] as const;
+    const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
     process.env.HOME = sb.home;
+    process.env.XDG_CONFIG_HOME = join(sb.home, ".config");
     process.env.XDG_CACHE_HOME = join(sb.home, ".cache");
+    process.env.XDG_DATA_HOME = join(sb.home, ".local", "share");
+    process.env.XDG_STATE_HOME = join(sb.home, ".local", "state");
     onTestFinished(() => {
       for (const [key, value] of Object.entries(saved)) {
         if (value === undefined) delete process.env[key];
