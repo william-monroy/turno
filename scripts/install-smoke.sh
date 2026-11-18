@@ -2,7 +2,12 @@
 # Install the packed turno-cli and turno-browser with one package manager, in a throwaway HOME
 # and a throwaway global prefix, then check that the installed `turno` runs:
 #
-#   scripts/install-smoke.sh <manager> <folder with turno-cli-*.tgz and turno-browser-*.tgz>
+#   scripts/install-smoke.sh <manager> <folder with the packed workspace packages (*.tgz)>
+#
+# The folder holds turno-cli and turno-browser and every workspace package they depend on
+# (turno-core). Those may not be on npm yet, so a local registry (scripts/local-registry.mjs)
+# serves the folder's tarballs and forwards everything else to registry.npmjs.org, and every
+# manager installs through it.
 #
 # <manager> is npm, pnpm, bun or yarn (global installs), or npx, pnpm-dlx or bunx (one-off runs
 # of turno-cli). Every folder a manager writes (prefix, store, cache, global folder) is under a
@@ -17,14 +22,25 @@ browser=$(ls "$tarballs"/turno-browser-*.tgz)
 version=$(tar -xzOf "$cli" package/package.json | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version')
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/turno-install-smoke.XXXXXX")
-trap 'rm -rf "$work"' EXIT
+registry_pid=""
+trap '[ -n "$registry_pid" ] && kill "$registry_pid" 2>/dev/null; rm -rf "$work"' EXIT
 mkdir -p "$work/home" "$work/tmp"
+
+# The local registry: the packed workspace packages, and npmjs for the rest.
+node "$(dirname "$0")/local-registry.mjs" "$tarballs" >"$work/registry.url" 2>"$work/registry.log" &
+registry_pid=$!
+disown "$registry_pid"
+for _ in $(seq 1 50); do [ -s "$work/registry.url" ] && break; sleep 0.1; done
+registry=$(cat "$work/registry.url")
+[ -n "$registry" ] || { cat "$work/registry.log" >&2; echo "the local registry did not start" >&2; exit 1; }
 
 # A throwaway HOME and XDG folders, and every manager's global folder inside $work.
 export HOME="$work/home"
 export XDG_CONFIG_HOME="$HOME/.config" XDG_DATA_HOME="$HOME/.local/share" XDG_STATE_HOME="$HOME/.local/state" XDG_CACHE_HOME="$HOME/.cache"
 export TMPDIR="$work/tmp"
 export npm_config_cache="$work/npm-cache" npm_config_update_notifier=false
+# npm and yarn 1 read npm_config_*, pnpm 11 and later pnpm_config_*, bun its own variable.
+export npm_config_registry="$registry" pnpm_config_registry="$registry" BUN_CONFIG_REGISTRY="$registry"
 export PNPM_HOME="$work/pnpm-home"
 export BUN_INSTALL="$work/bun"
 export TURNO_NO_UPDATE_CHECK=1
@@ -39,15 +55,16 @@ die() {
 }
 
 # How each manager installs both packages globally, or runs turno-cli once. A turno-cli tarball
-# alone is enough for a one-off run: turno-browser is optional.
+# alone is enough for a one-off run: turno-browser is optional. turno-core comes from the local
+# registry as a dependency of both.
 run=()
 case "$manager" in
   npm) npm install --global --prefix "$work/npm-prefix" "$cli" "$browser" ;;
-  pnpm) pnpm add --global "turno-cli@file:$cli" "turno-browser@file:$browser" ;;
+  pnpm) pnpm add --global --registry "$registry" "turno-cli@file:$cli" "turno-browser@file:$browser" ;;
   bun) bun add --global "$cli" "$browser" ;;
-  yarn) yarn global add "file:$cli" "file:$browser" --prefix "$work/yarn-prefix" --global-folder "$work/yarn-global" --cache-folder "$work/yarn-cache" ;;
+  yarn) yarn global add "file:$cli" "file:$browser" --registry "$registry" --prefix "$work/yarn-prefix" --global-folder "$work/yarn-global" --cache-folder "$work/yarn-cache" ;;
   npx) run=(npx --yes --package "file:$cli" -- turno) ;;
-  pnpm-dlx) run=(pnpm --package "turno-cli@file:$cli" dlx turno) ;;
+  pnpm-dlx) run=(pnpm --registry "$registry" --package "turno-cli@file:$cli" dlx turno) ;;
   bunx) run=(bunx --package "$cli" turno) ;;
   *) die "unknown manager" ;;
 esac
