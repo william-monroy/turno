@@ -49,6 +49,8 @@ export interface Config {
   nerdTerminals: string[];
   /** Look for new turno releases once a day (`update_check = false` turns it off). */
   updateCheck: boolean;
+  /** Print the next step after a command that writes (`hints = false` turns it off). */
+  hints: boolean;
   profiles: Record<string, ProfileConfig>;
   /** `[agents.codex]` and friends; Claude Code uses the top-level default and fallback. */
   agents: Partial<Record<AgentId, AgentRoles>>;
@@ -66,7 +68,7 @@ export interface Config {
 
 /** Every key config.toml may hold, by table ("" is the top level; `*` stands for any name). */
 const KNOWN_KEYS: Record<string, readonly string[]> = {
-  "": ["system", "default", "fallback", "icons", "nerd_terminals", "update_check", "profiles", "agents", "projects", "open", "mcpd"],
+  "": ["system", "default", "fallback", "icons", "nerd_terminals", "update_check", "hints", "profiles", "agents", "projects", "open", "mcpd"],
   "profiles.*": ["agent", "browser", "color"],
   "agents.*": ["default", "fallback"],
   "projects[]": ["path", "profile", "mcp", "mcp_deny"],
@@ -194,6 +196,7 @@ export function parseConfig(text: string, path = "config.toml", env: NodeJS.Proc
     icons: "auto",
     nerdTerminals: [],
     updateCheck: true,
+    hints: true,
     profiles: {},
     agents: {},
     projects: [],
@@ -222,6 +225,10 @@ export function parseConfig(text: string, path = "config.toml", env: NodeJS.Proc
   if (raw.update_check !== undefined) {
     if (typeof raw.update_check !== "boolean") throw new ConfigError(file, "update_check must be true or false");
     cfg.updateCheck = raw.update_check;
+  }
+  if (raw.hints !== undefined) {
+    if (typeof raw.hints !== "boolean") throw new ConfigError(file, "hints must be true or false");
+    cfg.hints = raw.hints;
   }
 
   const profiles = table(raw.profiles, file, "profiles");

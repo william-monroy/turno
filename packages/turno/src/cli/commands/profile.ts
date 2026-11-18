@@ -14,6 +14,7 @@ import { NAMED_COLORS } from "../../statusline/render.js";
 import { DRY_RUN, type FlagSpec, JSON_FLAG, bool, flagsOf, parseFlags, str } from "../args.js";
 import { Exit, exitName } from "../exit.js";
 import { group } from "../group.js";
+import { nextStep } from "../hints.js";
 import { type Io, confirm, fail, needsAnswer, plural } from "../io.js";
 import { emit, jsonOutput } from "../output.js";
 import { profileColor, style } from "../style.js";
@@ -183,7 +184,7 @@ async function add(args: string[], io: Io): Promise<number> {
   // `turno <name>` works without ~/.local/bin on PATH.
   const run = offPath ? `turno ${name}` : launcher;
   const sub = adapter(agent).loginSubcommand;
-  io.out(`Next: ${sub ? `run ${run} ${sub}` : `run ${run} and sign in with /login`}. turno profile list shows the profile.`);
+  nextStep(io, `${sub ? `run ${run} ${sub}` : `run ${run} and sign in with /login`}. turno profile list shows the profile.`);
   const hint = journal.hint();
   if (hint) io.out(hint);
   return 0;
@@ -377,8 +378,10 @@ async function assign(args: string[], io: Io): Promise<number> {
   const carried = config.projects.find((r) => same(r) && (r.mcp || r.mcpDeny));
   editConfig(io.env, journal, (t) => addArrayTable(removeArrayTables(t, "projects", same).text, "projects", { path: shown, profile: name, ...setKeys(carried) }));
   io.out(`${shown} -> ${name}${dry ? " (dry run)" : ""}`);
+  if (!dry && existsSync(agentProfileDir(name, agent, io.env))) (await import("./setup.js")).applyRuleFolders(name, io, journal);
   const hint = journal.hint();
   if (hint) io.out(hint);
+  if (!dry) nextStep(io, `${agent === DEFAULT_AGENT ? "turno auto" : `turno auto --agent ${agent}`} in ${shown} opens ${name} (turno profile which ${shown} says why)`);
   return 0;
 }
 

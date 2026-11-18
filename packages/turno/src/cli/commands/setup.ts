@@ -1,10 +1,10 @@
 import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve as resolvePath } from "node:path";
 import type { SetupStep } from "../../agents/adapter.js";
 import { type AgentId, DEFAULT_AGENT, adapter, agentHub, agentProfileDir } from "../../agents/index.js";
 import { type Config, isValidProfileName, loadConfig } from "../../core/config.js";
 import { Journal, stamp } from "../../core/journal.js";
-import { tildify } from "../../core/paths.js";
+import { expandHome, tildify } from "../../core/paths.js";
 import { agentOf } from "../../core/profiles.js";
 import { profileBusy } from "../../core/sessions.js";
 import { type Command, type Io, fail, plural } from "../io.js";
@@ -171,8 +171,33 @@ function setupProfile(name: string, agent: AgentId, io: Io, verbose: boolean, jo
   const st = style(io);
   for (const why of held) io.out(st.wrap(`  ${st.warn("!")} `, why));
   a.setup?.after?.(step);
+  a.ruleFolders?.({ ...step, folders: ruleFolders(name, config, io.env) });
   writeLauncher(name, io.env, agent, journal);
   io.out(`  ${st.ok("+")} command ${st.bold(launcherName(name, agent))}`);
+}
+
+/** The absolute folders whose `[[projects]]` rules name `profile`. */
+function ruleFolders(profile: string, config: Config, env: NodeJS.ProcessEnv): string[] {
+  return [...new Set(config.projects.filter((r) => r.profile === profile).map((r) => resolvePath(expandHome(r.path, env))))];
+}
+
+/**
+ * The agent's per-folder setup for `profile`'s rules (ADR 0050), after `turno profile assign`
+ * changed them. Nothing for agents without a `ruleFolders` hook.
+ */
+export function applyRuleFolders(profile: string, io: Io, journal: Journal): void {
+  const config = loadConfig(io.env);
+  const agent = agentOf(profile, config);
+  const hook = adapter(agent).ruleFolders;
+  if (!hook) return;
+  hook({
+    name: profile,
+    dir: agentProfileDir(profile, agent, io.env),
+    folders: ruleFolders(profile, config, io.env),
+    env: io.env,
+    out: (line) => io.out(line),
+    writeOwn: (file, text) => writeOwn(file, text, journal),
+  });
 }
 
 export function setupProfiles(names: string[], io: Io, opts: SetupOptions = {}): void {

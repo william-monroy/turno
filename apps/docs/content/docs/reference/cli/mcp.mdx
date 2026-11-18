@@ -15,8 +15,12 @@ Usage:
                                       config
   turno mcp config --agent <a> [--profile <p>] [--json]
                                       print gateway entries for other agents
-  turno mcp import [--write] [--move-secrets] [--force]
-                                      draft mcp.toml from your agent configs
+  turno mcp import [file] [--write] [--move-secrets] [--force]
+                                      draft mcp.toml from your agent configs, or
+                                      merge a file
+  turno mcp export [--profile <p>] [--json]
+                                      print mcp.toml without secret values, for
+                                      another machine
   turno mcp install [server...] [--dry-run] [--allow-scripts]
                                       install packages at exact versions
   turno mcp refresh [server...] [--dry-run]
@@ -46,13 +50,15 @@ Usage:
                                       mcp sync
 
 config prints entries for opencode, gemini, goose, crush, droid, kiro.
-import reads ~/.claude.json, .mcp.json, ~/.codex, ~/.cursor and ~/.copilot.
-It only previews, with secrets hidden, until --write.
+import reads ~/.claude.json, .mcp.json, ~/.codex, ~/.cursor and ~/.copilot,
+or one file. It only previews, with secrets hidden, until --write.
 Docs: docs/mcp.md in the turno repository.
 
 Examples:
   $ turno mcp list --json=name,kind
   $ turno mcp import --write --move-secrets
+  $ turno mcp import servers.toml --write
+  $ turno mcp export --profile work > servers.toml
   $ turno mcp install
   $ turno mcp sync
   $ turno mcp config --agent opencode
@@ -108,11 +114,36 @@ Examples:
 
 ```text
 Usage:
-  turno mcp import [--write] [--move-secrets] [--force]
-    draft mcp.toml from your agent configs
+  turno mcp import [file] [--write] [--move-secrets] [--force]
+    draft mcp.toml from your agent configs, or merge a file
+
+Without a file it drafts mcp.toml from every agent config on this machine (a
+preview until --write; --force replaces an existing mcp.toml). With a file it
+merges that file's servers into mcp.toml: an export (turno mcp export), a JSON
+file with mcpServers, or a Codex config.toml. Servers already in mcp.toml are
+kept unless --force replaces them. With --write, remote servers that answer
+with an OAuth challenge get auth = "oauth".
 
 Examples:
   $ turno mcp import --write --move-secrets
+  $ turno mcp import servers.toml --write
+```
+
+### turno mcp export
+
+```text
+Usage:
+  turno mcp export [--profile <p>] [--json]
+    print mcp.toml without secret values, for another machine
+
+Prints mcp.toml with each secret named, never its value: keychain: and env:
+references stay, literal secrets become keychain:turno/<server>/<key>
+references, and the top of the file lists the turno secret set commands the
+other machine needs. A secret inside args or a URL is replaced by <secret>.
+--profile keeps only the servers that profile gets, and only its own variant.
+
+Examples:
+  $ turno mcp export --profile work > servers.toml
 ```
 
 ### turno mcp install

@@ -1,9 +1,9 @@
-import { chmodSync, existsSync, readFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseToml } from "smol-toml";
-import { paths } from "../core/paths.js";
+import { paths, tildify } from "../core/paths.js";
 import { setValue } from "../core/toml-edit.js";
-import { type AgentAdapter, type SafePlan, type SafeStep, type SetupStep, TOML_MCP_SERVERS, gatewayNames, gatewayUrl } from "./adapter.js";
+import { type AgentAdapter, type RuleFoldersStep, type SafePlan, type SafeStep, type SetupStep, TOML_MCP_SERVERS, gatewayNames, gatewayUrl } from "./adapter.js";
 
 /** A Codex `[mcp_servers.<name>]` table in Claude Code's shape. */
 function fromCodex(e: Record<string, unknown>): Record<string, unknown> {
@@ -45,6 +45,55 @@ function prepareConfig(s: SetupStep): void {
     s.out('  + cli_auth_credentials_store = "file" (the login stays in this profile)');
   }
   chmodSync(file, 0o600);
+}
+
+/**
+ * Codex asks whether to trust a folder the first time it starts there, per CODEX_HOME, so a new
+ * profile asks again for folders the person already trusted. turno writes
+ * `[projects."<folder>"] trust_level = "trusted"` for each folder whose rule uses the profile,
+ * and the real path too when a symlink leads there. Codex matches the exact folder, or the git
+ * root of the folder it runs in (the main repository for a worktree); a rule on a parent of
+ * several repositories does not trust the repositories inside it. An entry already there,
+ * trusted or not, is never changed.
+ */
+export function trustFolders(s: RuleFoldersStep): void {
+  const file = join(s.dir, "config.toml");
+  if (!s.folders.length || !existsSync(s.dir)) return;
+  const text = existsSync(file) ? readFileSync(file, "utf8") : "";
+  let projects: Record<string, unknown> = {};
+  try {
+    const raw = parseToml(text) as Record<string, unknown>;
+    if (raw.projects && typeof raw.projects === "object") projects = raw.projects as Record<string, unknown>;
+  } catch {
+    s.out("  ! config.toml does not parse; no trust entries written");
+    return;
+  }
+  const wanted = new Set<string>();
+  for (const f of s.folders) {
+    wanted.add(f);
+    try {
+      wanted.add(realpathSync(f));
+    } catch {
+      /* not there yet: the rule's path only */
+    }
+  }
+  let next = text;
+  const added: string[] = [];
+  for (const f of wanted) {
+    if (f in projects) continue;
+    next = setValue(next, `projects.${JSON.stringify(f)}`, "trust_level", "trusted");
+    added.push(f);
+  }
+  if (!added.length) return;
+  try {
+    const check = (parseToml(next) as { projects?: Record<string, { trust_level?: string }> }).projects ?? {};
+    if (added.some((f) => check[f]?.trust_level !== "trusted")) throw new Error("trust entry not readable");
+  } catch {
+    s.out("  ! could not write the Codex trust entries; trust the folders in Codex when it asks");
+    return;
+  }
+  s.writeOwn(file, next);
+  for (const f of added) s.out(`  + trusts ${tildify(f, s.env)} in Codex (its folder rule uses this profile)`);
 }
 
 /** Safe mode: `-c mcp_servers.<name>.enabled=false` for each gateway entry of config.toml. */
@@ -104,6 +153,7 @@ export const codex: AgentAdapter = {
     }),
   },
   safeMode,
+  ruleFolders: trustFolders,
   setup: { after: prepareConfig },
   doctorWarnings(dir) {
     let store: unknown;

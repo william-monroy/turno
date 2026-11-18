@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { paths, tildify } from "../../core/paths.js";
 import { SecretError, type SecretStore, requireSecretStore } from "../../core/secrets.js";
 import { JSON_FLAG, bool, flagsOf, parseFlags } from "../args.js";
+import { nextStep } from "../hints.js";
 import { type Command, type Io, fail, needsAnswer, noInputReason } from "../io.js";
 import { answerFields, emit, jsonOutput } from "../output.js";
 
@@ -116,6 +117,7 @@ export const command: Command = {
           if (!value) return fail("empty value");
           await s.set(service, value);
           io.out(`stored keychain:${service}`);
+          nextStep(io, `use it in mcp.toml as "keychain:${service}"; turno secret list shows which references are stored`);
           return 0;
         }
         case "has":

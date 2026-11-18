@@ -306,6 +306,7 @@ const FALLBACK_CONFIG: Config = {
   icons: "auto",
   nerdTerminals: [],
   updateCheck: true,
+  hints: true,
   profiles: {},
   agents: {},
   projects: [],

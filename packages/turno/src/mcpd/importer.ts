@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { parse, stringify } from "smol-toml";
-import type { McpStore } from "../agents/adapter.js";
+import { type McpStore, isGatewayEntry } from "../agents/adapter.js";
 import { type AgentId, SCAN_ORDER, adapter, agentProfileDir } from "../agents/index.js";
 import { tildify } from "../core/paths.js";
 import { isObject, readJsonFile } from "../core/fsutil.js";
@@ -133,6 +133,58 @@ export interface ImportOptions {
    * guesses the name from the package, as previews do.
    */
   binOf?: (pkg: string) => Promise<string | undefined>;
+  /**
+   * Whether a remote server asks for an OAuth login (probeOAuth). Without it the import stays
+   * offline and marks nothing, as previews do.
+   */
+  probeAuth?: (url: string) => Promise<boolean>;
+}
+
+/**
+ * Whether the MCP server at `url` asks for an OAuth login: an unauthenticated `initialize`
+ * answered with 401 and a `WWW-Authenticate: Bearer` challenge (MCP authorization spec). Any
+ * other answer, an error or no answer within `timeoutMs` is no.
+ */
+export async function probeOAuth(url: string, timeoutMs = 5000): Promise<boolean> {
+  if (!/^https?:\/\//i.test(url)) return false;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "turno-mcp-import", version: "0" } } }),
+      signal: AbortSignal.timeout(timeoutMs),
+      redirect: "manual",
+    });
+    await res.body?.cancel().catch(() => undefined);
+    const challenge = res.headers.get("www-authenticate") ?? "";
+    return res.status === 401 && /^\s*bearer\b/i.test(challenge);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Mark remote servers that ask for OAuth with `auth = "oauth"` (ADR 0029), so mcpd logs in for
+ * them. Only servers with no auth of their own are probed: no `auth`, no Authorization header,
+ * no header that holds a secret or a variable. Returns the names it marked.
+ */
+export async function markOAuth(servers: Record<string, Record<string, unknown>>, probe: (url: string) => Promise<boolean>, notes: string[]): Promise<string[]> {
+  const candidates = Object.entries(servers).filter(([, s]) => {
+    if (typeof s.url !== "string" || s.auth !== undefined) return false;
+    const headers = (s.headers ?? {}) as Record<string, unknown>;
+    return !Object.entries(headers).some(([k, v]) => k.toLowerCase() === "authorization" || (typeof v === "string" && (v.startsWith("keychain:") || v.startsWith("env:") || ANY_VAR.test(v) || isSecretValue(k, v))));
+  });
+  const answers = await Promise.all(candidates.map(([, s]) => probe(s.url as string)));
+  const marked: string[] = [];
+  for (const [i, [name, s]] of candidates.entries()) {
+    if (!answers[i]) continue;
+    s.auth = "oauth";
+    marked.push(name);
+    const direct = notes.indexOf(`${name}: remote, written directly into profiles`);
+    if (direct >= 0) notes.splice(direct, 1);
+    notes.push(`${name}: asks for an OAuth login; marked auth = "oauth" so mcpd logs in for your profiles (turno mcp login ${name})`);
+  }
+  return marked;
 }
 
 export interface ImportReport {
@@ -168,7 +220,8 @@ export function guessScope(text: string): { scope: "shared" | "project" | "sessi
   return { scope: "project", note: 'unknown server, one process per project folder; set scope = "shared" if it ignores its folder' };
 }
 
-function serviceKey(key: string): string {
+/** The key part of a Keychain service name for a secret: `turno/<server>/<key>`. */
+export function serviceKey(key: string): string {
   return key.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
 
@@ -319,6 +372,8 @@ export async function importServers(servers: Record<string, Record<string, unkno
     notes.push(`${name}: remote, ${proxy ? "proxied by mcpd so its secrets stay out of profile configs" : "written directly into profiles"}`);
     out[name] = server;
   }
+  if (opts.probeAuth) await markOAuth(out, opts.probeAuth, notes);
+  else if (Object.values(out).some((s) => typeof s.url === "string")) notes.push("remote servers are checked for OAuth when written");
 
   const toml = `${HEADER}${stringify({ server: out })}\n`;
   const masks = new Map([...hidden].sort((a, b) => b.length - a.length).map((v) => [v, maskSecret(v)] as const));
@@ -342,13 +397,7 @@ export interface Source {
   servers: Record<string, Record<string, unknown>>;
 }
 
-/** Entries turno itself wrote (gateway entries): importing them back would loop. */
-function isGatewayEntry(e: Record<string, unknown>): boolean {
-  const headers = { ...((e.headers as Record<string, unknown>) ?? {}), ...((e.http_headers as Record<string, unknown>) ?? {}) };
-  if (Object.keys(headers).some((h) => h.toLowerCase() === "x-turno-profile")) return true;
-  return e.bearer_token_env_var === "TURNO_MCPD_TOKEN";
-}
-
+// Entries turno itself wrote (gateway entries) are skipped: importing them back would loop.
 function objectsOf(v: unknown): Record<string, Record<string, unknown>> {
   if (!v || typeof v !== "object" || Array.isArray(v)) return {};
   const out: Record<string, Record<string, unknown>> = {};
@@ -365,6 +414,34 @@ function readConfig(file: string, store: McpStore): Record<string, unknown> | un
   if (store.format === "toml") return parse(text) as Record<string, unknown>;
   const v = JSON.parse(text) as unknown;
   return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+}
+
+/**
+ * The MCP servers of one agent config file given to `turno mcp import <file>`, in Claude Code's
+ * shape: JSON with `mcpServers` (Claude Code, Cursor, Copilot CLI) or TOML with `[mcp_servers]`
+ * (Codex). Undefined when the text is neither. Gateway entries are skipped.
+ */
+export function agentConfigServers(text: string): { agent: string; servers: Record<string, Record<string, unknown>> } | undefined {
+  let json: unknown;
+  let toml: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    try {
+      toml = parse(text);
+    } catch {
+      return undefined;
+    }
+  }
+  for (const id of SCAN_ORDER) {
+    const a = adapter(id);
+    const cfg = a.mcp.store.format === "json" ? json : toml;
+    if (!cfg || typeof cfg !== "object" || !(a.mcp.store.key in cfg)) continue;
+    const raw = objectsOf((cfg as Record<string, unknown>)[a.mcp.store.key]);
+    const toImport = a.mcp.toImport;
+    return { agent: a.label, servers: toImport ? Object.fromEntries(Object.entries(raw).map(([k, e]) => [k, toImport(e)])) : raw };
+  }
+  return undefined;
 }
 
 /** A profile folder whose own agent config is read too: a turno profile or one init adopts. */
