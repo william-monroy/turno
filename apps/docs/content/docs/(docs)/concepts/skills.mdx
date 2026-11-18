@@ -1,0 +1,91 @@
+---
+title: Skills
+description: The turno plugin for Claude Code moves a session, a copy of it or a claude.ai artifact to another profile, from inside the session.
+---
+
+This page says what the turno plugin for Claude Code adds, how to install it, and how its skills differ from the accounts bridge.
+
+## Install the plugin
+
+The plugin ships in turno's repository, in `plugins/turno`. Inside Claude Code, run:
+
+```text
+/plugin marketplace add wimo-dev/turno
+/plugin install turno@turno
+```
+
+It adds three skills and a status hook. The skills run turno commands, so turno must be installed. None of them switches anything on its own: each one gives you a command to run, or does a copy you asked for.
+
+| Skill | What it does |
+|---|---|
+| `/switch-account <profile>` | Continues this session under another profile. You exit and paste one command. |
+| `/fork-session <profile>` | Opens a copy of this session under another profile. Both keep going. |
+| `/copy-artifact` | Copies a claude.ai artifact, with its files and assets, to another profile's account. |
+
+## /switch-account
+
+The session moves to another account with the conversation intact. The skill runs:
+
+```sh
+turno session handoff work --copy
+```
+
+It prints the command that continues this session under `work`, and copies it to the clipboard:
+
+```sh
+cd ~/code/acme && turno work --resume <id>
+```
+
+Exit with `/exit` and paste it. The `cd` comes first because `claude --resume` looks a session up under the project of the folder it is launched from, so it has to be the folder where the session started; a worktree of it does not count. Before you exit, the skill tells you what is still running in the session (background commands, agents, monitors), because `/exit` stops it.
+
+Without a profile, `turno session handoff` lists the profiles you can choose from.
+
+## /fork-session
+
+A fork is a new session that starts with the whole conversation so far and then goes its own way, with its own id. This one keeps running. The skill runs:
+
+```sh
+turno session handoff personal --fork --copy
+```
+
+```sh
+cd ~/code/acme && turno personal --resume <id> --fork-session
+```
+
+Paste it in a new terminal tab or window; there is nothing to exit. Any profile works, `auto` too (the profile assigned to the folder), and so does the current one, since the fork is a different session. Background commands, agents and monitors stay with this session and do not travel to the fork. From then on the two sessions diverge, so they should not edit the same branch or files at once.
+
+## /copy-artifact
+
+A claude.ai artifact is private to the account that created it, and a session reads and publishes artifacts only for its own account. So the copy takes two steps, each in a session of the profile it needs:
+
+1. **Export**, in a session of the profile that owns the artifact: `/copy-artifact export <url> [profile]`. It reads the artifact's own files and assets and packs them into `~/.cache/turno/artifacts/` (or `$XDG_CACHE_HOME/turno/artifacts/`), readable only by your user.
+2. **Import**, in a session of the target profile: `/copy-artifact import <package folder>`. It creates the artifact (from the same type when the original was made from one), uploads the assets, points every file at them and publishes.
+
+The result is a new artifact owned by the target account, and from then on the two are independent. Comments, the artifact's database and its version history do not travel.
+
+Two cases need no copy. To look at an artifact, `turno open <profile> <url>` opens it in the browser of the profile that owns it. To keep editing the same artifact from the other account, share it from its Share menu on claude.ai, with the other account's email as an editor.
+
+## What the moves rely on
+
+`/switch-account` and `/fork-session` work because Claude Code profiles share their conversations through the hub (see [What profiles share](/docs/concepts/profiles#what-profiles-share)). When the target profile does not share the projects folder with this one, `turno session handoff` warns and names the fix, `turno profile repair <profile>`. The command must run inside a Claude Code session, because it reads the session's id from `CLAUDE_CODE_SESSION_ID`.
+
+The status hook runs when Claude Code stops because the account reached its usage limit: it records the reset time for the current profile, so `turno status` can show when that profile is available again.
+
+## Skills and the accounts bridge
+
+The [accounts bridge](/docs/concepts/profiles#service-accounts-and-the-accounts-bridge) also works across accounts, but it is not a skill and it moves something else.
+
+| | Skills | Accounts bridge |
+|---|---|---|
+| What it is | Instructions in the Claude Code plugin | A builtin MCP server of the gateway (`builtin = "accounts"` in `mcp.toml`) |
+| What moves | You: this session, a copy of it, an artifact | One task, to a service account that another profile is signed into |
+| Who runs it | You, with the command the skill prints, or the import step | turno, headless, in the profile that owns the account |
+| Limits | The session's own permissions | Reads get only the account's read tools. By default, writes ask you first, and so does every call to a mail or messaging account |
+| Record | The session's transcript, as for any command | Every call and its decision, in a hash-chained audit log |
+
+```sh
+turno identity log            # recent calls to the accounts bridge
+turno identity log --verify   # checks the hash chain; exits 1 when it is broken
+```
+
+How the bridge is isolated, and what it does not protect against: [Security and privacy](/docs/security#the-accounts-bridge).

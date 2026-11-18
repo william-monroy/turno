@@ -1,0 +1,140 @@
+/*
+ * Chapter 3: Chrome windows. A window outlined in the tone of the account it belongs to; solid
+ * while Chrome runs, dashed while it is only the profile on disk, which stays signed in.
+ */
+
+.win {
+  border: 1.5px solid var(--tone);
+  background: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.win[data-win="closed"] {
+  border-style: dashed;
+}
+
+.address {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 33px;
+  padding: 5px 12px 5px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.win[data-win="closed"]:not([data-head]) .address {
+  display: none;
+}
+.win[data-win="closed"] .address {
+  border-bottom-style: dashed;
+}
+/* The three window buttons, square like every mark on the page. */
+.lights {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+}
+.lights > i {
+  width: 6px;
+  height: 6px;
+  background: var(--line);
+}
+.url {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 12px 10px;
+}
+.signed {
+  color: var(--tone);
+}
+.quiet {
+  color: var(--dim);
+}
+.path {
+  min-width: 0;
+  color: var(--dim);
+}
+
+/* The link on its way, carried by turno. */
+.link {
+  display: inline-block;
+  padding: 2px 9px;
+  border: 1.5px solid var(--tone-keep);
+  background: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+/* The identity, under the bar ---------------------------------------------------------------- */
+
+/* As wide as a lane's window, and a little more so its folder reads on one line. */
+.identity {
+  width: min(100%, calc((100% - var(--gap-x)) / 2 + 48px));
+}
+@container (max-width: 519px) {
+  .identity {
+    width: 100%;
+  }
+}
+.identitySub {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--tone-third);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Before it exists: the same box, invisible, under a quiet dashed place that says so. */
+.slot {
+  position: relative;
+}
+.slot[data-empty] > .win {
+  visibility: hidden;
+}
+.none {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 1.5px dashed var(--line);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-align: center;
+  color: var(--dim);
+}
+
+/* It hangs from the bar: drawn down from its top edge, in steps, the way the divider drops. */
+@keyframes drop {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.identity[data-drop] {
+  animation: drop calc(var(--b) * 3) steps(6, end) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .identity[data-drop] {
+    animation: none;
+  }
+}
+/* An identity's window carries its own name where the address would be: it has no lane head. */
+.win[data-head] .address {
+  padding-left: 6px;
+}

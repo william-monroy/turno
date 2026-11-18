@@ -1,0 +1,489 @@
+/*
+ * The picture. No frame: two lanes on the paper, a hairline between them and the blue bar under
+ * both. Moving things sit on one layer over the lanes and travel by `--lane`, eased; everything
+ * else changes with a hard cut on the beat.
+ */
+
+.wrap {
+  container-type: inline-size;
+}
+
+.stage {
+  --b: var(--beat, 125ms);
+  --head: 30px;
+  --gap-y: 16px;
+  --slot: 168px;
+  --gap-x: clamp(28px, 5cqw, 48px);
+  /* One lane to the other: across on a wide picture, down on a narrow one. */
+  --dx: calc(50cqw + var(--gap-x) / 2);
+  --dy: 0px;
+  --travel: calc(var(--b) * 6);
+  /* The bar, seen from a lane's slot: a thing about 24 px tall centered on its line. */
+  --bar-y: calc(var(--slot) + var(--gap-y) - 9px);
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: var(--head) var(--slot) auto;
+  grid-template-areas: "h0 h1" "s0 s1" "bar bar";
+  column-gap: var(--gap-x);
+  row-gap: var(--gap-y);
+  color: var(--ink);
+}
+
+@container (max-width: 519px) {
+  .stage {
+    --slot: 152px;
+    --dx: 0px;
+    --dy: calc(var(--slot) + var(--gap-y) * 2 + var(--head));
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: var(--head) var(--slot) var(--head) var(--slot) auto;
+    grid-template-areas: "h0" "s0" "h1" "s1" "bar";
+  }
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.head[data-lane="0"] {
+  grid-area: h0;
+}
+.head[data-lane="1"] {
+  grid-area: h1;
+}
+.sub {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The hairline between the lanes: the only line in the picture that is not blue. */
+.divider {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  height: calc(var(--head) + var(--gap-y) + var(--slot));
+  border-left: 1px solid var(--line);
+}
+@container (max-width: 519px) {
+  .divider {
+    top: calc(var(--head) + var(--gap-y) * 1.5 + var(--slot));
+    left: 0;
+    width: 100%;
+    height: 0;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+}
+
+/*
+ * An empty lane on a phone. Stacked, an empty lane is a gap of a whole slot under its account's
+ * name, and reads as a hole in the page. It cannot shrink (the picture would change height under
+ * the reader's thumb, and the list sits right under it), so it shows a place: the quiet dashed
+ * outline of a Place, without words. Lanes are told by what the picture put in them: a part of
+ * this file says its lane (data-lane) and `place()` writes --lane into the style. A picture that
+ * places nothing that way never gets one. When a session leaves a lane the outline is revealed
+ * under it, like a footprint.
+ */
+.vacant {
+  display: none;
+  align-self: start;
+  height: 112px;
+  border: 1px dashed var(--line);
+}
+.vacant[data-lane="0"] {
+  grid-area: s0;
+}
+.vacant[data-lane="1"] {
+  grid-area: s1;
+}
+@container (max-width: 519px) {
+  .stage:has(.layer [style*="--lane"]):not(:has(.layer :is([data-lane="0"], [style*="--lane:0"], [style*="--lane: 0"]))) .vacant[data-lane="0"],
+  .stage:has(.layer [style*="--lane"]):not(:has(.layer :is([data-lane="1"], [style*="--lane:1"], [style*="--lane: 1"]))) .vacant[data-lane="1"] {
+    display: block;
+  }
+}
+
+/* The layer the moving things live on: lane 0's slot, the rest reached by translation. */
+.layer {
+  position: absolute;
+  top: calc(var(--head) + var(--gap-y));
+  left: 0;
+  width: calc((100% - var(--gap-x)) / 2);
+  height: var(--slot);
+}
+@container (max-width: 519px) {
+  .layer {
+    width: 100%;
+  }
+}
+
+.mover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  translate: calc(var(--lane, 0) * var(--dx)) calc(var(--lane, 0) * var(--dy) + var(--y, 0px));
+  transition: translate var(--travel) cubic-bezier(0.65, 0, 0.35, 1);
+}
+.stage[data-cut] .mover {
+  transition: none;
+}
+
+/*
+ * The travel: the card glides to the other lane and rises a little on the way, the way a thing
+ * is carried rather than dragged. The rise is the only motion that is not on the beat.
+ */
+@keyframes rise {
+  0%,
+  100% {
+    transform: none;
+  }
+  50% {
+    transform: translateY(-14px);
+  }
+}
+@keyframes rise-side {
+  0%,
+  100% {
+    transform: none;
+  }
+  50% {
+    transform: translateX(10px);
+  }
+}
+.mover[data-travel] > * {
+  animation: rise var(--travel) cubic-bezier(0.45, 0, 0.55, 1);
+}
+@container (max-width: 519px) {
+  .mover[data-travel] > * {
+    animation-name: rise-side;
+  }
+}
+.mover[data-peel] {
+  translate: calc(var(--lane, 0) * var(--dx) + 8px) calc(var(--lane, 0) * var(--dy) + var(--y, 0px) + 8px);
+}
+
+/* The conversation ---------------------------------------------------------------------------- */
+
+.card {
+  border: 1.5px solid var(--tone-keep);
+  background: var(--paper);
+}
+.card[data-quiet] {
+  border-color: color-mix(in oklab, var(--tone-keep) 45%, var(--paper));
+}
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.card:not([data-compact]) .cardHead {
+  border-bottom: 1px solid var(--line);
+}
+.cardId {
+  font-weight: 600;
+  color: var(--tone-keep);
+}
+.cardWhere {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--dim);
+}
+.turns {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 10px 12px 12px 0;
+  list-style: none;
+}
+/* Each turn carries the tone of the account that ran it. */
+.turn {
+  display: flex;
+  gap: 9px;
+  padding-left: 10px;
+  border-left: 3px solid var(--turn);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.turnMark {
+  flex: none;
+  color: var(--turn);
+}
+.turnText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.turn[data-who="user"] .turnText {
+  color: var(--ink);
+}
+.turn[data-who="agent"] .turnText {
+  color: var(--dim);
+}
+
+/* A new turn types in, the way the person typed it; the agent's answer prints at once. */
+@keyframes type {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.stage:not([data-cut]) .turn[data-who="user"]:last-child .turnText {
+  animation: type calc(var(--b) * 2) steps(12, end) both;
+}
+
+/* A place, not a session: a dashed outline with one short label in it. */
+.place {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 112px;
+  padding: 0 12px;
+  border: 1.5px dashed color-mix(in oklab, var(--tone-keep) 70%, var(--paper));
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-align: center;
+  color: var(--tone-keep);
+}
+.place[data-quiet] {
+  border-color: var(--line);
+  color: var(--dim);
+}
+
+/* Artifacts, the package, a service ---------------------------------------------------------- */
+
+.artifact {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: auto;
+  max-width: 100%;
+  padding: 8px 12px 8px 10px;
+  border: 1.5px solid var(--tone);
+  background: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.page {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  width: 16px;
+  height: 20px;
+  padding: 3px;
+  border: 1.5px solid var(--tone);
+}
+.page > i {
+  display: block;
+  height: 1.5px;
+  background: var(--tone);
+}
+.page > i:last-child {
+  width: 60%;
+}
+.artifactName {
+  color: var(--ink);
+}
+.artifactTag {
+  color: var(--tone);
+  font-size: 11px;
+}
+
+.package {
+  width: auto;
+  padding: 3px 9px;
+  border: 1.5px solid var(--tone-keep);
+  background: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--tone-keep);
+}
+
+.service {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  padding: 6px 12px;
+  border: 1.5px solid var(--tone-work);
+  background: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink);
+}
+.serviceDot {
+  width: 7px;
+  height: 7px;
+  background: var(--tone-work);
+}
+
+/* The dot a call rides on, through the bar. Its owner moves it; it never rests in view. */
+.dot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  background: var(--tone-keep);
+  box-shadow: 0 0 0 3px var(--paper);
+  pointer-events: none;
+}
+
+/* The bar --------------------------------------------------------------------------------------- */
+
+/* The floor every lane stands on, like the bar of the logo, with what it is written under it. */
+.bar {
+  grid-area: bar;
+  min-width: 0;
+}
+.barLine {
+  height: 6px;
+  background: var(--tone-keep);
+}
+.barCaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 12px;
+  row-gap: 2px;
+  margin: 10px 0 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.barName {
+  font-weight: 600;
+  color: var(--tone-keep);
+}
+.barText {
+  min-width: 0;
+  color: var(--dim);
+}
+.barEnd {
+  margin-left: auto;
+  color: var(--tone-keep);
+}
+
+/* Drawing itself, once ------------------------------------------------------------------------ */
+
+@keyframes cut {
+  from {
+    visibility: hidden;
+  }
+  to {
+    visibility: visible;
+  }
+}
+@keyframes wipe {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes drop {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.stage[data-wait] :is(.head, .divider, .bar, .layer, .vacant) {
+  visibility: hidden;
+}
+.stage[data-drawing] .vacant {
+  animation: cut var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * 5);
+}
+[data-pace="brisk"] .stage[data-drawing] .vacant {
+  animation-delay: calc(var(--b) * 2);
+}
+.stage[data-drawing] .barLine {
+  animation: wipe calc(var(--b) * 3) steps(8, end) both;
+}
+.stage[data-drawing] .barCaption {
+  animation: cut var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * 3);
+}
+.stage[data-drawing] .divider {
+  animation: drop calc(var(--b) * 2) steps(6, end) both;
+  animation-delay: calc(var(--b) * 2);
+}
+.stage[data-drawing] .head[data-lane="0"] {
+  animation: cut var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * 3);
+}
+.stage[data-drawing] .head[data-lane="1"] {
+  animation: cut var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * 4);
+}
+.stage[data-drawing] .layer {
+  animation: cut var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * 5);
+}
+.stage[data-drawing] .turn {
+  animation: cut var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * 6);
+}
+.stage[data-drawing] .turn + .turn {
+  animation-delay: calc(var(--b) * 7);
+}
+
+/* After the first chapter the same drawing in five beats (BRISK_BEATS in section.tsx). */
+[data-pace="brisk"] .stage[data-drawing] .barLine {
+  animation-duration: calc(var(--b) * 2);
+  animation-timing-function: steps(6, end);
+}
+[data-pace="brisk"] .stage[data-drawing] .barCaption {
+  animation-delay: calc(var(--b) * 2);
+}
+[data-pace="brisk"] .stage[data-drawing] .divider {
+  animation-duration: var(--b);
+  animation-timing-function: steps(4, end);
+  animation-delay: var(--b);
+}
+[data-pace="brisk"] .stage[data-drawing] .head[data-lane="0"],
+[data-pace="brisk"] .stage[data-drawing] .head[data-lane="1"] {
+  animation-delay: var(--b);
+}
+[data-pace="brisk"] .stage[data-drawing] .layer {
+  animation-delay: calc(var(--b) * 2);
+}
+[data-pace="brisk"] .stage[data-drawing] .turn {
+  animation-delay: calc(var(--b) * 3);
+}
+[data-pace="brisk"] .stage[data-drawing] .turn + .turn {
+  animation-delay: calc(var(--b) * 4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mover {
+    transition: none;
+  }
+  .mover[data-travel] > *,
+  .turn .turnText {
+    animation: none !important;
+  }
+}

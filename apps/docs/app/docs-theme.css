@@ -1,0 +1,850 @@
+/*
+ * The docs in the landing's look (components/landing/landing.css): paper and ink, hairlines,
+ * square corners, labels in mono capitals, and hover as an instant swap of ink and paper.
+ * Reading comes first: body text keeps its size, its line length and its contrast.
+ *
+ * Fumadocs draws its chrome with Tailwind utilities, which live in cascade layers. These rules
+ * are not in a layer, so they win over them without !important (inline styles still win).
+ *
+ * The d-* classes belong to the docs' own pieces: components/docs/ and components/routes/.
+ */
+
+:root {
+  --d-ink: var(--color-fd-foreground);
+  --d-paper: var(--color-fd-background);
+  --d-dim: var(--color-fd-muted-foreground);
+  --d-line: var(--color-fd-border);
+  --d-card: var(--color-fd-card);
+  --d-keep: var(--tone-keep);
+  --d-mono: var(--font-mono);
+  /* The measure of running text: about 75 characters of Geist at 16px. */
+  --d-measure: 44rem;
+}
+
+/* Square corners for the chrome and the page; the landing has no rounded shapes. */
+#nd-docs-layout :where(*:not(svg, svg *)),
+#nd-sidebar-mobile :where(*:not(svg, svg *)),
+#nd-nav :where(*:not(svg, svg *)),
+[data-radix-popper-content-wrapper] :where(*),
+[role="dialog"]:has([aria-controls="fd-search-list"]),
+[role="dialog"]:has([aria-controls="fd-search-list"]) :where(*:not(svg, svg *)) {
+  border-radius: 0;
+}
+
+/* No drop shadows and no blur behind sticky bars: hairlines separate things. */
+#nd-docs-layout :where(*),
+#nd-sidebar-mobile,
+[data-radix-popper-content-wrapper] > *,
+[role="dialog"]:has([aria-controls="fd-search-list"]) {
+  box-shadow: none;
+}
+#nd-subnav,
+[data-toc-popover] > header {
+  backdrop-filter: none;
+  background: var(--d-paper);
+}
+
+/* Keyboard focus is always visible, in turno's blue, even where hover is only a color swap. */
+#nd-docs-layout :focus-visible,
+#nd-nav :focus-visible,
+[role="dialog"] :focus-visible {
+  outline: 2px solid var(--d-keep);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Sidebar                                                                                     */
+/* ------------------------------------------------------------------------------------------ */
+
+#nd-sidebar {
+  background: var(--d-paper);
+  border-color: var(--d-line);
+}
+
+/* Group labels: mono capitals, like the landing's section labels. */
+:is(#nd-sidebar, #nd-sidebar-mobile) [data-radix-scroll-area-viewport] p {
+  margin-top: 22px;
+  margin-bottom: 4px;
+  font-family: var(--d-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--d-dim);
+}
+:is(#nd-sidebar, #nd-sidebar-mobile) [data-radix-scroll-area-viewport] p:first-child {
+  margin-top: 0;
+}
+
+/* Items: ink on paper, then paper on ink under the pointer, with no fade. */
+:is(#nd-sidebar, #nd-sidebar-mobile) [data-radix-scroll-area-viewport] :is(a, button) {
+  padding-block: 6px;
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--d-dim);
+  transition: none;
+}
+:is(#nd-sidebar, #nd-sidebar-mobile) [data-radix-scroll-area-viewport] :is(a, button):hover {
+  background: var(--d-ink);
+  color: var(--d-paper);
+}
+/* Where the reader is: ink text on the blue tint, with a blue edge. */
+:is(#nd-sidebar, #nd-sidebar-mobile) [data-radix-scroll-area-viewport] a[data-active="true"] {
+  background: var(--tone-keep-soft);
+  color: var(--d-ink);
+  font-weight: 500;
+  box-shadow: inset 2px 0 0 var(--d-keep);
+}
+:is(#nd-sidebar, #nd-sidebar-mobile) [data-radix-scroll-area-viewport] a[data-active="true"]:hover {
+  background: var(--d-ink);
+  color: var(--d-paper);
+}
+/* Fumadocs marks nested active items with a thin bar of its own; the blue edge replaces it. */
+:is(#nd-sidebar, #nd-sidebar-mobile) [data-radix-scroll-area-viewport] a[data-active="true"]::before {
+  display: none;
+}
+
+/* The search box in the sidebar: a hairline field, mono hint. */
+button[data-search-full] {
+  border-color: var(--d-line);
+  background: var(--d-paper);
+  padding: 7px 8px;
+  font-size: 13px;
+  color: var(--d-dim);
+  transition: none;
+}
+button[data-search-full]:hover {
+  background: var(--d-ink);
+  color: var(--d-paper);
+  border-color: var(--d-ink);
+}
+button[data-search-full] kbd {
+  border-color: var(--d-line);
+  background: transparent;
+  font-family: var(--d-mono);
+  font-size: 11px;
+  color: inherit;
+}
+
+/* The bottom of the sidebar: language and theme. */
+#nd-sidebar button[aria-haspopup="dialog"] {
+  background: var(--d-paper);
+  border: 1px solid var(--d-line);
+  font-size: 13px;
+  transition: none;
+}
+#nd-sidebar button[aria-haspopup="dialog"]:hover {
+  background: var(--d-ink);
+  color: var(--d-paper);
+}
+#nd-sidebar [data-theme-toggle],
+#nd-sidebar [data-theme-toggle] + *,
+#nd-sidebar div:has(> [data-theme-toggle]) {
+  background: transparent;
+}
+[data-theme-toggle] > * {
+  transition: none;
+}
+
+/* The three areas of the docs, at the top of the sidebar (components/docs/area-tabs.tsx). */
+.d-areas {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--d-line);
+}
+.d-area {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 10px;
+  font-family: var(--d-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--d-ink);
+}
+.d-area + .d-area {
+  border-top: 1px solid var(--d-line);
+}
+.d-area-count {
+  color: var(--d-dim);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+.d-area:hover,
+.d-area:focus-visible {
+  background: var(--d-ink);
+  color: var(--d-paper);
+}
+.d-area[aria-current="true"] {
+  background: var(--d-keep);
+  color: var(--color-fd-primary-foreground);
+}
+.d-area:hover .d-area-count,
+.d-area:focus-visible .d-area-count,
+.d-area[aria-current="true"] .d-area-count {
+  color: inherit;
+  opacity: 0.75;
+}
+.d-area:focus-visible {
+  outline-offset: -2px;
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Page header                                                                                 */
+/* ------------------------------------------------------------------------------------------ */
+
+.d-head {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 20px;
+}
+
+/* A Spanish page that is the English one: one quiet line, before anything else. */
+.d-fallback {
+  margin-bottom: 22px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--d-line);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--d-dim);
+}
+
+/* Where the page sits: the area, then its group, in the landing's label style. */
+.d-eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 8px;
+  font-family: var(--d-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--d-dim);
+}
+.d-eyebrow::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  background: var(--d-keep);
+}
+.d-eyebrow > span {
+  display: inline-flex;
+  gap: 8px;
+}
+.d-eyebrow a {
+  color: var(--d-ink);
+}
+.d-eyebrow a:hover {
+  background: var(--d-ink);
+  color: var(--d-paper);
+}
+.d-eyebrow-sep {
+  color: var(--d-line);
+}
+
+.d-title {
+  margin-top: 18px;
+  font-size: clamp(30px, 3.2vw, 42px);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+.d-description {
+  margin: 14px 0 0;
+  max-width: 36em;
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--d-dim);
+  text-wrap: pretty;
+}
+
+.d-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 22px;
+}
+.d-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--d-line);
+  background: var(--d-paper);
+  color: var(--d-ink);
+  font-family: var(--d-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: none;
+}
+.d-action svg {
+  color: inherit;
+}
+.d-action:hover {
+  background: var(--d-ink);
+  border-color: var(--d-ink);
+  color: var(--d-paper);
+}
+.d-action:hover svg {
+  color: inherit !important;
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Running text                                                                                */
+/* ------------------------------------------------------------------------------------------ */
+
+#nd-page .prose {
+  --tw-prose-body: var(--d-ink);
+  color: color-mix(in oklab, var(--d-ink) 88%, var(--d-paper));
+}
+
+/* Text keeps a comfortable measure; code, tables and figures use the whole column. */
+#nd-page .prose > :is(p, ul, ol, blockquote, h2, h3, h4, dl) {
+  max-width: var(--d-measure);
+}
+
+#nd-page .prose :is(h2, h3, h4) {
+  color: var(--d-ink);
+  font-weight: 500;
+}
+#nd-page .prose h2 {
+  margin-top: 64px;
+  padding-top: 22px;
+  border-top: 1px solid var(--d-line);
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+/* The rule above an h2 belongs to the measure of the page, not of the heading. */
+#nd-page .prose > h2 {
+  max-width: none;
+}
+#nd-page .prose h3 {
+  margin-top: 40px;
+  font-size: 19px;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+}
+#nd-page .prose > :first-child:is(h2) {
+  margin-top: 0;
+}
+#nd-page .prose :is(h2, h3) button {
+  transition: none;
+}
+
+#nd-page .prose a:not([data-card], .d-card) {
+  font-weight: 450;
+  text-decoration-color: color-mix(in oklab, var(--d-keep) 70%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  transition: none;
+}
+#nd-page .prose a:not([data-card], .d-card):hover {
+  opacity: 1;
+  background: var(--d-ink);
+  color: var(--d-paper);
+  text-decoration-color: transparent;
+}
+
+#nd-page .prose strong {
+  font-weight: 600;
+}
+
+/* Inline code: a hairline box on the card color. */
+#nd-page .prose :not(pre) > code {
+  padding: 0.1em 0.35em;
+  border: 1px solid var(--d-line);
+  background: var(--d-card);
+  font-size: 0.86em;
+}
+#nd-page .prose a > code {
+  background: transparent;
+}
+
+#nd-page .prose hr {
+  border-color: var(--d-line);
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Code blocks                                                                                 */
+/* ------------------------------------------------------------------------------------------ */
+
+#nd-page figure.shiki {
+  border: 1px solid var(--d-line);
+  background: var(--d-card);
+}
+#nd-page figure.shiki > div:first-child:has(figcaption) {
+  height: 34px;
+  border-color: var(--d-line);
+  font-family: var(--d-mono);
+  font-size: 12px;
+  color: var(--d-dim);
+}
+#nd-page figure.shiki > div:first-child:has(figcaption) svg:first-child {
+  display: none;
+}
+#nd-page figure.shiki [role="region"] {
+  font-size: 13px;
+  line-height: 1.65;
+}
+#nd-page figure.shiki button {
+  background: var(--d-card);
+  color: var(--d-dim);
+  transition: none;
+  backdrop-filter: none;
+}
+#nd-page figure.shiki button:hover {
+  background: var(--d-ink);
+  color: var(--d-paper);
+}
+
+/*
+ * Code in ink. Color on this site means an account, so syntax colors would say something false;
+ * comments step back to the dim gray and everything else is ink. The selectors match the colors
+ * of the github themes that render the code.
+ */
+#nd-page .shiki code span {
+  color: var(--d-ink);
+}
+#nd-page .shiki code span[style*="--shiki-light:#6A737D"] {
+  color: var(--d-dim);
+}
+#nd-page .shiki code span[style*="--shiki-light:#D73A49"] {
+  color: var(--d-dim);
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Tables                                                                                      */
+/* ------------------------------------------------------------------------------------------ */
+
+/* Unboxed: no card, no column rules, rows on hairlines and the header on an ink rule. */
+#nd-page .prose table {
+  margin-block: 0;
+  border: 0;
+  border-radius: 0;
+  border-collapse: collapse;
+  background: transparent;
+  font-size: 14px;
+  line-height: 1.55;
+}
+#nd-page .prose :is(th, td) {
+  border-inline-start: 0;
+  border-bottom: 1px solid var(--d-line);
+  background: transparent;
+}
+#nd-page .prose thead th {
+  padding: 0 16px 8px 0;
+  border-bottom-color: var(--d-ink);
+  font-family: var(--d-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--d-dim);
+  vertical-align: bottom;
+}
+#nd-page .prose tbody td {
+  padding: 10px 16px 10px 0;
+  vertical-align: top;
+}
+#nd-page .prose :is(th, td):last-child {
+  padding-right: 0;
+}
+/* Code in a cell is already in a column of its own: mono is enough, a box would break across lines. */
+#nd-page .prose td code {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.92em;
+}
+/* Fumadocs wraps each table in a box that scrolls sideways on narrow screens; the space goes on it. */
+#nd-page .prose div:has(> table) {
+  margin-block: 28px;
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Cards and callouts (components/docs/cards.tsx)                                              */
+/* ------------------------------------------------------------------------------------------ */
+
+.d-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  margin-block: 28px;
+  /* Cells share their hairlines: each one pulls the next over its border. */
+  padding: 1px 0 0 1px;
+}
+/* Four cards read better as two by two than as three and one. */
+.d-cards:has(> :nth-child(4):last-child) {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+}
+.d-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: -1px 0 0 -1px;
+  padding: 16px 18px 18px;
+  border: 1px solid var(--d-line);
+  background: var(--d-paper);
+  color: var(--d-ink);
+  text-decoration: none;
+}
+.d-card-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.d-card-arrow {
+  flex: none;
+  font-family: var(--d-mono);
+  font-size: 13px;
+  color: var(--d-dim);
+}
+.d-card-text {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--d-dim);
+}
+a.d-card:hover,
+a.d-card:focus-visible {
+  z-index: 1;
+  background: var(--d-ink);
+  border-color: var(--d-ink);
+  color: var(--d-paper);
+}
+a.d-card:hover :is(.d-card-text, .d-card-arrow),
+a.d-card:focus-visible :is(.d-card-text, .d-card-arrow) {
+  color: inherit;
+  opacity: 0.75;
+}
+a.d-card:focus-visible {
+  outline-offset: -4px;
+  outline-color: var(--d-paper);
+}
+
+.d-callout {
+  margin-block: 28px;
+  max-width: var(--d-measure);
+  padding: 14px 18px 16px;
+  border-left: 2px solid var(--d-dim);
+  background: var(--d-card);
+  font-size: 15px;
+  line-height: 1.6;
+}
+.d-callout-strong {
+  border-left-color: var(--d-ink);
+}
+.d-callout-title {
+  margin: 0 0 6px !important;
+  font-family: var(--d-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--d-ink);
+}
+.d-callout-body > :first-child {
+  margin-top: 0;
+}
+.d-callout-body > :last-child {
+  margin-bottom: 0;
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Tabs and steps                                                                              */
+/* ------------------------------------------------------------------------------------------ */
+
+#nd-page div[data-orientation="horizontal"]:has(> [role="tablist"]) {
+  border: 1px solid var(--d-line);
+  background: var(--d-card);
+}
+#nd-page [role="tablist"] {
+  gap: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--d-line);
+}
+#nd-page [role="tab"] {
+  padding: 8px 12px;
+  border-bottom: 0;
+  border-right: 1px solid var(--d-line);
+  font-family: var(--d-mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--d-dim);
+  transition: none;
+}
+#nd-page [role="tab"]:hover {
+  background: var(--d-ink);
+  color: var(--d-paper);
+}
+#nd-page [role="tab"][data-state="active"] {
+  background: var(--d-paper);
+  color: var(--d-ink);
+  box-shadow: inset 0 -2px 0 var(--d-ink);
+}
+#nd-page [role="tabpanel"] {
+  background: var(--d-paper);
+}
+
+/* Steps: a square counter in mono on a hairline. */
+#nd-page .fd-steps {
+  border-color: var(--d-line);
+}
+#nd-page .fd-step::before {
+  width: 28px;
+  height: 28px;
+  inset-inline-start: -14px;
+  border: 1px solid var(--d-ink);
+  background: var(--d-paper);
+  color: var(--d-ink);
+  font-family: var(--d-mono);
+  font-size: 12px;
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Table of contents                                                                           */
+/* ------------------------------------------------------------------------------------------ */
+
+#toc-title {
+  font-family: var(--d-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--d-dim);
+}
+#toc-title svg {
+  display: none;
+}
+#nd-toc a {
+  font-size: 13px;
+  color: var(--d-dim);
+  transition: none;
+}
+#nd-toc a:hover {
+  color: var(--d-ink);
+}
+#nd-toc a[data-active="true"] {
+  color: var(--d-ink);
+}
+[data-toc-popover-trigger] {
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Previous and next (components/docs/page-footer.tsx)                                         */
+/* ------------------------------------------------------------------------------------------ */
+
+.d-pager {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 48px;
+  border-top: 1px solid var(--d-line);
+}
+.d-pager-link {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 18px 20px 0;
+  color: var(--d-ink);
+}
+.d-pager-next {
+  align-items: flex-end;
+  padding: 18px 0 20px 18px;
+  border-left: 1px solid var(--d-line);
+  text-align: end;
+}
+.d-pager-empty + .d-pager-next {
+  border-left-color: var(--d-line);
+}
+.d-pager-dir {
+  font-family: var(--d-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--d-dim);
+}
+.d-pager-name {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.d-pager-link:hover,
+.d-pager-link:focus-visible {
+  background: var(--d-ink);
+  color: var(--d-paper);
+  padding-inline: 18px;
+}
+.d-pager-link:hover .d-pager-dir,
+.d-pager-link:focus-visible .d-pager-dir {
+  color: inherit;
+  opacity: 0.75;
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Troubleshooting filter (components/docs/finding-filter.tsx)                                 */
+/* ------------------------------------------------------------------------------------------ */
+
+.d-filter-bar {
+  position: sticky;
+  top: calc(var(--fd-docs-row-3, 0px));
+  z-index: 5;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 16px;
+  margin: 36px 0 8px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--d-line);
+  background: var(--d-paper);
+}
+.d-filter-label {
+  font-family: var(--d-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--d-dim);
+}
+.d-filter-count {
+  grid-row: 1;
+  grid-column: 2;
+  margin: 0;
+  font-family: var(--d-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--d-dim);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.d-filter-field {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--d-ink);
+  background: var(--d-paper);
+}
+.d-filter-field:focus-within {
+  outline: 2px solid var(--d-keep);
+  outline-offset: 2px;
+}
+.d-filter-input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  background: transparent;
+  font-family: var(--d-mono);
+  font-size: 14px;
+  color: var(--d-ink);
+  outline: none;
+}
+.d-filter-input::placeholder {
+  color: var(--d-dim);
+}
+.d-filter-input::-webkit-search-cancel-button {
+  display: none;
+}
+.d-filter-key {
+  margin-right: 10px;
+  padding: 1px 6px;
+  border: 1px solid var(--d-line);
+  font-family: var(--d-mono);
+  font-size: 11px;
+  color: var(--d-dim);
+}
+.d-filter-clear {
+  align-self: stretch;
+  padding: 0 12px;
+  border-left: 1px solid var(--d-ink);
+  font-family: var(--d-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--d-ink);
+}
+.d-filter-clear:hover {
+  background: var(--d-ink);
+  color: var(--d-paper);
+}
+.d-filter-none {
+  padding: 18px 0;
+  color: var(--d-dim);
+}
+/* The bar's rule already separates the first group from what is above it. */
+#nd-page .d-filter > div:last-child > h2:first-child {
+  margin-top: 28px !important;
+  border-top: 0;
+  padding-top: 0;
+}
+/* Inside the filter the groups sit closer: it reads as one list. */
+.d-filter :is(h2, h3) {
+  scroll-margin-top: 160px;
+}
+.d-filter h2 {
+  margin-top: 40px !important;
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Search dialog                                                                               */
+/* ------------------------------------------------------------------------------------------ */
+
+[role="dialog"]:has([aria-controls="fd-search-list"]) {
+  border: 1px solid var(--d-ink);
+  background: var(--d-paper);
+}
+[role="dialog"]:has([aria-controls="fd-search-list"]) > * {
+  border-color: var(--d-line);
+}
+[role="dialog"]:has([aria-controls="fd-search-list"]) input {
+  font-size: 17px;
+}
+/* The dialog itself is the focus: its ink border already says where typing goes. */
+[role="dialog"]:has([aria-controls="fd-search-list"]) input:focus-visible {
+  outline: none;
+}
+[role="dialog"]:has([aria-controls="fd-search-list"]) [role="option"] {
+  transition: none;
+}
+[role="dialog"]:has([aria-controls="fd-search-list"]) [role="option"][aria-selected="true"] {
+  background: var(--d-ink);
+  color: var(--d-paper);
+}
+[role="dialog"]:has([aria-controls="fd-search-list"]) [role="option"][aria-selected="true"] * {
+  color: inherit !important;
+}
+[role="dialog"]:has([aria-controls="fd-search-list"]) [role="option"][aria-selected="true"] ::highlight(fd-search) {
+  color: inherit;
+}
+[role="dialog"]:has([aria-controls="fd-search-list"]) [role="option"] .prose {
+  font-size: 14px;
+}
+[role="dialog"]:has([aria-controls="fd-search-list"]) button {
+  font-family: var(--d-mono);
+  font-size: 11px;
+  transition: none;
+}
+/* The page behind the dialog steps back without a blur. */
+div[data-state]:has(+ [role="dialog"] [aria-controls="fd-search-list"]),
+.fixed.inset-0.z-50.bg-fd-overlay {
+  backdrop-filter: none;
+  background: color-mix(in oklab, var(--d-paper) 72%, transparent);
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* The header of the landing page (HomeLayout) shares the chrome                               */
+/* ------------------------------------------------------------------------------------------ */
+
+#nd-nav button[data-search-full] {
+  min-width: 220px;
+}
+#nd-nav [data-theme-toggle] {
+  border-color: var(--d-line);
+}

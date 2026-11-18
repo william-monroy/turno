@@ -32,8 +32,10 @@ Last updated: 2026-11-18.
   (NEEDS_AUTH as a tool error that asks for `turno browser login`); a per-site reputation log of
   challenges with `turno browser reputation`; `turno browser doctor [--fix]`; and `stop_grace`
   per server in mcpd (5 s for turno-browser-mcp).
-- **Documentation site** (`apps/docs`, ADR 0046): Fumadocs (Next.js), a private workspace app
-  for `https://turno.wimo.dev` (not deployed yet). Get started, guides by problem, concepts,
+- **Documentation site** (`apps/docs`, ADR 0046 and 0060): Fumadocs (Next.js), a private
+  workspace app for `https://turno.wimo.dev`, deployed on Vercel. The home page is a landing
+  that tells the whole story in eight chapters (ADR 0060), and the docs are split into three
+  areas with their own sidebars. Get started, guides by problem, concepts,
   security, benchmarks, comparison and FAQ are written by hand from the README and `docs/`;
   the reference (commands, `config.toml`, `mcp.toml`, environment, exit codes, JSON) and one
   troubleshooting page per doctor finding are generated from the code by `pnpm docs:generate`

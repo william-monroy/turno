@@ -1,0 +1,359 @@
+/*
+ * The stage of the last chapter, built on stage.module.css's geometry and rules: two columns over
+ * one blue bar, a hairline between them, things that travel eased by --lane, everything else on
+ * a hard cut. The columns are places here, not accounts: your HOME on the left, and on the right
+ * what turno shows you before it touches it.
+ */
+
+.wrap {
+  container-type: inline-size;
+}
+
+.stage {
+  --b: var(--beat, 125ms);
+  --head: 30px;
+  --gap-y: 16px;
+  --slot: 184px;
+  --gap-x: clamp(28px, 5cqw, 48px);
+  --dx: calc(50cqw + var(--gap-x) / 2);
+  --dy: 0px;
+  --travel: calc(var(--b) * 6);
+  /* Where a change sits in your HOME: under its three entries. */
+  --below: 84px;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: var(--head) var(--slot) auto;
+  grid-template-areas: "h0 h1" "s0 s1" "bar bar";
+  column-gap: var(--gap-x);
+  row-gap: var(--gap-y);
+  color: var(--ink);
+}
+
+@container (max-width: 519px) {
+  .stage {
+    --dx: 0px;
+    --dy: calc(var(--slot) + var(--gap-y) * 2 + var(--head));
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: var(--head) var(--slot) var(--head) var(--slot) auto;
+    grid-template-areas: "h0" "s0" "h1" "s1" "bar";
+  }
+}
+
+/* The heads: a place, and what it is right now ------------------------------------------------ */
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.head[data-lane="0"] {
+  grid-area: h0;
+}
+.head[data-lane="1"] {
+  grid-area: h1;
+}
+/* Shaped like an account pill, but outlined: ink for your HOME, blue for turno's side. */
+.place {
+  flex: none;
+  padding: 0.5px 8px;
+  border: 1.5px solid var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.place[data-turno] {
+  border-color: var(--tone-keep);
+  color: var(--tone-keep);
+}
+.sub {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.sub[data-turno] {
+  color: var(--dim);
+}
+
+.divider {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  height: calc(var(--head) + var(--gap-y) + var(--slot));
+  border-left: 1px solid var(--line);
+}
+@container (max-width: 519px) {
+  .divider {
+    top: calc(var(--head) + var(--gap-y) * 1.5 + var(--slot));
+    left: 0;
+    width: 100%;
+    height: 0;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+}
+
+.layer {
+  position: absolute;
+  top: calc(var(--head) + var(--gap-y));
+  left: 0;
+  width: calc((100% - var(--gap-x)) / 2);
+  height: var(--slot);
+}
+@container (max-width: 519px) {
+  .layer {
+    width: 100%;
+  }
+}
+
+/* Moving things ----------------------------------------------------------------------------------- */
+
+.mover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  translate: calc(var(--lane, 0) * var(--dx)) calc(var(--lane, 0) * var(--dy) + var(--y, 0px));
+  transition: translate var(--travel) cubic-bezier(0.65, 0, 0.35, 1);
+}
+.stage[data-cut] .mover {
+  transition: none;
+}
+@keyframes rise {
+  0%,
+  100% {
+    transform: none;
+  }
+  50% {
+    transform: translateY(-14px);
+  }
+}
+@keyframes rise-side {
+  0%,
+  100% {
+    transform: none;
+  }
+  50% {
+    transform: translateX(10px);
+  }
+}
+.mover[data-travel] > * {
+  animation: rise var(--travel) cubic-bezier(0.45, 0, 0.55, 1);
+}
+@container (max-width: 519px) {
+  .mover[data-travel] > * {
+    animation-name: rise-side;
+  }
+}
+
+/* A HOME's entries ------------------------------------------------------------------------------ */
+
+.home,
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* So its names line up with those of a change written under them (a box's border and padding). */
+.home {
+  padding-left: 11.5px;
+}
+.file {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px 0 2px 8px;
+  border-left: 3px solid var(--tick, transparent);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.sign {
+  flex: none;
+  width: 1ch;
+  color: var(--dim);
+}
+.name {
+  flex: none;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.note {
+  min-width: 0;
+  margin-left: auto;
+  padding-left: 12px;
+  overflow: hidden;
+  color: var(--dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* What turno shows, or the one change it wrote --------------------------------------------------- */
+
+.box {
+  position: relative;
+  padding: 16px 12px 10px 10px;
+  border: 1.5px dashed color-mix(in oklab, var(--tone-keep) 70%, var(--paper));
+  background: var(--paper);
+}
+.box[data-state="written"] {
+  border-style: solid;
+  border-color: var(--ink);
+}
+.box[data-state="undone"] {
+  border-color: var(--line);
+}
+.box[data-state="undone"] :is(.name, .note, .sign) {
+  color: var(--dim);
+}
+.box[data-state="undone"] .file {
+  border-left-color: transparent;
+}
+.boxLabel {
+  position: absolute;
+  top: 0;
+  left: 8px;
+  max-width: calc(100% - 16px);
+  overflow: hidden;
+  padding: 0 6px;
+  translate: 0 -50%;
+  background: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--tone-keep);
+}
+.box[data-state="written"] .boxLabel {
+  color: var(--ink);
+  font-weight: 600;
+}
+.box[data-state="undone"] .boxLabel {
+  color: var(--dim);
+}
+.note[data-strong] {
+  color: var(--tick, var(--ink));
+}
+.foot {
+  margin: 8px 0 0;
+  padding-left: 11px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--dim);
+}
+
+/* The bar --------------------------------------------------------------------------------------- */
+
+.bar {
+  grid-area: bar;
+  min-width: 0;
+}
+.barLine {
+  height: 6px;
+  background: var(--tone-keep);
+}
+.barCaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 12px;
+  row-gap: 2px;
+  margin: 10px 0 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.barName {
+  font-weight: 600;
+  color: var(--tone-keep);
+}
+.barText {
+  min-width: 0;
+  color: var(--dim);
+}
+
+/* Drawing itself, once, on the stage's beats ------------------------------------------------------ */
+
+@keyframes cut {
+  from {
+    visibility: hidden;
+  }
+  to {
+    visibility: visible;
+  }
+}
+@keyframes wipe {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes drop {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.stage[data-wait] :is(.head, .divider, .bar, .layer) {
+  visibility: hidden;
+}
+.stage[data-drawing] .barLine {
+  animation: wipe calc(var(--b) * 3) steps(8, end) both;
+}
+.stage[data-drawing] .barCaption {
+  animation: cut var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * 3);
+}
+.stage[data-drawing] .divider {
+  animation: drop calc(var(--b) * 2) steps(6, end) both;
+  animation-delay: calc(var(--b) * 2);
+}
+.stage[data-drawing] .head[data-lane="0"] {
+  animation: cut var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * 3);
+}
+.stage[data-drawing] .head[data-lane="1"] {
+  animation: cut var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * 4);
+}
+.stage[data-drawing] .layer {
+  animation: cut var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * 5);
+}
+.stage[data-drawing] .home .file {
+  animation: cut var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * 6);
+}
+.stage[data-drawing] .home .file + .file {
+  animation-delay: calc(var(--b) * 7);
+}
+.stage[data-drawing] .home .file + .file + .file {
+  animation-delay: calc(var(--b) * 8);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mover {
+    transition: none;
+  }
+  .mover[data-travel] > * {
+    animation: none !important;
+  }
+}

@@ -4,6 +4,21 @@
 
 /* turno's blue, from the logo (docs/assets): #2457F5 on light, #4C7DFF on dark. */
 :root {
+  /* Surfaces: paper and ink, with hairlines. Fumadocs reads these names. */
+  --color-fd-background: #ffffff;
+  --color-fd-foreground: #0b0c0f;
+  --color-fd-card: #f7f7f8;
+  --color-fd-card-foreground: #0b0c0f;
+  --color-fd-popover: #ffffff;
+  --color-fd-popover-foreground: #0b0c0f;
+  --color-fd-muted: #f1f1f3;
+  --color-fd-muted-foreground: #565b66;
+  --color-fd-secondary: #f1f1f3;
+  --color-fd-secondary-foreground: #0b0c0f;
+  --color-fd-accent: #ececef;
+  --color-fd-accent-foreground: #0b0c0f;
+  --color-fd-border: #e2e3e7;
+  /* turno's blue, from the logo (docs/assets): #2457F5 on light, #4C7DFF on dark. */
   --color-fd-primary: #2457f5;
   --color-fd-primary-foreground: #ffffff;
   --color-fd-ring: #2457f5;
@@ -12,16 +27,37 @@
   --turno-3: #5079f7;
   --turno-4: #2457f5;
   --turno-ink: #16161d;
+  /*
+   * Color means account. Blue is turno itself, the part that stays; every other tone is an
+   * account that can change. Each tone reads at 4.5:1 or better on the page background.
+   */
+  --tone-keep: #2457f5;
+  --tone-work: #6a45f0;
+  --tone-personal: #127a3e;
+  --tone-third: #a8500a;
   /* Profile pills, as the status line draws them. */
-  --pill-work: #7c5cff;
-  --pill-personal: #1f9d55;
-  --pill-codex: #d97706;
+  --pill-work: var(--tone-work);
+  --pill-personal: var(--tone-personal);
+  --pill-codex: var(--tone-third);
   --term-bg: #0f1117;
   --term-fg: #d7dae0;
   --term-muted: #7d8590;
 }
 
 .dark {
+  --color-fd-background: #07080a;
+  --color-fd-foreground: #f1f2f4;
+  --color-fd-card: #0d0f13;
+  --color-fd-card-foreground: #f1f2f4;
+  --color-fd-popover: #0d0f13;
+  --color-fd-popover-foreground: #f1f2f4;
+  --color-fd-muted: #14161b;
+  --color-fd-muted-foreground: #9da3ae;
+  --color-fd-secondary: #14161b;
+  --color-fd-secondary-foreground: #f1f2f4;
+  --color-fd-accent: #1a1d24;
+  --color-fd-accent-foreground: #f1f2f4;
+  --color-fd-border: #22252d;
   --color-fd-primary: #4c7dff;
   --color-fd-primary-foreground: #0b0d12;
   --color-fd-ring: #4c7dff;
@@ -30,22 +66,25 @@
   --turno-3: #4067d1;
   --turno-4: #4c7dff;
   --turno-ink: #f3f4f8;
-  --pill-work: #9d85ff;
-  --pill-personal: #34c27b;
-  --pill-codex: #f0a13a;
+  --tone-keep: #6a93ff;
+  --tone-work: #a892ff;
+  --tone-personal: #3fcf87;
+  --tone-third: #f0a13a;
+}
+
+/* The soft version of each tone: a tint of it on the page background, for fills. */
+:root,
+.dark {
+  --tone-keep-soft: color-mix(in oklab, var(--tone-keep) 14%, var(--color-fd-background));
+  --tone-work-soft: color-mix(in oklab, var(--tone-work) 14%, var(--color-fd-background));
+  --tone-personal-soft: color-mix(in oklab, var(--tone-personal) 14%, var(--color-fd-background));
+  --tone-third-soft: color-mix(in oklab, var(--tone-third) 14%, var(--color-fd-background));
 }
 
 @theme inline {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
   --color-turno: var(--turno-4);
-}
-
-/* The dotted backdrop of the home hero. */
-.home-grid {
-  background-image: radial-gradient(circle at 1px 1px, color-mix(in oklab, var(--color-fd-foreground) 14%, transparent) 1px, transparent 0);
-  background-size: 22px 22px;
-  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 30%, transparent 100%);
 }
 
 /* Diagrams: lines that show requests flowing to the gateway. */
@@ -81,3 +120,4 @@
 .recording pre {
   white-space: pre;
 }
+@import "./docs-theme.css";

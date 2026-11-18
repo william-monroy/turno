@@ -137,7 +137,9 @@ for (const section of registry.SECTIONS) {
     const summary = registry.HELP_SUMMARY[name];
     if (summary !== command.summary) throw new Error(`HELP_SUMMARY.${name} differs from the command's own summary`);
     const subs = Object.keys(command.subcommands ?? {});
-    const body = [esc(sentence(summary)), "", fence(turno(name, "--help"), "text", `title="turno ${name} --help"`)];
+    // The summary is the page's description, shown under the title (and in the Markdown copy), so
+    // the body starts with the help itself.
+    const body = [fence(turno(name, "--help"), "text", `title="turno ${name} --help"`)];
     if (subs.length) {
       body.push("", "## Subcommands", "");
       for (const sub of subs) {
@@ -170,7 +172,8 @@ emit(
     ].join("\n"),
   }),
 );
-meta("reference/cli/meta.json", { title: "Commands", pages: cliPages });
+// Open by default: in the Reference sidebar the commands are most of what there is to see.
+meta("reference/cli/meta.json", { title: "Commands", defaultOpen: true, pages: cliPages });
 
 // ---------------------------------------------------------------------------------------------
 // config.toml
@@ -445,7 +448,14 @@ meta("reference/cli/meta.json", { title: "Commands", pages: cliPages });
     }),
   );
 }
-meta("reference/meta.json", { title: "Reference", description: "Generated from the code", root: false, pages: ["index", "cli", "config-toml", "mcp-toml", "environment", "exit-codes", "json-output"] });
+// A root folder: the Reference area gets its own sidebar (a tab of the docs layout). The short
+// pages come first, so the long command list does not push them out of view.
+meta("reference/meta.json", {
+  title: "Reference",
+  description: "Generated from the code",
+  root: true,
+  pages: ["index", "config-toml", "mcp-toml", "environment", "exit-codes", "json-output", "cli"],
+});
 
 // ---------------------------------------------------------------------------------------------
 // Troubleshooting: one page per doctor finding
@@ -529,12 +539,9 @@ meta("reference/meta.json", { title: "Reference", description: "Generated from t
       indexRows.push({ command, row: [`[${esc(p.title)}](/docs/troubleshooting/${p.id})`, code(f.text), f.levels.includes("fail") ? (f.levels.includes("warn") ? "warning or failure" : "failure") : "warning"] });
     }
   }
+  // The filter comes before the sample run: a reader who arrives with a symptom types it first.
   const intro = [
     "This page is for when something does not work: run `turno doctor`, find the row it flags, and open its page here.",
-    "",
-    "`turno doctor` checks the system, your config files, every profile, the MCP servers, the look and the gateway. Under each problem it prints the command that fixes it (`fix:`) or the manual step (`manual:`). This is a run in a fresh HOME, before any setup (`-` rows are skipped checks, with an optional next step):",
-    "",
-    fence(DOCTOR_SAMPLE, "text", 'title="turno doctor"'),
     "",
     "```sh",
     "turno doctor                  # every check, with the fix under each problem",
@@ -547,10 +554,23 @@ meta("reference/meta.json", { title: "Reference", description: "Generated from t
     "",
     "It exits with code 1 when a check fails; warnings exit 0. Each row below is one finding, with what doctor prints for it.",
     "",
+    // The rows stay plain Markdown tables (llms.txt and the Markdown copy read them as they are);
+    // components/docs/finding-filter.tsx only hides the ones that do not match.
+    "<FindingFilter>",
+    "",
   ];
   for (const command of order) {
     intro.push(`## ${command}`, "", table(["Finding", "What doctor prints", "Level"], indexRows.filter((r) => r.command === command).map((r) => r.row)), "");
   }
+  intro.push("</FindingFilter>", "");
+  intro.push(
+    "## What a run looks like",
+    "",
+    "`turno doctor` checks the system, your config files, every profile, the MCP servers, the look and the gateway. Under each problem it prints the command that fixes it (`fix:`) or the manual step (`manual:`). This is a run in a fresh HOME, before any setup (`-` rows are skipped checks, with an optional next step):",
+    "",
+    fence(DOCTOR_SAMPLE, "text", 'title="turno doctor"'),
+    "",
+  );
   intro.push(
     "## When doctor finds nothing",
     "",
@@ -568,7 +588,8 @@ meta("reference/meta.json", { title: "Reference", description: "Generated from t
     `Each server also has its own stderr log under \`~/.local/state/turno/logs/\`. If you are still stuck, ask in [Discussions](${REPO}/discussions) or open an [issue](${REPO}/issues) with the output of \`turno doctor --report\`, which holds no tokens or secret values.`,
   );
   emit("troubleshooting/index.mdx", page({ title: "Troubleshooting", description: "Run turno doctor, then find the row it flags: one page per finding, with its fix.", body: intro.join("\n") }));
-  meta("troubleshooting/meta.json", { title: "Troubleshooting", pages: sidebar });
+  // A root folder, like reference: its own sidebar, grouped by the command that reports each finding.
+  meta("troubleshooting/meta.json", { title: "Troubleshooting", description: "One page per doctor finding", root: true, pages: sidebar });
 }
 
 // ---------------------------------------------------------------------------------------------

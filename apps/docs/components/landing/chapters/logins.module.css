@@ -1,0 +1,224 @@
+/*
+ * Chapter 2 and the parts chapter 3 shares with it: a frame around the stage, the row that hangs
+ * under the bar (what turno reaches, outside both lanes), and things placed in a lane the way the
+ * stage places its own (`--lane`, `--y`, and the stage's `--dx`, `--dy`).
+ */
+
+.frame {
+  --b: var(--beat, 125ms);
+  --gap-x: clamp(28px, 5cqw, 48px);
+  position: relative;
+  container-type: inline-size;
+}
+
+/* A thing in a lane, at rest: it changes with a cut, it never glides. */
+.at {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  translate: calc(var(--lane, 0) * var(--dx)) calc(var(--lane, 0) * var(--dy) + var(--y, 0px));
+}
+
+/* A thing that sits on the bar, centered under both lanes. */
+.onBar {
+  position: absolute;
+  top: calc(var(--dy) + var(--bar-y));
+  left: 50cqw;
+  translate: -50% 0;
+  white-space: nowrap;
+}
+
+/* The row under the bar ----------------------------------------------------------------------- */
+
+.below {
+  margin-top: 22px;
+}
+
+/* The one thing that travels, flown by its owner; at rest it is not there. */
+.traveler {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Agents ---------------------------------------------------------------------------------------- */
+
+.agent {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.agentName {
+  color: var(--ink);
+}
+.agentReached {
+  color: var(--ink);
+}
+.agentReached > span {
+  color: var(--tone-keep);
+}
+
+/* A secret store entry ------------------------------------------------------------------------- */
+
+.key {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 2px 9px 2px 8px;
+  border: 1.5px solid var(--tone);
+  background: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.key[data-state="missing"] {
+  border-style: dashed;
+  color: var(--dim);
+}
+/* A key drawn square, like every mark on the page: the bow, the shaft and one tooth. */
+.keyGlyph {
+  position: relative;
+  flex: none;
+  width: 15px;
+  height: 8px;
+}
+.keyGlyph::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--tone);
+  box-sizing: border-box;
+}
+.keyGlyph::after {
+  content: "";
+  position: absolute;
+  top: 3.25px;
+  left: 8px;
+  width: 7px;
+  height: 1.5px;
+  background: var(--tone);
+}
+.keyGlyph > i {
+  position: absolute;
+  top: 4px;
+  left: 12px;
+  width: 1.5px;
+  height: 3px;
+  background: var(--tone);
+}
+.keyName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.keyState {
+  color: var(--tone);
+}
+@keyframes type {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.keyDots {
+  letter-spacing: 0.08em;
+  animation: type calc(var(--b) * 3) steps(8, end) both;
+}
+
+/* The service ---------------------------------------------------------------------------------- */
+
+.below[data-split] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: var(--gap-x);
+  row-gap: 10px;
+}
+@container (max-width: 519px) {
+  .below[data-split] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.below {
+  display: flex;
+  justify-content: center;
+}
+.below[data-split] > * {
+  justify-self: center;
+}
+
+.service {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 6px 12px;
+  border: 1.5px solid var(--tone, var(--dim));
+  background: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.square {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  background: var(--tone, var(--ink));
+}
+.serviceName {
+  color: var(--ink);
+  font-weight: 600;
+}
+.serviceNote {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--dim);
+}
+.service[data-tone] .serviceNote {
+  color: var(--tone);
+}
+
+/* Drawing itself, once, after the stage's lanes ---------------------------------------------- */
+
+@keyframes cut {
+  from {
+    visibility: hidden;
+  }
+  to {
+    visibility: visible;
+  }
+}
+.frame[data-wait] :is(.below, .traveler) {
+  visibility: hidden;
+}
+.frame[data-drawing] .below {
+  animation: cut var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * 6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .keyDots {
+    animation: none;
+  }
+}

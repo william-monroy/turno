@@ -1,0 +1,286 @@
+/*
+ * The agents on the stage. The lanes are the two Claude Code accounts, each a profile with its
+ * launcher. Another agent's profile is not one of them: it hangs under the bar in the third tone,
+ * as the browser chapter's identity does. Sizes and hairlines follow stage.module.css.
+ */
+
+/* A thing in a lane, placed the way the stage places its own; it changes with a cut. */
+.at,
+.mover {
+  --card-h: 66px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  translate: calc(var(--lane, 0) * var(--dx)) calc(var(--lane, 0) * var(--dy) + var(--y, 0px));
+}
+
+/* The launcher, the last line of a card: what you type to run the agent as this account. */
+.launcher {
+  display: block;
+  padding: 6px 12px 7px;
+  border-top: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* work's Claude Code profile: no session runs in it here, so only its outline is the account. */
+.profile {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: var(--card-h);
+  border: 1.5px solid color-mix(in oklab, var(--tone-work) 70%, var(--paper));
+  background: var(--paper);
+}
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 33px;
+  padding: 5px 12px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.name {
+  font-weight: 600;
+  color: var(--tone-work);
+}
+.where {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--dim);
+}
+
+/* A line to the gateway, from under a lane's card down to the bar. */
+.wire {
+  position: absolute;
+  top: 66px;
+  left: 50%;
+  width: 0;
+  height: calc(var(--slot) + var(--gap-y) - 66px);
+  border-left: 1px solid color-mix(in oklab, var(--tone-keep) 45%, var(--paper));
+  translate: calc(var(--lane, 0) * var(--dx)) calc(var(--lane, 0) * var(--dy));
+}
+/* A phone stacks the lanes: the personal lane's line would cross the work lane. */
+@container (max-width: 519px) {
+  .wire[data-lane="0"] {
+    display: none;
+  }
+}
+
+/* The agents turno prints entries for, at the end of the bar. */
+.unmanaged {
+  display: inline-flex;
+  flex-wrap: wrap;
+  column-gap: 10px;
+  color: var(--dim);
+}
+.unmanaged > [data-on] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Under the bar -------------------------------------------------------------------------------- */
+
+/* As wide as a lane's card and a little more, like the browser chapter's identity. */
+.other {
+  position: relative;
+  width: min(100%, calc((100% - var(--gap-x)) / 2 + 48px));
+  height: var(--card-h, 66px);
+}
+@container (max-width: 519px) {
+  .other {
+    width: 100%;
+  }
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  border: 1.5px solid var(--tone);
+  background: var(--paper);
+}
+/* An agent turno does not manage has no profile of its own, so no tone. */
+.card[data-unmanaged] {
+  --tone: color-mix(in oklab, var(--ink) 45%, var(--paper));
+}
+.card[data-unmanaged] .name {
+  color: var(--ink);
+}
+.card .head {
+  justify-content: flex-start;
+  padding-left: 6px;
+}
+.card[data-unmanaged] .head {
+  justify-content: space-between;
+  padding-left: 12px;
+}
+.sub {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--tone-third);
+}
+.foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 12px 7px;
+  border-top: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+/* Before there is one: a quiet dashed place that says so. */
+.none {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 1.5px dashed var(--line);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-align: center;
+  color: var(--dim);
+}
+
+/* It hangs from the bar: drawn down from its top edge in steps, as the browser identity is. */
+@keyframes drop {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.other[data-drop] {
+  animation: drop calc(var(--b) * 3) steps(6, end) both;
+}
+
+/* The status line ------------------------------------------------------------------------------- */
+
+.status {
+  /* Under the session, across the whole picture: a terminal is wider than its card. */
+  width: calc(200% + var(--gap-x));
+  translate: 0 calc(var(--card-h) + 18px);
+}
+@container (max-width: 519px) {
+  .status {
+    width: 100%;
+  }
+}
+
+/* One line; where it has no room, it breaks where the real one does, between its two rows. */
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 11px;
+  row-gap: 2px;
+  /* Over the hairline between the lanes, the way a terminal line would be. */
+  background: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 20px;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 11px;
+  row-gap: 2px;
+}
+
+.part {
+  position: relative;
+  white-space: nowrap;
+  color: var(--ink);
+  cursor: help;
+  outline: none;
+}
+.part[data-pill] {
+  padding: 0 7px;
+  background: var(--tone-personal);
+  color: var(--paper);
+  font-weight: 600;
+}
+/* The part being read: underlined in blue, the way the bar is blue. */
+.part::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 2px;
+  background: var(--tone-keep);
+  visibility: hidden;
+}
+.part[data-at]::after,
+.part:focus-visible::after {
+  visibility: visible;
+}
+
+/* The parts come in one per beat, the way the line fills in a terminal. */
+@keyframes cut {
+  from {
+    visibility: hidden;
+  }
+  to {
+    visibility: visible;
+  }
+}
+.status[data-fill] .part {
+  animation: cut var(--b) steps(1, end) both;
+  animation-delay: calc(var(--b) * var(--i, 0));
+}
+.status[data-fill] .explain {
+  visibility: hidden;
+}
+
+.explain {
+  margin: 0;
+  padding-top: 10px;
+  background: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--dim);
+}
+.full {
+  margin-right: 12px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.partName {
+  font-weight: 600;
+  color: var(--ink);
+}
+.hint {
+  color: var(--dim);
+}
+/* A phone wraps the line into three rows: the hint would spill out of the lane, so a part says
+   what it is only when tapped. */
+@container (max-width: 519px) {
+  .hint {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .other[data-drop],
+  .status[data-fill] .part {
+    animation: none;
+  }
+}

@@ -8,8 +8,8 @@ import type { ReactNode } from "react";
 import { SITE, translations } from "@/lib/layout.shared";
 
 const DESCRIPTION: Record<string, string> = {
-  en: "One MCP gateway and per-folder accounts for Claude Code, Codex, Copilot CLI and Cursor CLI.",
-  es: "Un gateway MCP y una cuenta por carpeta para Claude Code, Codex, Copilot CLI y Cursor CLI.",
+  en: "Switch accounts. Keep everything else. The same session continues on your other account, with all its context, its MCP servers already signed in and its browser still logged in.",
+  es: "Cambia de cuenta. Conserva todo lo demás. La misma sesión continúa en tu otra cuenta, con todo su contexto, sus servidores MCP ya con sesión iniciada y su navegador todavía con la sesión abierta.",
 };
 
 export function rootMetadata(lang: string): Metadata {

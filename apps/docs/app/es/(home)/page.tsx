@@ -1,5 +1,5 @@
-import { HomePage } from "@/components/routes/home";
+import { LandingPage } from "@/components/landing/landing";
 
 export default function Page() {
-  return <HomePage lang="es" />;
+  return <LandingPage lang="es" />;
 }

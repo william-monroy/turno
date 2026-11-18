@@ -1,0 +1,17 @@
+{
+  "title": "Documentación",
+  "description": "Primeros pasos, guías y conceptos",
+  "root": true,
+  "pages": [
+    "[Introducción](/es/docs)",
+    "---Primeros pasos---",
+    "...get-started",
+    "---Guías---",
+    "...guides",
+    "---Conceptos---",
+    "...concepts",
+    "---Más---",
+    "comparison",
+    "faq"
+  ]
+}

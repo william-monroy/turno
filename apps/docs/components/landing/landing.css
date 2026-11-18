@@ -1,0 +1,372 @@
+/*
+ * The landing page. Rules of the look, shared with the scenes:
+ * - Paper and ink with hairlines and square corners. Color means account (see global.css).
+ * - Hover is an instant swap of ink and paper: no fade.
+ * - Things appear in steps on a 125 ms beat. Only things that travel get easing.
+ */
+
+.t-site {
+  --ink: var(--color-fd-foreground);
+  --paper: var(--color-fd-background);
+  --dim: var(--color-fd-muted-foreground);
+  --line: var(--color-fd-border);
+  --card: var(--color-fd-card);
+  --beat: 125ms;
+  --gutter: clamp(20px, 4vw, 56px);
+}
+
+.t-wrap {
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+/* Type ------------------------------------------------------------------------------------- */
+
+.t-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.t-h1 {
+  font-size: clamp(44px, 7.4vw, 104px);
+  font-weight: 500;
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+}
+
+.t-h2 {
+  font-size: clamp(32px, 4.2vw, 56px);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.t-lead {
+  font-size: clamp(16px, 1.25vw, 18px);
+  line-height: 1.55;
+  color: var(--dim);
+  max-width: 34em;
+  text-wrap: pretty;
+}
+
+/* The words of a headline that carry the idea. Blue is what stays. */
+.t-mark {
+  color: var(--tone-keep);
+}
+
+/* Hover: ink and paper trade places at once. */
+.t-swap {
+  transition: none;
+}
+.t-swap:hover,
+.t-swap:focus-visible {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* Sections --------------------------------------------------------------------------------- */
+
+.t-section {
+  border-top: 1px solid var(--line);
+  scroll-margin-top: 56px;
+}
+
+/*
+ * On a phone the scene comes right after the headline, before the commands: it is the point of
+ * the section. On wide screens the text is one column and the scene sits beside it.
+ */
+.t-section-grid {
+  display: grid;
+  grid-template-areas: "head" "stage" "more";
+  gap: 32px;
+  padding-block: clamp(56px, 8vw, 112px);
+}
+.t-section-head {
+  grid-area: head;
+}
+.t-section-more {
+  grid-area: more;
+}
+.t-stage {
+  grid-area: stage;
+}
+@media (min-width: 1024px) {
+  .t-section-grid {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    grid-template-areas: "head stage" "more stage";
+    grid-template-rows: auto 1fr;
+    column-gap: clamp(40px, 5vw, 88px);
+    row-gap: 32px;
+    align-items: start;
+  }
+}
+
+/* The frame a scene lives in. A scene fills it and decides its own height. */
+.t-stage {
+  position: relative;
+  border: 1px solid var(--line);
+  background: var(--card);
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+}
+/* On wide screens the scene stays in view while the reader goes through the commands. */
+@media (min-width: 1024px) {
+  .t-stage {
+    position: sticky;
+    top: 88px;
+  }
+}
+.t-stage-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.t-stage-line {
+  border-top: 1px solid var(--line);
+  padding: 10px 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--dim);
+  display: flex;
+  gap: 10px;
+  min-height: 38px;
+  align-items: center;
+}
+.t-stage-line::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  background: var(--tone-keep);
+}
+
+/* Commands --------------------------------------------------------------------------------- */
+
+.t-cmd {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+.t-cmd:hover,
+.t-cmd:focus-visible {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.t-cmd-prompt {
+  flex: none;
+  color: var(--dim);
+  user-select: none;
+}
+.t-cmd-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+}
+.t-cmd-state {
+  flex: none;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.t-cmd:hover .t-cmd-prompt,
+.t-cmd:hover .t-cmd-state,
+.t-cmd:focus-visible .t-cmd-prompt,
+.t-cmd:focus-visible .t-cmd-state {
+  color: inherit;
+  opacity: 0.7;
+}
+
+/* Kit: pills, panels and terminal lines the scenes share ------------------------------------- */
+
+.t-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  background: var(--tone);
+  color: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.t-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.t-pill-quiet {
+  background: var(--tone-soft);
+  color: var(--tone);
+}
+
+.t-panel {
+  position: relative;
+  border: 1px solid var(--tone, var(--line));
+  background: var(--paper);
+}
+.t-panel-label {
+  position: absolute;
+  top: 0;
+  left: 10px;
+  transform: translateY(-50%);
+  padding-inline: 6px;
+  background: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tone, var(--dim));
+  white-space: nowrap;
+}
+
+.t-term-line {
+  display: flex;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+.t-term-prompt {
+  flex: none;
+  color: var(--dim);
+  user-select: none;
+}
+.t-term-out {
+  color: var(--tone, var(--dim));
+}
+
+/* A stepped appearance: one hard cut on the beat, the way a terminal prints. */
+@keyframes t-pop {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.t-pop {
+  animation: t-pop var(--beat) steps(1, end) both;
+}
+
+/* Hero ------------------------------------------------------------------------------------- */
+
+/* The hero owns its whole section: it only gets the height, one screen under the header. */
+.t-hero {
+  position: relative;
+  min-height: calc(100svh - 56px);
+  overflow: hidden;
+}
+
+/* The story under the hero: it carries the thread (chapters/thread.module.css) down its left gutter. */
+.t-story {
+  position: relative;
+  border-top: 1px solid var(--line);
+}
+
+/*
+ * The handover from the hero: where to start. The four problems sit in the text column, so the
+ * thread passes beside them, with hairlines only between them; under them, every chapter in one
+ * line, with the numbers the thread will carry.
+ */
+.t-start {
+  display: grid;
+  gap: 14px;
+  padding-block: clamp(28px, 3.5vw, 44px) clamp(36px, 4.5vw, 56px);
+}
+.t-pains {
+  display: grid;
+  margin-inline: -14px;
+  border-block: 1px solid var(--line);
+}
+@media (min-width: 720px) {
+  .t-pains {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1100px) {
+  .t-pains {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.t-pain {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 14px;
+  font-size: 15px;
+  line-height: 1.35;
+}
+.t-pain + .t-pain {
+  border-top: 1px solid var(--line);
+}
+@media (min-width: 720px) {
+  .t-pain + .t-pain {
+    border-top: 0;
+  }
+  .t-pain:nth-child(even) {
+    border-left: 1px solid var(--line);
+  }
+  .t-pain:nth-child(n + 3) {
+    border-top: 1px solid var(--line);
+  }
+}
+@media (min-width: 1100px) {
+  .t-pain + .t-pain {
+    border-left: 1px solid var(--line);
+  }
+  .t-pain:nth-child(n + 3) {
+    border-top: 0;
+  }
+}
+.t-start > nav:last-child {
+  margin-top: 6px;
+  margin-left: -8px;
+}
+
+.t-foot {
+  display: grid;
+  gap: 28px;
+  padding-block: 32px 40px;
+}
+.t-foot > nav:first-child {
+  margin-left: -8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-pop {
+    animation: none;
+  }
+}
