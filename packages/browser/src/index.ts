@@ -14,7 +14,7 @@ export {
   parseSingletonLock,
   removeIdentity,
 } from "./identities.js";
-export { type BuiltArgv, buildArgv, extractIdentity } from "./argv.js";
+export { type BuiltArgv, type PlaywrightMcpConfig, buildArgv, extractIdentity } from "./argv.js";
 export {
   type BenchOptions,
   type BenchReport,

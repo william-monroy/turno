@@ -16,6 +16,8 @@ export interface BrowserPaths {
   identitiesDir: string;
   /** Bench reports: <state>/bench. */
   benchDir: string;
+  /** Generated files per identity, outside the Chrome profile: <state>/browser/identities. */
+  identityStateDir: string;
 }
 
 export function paths(env: NodeJS.ProcessEnv = process.env): BrowserPaths {
@@ -30,5 +32,6 @@ export function paths(env: NodeJS.ProcessEnv = process.env): BrowserPaths {
     browserDir,
     identitiesDir: join(browserDir, "identities"),
     benchDir: join(state, "bench"),
+    identityStateDir: join(state, "browser", "identities"),
   };
 }
