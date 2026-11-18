@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { dirname, join } from "node:path";
 import { IdentityError, assertIdentityId } from "./ids.js";
 import { paths } from "./paths.js";
+import { parseDuration } from "./units.js";
 
 /**
  * identity.json: what stays fixed for one browser identity, so a site sees the same person in
@@ -20,15 +21,35 @@ import { paths } from "./paths.js";
  * - `region`: the two-letter country the identity's sites know it from. Recorded, not applied.
  * - `health`: a URL and a text or selector that proves the identity is signed in (session
  *   health, `health.ts`).
+ * - `tabs`, `backgroundThrottling` (format 2): how the host runs this identity's Chrome
+ *   (ADR 0048, `tuning.ts`): the tab governor and background tab throttling.
  *
  * A missing file means Chrome's own defaults, as before identity.json existed.
  */
 
 /**
- * The format version of identity.json, in its `version` key: turno's state-file convention
- * (ADR 0045), where a file without `version` is format 1 and a newer one is refused.
+ * The newest format version of identity.json this package reads, in its `version` key: turno's
+ * state-file convention (ADR 0045), where a file without `version` is format 1 and a newer one
+ * is refused. Format 2 adds the browser keys (`FORMAT_2_KEYS`); a file is written as format 2
+ * only when it uses one of them, so an older turno-browser keeps reading every other file and
+ * refuses one it would misread with "update turno-browser".
  */
-export const IDENTITY_FORMAT_VERSION = 1;
+export const IDENTITY_FORMAT_VERSION = 2;
+
+/** The keys format 2 added. */
+const FORMAT_2_KEYS = ["tabs", "backgroundThrottling"] as const;
+
+/** The tab governor (`tuning.ts`): durations are strings like `"5m"`, `"0"` turns a stage off. */
+interface TabSettings {
+  /** Most pages open at once; the least recently used one closes past it. 0: no cap. */
+  max?: number;
+  /** `"close"`: close a popup the agent did not open; `"keep"`: leave it. */
+  popups?: "close" | "keep";
+  /** Unused this long, a page is parked on about:blank (its URL comes back on the next use). */
+  park?: string;
+  /** Unused this long, a page is closed. */
+  close?: string;
+}
 
 export interface HealthCheck {
   /** A page that shows `text` or `selector` only to a signed-in user. */
@@ -45,6 +66,9 @@ export interface IdentitySettings {
   languages?: string[];
   region?: string;
   health?: HealthCheck;
+  tabs?: TabSettings;
+  /** True: let Chrome throttle tabs that are not in front (see `tuning.ts`). */
+  backgroundThrottling?: boolean;
   /** ISO dates. */
   created: string;
   updated: string;
@@ -52,10 +76,33 @@ export interface IdentitySettings {
 
 /** A change to identity.json: a value sets the key, `null` removes it. */
 export type SettingsPatch = {
-  [K in "timezone" | "locale" | "languages" | "region" | "health"]?: IdentitySettings[K] | null;
+  [K in "timezone" | "locale" | "languages" | "region" | "health" | (typeof FORMAT_2_KEYS)[number]]?: IdentitySettings[K] | null;
 };
 
-const KEYS = new Set(["version", "timezone", "locale", "languages", "region", "health", "created", "updated"]);
+const KEYS = new Set(["version", "timezone", "locale", "languages", "region", "health", ...FORMAT_2_KEYS, "created", "updated"]);
+
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+function unknownKeys(v: Record<string, unknown>, allowed: string[], prefix: string, out: string[]): void {
+  for (const k of Object.keys(v)) if (!allowed.includes(k)) out.push(`unknown key "${prefix}.${k}"`);
+}
+
+/** Problems with the format 2 keys, in key order. */
+function browserProblems(v: Record<string, unknown>, out: string[]): void {
+  if (v.tabs !== undefined) {
+    const t = v.tabs;
+    if (!isObject(t)) out.push("tabs must be an object with max, popups, park or close");
+    else {
+      if (t.max !== undefined && (typeof t.max !== "number" || !Number.isInteger(t.max) || t.max < 0 || t.max > 100)) out.push("tabs.max must be a whole number from 0 (no cap) to 100");
+      if (t.popups !== undefined && t.popups !== "close" && t.popups !== "keep") out.push('tabs.popups must be "close" or "keep"');
+      for (const k of ["park", "close"] as const) {
+        if (t[k] !== undefined && (typeof t[k] !== "string" || parseDuration(t[k] as string) === undefined)) out.push(`tabs.${k} must be a duration like "5m" or "0" (off)`);
+      }
+      unknownKeys(t, ["max", "popups", "park", "close"], "tabs", out);
+    }
+  }
+  if (v.backgroundThrottling !== undefined && typeof v.backgroundThrottling !== "boolean") out.push("backgroundThrottling must be true or false");
+}
 
 export function identitySettingsPath(id: string, env: NodeJS.ProcessEnv = process.env): string {
   assertIdentityId(id);
@@ -121,6 +168,7 @@ function problemsOf(raw: unknown): string[] {
       for (const k of Object.keys(h)) if (!["url", "text", "selector"].includes(k)) out.push(`unknown key "health.${k}"`);
     }
   }
+  browserProblems(v, out);
   if (!isoDate(v.created)) out.push("created must be an ISO date");
   if (!isoDate(v.updated)) out.push("updated must be an ISO date");
   for (const k of Object.keys(v)) if (!KEYS.has(k)) out.push(`unknown key "${k}"`);
@@ -170,12 +218,13 @@ export function writeIdentitySettings(id: string, patch: SettingsPatch, env: Nod
   const path = identitySettingsPath(id, env);
   const current = existsSync(path) ? readIdentitySettings(id, env) : undefined;
   const stamp = now.toISOString();
-  const next: Record<string, unknown> = { version: IDENTITY_FORMAT_VERSION, ...current, created: current?.created ?? stamp, updated: stamp };
+  const next: Record<string, unknown> = { ...current, created: current?.created ?? stamp, updated: stamp };
   for (const [key, value] of Object.entries(patch)) {
     if (value === undefined) continue;
     if (value === null) delete next[key];
     else next[key] = value;
   }
+  next.version = FORMAT_2_KEYS.some((k) => next[k] !== undefined) ? 2 : 1;
   if (typeof next.locale === "string") next.locale = canonicalLocale(next.locale) ?? next.locale;
   if (Array.isArray(next.languages)) next.languages = (next.languages as string[]).map((l) => canonicalLocale(l) ?? l);
   if (typeof next.region === "string" && /^[a-z]{2}$/i.test(next.region)) next.region = next.region.toUpperCase();

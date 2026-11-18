@@ -26,6 +26,13 @@ describe("buildArgv", () => {
     expect(b.identity).toBeUndefined();
   });
 
+  it("returns turno's tuning flags apart and never passes them to upstream", () => {
+    const b = buildArgv(["--identity", "school", "--max-tabs", "3", "--headless"], { env: sb.env, makeTempDir: fakeTemp });
+    expect(b.tuning).toEqual({ maxTabs: 3 });
+    expect(b.args).not.toContain("--max-tabs");
+    expect(b.args).toContain("--headless");
+  });
+
   it("uses the identity dir under the data dir", () => {
     const b = buildArgv(["--identity", "school"], { env: sb.env, makeTempDir: fakeTemp });
     const dir = join(sb.home, ".local", "share", "turno", "browser", "identities", "school");

@@ -27,6 +27,21 @@ persistent profile per identity (turno identity add browser:<id>).
                            next call opens it again with the same profile. "0" keeps it open.
                            --idle-timeout <ms> and a --config of your own take precedence.
 
+Tabs (these flags win over the identity's identity.json; see ADR 0048):
+  --max-tabs <n>           most pages open at once, the least recently used closes past it
+                           (default 8; 0: no cap)
+  --popups <close|keep>    close popups that open while no tool call runs (default close)
+  --park-after <duration>  park a page unused this long on about:blank; it loads again on its
+                           next use (default 5m; 0: never)
+  --close-after <duration> close a page unused this long (default 15m; 0: never)
+  --background-throttling  let Chrome slow down tabs that are not in front (default off); the
+                           agent's tab is brought to the front before each call
+
+Examples:
+  turno-browser-mcp --identity work
+  turno-browser-mcp --identity work --max-tabs 4 --park-after 2m
+  turno-browser-mcp --headless --popups keep
+
 Every other flag is a Playwright MCP flag:
 `;
 
@@ -60,4 +75,7 @@ if (built.userDataDir && !help) {
   installShutdownGuard(built.userDataDir);
 }
 
-await runHost(built.args, built.identity !== undefined ? { identity: { id: built.identity, env: process.env } } : {});
+await runHost(built.args, {
+  ...(built.identity !== undefined ? { identity: { id: built.identity, env: process.env } } : {}),
+  ...(built.tuning ? { tuning: built.tuning } : {}),
+});
