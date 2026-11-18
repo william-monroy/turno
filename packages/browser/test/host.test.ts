@@ -302,10 +302,10 @@ describe("idle limit", () => {
 describe("turno tool registry", () => {
   const stock = () => upstream().tools.browserTools;
 
-  it("ships browser_batch, after the stock tools", () => {
-    expect(TURNO_TOOLS.map((t) => t.schema.name)).toEqual(["browser_batch"]);
+  it("ships browser_batch and browser_login, after the stock tools", () => {
+    expect(TURNO_TOOLS.map((t) => t.schema.name)).toEqual(["browser_batch", "browser_login"]);
     const host = createHost({ config: { server: {}, browser: { browserName: "chromium", launchOptions: {} } } as McpConfig, cliOptions: {} });
-    expect(host.listTools().at(-1)?.name).toBe("browser_batch");
+    expect(host.listTools().slice(-2).map((t) => t.name)).toEqual(["browser_batch", "browser_login"]);
   });
 
   it("refuses a turno tool with the name of any upstream tool, a duplicate or a bad name", () => {

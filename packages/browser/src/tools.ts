@@ -1,5 +1,6 @@
-import type { BrowserContext } from "patchright-core";
+import type { BrowserContext, Page } from "patchright-core";
 import { batchTool } from "./batch.js";
+import { type VaultAccess, loginTool } from "./login-tool.js";
 import { type ClientInfo, type McpConfig, type ToolResult, type ToolSchema, type UpstreamTool, type Zod, type ZodObject, upstream } from "./upstream.js";
 
 /**
@@ -29,6 +30,8 @@ export interface StockAccess {
   call(name: string, args: Record<string, unknown>, options: { snapshot: boolean }): Promise<ToolResult>;
   /** URL and title of the current tab, when there is one. */
   page(): Promise<{ url: string; title: string } | undefined>;
+  /** The current tab itself (`browser_login` fills it). */
+  currentPage(): Page | undefined;
 }
 
 interface TurnoToolContext {
@@ -45,6 +48,8 @@ interface TurnoToolContext {
   session?: string;
   /** The session's stock tools; set by the host for a tool with `browser: true`. */
   stock?: StockAccess;
+  /** The identity's vault, its redactor and guard; set by the host when it serves an identity (ADR 0054). */
+  vault?: VaultAccess;
 }
 
 export interface TurnoTool {
@@ -54,8 +59,8 @@ export interface TurnoTool {
   handle(context: TurnoToolContext, params: Record<string, unknown>): Promise<ToolResult>;
 }
 
-/** The tools turno adds to every session (ADR 0051). */
-export const TURNO_TOOLS: readonly TurnoTool[] = [batchTool()];
+/** The tools turno adds to every session (ADRs 0051 and 0054). */
+export const TURNO_TOOLS: readonly TurnoTool[] = [batchTool(), loginTool()];
 
 /** The zod of the bundle, to build a turno tool's `inputSchema` with. */
 export function turnoZod(): Zod {

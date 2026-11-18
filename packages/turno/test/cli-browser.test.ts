@@ -29,6 +29,7 @@ function fakeModule(calls: Calls): BrowserApi {
       return { id, dir: `/x/${id}`, inUse: false };
     },
     removeIdentity: () => undefined,
+    vaultClear: async () => 0,
     isInUse: () => false,
     assertIdentityId: (id: string) => {
       if (!/^[a-z0-9][a-z0-9_-]*$/.test(id)) throw new Error(`invalid identity id "${id}"`);

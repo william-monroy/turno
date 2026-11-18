@@ -169,6 +169,12 @@ Last updated: 2026-11-18.
   `pidAlive` are gone. The shrinkwrap locks the sibling at its exact version without
   integrity, the release plan publishes it first, and its first version is published by hand
   (RELEASING.md, "A new package").
+- **Wave 7, stage 5: credential vault** (ADR 0054): `turno browser vault add|list|remove|submit`
+  keeps a username, a password and a TOTP secret per site of a browser identity in the secret
+  store only, with an index of names and origins; the `browser_login` turno tool fills them on
+  the site's own origins, with every result and error redacted, the script tools refused on
+  the filled page, and no submit unless the identity opts in. TOTP is RFC 6238 on
+  `node:crypto`. turno-browser's API is 1.1.
 - **Export, import and hints** (ADR 0050): `turno mcp export` (mcp.toml with secrets by name
   only) and `turno mcp import <file>` (merges an export or another agent's config, keeping
   comments); `auth = "oauth"` for remotes that answer with an OAuth challenge on `--write`; Codex

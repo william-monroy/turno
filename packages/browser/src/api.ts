@@ -5,6 +5,8 @@ import { addIdentity, identityExists, inUseBy, isInUse, listIdentities, removeId
 import { assertIdentityId, identityDir } from "./ids.js";
 import { loginIdentity } from "./login.js";
 import { reputationReport } from "./reputation.js";
+import { parseTotpSecret } from "./totp.js";
+import { vaultAdd, vaultClear, vaultList, vaultRemove, vaultSetSubmit } from "./vault.js";
 import { checkIdentitySettings, identitySettingsPath, writeIdentitySettings } from "./settings.js";
 import { manifestSnippet } from "./snippet.js";
 
@@ -20,7 +22,7 @@ import { manifestSnippet } from "./snippet.js";
  *
  * `test/api.test.ts` lists the members, so a change here cannot ship without the version.
  */
-export const API_VERSION = Object.freeze({ major: 1, minor: 0 } as const);
+export const API_VERSION = Object.freeze({ major: 1, minor: 1 } as const);
 
 /** What `API_VERSION` looks like to a reader that does not know this package's version. */
 export interface ApiVersion {
@@ -28,7 +30,10 @@ export interface ApiVersion {
   readonly minor: number;
 }
 
-/** The functions turno-cli calls: identities, their settings, login, doctor, reputation and bench. */
+/**
+ * The functions turno-cli calls: identities, their settings, login, doctor, reputation, bench
+ * and (1.1) the credential vault.
+ */
 export const api = Object.freeze({
   ENGINES,
   engineId,
@@ -50,6 +55,12 @@ export const api = Object.freeze({
   reputationReport,
   runBench,
   formatBenchTable,
+  vaultAdd,
+  vaultList,
+  vaultRemove,
+  vaultClear,
+  vaultSetSubmit,
+  parseTotpSecret,
 });
 
 export type BrowserApi = typeof api;

@@ -36,8 +36,12 @@ Usage:
                                      challenges each identity met per site
                                      (captcha, verify it's you, block) and their
                                      trend
+  turno browser vault add|list|remove|submit <id> ...
+                                     credentials browser_login fills without
+                                     showing them to the agent
   turno browser remove <id> [--dry-run]
-                                     delete an identity and its saved logins
+                                     delete an identity, its saved logins and
+                                     its vault
   turno browser login <id> [--url <url>]
                                      open the identity's Chrome to sign in by
                                      hand once
@@ -63,6 +67,7 @@ Examples:
   $ turno browser login school --url https://example.com
   $ turno browser doctor --fix
   $ turno browser reputation school --json
+  $ turno browser vault add school mail --url https://mail.example.com --username alice
   $ turno browser remove school --dry-run
   $ turno browser bench --only-urls --url https://example.com --yes
 ```
@@ -167,12 +172,44 @@ Examples:
   $ turno browser reputation school --json
 ```
 
+### turno browser vault
+
+```text
+Usage:
+  turno browser vault add <identity> <site> --url <sign-in page> [--url
+      <url>]... [--username <name>] [--totp] [--dry-run]
+    store a site's username, password and optional TOTP secret (asked hidden, or
+    on stdin)
+  turno browser vault list <identity> [--json]
+    the sites in an identity's vault (never the values)
+  turno browser vault remove <identity> <site> [--dry-run]
+    delete a site's credentials
+  turno browser vault submit <identity> <confirm|auto> [--dry-run]
+    let browser_login submit the form (auto) or leave the click to the agent
+    (confirm, default)
+
+The vault keeps a username, a password and optionally a TOTP secret per site for one
+browser identity, only in the secret store (the macOS Keychain or the Linux Secret Service).
+The browser_login tool fills them into the site's sign-in page without the agent seeing them,
+and only on the origins given with --url. In a terminal the password and the TOTP secret are
+asked with hidden prompts; from a pipe, the first line of stdin is the password and, with
+--totp, the second line is the TOTP secret (base32, or the otpauth:// URI of the QR code).
+
+Examples:
+  $ turno browser vault add work github --url https://github.com/login --username alice --totp
+  $ printf '%s\n' "$PASSWORD" | turno browser vault add work mail --url https://mail.example.com --username alice@example.com
+  $ turno browser vault list work
+  $ turno browser vault list work --json
+  $ turno browser vault submit work auto
+  $ turno browser vault remove work github --dry-run
+```
+
 ### turno browser remove
 
 ```text
 Usage:
   turno browser remove <id> [--dry-run]
-    delete an identity and its saved logins
+    delete an identity, its saved logins and its vault
 
 Examples:
   $ turno browser remove school --dry-run

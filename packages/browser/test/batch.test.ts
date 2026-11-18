@@ -19,6 +19,7 @@ function fakeStock(answers: Record<string, (args: Record<string, unknown>) => To
       return { content: [{ type: "text", text: `### Ran Playwright code\n\`\`\`js\nawait page.x();\n\`\`\`${snapshot ? "\n### Snapshot\n- big tree" : ""}` }] };
     },
     page: async () => ({ url: "http://127.0.0.1/form", title: "Sign up" }),
+    currentPage: () => undefined,
   };
   return { stock, calls };
 }

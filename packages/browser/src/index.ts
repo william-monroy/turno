@@ -51,6 +51,20 @@ export {
 } from "./bench.js";
 export { CHALLENGE_MARKERS, type ChallengeKind, classifyChallenge, detectChallenge, parseRebrowser, parseSannysoft } from "./detectors.js";
 export { type LoginOptions, loginIdentity } from "./login.js";
+export { type TotpParams, TotpError, parseTotpSecret, totp } from "./totp.js";
+export {
+  type SubmitPolicy,
+  type VaultAddInput,
+  VaultError,
+  type VaultInfo,
+  type VaultSite,
+  vaultAdd,
+  vaultClear,
+  vaultList,
+  vaultPath,
+  vaultRemove,
+  vaultSetSubmit,
+} from "./vault.js";
 export { mcpEntryPath } from "./patchright.js";
 export { browserPaths as paths } from "turno-core/paths";
 

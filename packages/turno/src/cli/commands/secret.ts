@@ -5,6 +5,7 @@ import { JSON_FLAG, bool, flagsOf, parseFlags } from "../args.js";
 import { nextStep } from "../hints.js";
 import { type Command, type Io, fail, needsAnswer, noInputReason } from "../io.js";
 import { answerFields, emit, jsonOutput } from "../output.js";
+import { readHidden, readStdinText, stdinIsTty } from "../secret-input.js";
 
 const USAGE = `Usage:
   turno secret set <service>     read a value from stdin and store it
@@ -23,35 +24,7 @@ Examples:
   $ turno secret list --json`;
 
 async function readStdin(): Promise<string> {
-  if (process.stdin.isTTY) {
-    process.stderr.write("value (input hidden, end with Enter): ");
-    return new Promise((resolve) => {
-      const stdin = process.stdin;
-      let value = "";
-      stdin.setRawMode(true);
-      stdin.resume();
-      stdin.setEncoding("utf8");
-      const onData = (ch: string) => {
-        if (ch === "\r" || ch === "\n" || ch === "\u0004") {
-          stdin.setRawMode(false);
-          stdin.pause();
-          stdin.off("data", onData);
-          process.stderr.write("\n");
-          resolve(value);
-        } else if (ch === "\u0003") {
-          process.exit(130);
-        } else if (ch === "\u007f") {
-          value = value.slice(0, -1);
-        } else {
-          value += ch;
-        }
-      };
-      stdin.on("data", onData);
-    });
-  }
-  const chunks: Buffer[] = [];
-  for await (const c of process.stdin) chunks.push(c as Buffer);
-  return Buffer.concat(chunks).toString("utf8").replace(/\r?\n$/, "");
+  return stdinIsTty() ? readHidden("value (input hidden, end with Enter): ") : readStdinText();
 }
 
 /** The store, with its SecretError turned into a one-line usage error. */
