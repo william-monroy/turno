@@ -3,21 +3,27 @@ title: Releases
 description: What is new in each version of turno.
 ---
 
-One page per version, with what changed and how to use it. Each package's full changelog is on GitHub, and each GitHub release links back here.
+One page per version: what changed, how to use it and what to run when you upgrade. Each package's full changelog is on GitHub, and each GitHub release links back here.
 
-<Cards>
-  <Card title="turno 0.2.0" href="/docs/releases/v0-2-0" description="November 17, 2026. A new look for the CLI, folder server sets, OAuth for remote MCP servers and one-step setup." />
-  <Card title="turno 0.1" href="/docs/releases/v0-1-0" description="November 16, 2026. The first public release: one MCP gateway, profiles for four agents and the status line." />
-</Cards>
+<ReleaseLine>
+<Release latest version="0.2.0" date="2026-11-17" href="/docs/releases/v0-2-0" packages={["turno-cli@0.2.0", "turno-browser@0.2.0"]}>
+
+A new look for the CLI and a gateway that does more with less. **[`turno init`](/docs/get-started/first-five-minutes)** sets everything up in one step, **[server sets](/docs/concepts/folder-rules#server-sets-which-mcp-servers-a-folder-sees)** let each folder see only its MCP servers, the gateway signs in to **[remote servers with OAuth](/docs/concepts/gateway#remote-servers)** once per account, and **[`turno mcp top` and `turno mcp log`](/docs/concepts/gateway#watching-it)** show what it does. After upgrading, run `turno mcp sync` once.
+
+</Release>
+<Release version="0.1" date="2026-11-16" href="/docs/releases/v0-1-0">
+
+The first public release: one MCP gateway for every agent session, profiles for four coding agents and the Claude Code status line.
+
+</Release>
+</ReleaseLine>
 
 ## Upgrade
 
-```sh
-turno upgrade
-```
+<Upgrade />
 
-It recognizes npm, pnpm, bun, yarn and Homebrew installs and runs the matching command. To see the version you have, run `turno version`.
+To see the version you have, run `turno version`; `turno upgrade --check` only asks the registry whether there is a newer one.
 
 ## Versions
 
-turno follows semantic versioning. While it is below 1.0, a minor version (0.3, 0.4) can change behavior, and its page says what changed under "Changed behavior". `turno-cli` and `turno-browser` move together; `turno-core` and `turno-fonts` follow their own numbers.
+turno follows semantic versioning. While it is below 1.0, a minor version (0.3, 0.4) can change behavior, and its page says what changed under "Changed behavior". A patch release has no page of its own: its fixes are in the changelogs. `turno-cli` and `turno-browser` move together; `turno-core` and `turno-fonts` follow their own numbers.
