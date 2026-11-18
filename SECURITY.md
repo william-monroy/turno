@@ -22,6 +22,14 @@ What to expect:
 Fixed issues get a GitHub security advisory and, where it applies, a CVE requested through
 GitHub. Reporters are credited unless they ask not to be.
 
+### Fixes and releases
+
+The changeset of a security fix names the advisory and the CVE, for example "Fix token leak in
+the gateway log (GHSA-xxxx-xxxx-xxxx, CVE-2026-12345)", so the release notes (each package's
+`CHANGELOG.md` and the GitHub release) list every vulnerability that release fixes. A fix for
+a vulnerability that is not public yet ships first and the changelog entry is completed when
+the advisory is published.
+
 **Reports written with AI tools** are welcome if you say so in the report, you have verified the
 finding yourself, and the proof of concept is real. Invented or unverified findings waste the
 maintainer's time; reporters who send them repeatedly are blocked.
