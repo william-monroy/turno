@@ -47,7 +47,27 @@ default = "cx"
 ```
 
 `turno auto --agent codex` in a folder without a Codex rule or default runs plain `codex` and says
-so; before any Codex profile exists it says that too. What happens to processes started outside a
+so; before any Codex profile exists it says that too.
+
+### Codex trust for folder rules
+
+Codex asks whether to trust a folder the first time it starts there, and keeps the answer in the
+`config.toml` of each `CODEX_HOME`, so a new profile asks again for folders you already trusted.
+When a rule gives a folder a Codex profile (`turno profile assign`, or `turno profile repair` for
+rules made earlier), turno writes the answer into that profile's `config.toml`, in Codex's own
+format:
+
+```toml
+[projects."/Users/ana/code/app"]
+trust_level = "trusted"
+```
+
+It writes the folder of the rule, and its real path as well when the rule's path goes through a
+symlink. An entry already there, `trusted` or `untrusted`, is never changed, and `turno undo`
+takes the new ones back. Codex looks up the exact folder it runs in, or the root of its git
+repository (the main repository for a git worktree): a rule on a folder that holds several
+repositories does not trust the repositories inside it, so give each repository its own rule, or
+answer Codex once per repository. What happens to processes started outside a
 launcher, and how to have no default account at all: [accounts.md](accounts.md).
 
 Exhausted marks are per profile (`turno limit set cx --for 3h`). Only Claude Code marks them by

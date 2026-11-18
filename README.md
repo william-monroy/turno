@@ -190,6 +190,7 @@ change, and print the `turno undo <stamp>` that puts them back. `turno mcp impor
 | `turno auto [--agent codex\|copilot\|cursor]` | the profile assigned to the current folder |
 | `turno profile list\|add\|repair\|remove\|which [--check]\|assign\|unassign` | the profiles, and which folders use each; `which --check` exits 0, 3 or 4 for scripts |
 | `turno mcp list\|sync\|config\|import\|install\|refresh\|doctor` | the MCP gateway's servers, and entries for other agents |
+| `turno mcp export [--profile p]`, `turno mcp import <file>` | move servers to another machine, secrets by name only |
 | `turno mcp call <server> [tool]` | list a server's tools or call one through mcpd, as a profile's session here would |
 | `turno mcp login\|logout <server>` | log mcpd in to an OAuth remote server, once per account |
 | `turno mcp log\|top\|savings` | the gateway's tool call log, memory per server, and what it saves |
@@ -217,7 +218,8 @@ are 0 ok, 1 failure, 2 usage, 3 no profile for the folder, 4 not signed in, 5 mc
 (`turno help exit-codes`); `turno profile which --check` answers with them, for example
 `turno profile which --check || turno profile assign . work`. `turno help environment` lists
 every variable turno reads, colors included (`NO_COLOR`, `FORCE_COLOR`, `CLICOLOR`,
-`CLICOLOR_FORCE`, `TERM=dumb`).
+`CLICOLOR_FORCE`, `TERM=dumb`). Commands that write end with a `Next:` line that says what to
+run after them (never under `--json`); `turno config set hints false` turns those lines off.
 
 ### Config
 
