@@ -87,6 +87,26 @@ disabled, and the next step. Playwright waits 500 ms after each action for the w
 wins over it). See
 [ADR 0051](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0051-browser-batch-and-action-errors.md).
 
+## Blocking and the resource cache
+
+Both are off until `identity.json` asks for them, per identity:
+
+```json
+{
+  "version": 2,
+  "block": { "trackers": true, "types": ["image", "font"], "patterns": ["ads.example", "*/promo/*"] },
+  "cache": { "maxSize": "100MB" }
+}
+```
+
+`trackers` blocks a short built-in list of ad and analytics hosts; `types` takes `image`, `media`
+and `font`; a pattern is a host name (with its subdomains) or a URL with `*`. The page itself is
+never blocked. The cache keeps images, fonts, stylesheets and scripts on disk for this identity
+only, as long as their `Cache-Control` allows, and never a response with `Set-Cookie` or a request
+with `Authorization`. Requests still go out through Chrome. Turn the cache on with blocking:
+blocking turns Chrome's own cache off. See
+[ADR 0052](https://github.com/wimo-dev/turno/blob/main/docs/decisions/0052-browser-resource-blocking-and-cache.md).
+
 ## Session health
 
 An optional health check names a page and what it shows only when signed in:

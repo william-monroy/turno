@@ -1,12 +1,14 @@
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { type Server, createServer } from "node:http";
+import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { POPUP_GRACE_MS } from "../src/governor.js";
+import { identityStateDir } from "../src/ids.js";
 import { writeIdentitySettings } from "../src/settings.js";
 import { chromeUnavailable, killSandboxProcesses } from "./helpers/chrome.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -69,9 +71,22 @@ async function call(client: Client, name: string, args: Record<string, unknown> 
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Pages for the tests, on 127.0.0.1. `requested` maps each path and query to when it was asked for. */
-async function site(): Promise<{ url: string; requested: Map<string, number>; close(): Promise<void> }> {
+/** Static files for the resource tests: body, content type and caching headers. */
+const STATIC: Record<string, { body: string; type: string; headers: Record<string, string> }> = {
+  "/static/app.css": { body: "h1 { color: green }", type: "text/css", headers: { "cache-control": "public, max-age=3600" } },
+  "/static/nostore.css": { body: "p { color: red }", type: "text/css", headers: { "cache-control": "no-store" } },
+  "/static/cookie.js": { body: "window.cookieScript = 1;", type: "text/javascript", headers: { "cache-control": "max-age=3600", "set-cookie": "seen=1; Path=/" } },
+  "/static/logo.svg": { body: '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>', type: "image/svg+xml", headers: { "cache-control": "max-age=3600" } },
+  "/promo/ad.js": { body: "window.ad = 1;", type: "text/javascript", headers: { "cache-control": "max-age=3600" } },
+};
+
+/**
+ * Pages for the tests, on 127.0.0.1. `requested` maps each path and query to when it was last
+ * asked for, and `count` to how many times.
+ */
+async function site(): Promise<{ url: string; requested: Map<string, number>; count: Map<string, number>; close(): Promise<void> }> {
   const requested = new Map<string, number>();
+  const count = new Map<string, number>();
   const pages: Record<string, string> = {
     "/plain": "<title>plain</title><p>plain page</p>",
     "/a": "<title>page A</title><h1>Page A</h1>",
@@ -94,6 +109,8 @@ async function site(): Promise<{ url: string; requested: Map<string, number>; cl
       </form><p id="out"></p>`,
     "/api/save": "{}",
     "/later": `<title>before</title><button id="go" onclick="setTimeout(() => { document.title = 'after'; }, 1500)">Go</button>`,
+    "/res": `<title>resources</title><link rel="stylesheet" href="/static/app.css"><link rel="stylesheet" href="/static/nostore.css">
+      <script src="/static/cookie.js"></script><script src="/promo/ad.js"></script><img src="/static/logo.svg" alt="logo"><h1>Resources</h1>`,
     // Timer ticks in the last second, and whether the page was ever hidden, kept in the DOM (a
     // stock tool's evaluate runs in an isolated world).
     "/busy": `<title>busy</title><script>
@@ -109,12 +126,19 @@ async function site(): Promise<{ url: string; requested: Map<string, number>; cl
   };
   const server: Server = createServer((req, res) => {
     requested.set(req.url ?? "/", Date.now());
+    count.set(req.url ?? "/", (count.get(req.url ?? "/") ?? 0) + 1);
+    const file = STATIC[req.url ?? ""];
+    if (file) {
+      res.writeHead(200, { "content-type": file.type, ...file.headers });
+      res.end(file.body);
+      return;
+    }
     res.setHeader("content-type", "text/html; charset=utf-8");
     res.end(pages[new URL(req.url ?? "/", "http://x").pathname] ?? "<title>404</title>");
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const { port } = server.address() as { port: number };
-  return { url: `http://127.0.0.1:${port}`, requested, close: () => new Promise((r) => server.close(() => r())) };
+  return { url: `http://127.0.0.1:${port}`, requested, count, close: () => new Promise((r) => server.close(() => r())) };
 }
 
 describe.skipIf(reason !== undefined)(reason ? `browser tools on real Chrome (skipped: ${reason})` : "browser tools on real Chrome", () => {
@@ -265,6 +289,45 @@ describe.skipIf(reason !== undefined)(reason ? `browser tools on real Chrome (sk
     };
     expect(await after("settle-long", "3s")).toContain("- Page Title: after");
     expect(await after("settle-zero", "0")).toContain("- Page Title: before");
+  }, 90_000);
+
+  it("blocks what identity.json lists and serves cacheable static files from the identity's own disk cache", async () => {
+    const web = await site();
+    onTestFinished(() => web.close());
+    const n = (path: string) => web.count.get(path) ?? 0;
+    writeIdentitySettings("res-a", { block: { types: ["image"], patterns: ["*/promo/*"] }, cache: {} }, sb.env);
+    const load = async (client: Client) => {
+      await call(client, "browser_navigate", { url: `${web.url}/res` });
+      await sleep(500); // the body is stored when the request finishes
+    };
+    let client = await start("res-a");
+    await load(client);
+    await load(client);
+    expect(n("/res")).toBe(2);
+    expect(n("/static/app.css")).toBe(1);
+    expect(n("/static/nostore.css")).toBe(2);
+    expect(n("/static/cookie.js")).toBe(2);
+    expect(n("/static/logo.svg")).toBe(0);
+    expect(n("/promo/ad.js")).toBe(0);
+    // The cached stylesheet still applies.
+    expect(await call(client, "browser_evaluate", { function: "() => getComputedStyle(document.querySelector('h1')).color" })).toContain("rgb(0, 128, 0)");
+
+    // The cache is on disk: a new server for the same identity uses it.
+    await client.close();
+    client = await start("res-a");
+    await load(client);
+    expect(n("/static/app.css")).toBe(1);
+    const dir = join(identityStateDir("res-a", sb.env), "resource-cache");
+    expect(readdirSync(dir).some((f) => f.endsWith(".json"))).toBe(true);
+    expect(statSync(dir).mode & 0o777).toBe(0o700);
+
+    // Never across identities, and nothing blocked without a block setting.
+    writeIdentitySettings("res-b", { cache: {} }, sb.env);
+    const other = await start("res-b");
+    await load(other);
+    expect(n("/static/app.css")).toBe(2);
+    expect(n("/static/logo.svg")).toBe(1);
+    expect(n("/promo/ad.js")).toBe(1);
   }, 90_000);
 
   it("keeps background tabs at full speed by default", async () => {

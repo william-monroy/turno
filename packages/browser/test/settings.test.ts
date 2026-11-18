@@ -137,6 +137,25 @@ describe("reading and checking", () => {
     writeFileSync(identitySettingsPath("odd", sb.env), JSON.stringify({ version: 2, tabs: { size: 3 }, created: T0.toISOString(), updated: T0.toISOString() }));
     expect(checkIdentitySettings("odd", sb.env).problems).toEqual(['unknown key "tabs.size"']);
   });
+
+  it("checks settle, block and cache", () => {
+    expect(() =>
+      writeIdentitySettings(
+        "res",
+        {
+          settle: "11s",
+          block: { trackers: "yes" as unknown as boolean, types: ["script" as "image"], patterns: ["has space"] },
+          cache: { maxSize: "5GBs" },
+        },
+        sb.env,
+      ),
+    ).toThrow(
+      /settle must be a duration from "0" to "10s".*; block\.trackers must be true or false; block\.types must be a list of "image", "media", "font"; block\.patterns must be a list of host names.*; cache\.maxSize must be a size from "1MB" to "10GB"/,
+    );
+    const ok = writeIdentitySettings("res", { settle: "0", block: { trackers: true, types: ["image", "font"], patterns: ["ads.example", "*/promo/*"] }, cache: { maxSize: "200MB" } }, sb.env);
+    expect(ok.version).toBe(2);
+    expect(readIdentitySettings("res", sb.env)?.cache).toEqual({ maxSize: "200MB" });
+  });
 });
 
 describe("addIdentity and removeIdentity", () => {

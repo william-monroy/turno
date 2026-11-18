@@ -285,6 +285,10 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
     expect(bundleSource).toMatch(/getByRef\(ref\) \{\n\s+return this\.locator\(`aria-ref=\$\{ref\}`\);/);
   });
 
+  it("turns Chrome's HTTP cache off while a route intercepts, which is why the resource cache exists (ADR 0052)", () => {
+    expect(bundleSource).toContain('info.session.send("Network.setCacheDisabled", { cacheDisabled: this._page.needsRequestInterception() })');
+  });
+
   it("has no option with the name of a turno flag", () => {
     const help = execFileSync(process.execPath, [bin, "--help"], { env: sb.env, encoding: "utf8" });
     const upstreamPart = help.slice(help.indexOf("Every other flag is a Playwright MCP flag:"));

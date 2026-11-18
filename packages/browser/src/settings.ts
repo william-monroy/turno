@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { dirname, join } from "node:path";
 import { IdentityError, assertIdentityId } from "./ids.js";
 import { paths } from "./paths.js";
-import { parseDuration } from "./units.js";
+import { parseDuration, parseSize } from "./units.js";
 
 /**
  * identity.json: what stays fixed for one browser identity, so a site sees the same person in
@@ -21,7 +21,8 @@ import { parseDuration } from "./units.js";
  * - `region`: the two-letter country the identity's sites know it from. Recorded, not applied.
  * - `health`: a URL and a text or selector that proves the identity is signed in (session
  *   health, `health.ts`).
- * - `tabs`, `backgroundThrottling`, `settle` (format 2): how the host runs this identity's Chrome
+ * - `tabs`, `backgroundThrottling`, `settle`, `block`, `cache` (format 2): how the host runs this
+ *   identity's Chrome
  *   (ADR 0048, `tuning.ts`): the tab governor and background tab throttling.
  *
  * A missing file means Chrome's own defaults, as before identity.json existed.
@@ -37,7 +38,29 @@ import { parseDuration } from "./units.js";
 export const IDENTITY_FORMAT_VERSION = 2;
 
 /** The keys format 2 added. */
-const FORMAT_2_KEYS = ["tabs", "backgroundThrottling", "settle"] as const;
+const FORMAT_2_KEYS = ["tabs", "backgroundThrottling", "settle", "block", "cache"] as const;
+
+/** Resource types `block.types` may name: the heavy ones a page usually works without. */
+const BLOCKABLE_TYPES = ["image", "media", "font"] as const;
+type BlockableType = (typeof BLOCKABLE_TYPES)[number];
+
+/** Opt-in resource blocking (`resources.ts`, ADR 0052). */
+interface BlockSettings {
+  /** The built-in list of ad and tracker hosts. */
+  trackers?: boolean;
+  types?: BlockableType[];
+  /** Host names (with their subdomains) or URL globs (`*` matches anything). */
+  patterns?: string[];
+}
+
+/** Opt-in on-disk resource cache (`resources.ts`, ADR 0052). */
+interface CacheSettings {
+  /** Size cap, like `"100MB"` (default 100MB). */
+  maxSize?: string;
+}
+
+/** Largest cache accepted. */
+const MAX_CACHE_BYTES = 10 * 1024 ** 3;
 
 /** Longest `settle` accepted: past this, a wait is a `browser_wait_for`, not a settle. */
 const MAX_SETTLE_MS = 10_000;
@@ -74,6 +97,8 @@ export interface IdentitySettings {
   backgroundThrottling?: boolean;
   /** Wait after each action for the work it started, like `"250ms"` (Playwright's `timeouts.settle`). */
   settle?: string;
+  block?: BlockSettings;
+  cache?: CacheSettings;
   /** ISO dates. */
   created: string;
   updated: string;
@@ -110,6 +135,31 @@ function browserProblems(v: Record<string, unknown>, out: string[]): void {
   if (v.settle !== undefined) {
     const ms = typeof v.settle === "string" ? parseDuration(v.settle) : undefined;
     if (ms === undefined || ms > MAX_SETTLE_MS) out.push('settle must be a duration from "0" to "10s", like "250ms"');
+  }
+  if (v.block !== undefined) {
+    const b = v.block;
+    if (!isObject(b)) out.push("block must be an object with trackers, types or patterns");
+    else {
+      if (b.trackers !== undefined && typeof b.trackers !== "boolean") out.push("block.trackers must be true or false");
+      if (b.types !== undefined && (!Array.isArray(b.types) || b.types.some((t) => !(BLOCKABLE_TYPES as readonly unknown[]).includes(t)))) {
+        out.push(`block.types must be a list of ${BLOCKABLE_TYPES.map((t) => `"${t}"`).join(", ")}`);
+      }
+      if (b.patterns !== undefined && (!Array.isArray(b.patterns) || b.patterns.length > 500 || b.patterns.some((p) => typeof p !== "string" || !p.trim() || /\s/.test(p)))) {
+        out.push("block.patterns must be a list of host names or URL patterns without spaces (at most 500)");
+      }
+      unknownKeys(b, ["trackers", "types", "patterns"], "block", out);
+    }
+  }
+  if (v.cache !== undefined) {
+    const c = v.cache;
+    if (!isObject(c)) out.push('cache must be an object, like {} or { "maxSize": "100MB" }');
+    else {
+      if (c.maxSize !== undefined) {
+        const bytes = typeof c.maxSize === "string" ? parseSize(c.maxSize) : undefined;
+        if (bytes === undefined || bytes < 1024 ** 2 || bytes > MAX_CACHE_BYTES) out.push('cache.maxSize must be a size from "1MB" to "10GB", like "100MB"');
+      }
+      unknownKeys(c, ["maxSize"], "cache", out);
+    }
   }
 }
 
