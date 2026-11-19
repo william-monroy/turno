@@ -53,8 +53,13 @@ export const HUMANIZED_TOOLS: ReadonlySet<string> = new Set([
   "browser_mouse_wheel",
 ]);
 
-/** How long the steps before an action wait for its element: past it, Playwright's own call runs. */
-const PREPARE_TIMEOUT_MS = 1000;
+/**
+ * How long the steps before an action wait for its element: past it, Playwright's own call runs
+ * (a plain fill or click, without the human-like path). 1 second was too short on a busy machine,
+ * where reading the field or aiming at it can take longer and the action quietly lost its
+ * humanize; the wait only runs out when the element is missing, so a longer one costs little.
+ */
+const PREPARE_TIMEOUT_MS = 3000;
 
 /** A scroll longer than this is a jump (a person drags the scroll bar or presses End). */
 const MAX_WHEEL_PX = 3000;
