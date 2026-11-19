@@ -633,6 +633,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     governor.beginCall();
     let result: ToolResult;
     try {
+      await governor.quiet();
       const pending = await this.beforeStock(running, session, name, args, backendContext(backend)?.currentTab()?.page);
       await governor.prepare(name, args);
       if (tuning.backgroundThrottling && !launched.userBrowser && name !== "browser_tabs")
@@ -677,6 +678,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     let result: ToolResult;
     let restore: (() => void) | undefined;
     try {
+      await governor.quiet();
       view = await sharing.view(key);
       const { backend, config } = view;
       const refused = name === "browser_close" ? undefined : await sharing.before(key, name, args, view, signal);
