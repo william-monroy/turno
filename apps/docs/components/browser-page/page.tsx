@@ -5,6 +5,8 @@ import { CopyCommand } from "../landing/kit";
 import { localePath } from "@/lib/layout.shared";
 import { BrowserChapters } from "./chapters";
 import { browserCopy, CMD, type Path } from "./copy";
+import { CopyPrompt } from "./copy-prompt";
+import { Included, OptIns } from "./features";
 import { HeroPicture } from "./pictures/hero";
 import s from "./page.module.css";
 
@@ -32,12 +34,23 @@ export function BrowserPage({ lang: given }: { lang: string }) {
             <p className="t-lead">{t.hero.lead}</p>
             <div className={s.heroActions}>
               <CopyCommand run={CMD.install} {...labels} />
+              <CopyPrompt {...t.hero.prompt} />
               <Link href={localePath(lang, t.chapters.identities.more.href)} className={s.link}>
                 {t.hero.docs} <span aria-hidden>→</span>
               </Link>
             </div>
           </div>
           <HeroPicture lang={lang} />
+        </div>
+        <div className={`t-wrap ${s.factsWrap}`}>
+          <ul className={s.facts}>
+            {t.facts.map((fact) => (
+              <li key={fact.title} className={s.fact}>
+                <span className={s.factTitle}>{fact.title}</span>
+                <span className={s.factText}>{fact.text}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
@@ -57,26 +70,24 @@ export function BrowserPage({ lang: given }: { lang: string }) {
 
       <BrowserChapters lang={lang} />
 
-      <section id="more" className={`t-section ${s.section}`} aria-labelledby="more-title">
+      <section id="included" className={`t-section ${s.section}`} aria-labelledby="included-title">
         <div className="t-wrap">
-          <p className="t-label">{t.more.label}</p>
-          <h2 id="more-title" className={`t-h2 ${s.h2}`}>
-            <Marked parts={t.more.headline} />
+          <p className="t-label">{t.included.label}</p>
+          <h2 id="included-title" className={`t-h2 ${s.h2}`}>
+            <Marked parts={t.included.headline} />
           </h2>
-          <div className={s.cards}>
-            {t.more.cards.map((card) => (
-              <article key={card.run} className={s.card}>
-                <h3 className={s.cardTitle}>{card.title}</h3>
-                <p className={s.cardText}>{card.text}</p>
-                <div className={s.cardFoot}>
-                  <CopyCommand run={card.run} {...labels} />
-                  <Link href={localePath(lang, card.more.href)} className={s.link}>
-                    {card.more.text} <span aria-hidden>→</span>
-                  </Link>
-                </div>
-              </article>
-            ))}
-          </div>
+          <Included t={t} lang={lang} labels={labels} />
+        </div>
+      </section>
+
+      <section id="opt-in" className={`t-section ${s.section}`} aria-labelledby="opt-in-title">
+        <div className="t-wrap">
+          <p className="t-label">{t.optIn.label}</p>
+          <h2 id="opt-in-title" className={`t-h2 ${s.h2}`}>
+            <Marked parts={t.optIn.headline} />
+          </h2>
+          <p className={`t-lead ${s.lead}`}>{t.optIn.lead}</p>
+          <OptIns t={t} lang={lang} labels={labels} />
         </div>
       </section>
 
@@ -146,6 +157,7 @@ export function BrowserPage({ lang: given }: { lang: string }) {
           <p className="t-lead">{t.start.text}</p>
           <div className={s.heroActions}>
             <CopyCommand run={CMD.install} {...labels} />
+            <CopyPrompt {...t.hero.prompt} />
             <Link href={localePath(lang, t.chapters.identities.more.href)} className={s.link}>
               {t.start.docs} <span aria-hidden>→</span>
             </Link>

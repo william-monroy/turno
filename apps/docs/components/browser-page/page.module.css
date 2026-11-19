@@ -47,6 +47,8 @@
 .heroActions > button {
   width: auto;
   max-width: 100%;
+}
+.heroActions > button:first-child {
   min-width: min(100%, 340px);
 }
 
@@ -109,46 +111,126 @@
   margin-block: 18px 22px;
 }
 
-/* What else comes with it: four cards that share their hairlines. */
-.cards {
-  display: grid;
-  margin-top: clamp(28px, 4vw, 48px);
-  border: 1px solid var(--line);
+/* The prompt for a coding agent: a second way to install, beside the command. */
+.prompt {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--tone-keep);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink);
+  cursor: pointer;
 }
-.card {
+.promptMark {
+  color: var(--tone-keep);
+}
+.prompt:hover .promptMark,
+.prompt:focus-visible .promptMark {
+  color: inherit;
+}
+
+/* Four plain facts under the hero. */
+.factsWrap {
+  padding-bottom: clamp(28px, 4vw, 48px);
+}
+.facts {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+.fact {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-  padding: clamp(20px, 2.4vw, 32px);
+  gap: 2px;
+  padding: 14px 16px;
 }
-.card + .card {
+.fact + .fact {
   border-top: 1px solid var(--line);
 }
-@media (min-width: 860px) {
-  .cards {
+@media (min-width: 640px) {
+  .facts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .card:nth-child(2) {
+  .fact + .fact {
     border-top: 0;
   }
-  .card:nth-child(even) {
+  .fact:nth-child(even) {
+    border-left: 1px solid var(--line);
+  }
+  .fact:nth-child(n + 3) {
+    border-top: 1px solid var(--line);
+  }
+}
+@media (min-width: 1100px) {
+  .facts {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .fact:nth-child(n + 3) {
+    border-top: 0;
+  }
+  .fact + .fact {
     border-left: 1px solid var(--line);
   }
 }
+.factTitle {
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+.factText {
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--dim);
+}
+
+/* The small tag on every feature: on from the start, or off until turned on. */
+.tag {
+  flex: none;
+  padding: 1px 7px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.tag[data-kind="on"] {
+  border: 1px solid var(--line);
+  color: var(--dim);
+}
+.tag[data-kind="opt"] {
+  border: 1px dashed var(--tone-keep);
+  color: var(--tone-keep);
+}
+
 .cardTitle {
-  font-size: clamp(20px, 1.8vw, 24px);
+  font-size: clamp(19px, 1.6vw, 22px);
   font-weight: 500;
   line-height: 1.15;
   letter-spacing: -0.02em;
   text-wrap: balance;
 }
 .cardText {
-  max-width: 34em;
-  font-size: 15px;
+  max-width: 36em;
+  font-size: 14.5px;
   line-height: 1.55;
   color: var(--dim);
   text-wrap: pretty;
+}
+.cardText code,
+.stepNote code {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  color: var(--ink);
 }
 .cardFoot {
   display: flex;
@@ -157,6 +239,102 @@
   gap: 12px;
   margin-top: auto;
   padding-top: 10px;
+}
+.cardFoot > button {
+  font-size: 12px;
+}
+.tool {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink);
+}
+.tool > span {
+  color: var(--dim);
+}
+.itemHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* On from the start: six things in a quiet grid that shares its hairlines. */
+.included {
+  display: grid;
+  margin-top: clamp(28px, 4vw, 48px);
+  border: 1px solid var(--line);
+}
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: clamp(18px, 2vw, 26px);
+  border-top: 1px solid var(--line);
+  margin-top: -1px;
+}
+.itemTitle {
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+@media (min-width: 720px) {
+  .included {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .item {
+    border-left: 1px solid var(--line);
+    margin-left: -1px;
+  }
+}
+@media (min-width: 1100px) {
+  .included {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* The opt-in features: a picture each, in a grid where the first two are wider. */
+.optIns {
+  display: grid;
+  gap: 16px;
+  margin-top: clamp(28px, 4vw, 48px);
+}
+.optIn {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+.optIn:hover {
+  border-color: var(--dim);
+}
+.optInBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  padding: clamp(18px, 2vw, 24px);
+}
+@media (min-width: 720px) {
+  .optIns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1100px) {
+  .optIns {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .optIn {
+    grid-column: span 2;
+  }
+  /* The two a developer asks about first get half the row each. */
+  .optIn[data-id="live"],
+  .optIn[data-id="sharing"] {
+    grid-column: span 3;
+  }
 }
 
 /* Where it sits: the text beside a stack of four layers. */

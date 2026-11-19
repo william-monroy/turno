@@ -22,6 +22,18 @@ export const CMD = {
   replay: "turno-browser replay school sign-in",
   live: "turno-browser live school",
   setup: "turno-browser setup claude-code --identity school",
+  doSnapshot: "turno-browser do school snapshot",
+  doctor: "turno-browser doctor",
+  act: "turno-browser set school --act",
+  captcha:
+    "turno-browser set school --captcha-provider task-api --captcha-endpoint https://solver.example.com --captcha-key keychain:captcha-solver",
+  humanize: "turno-browser set school --humanize light",
+  readMode: "turno-browser set school --engine lightpanda",
+  attach: "turno-browser set school --attach auto",
+  camoufox: "turno-browser set school --engine camoufox",
+  record: "turno-browser record school --flows --traces --screenshots",
+  userAgent: "turno-browser set school --user-agent coherent",
+  lighter: "turno-browser set school --block-trackers true --block-types image,media --cache",
   withTurnoInstall: "npm install --global turno-cli turno-browser",
   withTurnoAdd: "turno identity add browser:school",
 } as const;
@@ -49,6 +61,12 @@ export const PRINTS = {
   notSubmitted: "Nothing was submitted: click the sign-in button yourself (it is in the snapshot below).",
 } as const;
 
+/** What the reader pastes into a coding agent so it sets turno-browser up for them. */
+const PROMPT = {
+  en: "Set up turno-browser for me. Run `npm install --global turno-browser`. Ask me what to call the identity, then run `turno-browser add <name>` and tell me to run `turno-browser login <name>` myself, because I sign in by hand. When I am done, run `turno-browser setup <agent> --identity <name>` with your own agent name (for example claude-code) and add the config it prints. The docs are at https://turno.wimo.dev/llms.txt.",
+  es: "Configura turno-browser por mí. Corre `npm install --global turno-browser`. Pregúntame cómo llamar a la identidad, luego corre `turno-browser add <nombre>` y dime que corra yo mismo `turno-browser login <nombre>`, porque inicio sesión a mano. Cuando termine, corre `turno-browser setup <agente> --identity <nombre>` con el nombre de tu agente (por ejemplo claude-code) y agrega la configuración que imprime. La documentación está en https://turno.wimo.dev/llms.txt.",
+} as const;
+
 export const CHAPTER_IDS = ["identities", "tabs", "vault"] as const;
 export type ChapterId = (typeof CHAPTER_IDS)[number];
 
@@ -57,11 +75,21 @@ export interface BrowserChapter extends SectionCopy {
   commands: ChapterCommand[];
 }
 
-export interface Card {
+/** The pictures of the opt-in features, by id. */
+export const OPT_IN_IDS = ["live", "sharing", "act", "captcha", "humanize", "read", "attach", "camoufox", "record", "network", "lighter"] as const;
+export type OptInId = (typeof OPT_IN_IDS)[number];
+
+export interface Feature {
   title: string;
   text: string;
   run: string;
   more: { text: string; href: string };
+}
+
+export interface OptIn extends Feature {
+  id: OptInId;
+  /** The few words the feature's picture shows, when it shows any. */
+  words?: string[];
 }
 
 export interface Path {
@@ -80,6 +108,10 @@ export interface BrowserCopy {
     lead: string;
     docs: string;
     figure: string;
+    /** A prompt the reader pastes into their coding agent, and the button that copies it. */
+    prompt: { label: string; copied: string; text: string };
+    /** The second site of the hero's picture, and its page. */
+    later: string;
   };
   pains: { title: string; items: { text: string; to: ChapterId }[] };
   chapters: Record<ChapterId, BrowserChapter>;
@@ -128,7 +160,11 @@ export interface BrowserCopy {
       notPart: string;
     };
   };
-  more: { label: string; headline: Headline; cards: Card[] };
+  /** The words of the two small tags: on from the start, and off until turned on. */
+  tags: { on: string; optIn: string };
+  facts: { title: string; text: string }[];
+  included: { label: string; headline: Headline; items: Feature[] };
+  optIn: { label: string; headline: Headline; lead: string; items: OptIn[] };
   layers: {
     label: string;
     headline: Headline;
@@ -153,6 +189,12 @@ const en: BrowserCopy = {
     lead: "An MCP server for Claude Code, Codex, Copilot CLI and Cursor CLI. It drives the Google Chrome you already have, with one persistent profile per identity.",
     docs: "Read the docs",
     figure: "A Chrome window of the identity school: signed in, with two pages running and three parked, and a password field whose value is hidden.",
+    prompt: {
+      label: "Copy a prompt for your agent",
+      copied: "Copied. Paste it into your agent.",
+      text: PROMPT.en,
+    },
+    later: "library.example.org",
   },
   pains: {
     title: "Start from your problem",
@@ -251,21 +293,28 @@ const en: BrowserCopy = {
       notPart: "The model is not part of this step.",
     },
   },
-  more: {
-    label: "also in the box",
-    headline: ["What else comes ", "with it", "."],
-    cards: [
+  tags: { on: "on", optIn: "opt in" },
+  facts: [
+    { title: "On your machine", text: "No cloud browser and no bill per hour." },
+    { title: "The Chrome you have", text: "Headed, with a real profile per identity." },
+    { title: "No account, no API key", text: "Install it and it works." },
+    { title: "Free and open source", text: "Apache-2.0." },
+  ],
+  included: {
+    label: "on from the start",
+    headline: ["Already ", "working", " when you install it."],
+    items: [
       {
-        title: "Take a signed-in session to another machine",
-        text: "Cookies, localStorage and IndexedDB in one file, encrypted with a passphrase you type. It expires, and it never holds vault credentials.",
-        run: CMD.export,
-        more: { text: "Moving a session", href: `${DOCS}#moving-a-session` },
+        title: "Many actions, one call",
+        text: "`browser_batch` runs up to 20 actions in one call, stops at the first one that fails and returns one line per action.",
+        run: "browser_batch",
+        more: { text: "Actions", href: `${DOCS}#actions` },
       },
       {
-        title: "Several agents, one browser",
-        text: "Several agent sessions use one identity's Chrome at once, each in its own tabs. Off until you turn it on.",
-        run: CMD.sharing,
-        more: { text: "Sharing a browser", href: `${DOCS}#several-agents-one-browser` },
+        title: "Errors that name what is in the way",
+        text: "A click that fails says which element covers the target, or that the target is hidden or disabled, and what to try next.",
+        run: "browser_click",
+        more: { text: "Actions", href: `${DOCS}#actions` },
       },
       {
         title: "Record once, replay later",
@@ -274,10 +323,110 @@ const en: BrowserCopy = {
         more: { text: "Flows", href: `${DOCS}#flows-record-and-replay` },
       },
       {
-        title: "Watch, and take the controls",
-        text: "See what the agent does in the browser, pause it, and take over when a page needs you.",
+        title: "Take a signed-in session to another machine",
+        text: "Cookies, localStorage and IndexedDB in one file, encrypted with a passphrase you type. It expires, and it never holds vault credentials.",
+        run: CMD.export,
+        more: { text: "Moving a session", href: `${DOCS}#moving-a-session` },
+      },
+      {
+        title: "Drive it from a shell",
+        text: "`turno-browser do` runs one tool call from your terminal: open a page, read its tree, click a ref.",
+        run: CMD.doSnapshot,
+        more: { text: "From the shell", href: `${DOCS}#from-the-shell` },
+      },
+      {
+        title: "A doctor and a reputation log",
+        text: "`doctor` checks Chrome and every identity, with a fix for each problem. The log counts the captchas and \"verify it's you\" pages each identity met, per site.",
+        run: CMD.doctor,
+        more: { text: "Doctor", href: `${DOCS}#doctor` },
+      },
+    ],
+  },
+  optIn: {
+    label: "opt in",
+    headline: ["Off by default. ", "On when you say so", "."],
+    lead: "Each of these is a setting of an identity. Nothing below runs until you turn it on, and each one turns off the same way.",
+    items: [
+      {
+        id: "live",
+        title: "Watch it work, and take the controls",
+        text: "A live view of the agent's tab in your own browser. Pause, and your clicks and keys go to that tab. Resume, and the agent is told what changed.",
         run: CMD.live,
         more: { text: "Live view", href: `${DOCS}#live-view-and-take-over` },
+        words: ["follow the agent", "pause", "resume"],
+      },
+      {
+        id: "sharing",
+        title: "Several agents, one browser",
+        text: "Several agent sessions use one identity's Chrome at once. Each works in its own tabs, never in a tab another session holds.",
+        run: CMD.sharing,
+        more: { text: "Sharing a browser", href: `${DOCS}#several-agents-one-browser` },
+        words: ["session"],
+      },
+      {
+        id: "act",
+        title: "Actions in plain words",
+        text: "`browser_act` carries out a short instruction on the current tab, `browser_extract` reads data off the page as JSON, and `browser_observe` proposes the calls without running them. The model is yours to pick.",
+        run: CMD.act,
+        more: { text: "Natural language actions", href: `${DOCS}#natural-language-actions` },
+        words: ["accept the cookie banner, then open the second result"],
+      },
+      {
+        id: "captcha",
+        title: "Captcha solving",
+        text: "`browser_solve_captcha` finds a reCAPTCHA v2, hCaptcha or Turnstile widget, sends its public site key and the page address to a solver service you configure, and puts the token back in the page.",
+        run: CMD.captcha,
+        more: { text: "Captcha solving", href: `${DOCS}#captcha-solving` },
+        words: ["your solver", "token"],
+      },
+      {
+        id: "humanize",
+        title: "Human-like input",
+        text: "The pointer travels a curve to a point inside the target, the button stays down for a moment and text is typed key by key. Three levels: light, full and adaptive.",
+        run: CMD.humanize,
+        more: { text: "Human-like input", href: `${DOCS}#human-like-input` },
+      },
+      {
+        id: "read",
+        title: "Read mode",
+        text: "Runs the identity on Lightpanda, a headless browser that builds the page without laying it out or drawing it: for reading pages fast and with little memory.",
+        run: CMD.readMode,
+        more: { text: "Read mode", href: `${DOCS}#read-mode-lightpanda` },
+      },
+      {
+        id: "attach",
+        title: "Attach to your own Chrome",
+        text: "Connects to the Chrome you already have open instead of launching one, so the agent works in your real, signed-in browser. Chrome asks you to allow each connection.",
+        run: CMD.attach,
+        more: { text: "Attach", href: `${DOCS}#attach-to-your-chrome` },
+      },
+      {
+        id: "camoufox",
+        title: "Camoufox",
+        text: "Runs an identity on Camoufox, a Firefox build that sets what the browser reports inside the browser itself, on its own profile. You install it and keep it up to date.",
+        run: CMD.camoufox,
+        more: { text: "Camoufox", href: `${DOCS}#camoufox` },
+      },
+      {
+        id: "record",
+        title: "Recordings and traces",
+        text: "Every session's actions saved as a flow, a Playwright trace with DOM snapshots, network and a screencast, and a screenshot after each action.",
+        run: CMD.record,
+        more: { text: "Recordings and traces", href: `${DOCS}#recordings-and-traces` },
+      },
+      {
+        id: "network",
+        title: "A proxy and a coherent user agent",
+        text: "Sends an identity through an HTTP or SOCKS proxy, with its password in the system keychain, and builds the user agent from the Chrome you have installed, never from a typed string.",
+        run: CMD.userAgent,
+        more: { text: "Network and user agent", href: `${DOCS}#network-and-user-agent` },
+      },
+      {
+        id: "lighter",
+        title: "Lighter pages",
+        text: "Blocks the trackers, images, media or fonts you name, and keeps images, fonts, stylesheets and scripts on disk for that identity only.",
+        run: CMD.lighter,
+        more: { text: "Blocking and the cache", href: `${DOCS}#blocking-and-the-resource-cache` },
       },
     ],
   },
@@ -339,6 +488,12 @@ const es: BrowserCopy = {
     lead: "Un servidor MCP para Claude Code, Codex, Copilot CLI y Cursor CLI. Maneja el Google Chrome que ya tienes, con un perfil persistente por identidad.",
     docs: "Leer la documentación",
     figure: "Una ventana de Chrome de la identidad school: con sesión iniciada, dos páginas activas y tres en pausa, y un campo de contraseña con el valor oculto.",
+    prompt: {
+      label: "Copiar una instrucción para tu agente",
+      copied: "Copiado. Pégalo en tu agente.",
+      text: PROMPT.es,
+    },
+    later: "library.example.org",
   },
   pains: {
     title: "Empieza por tu problema",
@@ -437,21 +592,28 @@ const es: BrowserCopy = {
       notPart: "El modelo no participa en este paso.",
     },
   },
-  more: {
-    label: "también incluye",
-    headline: ["Lo demás que ", "trae", "."],
-    cards: [
+  tags: { on: "activo", optIn: "opcional" },
+  facts: [
+    { title: "En tu máquina", text: "Sin navegador en la nube ni cobro por hora." },
+    { title: "El Chrome que ya tienes", text: "Con ventana, y un perfil real por identidad." },
+    { title: "Sin cuenta ni API key", text: "Lo instalas y funciona." },
+    { title: "Gratis y de código abierto", text: "Apache-2.0." },
+  ],
+  included: {
+    label: "activo desde el inicio",
+    headline: ["Ya ", "funciona", " cuando lo instalas."],
+    items: [
       {
-        title: "Lleva una sesión iniciada a otra máquina",
-        text: "Cookies, localStorage e IndexedDB en un archivo cifrado con una frase que tú escribes. Caduca, y nunca lleva las credenciales de la bóveda.",
-        run: CMD.export,
-        more: { text: "Mover una sesión", href: `${DOCS}#moving-a-session` },
+        title: "Muchas acciones, una llamada",
+        text: "`browser_batch` corre hasta 20 acciones en una llamada, se detiene en la primera que falla y devuelve una línea por acción.",
+        run: "browser_batch",
+        more: { text: "Acciones", href: `${DOCS}#actions` },
       },
       {
-        title: "Varios agentes, un navegador",
-        text: "Varias sesiones de agentes usan a la vez el Chrome de una identidad, cada una en sus propias pestañas. Viene apagado hasta que lo actives.",
-        run: CMD.sharing,
-        more: { text: "Compartir un navegador", href: `${DOCS}#several-agents-one-browser` },
+        title: "Errores que dicen qué estorba",
+        text: "Un clic que falla dice qué elemento tapa el objetivo, o que el objetivo está oculto o deshabilitado, y qué intentar después.",
+        run: "browser_click",
+        more: { text: "Acciones", href: `${DOCS}#actions` },
       },
       {
         title: "Graba una vez, repite después",
@@ -460,10 +622,110 @@ const es: BrowserCopy = {
         more: { text: "Flujos", href: `${DOCS}#flows-record-and-replay` },
       },
       {
-        title: "Mira, y toma el control",
-        text: "Ve lo que hace el agente en el navegador, ponlo en pausa y toma el control cuando una página te necesite.",
+        title: "Lleva una sesión iniciada a otra máquina",
+        text: "Cookies, localStorage e IndexedDB en un archivo cifrado con una frase que tú escribes. Caduca, y nunca lleva las credenciales de la bóveda.",
+        run: CMD.export,
+        more: { text: "Mover una sesión", href: `${DOCS}#moving-a-session` },
+      },
+      {
+        title: "Manéjalo desde la terminal",
+        text: "`turno-browser do` corre una llamada de herramienta desde tu terminal: abre una página, lee su árbol, haz clic en una referencia.",
+        run: CMD.doSnapshot,
+        more: { text: "Desde la terminal", href: `${DOCS}#from-the-shell` },
+      },
+      {
+        title: "Un diagnóstico y un registro de reputación",
+        text: "`doctor` revisa Chrome y cada identidad, con un arreglo para cada problema. El registro cuenta los captchas y las páginas de \"verifica que eres tú\" que encontró cada identidad, por sitio.",
+        run: CMD.doctor,
+        more: { text: "Diagnóstico", href: `${DOCS}#doctor` },
+      },
+    ],
+  },
+  optIn: {
+    label: "opcional",
+    headline: ["Apagado por defecto. ", "Encendido cuando tú digas", "."],
+    lead: "Cada una es un ajuste de una identidad. Nada de esto corre hasta que lo enciendes, y se apaga de la misma forma.",
+    items: [
+      {
+        id: "live",
+        title: "Míralo trabajar, y toma el control",
+        text: "Una vista en vivo de la pestaña del agente en tu propio navegador. Pausa, y tus clics y teclas van a esa pestaña. Reanuda, y al agente se le dice qué cambió.",
         run: CMD.live,
         more: { text: "Vista en vivo", href: `${DOCS}#live-view-and-take-over` },
+        words: ["seguir al agente", "pausar", "reanudar"],
+      },
+      {
+        id: "sharing",
+        title: "Varios agentes, un navegador",
+        text: "Varias sesiones de agentes usan a la vez el Chrome de una identidad. Cada una trabaja en sus propias pestañas, nunca en una que tiene otra sesión.",
+        run: CMD.sharing,
+        more: { text: "Compartir un navegador", href: `${DOCS}#several-agents-one-browser` },
+        words: ["sesión"],
+      },
+      {
+        id: "act",
+        title: "Acciones en lenguaje natural",
+        text: "`browser_act` ejecuta una instrucción corta en la pestaña actual, `browser_extract` lee datos de la página como JSON y `browser_observe` propone las llamadas sin correrlas. El modelo lo eliges tú.",
+        run: CMD.act,
+        more: { text: "Acciones en lenguaje natural", href: `${DOCS}#natural-language-actions` },
+        words: ["acepta el aviso de cookies y abre el segundo resultado"],
+      },
+      {
+        id: "captcha",
+        title: "Resolución de captchas",
+        text: "`browser_solve_captcha` encuentra un widget de reCAPTCHA v2, hCaptcha o Turnstile, envía su clave pública del sitio y la dirección de la página a un servicio que tú configuras, y pone el token de vuelta en la página.",
+        run: CMD.captcha,
+        more: { text: "Resolución de captchas", href: `${DOCS}#captcha-solving` },
+        words: ["tu servicio", "token"],
+      },
+      {
+        id: "humanize",
+        title: "Entrada como la de una persona",
+        text: "El puntero recorre una curva hasta un punto dentro del objetivo, el botón se queda presionado un momento y el texto se escribe tecla por tecla. Tres niveles: light, full y adaptive.",
+        run: CMD.humanize,
+        more: { text: "Human-like input", href: `${DOCS}#human-like-input` },
+      },
+      {
+        id: "read",
+        title: "Modo lectura",
+        text: "Corre la identidad en Lightpanda, un navegador sin ventana que construye la página sin acomodarla ni dibujarla: para leer páginas rápido y con poca memoria.",
+        run: CMD.readMode,
+        more: { text: "Modo lectura", href: `${DOCS}#read-mode-lightpanda` },
+      },
+      {
+        id: "attach",
+        title: "Conéctalo a tu propio Chrome",
+        text: "Se conecta al Chrome que ya tienes abierto en lugar de abrir otro, así el agente trabaja en tu navegador real, con tus sesiones. Chrome te pide permitir cada conexión.",
+        run: CMD.attach,
+        more: { text: "Conectar", href: `${DOCS}#attach-to-your-chrome` },
+      },
+      {
+        id: "camoufox",
+        title: "Camoufox",
+        text: "Corre una identidad en Camoufox, una versión de Firefox que fija dentro del propio navegador lo que este reporta, en su propio perfil. Tú lo instalas y lo mantienes al día.",
+        run: CMD.camoufox,
+        more: { text: "Camoufox", href: `${DOCS}#camoufox` },
+      },
+      {
+        id: "record",
+        title: "Grabaciones y trazas",
+        text: "Las acciones de cada sesión guardadas como un flujo, una traza de Playwright con el DOM, la red y un video de pantalla, y una captura después de cada acción.",
+        run: CMD.record,
+        more: { text: "Grabaciones y trazas", href: `${DOCS}#recordings-and-traces` },
+      },
+      {
+        id: "network",
+        title: "Un proxy y un user agent coherente",
+        text: "Manda una identidad por un proxy HTTP o SOCKS, con su contraseña en el llavero del sistema, y arma el user agent a partir del Chrome que tienes instalado, nunca de un texto escrito a mano.",
+        run: CMD.userAgent,
+        more: { text: "Red y user agent", href: `${DOCS}#network-and-user-agent` },
+      },
+      {
+        id: "lighter",
+        title: "Páginas más ligeras",
+        text: "Bloquea los rastreadores, imágenes, video o fuentes que indiques, y guarda imágenes, fuentes, hojas de estilo y scripts en disco solo para esa identidad.",
+        run: CMD.lighter,
+        more: { text: "Bloqueo y caché", href: `${DOCS}#blocking-and-the-resource-cache` },
       },
     ],
   },
