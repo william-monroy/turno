@@ -203,6 +203,67 @@ turno browser vault list school
 
 The password and the TOTP secret are asked with hidden prompts (or read from stdin). An agent then calls `browser_login` with the site name on that sign-in page: the tool fills the username, the password and the current one-time code without the agent seeing them, only on the origins given with `--url`, and hides the values from every later result. It does not submit the form unless you run `turno browser vault submit school auto`. See the threat model in [SECURITY.md](https://github.com/wimo-dev/turno/blob/main/SECURITY.md#the-credential-vault).
 
+## Flows: record and replay
+
+An agent can save what it did on a site as a flow and run it again later without working the page out:
+`browser_record` with `action: "start"` and a name, the actions, then `action: "stop"`. `browser_flows`
+lists the saved flows and `browser_replay` runs one. Flows are files per identity under
+`~/.local/share/turno/browser/flows/<id>/`.
+
+Each step keeps the element it acted on four ways (Playwright's own locator, role and accessible
+name, visible text, a CSS path), tried in that order on replay; the snapshot ref is kept for
+reading only, since refs change with every snapshot. When no locator finds exactly one visible
+element, the replay stops and reports the step, each locator and why it did not fit, the steps
+that did not run and a fresh snapshot: the agent does that step itself and calls `browser_replay`
+again with `from` set to the next step.
+
+Text typed into a field becomes a parameter, with what was typed as its default. A sensitive one
+keeps no value: a password field, a one-time code or card field, a field named like `password`,
+`otp`, `pin` or `token`, a vault value typed by hand, or any parameter the agent lists in
+`sensitive` when it stops. A vault sign-in is a `browser_login` step with the site name only.
+Replay needs the sensitive values again; a value written `keychain:<item>` is read from the secret
+store (`turno secret set <item>`), so the agent never sees it.
+
+```sh
+turno browser flows school                       # saved flows and their parameters
+turno browser flows school sign-in               # its steps
+turno browser replay school sign-in --param password=keychain:school-password
+```
+
+`turno browser replay` runs the flow on the identity's Chrome through `turno-browser-mcp`, the
+same way an agent's `browser_replay` does; a sensitive parameter is a `keychain:` reference or
+is typed at a hidden prompt, never a value on the command line.
+
+## Recordings and traces
+
+Off by default. Per identity:
+
+```sh
+turno browser record school --flows --traces --screenshots   # what to record, from the next Chrome start
+turno browser record school --off
+turno identity set browser:school --record-traces false --record-max-size 500MB
+```
+
+- `flows` saves every session's actions as a flow named `auto-<time>`; the newest 20 are kept.
+- `traces` records a Playwright trace (DOM snapshots, network, a screencast) of each browser session.
+- `screenshots` takes a JPEG after each action.
+
+Traces and screenshots go to `~/.local/state/turno/browser/identities/<id>/recordings/`, one
+folder per browser session, together at most `record.maxSize` (200MB by default; the oldest go
+first). `turno browser traces school` lists them and `turno browser traces school --open` shows the
+last trace in the trace viewer that patchright-core ships, served on 127.0.0.1 in your default
+browser. A trace is saved when turno closes the browser (idle limit, `browser_close`, end of the
+session) and before a sign-in; if the server is killed, the trace in progress is lost and the
+screenshots stay.
+
+A recording never holds a vault sign-in or a password. Before `browser_login` fills a form, or a
+value goes into a password field, or a replay types a sensitive parameter, the trace is stopped
+and saved; it starts again only after every page that holds the value has navigated away, so
+neither the filled form nor the request that sends it is traced, and no screenshot is taken of
+that page. Each saved trace is then searched for those values and deleted if it holds one. There
+is no video recording, because a video cannot leave a sign-in out. A trace still holds what the
+pages showed and their cookies: treat the folder like the profile itself.
+
 ## Moving a session
 
 ```sh
