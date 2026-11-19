@@ -5,7 +5,7 @@ description: Several agents in one browser, flows you record once and replay, a 
 
 <ReleaseHeader date="2026-11-19" packages={["turno-cli@0.4.0", "turno-browser@0.4.0"]} />
 
-turno 0.4.0 is about the browser again. One browser identity can now **[serve several agents at once](/docs/concepts/browser-identities#several-agents-one-browser)**, each in its own tabs. What an agent does can be **[saved as a flow and replayed](/docs/concepts/browser-identities#flows-record-and-replay)**, coding agents can **[drive the browser from the shell](/docs/concepts/browser-identities#from-the-shell)**, and you can **[watch the agent's tab and take over](/docs/concepts/browser-identities#live-view-and-take-over)** when a site needs a person. Two **[engines](/docs/concepts/browser-identities#engines)** join Chrome: Lightpanda for reading pages with little memory, and your own Chrome. Every new setting is off until you turn it on, and the ones that change how a site sees the browser are not recommended.
+turno 0.4.0 is about the browser again. One browser identity can now **[serve several agents at once](/docs/concepts/browser-identities#several-agents-one-browser)**, each in its own tabs. What an agent does can be **[saved as a flow and replayed](/docs/concepts/browser-identities#flows-record-and-replay)**, coding agents can **[drive the browser from the shell](/docs/concepts/browser-identities#from-the-shell)**, and you can **[watch the agent's tab and take over](/docs/concepts/browser-identities#live-view-and-take-over)** when a site needs a person. Two **[engines](/docs/concepts/browser-identities#engines)** join Chrome: Lightpanda for reading pages with little memory, and your own Chrome. Every new setting is off until you turn it on.
 
 ## Upgrade
 
@@ -95,10 +95,10 @@ turno browser set school --attach auto
 These settings exist for the cases where a site needs them. Each one is off until you turn it on per identity, and each has its own section with what it costs.
 
 - **[Human-like input](/docs/concepts/browser-identities#human-like-input)**: `--humanize light|full|adaptive` moves the pointer along a curve, holds the button and types key by key. Tool names and results do not change.
-- **[Natural language actions](/docs/concepts/browser-identities#natural-language-actions)**: not recommended. `--act` adds `browser_act`, `browser_extract` and `browser_observe`, which run on your client's model through MCP sampling or on a chat completions API you name. The model sees a snapshot with vault values and password fields hidden, and can only use the stock actions on the current tab, every step shown.
-- **[Captcha solving](/docs/concepts/browser-identities#captcha-solving)**: not recommended. `--captcha-provider` sends a reCAPTCHA, hCaptcha or Turnstile widget to a solver service you name. The service sees the page, and solving a site's captchas by machine may break its terms: it is for your own accounts.
-- **[Network and user agent](/docs/concepts/browser-identities#network-and-user-agent)**: not recommended. A coherent user agent for headless Chrome, checked against its client hints, headers, languages and time zone at launch, and a proxy per identity with its password only in the secret store.
-- **[Camoufox](/docs/concepts/browser-identities#camoufox)**: not recommended. Runs an identity on an installed Camoufox through stock Playwright, with its own Firefox profile.
+- **[Natural language actions](/docs/concepts/browser-identities#natural-language-actions)**: `--act` adds `browser_act`, `browser_extract` and `browser_observe`, which run on your client's model through MCP sampling or on a chat completions API you name. The model sees a snapshot with vault values and password fields hidden, and can only use the stock actions on the current tab, every step shown.
+- **[Captcha solving](/docs/concepts/browser-identities#captcha-solving)**: `--captcha-provider` sends a reCAPTCHA, hCaptcha or Turnstile widget to a solver service you name. The service sees the page, and solving a site's captchas by machine may break its terms: it is for your own accounts.
+- **[Network and user agent](/docs/concepts/browser-identities#network-and-user-agent)**: a coherent user agent for headless Chrome, checked against its client hints, headers, languages and time zone at launch, and a proxy per identity with its password only in the secret store.
+- **[Camoufox](/docs/concepts/browser-identities#camoufox)**: runs an identity on an installed Camoufox through stock Playwright, with its own Firefox profile.
 
 Keys for these services are only `keychain:` references, read from the secret store when used and hidden from every result. See [Acceptable use](/docs/concepts/browser-identities#acceptable-use).
 

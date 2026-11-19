@@ -383,7 +383,7 @@ With the other settings:
 
 ## Natural language actions
 
-Not recommended, and off until you turn it on per identity. `browser_act` carries out a short
+Off until you turn it on per identity. `browser_act` carries out a short
 instruction on the current tab ("accept the cookie banner, then open the second result") with a
 model choosing one browser action at a time; `browser_extract` reads data off the page as JSON
 from an instruction; `browser_observe` proposes the calls that would do it, without running them.
@@ -441,7 +441,7 @@ With the other settings:
 
 ## Captcha solving
 
-Not recommended, and off until you turn it on per identity. `browser_solve_captcha` finds a
+Off until you turn it on per identity. `browser_solve_captcha` finds a
 captcha widget on the current tab (reCAPTCHA v2, hCaptcha or Turnstile), sends its kind, its
 public site key and the page address to a solver service you configure, and puts the token it
 returns into the page's response field (and calls the widget's callback when it names one). The
@@ -593,10 +593,10 @@ turno browser reputation school    # counts per site, and whether they go up or 
 
 ## Network and user agent
 
-Two settings change how an identity's browser reaches sites. Both are off by default, set per
-identity in `identity.json` (format 11), and **not recommended**: the default, your own Chrome on
-your own connection, is already one coherent browser. They exist for your own accounts and for
-sites you may automate, when you have a reason, and each one has a cost:
+Two settings change how an identity's browser reaches sites. Both are off by default and set per
+identity in `identity.json` (format 11). The default, your own Chrome on your own connection, is
+already one coherent browser. These settings are for your own accounts and for sites you may
+automate, and the choice is yours. Each one has a cost to weigh:
 
 - a browser whose parts disagree (a user agent from one Chrome, client hints from another, a time
   zone that does not match the address) stands out more than one that changes nothing;
@@ -691,7 +691,7 @@ server with a flag, which wins over the file:
 | Chrome (default) | nothing, or `--engine chrome` | everything: the identity's own profile, headed |
 | Read mode | `--engine lightpanda` | reading pages fast and with little memory, on Lightpanda |
 | Attach | `--attach auto` | working in the Chrome you already have open and signed in |
-| Camoufox | `--engine camoufox` | not recommended; a Firefox build, on its own profile |
+| Camoufox | `--engine camoufox` | a Firefox build, on its own profile |
 
 ```sh
 turno browser set school --engine lightpanda     # read mode for this identity
@@ -766,8 +766,8 @@ refused there.
 
 [Camoufox](https://camoufox.com) is a Firefox build that sets what the browser reports (screen,
 fonts, WebGL and the like) inside the browser itself. turno can run an identity on it, off by
-default and **not recommended for your own accounts**: a Firefox whose reported values differ
-from the computer's is something sites look for, and Camoufox is a third party's build of Firefox
+default. Two things to weigh before you turn it on: a Firefox whose reported values differ from
+the computer's is something sites look for, and Camoufox is a third party's build of Firefox
 that you install and keep up to date yourself.
 
 turno never downloads it. Two things must be installed, and `turno browser doctor` checks both
