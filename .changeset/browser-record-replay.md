@@ -13,3 +13,5 @@ stops with a report the agent can continue from; `browser_flows` lists them. Opt
 traces and a screenshot per action under a size cap, with the trace stopped around sign-ins.
 New commands `turno browser flows|replay|record|traces`; `traces --open` uses the trace viewer
 bundled with patchright-core.
+With `"sharing": "tabs"` a recording holds only the session that started it and replay runs in
+that session's tabs; traces and screenshots are refused in attach mode and in read mode.

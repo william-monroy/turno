@@ -264,6 +264,18 @@ that page. Each saved trace is then searched for those values and deleted if it 
 is no video recording, because a video cannot leave a sign-in out. A trace still holds what the
 pages showed and their cookies: treat the folder like the profile itself.
 
+With the other settings:
+
+- `"sharing": "tabs"`: a flow recording belongs to the agent session that started it, and only
+  that session's actions go into it; `browser_replay` runs in that session's own tabs. A trace
+  covers the whole browser, so it holds every session's tabs.
+- Attach mode: flows work; traces and screenshots are refused, because they could show your own
+  tabs. turno says so before it connects, and `turno identity set` refuses the combination.
+- Read mode (`"engine": "lightpanda"`): flows work, but a replayed step that needs Chrome fails
+  like any such tool call; traces and screenshots are refused, since Lightpanda renders no page.
+- `humanize`: a replay runs each step as the stock tool call, so it moves and types like the
+  agent's own calls on that identity.
+
 ## Moving a session
 
 ```sh

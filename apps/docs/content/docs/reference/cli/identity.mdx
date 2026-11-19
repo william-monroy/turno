@@ -27,7 +27,9 @@ Usage:
       [--block-patterns <host|glob>,...] [--no-block] [--cache]
       [--cache-max-size <size>] [--no-cache] [--humanize
       off|light|full|adaptive] [--sharing session|tabs] [--engine
-      chrome|lightpanda] [--attach auto|<dir>|<url>] [--dry-run] [--json]
+      chrome|lightpanda] [--attach auto|<dir>|<url>] [--record-flows true|false]
+      [--record-traces true|false] [--record-screenshots true|false]
+      [--record-max-size <size>] [--no-record] [--dry-run] [--json]
                                 change a browser identity's identity.json:
                                 place, languages, health check, tabs, blocking,
                                 cache
@@ -114,7 +116,9 @@ Usage:
       [--block-patterns <host|glob>,...] [--no-block] [--cache]
       [--cache-max-size <size>] [--no-cache] [--humanize
       off|light|full|adaptive] [--sharing session|tabs] [--engine
-      chrome|lightpanda] [--attach auto|<dir>|<url>] [--dry-run] [--json]
+      chrome|lightpanda] [--attach auto|<dir>|<url>] [--record-flows true|false]
+      [--record-traces true|false] [--record-screenshots true|false]
+      [--record-max-size <size>] [--no-record] [--dry-run] [--json]
     change a browser identity's identity.json: place, languages, health check,
     tabs, blocking, cache
 
@@ -153,6 +157,13 @@ Which engine runs this identity (both off by default):
                                   "auto" is your default Chrome profile, after you turn on
                                   chrome://inspect/#remote-debugging; Chrome asks you to allow
                                   each connection, and the agent then sees all its windows
+
+What turno-browser records for this identity (all off by default; turno browser record):
+  --record-flows <bool>           keep every session's actions as a flow (auto-<time>, newest 20)
+  --record-traces <bool>          a Playwright trace of each browser session (turno browser traces)
+  --record-screenshots <bool>     a screenshot after each action
+  --record-max-size <size>        cap of the traces and screenshots, "10MB" to "10GB" (default 200MB)
+Vault sign-ins and passwords never reach a flow, a trace or a screenshot.
 
 Examples:
   $ turno identity set browser:school --timezone Europe/Madrid --languages es-ES,es,en
