@@ -79,6 +79,7 @@ describe("reputation log", () => {
       {
         site: "a.example",
         total: 4,
+        solved: 0,
         captcha: 3,
         verify: 0,
         block: 1,
@@ -90,6 +91,7 @@ describe("reputation log", () => {
       {
         site: "b.example",
         total: 2,
+        solved: 0,
         captcha: 0,
         verify: 2,
         block: 0,
@@ -101,6 +103,7 @@ describe("reputation log", () => {
       {
         site: "c.example",
         total: 1,
+        solved: 0,
         captcha: 0,
         verify: 0,
         block: 1,
