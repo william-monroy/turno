@@ -1,6 +1,7 @@
 import { type SecretStore, secretStore } from "turno-core/secrets";
 import type { ActSettings } from "./opt-in-settings.js";
 import type { Redactor } from "./redact.js";
+import { names } from "./names.js";
 
 /**
  * The model behind `browser_act`, `browser_extract` and `browser_observe`, kept small and
@@ -168,8 +169,8 @@ export async function resolveModel(options: {
   if (!settings.provider || !settings.endpoint || !settings.model) {
     throw new ModelError(
       settings.sampling === false
-        ? `natural language actions of "${options.id}" have no provider (turno identity set browser:${options.id} --act-provider chat-completions --act-endpoint <url> --act-model <name>)`
-        : `this client does not offer MCP sampling and identity "${options.id}" names no provider: set one with turno identity set browser:${options.id} --act-provider chat-completions --act-endpoint <url> --act-model <name> [--act-key keychain:<item>]`,
+        ? `natural language actions of "${options.id}" have no provider (${names().identity("set", options.id)} --act-provider chat-completions --act-endpoint <url> --act-model <name>)`
+        : `this client does not offer MCP sampling and identity "${options.id}" names no provider: set one with ${names().identity("set", options.id)} --act-provider chat-completions --act-endpoint <url> --act-model <name> [--act-key keychain:<item>]`,
     );
   }
   let key: string | undefined;
@@ -180,7 +181,7 @@ export async function resolveModel(options: {
     key = await store.get(item).catch(() => undefined);
     if (key === undefined)
       throw new ModelError(
-        `the secret store has no item "${item}" for act.key (store it with: turno secret set ${item})`,
+        `the secret store has no item "${item}" for act.key (store it with: ${names().secretSet(item)})`,
       );
     redactor.add(key, "act model key");
   }

@@ -17,6 +17,7 @@ import { loginTool } from "./login-tool.js";
 import type { Slot } from "./recorder.js";
 import type { StockAccess, TurnoTool } from "./tools.js";
 import { type ToolResult, type ToolSchema, upstream } from "./upstream.js";
+import { names } from "./names.js";
 
 /**
  * `browser_replay` and `browser_flows`: run a saved flow again, and list the saved ones.
@@ -217,7 +218,7 @@ async function prepareParams(
     };
   if (missing.length)
     return {
-      error: `flow "${flow.name}" needs ${missing.map((p) => `"${p.name}"${p.sensitive ? " (sensitive)" : ""}`).join(", ")}: pass them in params; a value written keychain:<item> is read from the secret store (turno secret set <item>) so it never passes through you.`,
+      error: `flow "${flow.name}" needs ${missing.map((p) => `"${p.name}"${p.sensitive ? " (sensitive)" : ""}`).join(", ")}: pass them in params; a value written keychain:<item> is read from the secret store (${names().secretSet("<item>")}) so it never passes through you.`,
     };
   const secret = new Set<string>();
   const refs = new Set<string>();
@@ -230,7 +231,7 @@ async function prepareParams(
       const read = await store.get(item).catch(() => undefined);
       if (read === undefined)
         return {
-          error: `parameter "${p.name}": the secret store has no item "${item}" (store it with: turno secret set ${item})`,
+          error: `parameter "${p.name}": the secret store has no item "${item}" (store it with: ${names().secretSet(item)})`,
         };
       v = read;
       values[p.name] = v;
@@ -434,7 +435,7 @@ export async function replayFlow(
     env: Object.fromEntries(Object.entries(env).filter((e): e is [string, string] => e[1] !== undefined)),
     stderr: "pipe",
   });
-  const client = new Client({ name: "turno browser replay", version: "1" });
+  const client = new Client({ name: `${names().browser} replay`, version: "1" });
   await client.connect(transport);
   try {
     const result = await client.callTool(

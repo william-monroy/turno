@@ -1,7 +1,8 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.wimo-dev/turno-browser",
-  "description": "A real Chrome profile per identity that keeps its sign-ins, driven through Playwright MCP tools.",
+  "title": "turno-browser",
+  "description": "A browser your agents use with your accounts. Light on your machine; the model never sees passwords.",
   "repository": {
     "url": "https://github.com/wimo-dev/turno",
     "source": "github",

@@ -7,6 +7,7 @@ import type { Redactor } from "./redact.js";
 import { readIdentitySettings } from "./settings.js";
 import type { StockAccess, TurnoTool } from "./tools.js";
 import { type ToolResult, type ToolSchema, type ZodObject, upstream } from "./upstream.js";
+import { names } from "./names.js";
 
 /**
  * Natural language actions, off by default (identity.json `act`): `browser_act` turns an
@@ -274,7 +275,7 @@ async function prepare(
   }
   if (!settings)
     return {
-      error: `natural language actions are off for identity "${identity.id}"; the person turns them on with turno identity set browser:${identity.id} --act (MCP sampling) or --act-provider ..., then restarts the server`,
+      error: `natural language actions are off for identity "${identity.id}"; the person turns them on with ${names().identity("set", identity.id)} --act (MCP sampling) or --act-provider ..., then restarts the server`,
     };
   if (!instruction.trim()) return { error: "the instruction is empty" };
   if (instruction.length > MAX_INSTRUCTION)

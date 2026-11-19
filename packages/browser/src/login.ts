@@ -5,6 +5,7 @@ import { readLockPid } from "./lifecycle.js";
 import { CHROME_PROXY_ARGS, resolveProxy } from "./network.js";
 import { acquireRuntimeLock } from "./runtime-lock.js";
 import { chromeEnv, keychainArgs, launchSettings, readIdentitySettings, systemTimezone } from "./settings.js";
+import { names } from "./names.js";
 
 export interface LoginOptions {
   env?: NodeJS.ProcessEnv;
@@ -32,7 +33,7 @@ export async function loginIdentity(id: string, options: LoginOptions = {}): Pro
   const settings = readIdentitySettings(id, env);
   if (settings?.engine === "camoufox" && settings.attach === undefined)
     throw new IdentityError(
-      `identity "${id}" runs on Camoufox, which keeps its own profile, and \`turno browser login\` opens the Chrome profile: sign in from an agent session (browser_login with the vault), or use --engine chrome`,
+      `identity "${id}" runs on Camoufox, which keeps its own profile, and \`${names().browser} login\` opens the Chrome profile: sign in from an agent session (browser_login with the vault), or use --engine chrome`,
     );
   // Read before the lock, so a missing secret leaves nothing to undo; the value goes only to Chrome.
   const proxy = settings?.proxy ? await resolveProxy(settings.proxy, env, () => {}) : undefined;

@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { pidAlive } from "turno-core/process";
 import { IdentityError, identityStateDir } from "./ids.js";
+import { names } from "./names.js";
 
 /**
  * The runtime lock of an identity: which process drives its Chrome right now.
@@ -86,10 +87,10 @@ export function runtimeLockAlive(lock: RuntimeLock): boolean {
 export function inUseMessage(id: string, lock: RuntimeLock): string {
   const pids = `pid ${lock.nodePid}${lock.chromePid ? `, Chrome pid ${lock.chromePid}` : ""}`;
   if (lock.holder === "login") {
-    return `browser identity "${id}" is in use by turno browser login (${pids}) since ${lock.startedAt}. Close that Chrome window to finish the login, then try again.`;
+    return `browser identity "${id}" is in use by ${names().browser} login (${pids}) since ${lock.startedAt}. Close that Chrome window to finish the login, then try again.`;
   }
   if (lock.holder === "export" || lock.holder === "import") {
-    return `browser identity "${id}" is in use by turno browser ${lock.holder} (${pids}) since ${lock.startedAt}. Wait for it to finish, then try again.`;
+    return `browser identity "${id}" is in use by ${names().browser} ${lock.holder} (${pids}) since ${lock.startedAt}. Wait for it to finish, then try again.`;
   }
   return (
     `browser identity "${id}" is in use by turno-browser-mcp (${pids}) since ${lock.startedAt}. ` +

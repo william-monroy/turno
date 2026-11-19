@@ -4,6 +4,7 @@ import { pidAlive } from "turno-core/process";
 import { assertIdentityId } from "./ids.js";
 import { type LiveFile, liveFilePath } from "./live.js";
 import type { LiveStatus } from "./live-server.js";
+import { names } from "./names.js";
 
 /**
  * What `turno browser live|pause|resume` use: the running server's live view, reached over its
@@ -33,7 +34,12 @@ export function readLiveFile(id: string, env: NodeJS.ProcessEnv = process.env): 
   return data as LiveFile;
 }
 
-function call(socket: string, method: "GET" | "POST", path: string): Promise<{ status: number; body: unknown }> {
+function call(
+  socket: string,
+  method: "GET" | "POST",
+  path: string,
+  payload: Record<string, unknown> = {},
+): Promise<{ status: number; body: unknown }> {
   return new Promise((resolve, reject) => {
     const req = request(
       { socketPath: socket, method, path, headers: { host: "turno-live" }, timeout: 10_000 },
@@ -53,20 +59,26 @@ function call(socket: string, method: "GET" | "POST", path: string): Promise<{ s
     );
     req.on("timeout", () => req.destroy(new Error("the live view server did not answer in 10s")));
     req.on("error", reject);
-    if (method === "POST") req.end("{}");
+    if (method === "POST") req.end(JSON.stringify(payload));
     else req.end();
   });
 }
 
-async function ask(id: string, method: "GET" | "POST", path: string, env: NodeJS.ProcessEnv): Promise<unknown> {
+async function ask(
+  id: string,
+  method: "GET" | "POST",
+  path: string,
+  env: NodeJS.ProcessEnv,
+  payload?: Record<string, unknown>,
+): Promise<unknown> {
   const live = readLiveFile(id, env);
   if (!live)
     throw new LiveError(
-      `no turno-browser-mcp serves "${id}" with the live view right now. It is off by default: turn it on with turno browser set ${id} --live true, and it starts with the next server (an agent session starts one).`,
+      `no turno-browser-mcp serves "${id}" with the live view right now. It is off by default: turn it on with ${names().browser} set ${id} --live true, and it starts with the next server (an agent session starts one).`,
     );
   let out: { status: number; body: unknown };
   try {
-    out = await call(live.socket, method, path);
+    out = await call(live.socket, method, path, payload);
   } catch (error) {
     throw new LiveError(`cannot reach the live view of "${id}" (pid ${live.pid}): ${(error as Error).message}`);
   }
@@ -84,7 +96,8 @@ export async function liveStatus(id: string, env: NodeJS.ProcessEnv = process.en
 
 /** Pauses the agent of `id`: its next call waits until `liveResume`. */
 export async function livePause(id: string, env: NodeJS.ProcessEnv = process.env): Promise<LiveStatus> {
-  return (await ask(id, "POST", "/pause", env)) as LiveStatus;
+  // The command the person typed, so the agent is told who paused it (`turno browser pause` inside turno).
+  return (await ask(id, "POST", "/pause", env, { by: `${names().browser} pause` })) as LiveStatus;
 }
 
 export async function liveResume(id: string, env: NodeJS.ProcessEnv = process.env): Promise<LiveStatus> {

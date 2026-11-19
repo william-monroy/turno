@@ -168,7 +168,7 @@ describe("the proxy credentials", () => {
       secretStore(sb.env),
     ).catch((e: Error) => e);
     expect(String(error)).toMatch(
-      /the secret store has no item "missing-item" for the proxy password \(store it with: turno secret set missing-item\)/,
+      /the secret store has no item "missing-item" for the proxy password \(store it with: turno-browser secret set missing-item\)/,
     );
   });
 
@@ -431,7 +431,7 @@ describe("turno browser doctor", () => {
       missing.find((c) => /proxy http:\/\/proxy\.example\.com:8080: the proxy's operator sees/.test(c.text))?.level,
     ).toBe("info");
     const fail = missing.find((c) => c.text.startsWith("proxy credentials"));
-    expect(fail).toMatchObject({ level: "fail", fix: "turno secret set px-pass" });
+    expect(fail).toMatchObject({ level: "fail", fix: "turno-browser secret set px-pass" });
     store.write("px-pass", PASSWORD);
     const present = (await run()).checks.filter((c) => c.area === "identity px");
     expect(present.find((c) => c.text.startsWith("proxy credentials"))?.level).toBe("ok");

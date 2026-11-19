@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { identityStateDir } from "./ids.js";
 import type { LiveSettings } from "./settings.js";
 import { parseDuration } from "./units.js";
+import { names } from "./names.js";
 
 /**
  * The live view and take-over, the part that needs no browser: the policy (identity.json `live`
@@ -258,6 +259,6 @@ export function timeoutMessage(identity: string, tool: string, pausedMs: number,
   return (
     `The user paused browser identity "${identity}" ${formatPause(pausedMs)} ago (${by}) and has not resumed it ` +
     `within ${formatPause(waitMs)}, so ${tool} was not run. The user is probably acting in the browser: wait, or ask ` +
-    `them to resume (Resume in the live view, or turno browser resume ${identity}), then call again.`
+    `them to resume (Resume in the live view, or ${names().browser} resume ${identity}), then call again.`
   );
 }

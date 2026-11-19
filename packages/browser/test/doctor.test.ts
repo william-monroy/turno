@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { backgroundDir } from "../src/background-state.js";
 import { type DoctorCheck, chromeVersionFromPlist, runDoctor } from "../src/doctor.js";
 import { writeHealth } from "../src/health.js";
 import { addIdentity, identityDir } from "../src/identities.js";
@@ -116,7 +117,7 @@ describe("browser doctor: identities", () => {
     const { checks } = await doctor();
     expect(find(checks, "identities", /no browser identities/)).toMatchObject({
       level: "info",
-      fix: "turno identity add browser:<id>",
+      fix: "turno-browser add <id>",
     });
   });
 
@@ -155,11 +156,11 @@ describe("browser doctor: identities", () => {
       area: "identity old",
       level: "info",
       text: "no identity.json: Chrome's own time zone and languages, which follow this computer",
-      fix: `turno identity set browser:old --timezone ${systemTimezone()}`,
+      fix: `turno-browser set old --timezone ${systemTimezone()}`,
     });
     expect(find(checks, "identity old", /health/)).toMatchObject({
       level: "info",
-      fix: "turno identity set browser:old --health-url <url> --health-text <text>",
+      fix: "turno-browser set old --health-url <url> --health-text <text>",
     });
   });
 
@@ -173,7 +174,7 @@ describe("browser doctor: identities", () => {
     expect(find(checks, "identity bad", /identity\.json/)).toMatchObject({
       level: "fail",
       text: 'identity.json is invalid: timezone "Nowhere/City" is not an IANA time zone (for example "Europe/Madrid")',
-      fix: "turno identity set browser:bad --timezone <zone>",
+      fix: "turno-browser set bad --timezone <zone>",
     });
   });
 
@@ -190,7 +191,7 @@ describe("browser doctor: identities", () => {
       area: "identity bank",
       level: "fail",
       text: `NEEDS_AUTH: not signed in at https://bank.example.com/: no element matched #account (checked ${NOW.toISOString()})`,
-      fix: "turno browser login bank",
+      fix: "turno-browser login bank",
     });
     writeHealth("bank", sb.env, {
       status: "error",
@@ -221,11 +222,36 @@ describe("browser doctor: identities", () => {
       JSON.stringify({ nodePid: gone.pid, holder: "mcp", startedAt: NOW.toISOString() }),
     );
     const stale = find((await doctor()).checks, "identity school", /stale/);
-    expect(stale).toMatchObject({ level: "warn", fix: "turno browser doctor --fix", auto: true });
+    expect(stale).toMatchObject({ level: "warn", fix: "turno-browser doctor --fix", auto: true });
     const fixed = await doctor({ fix: true });
     expect(fixed.fixed).toEqual([`school: removed the stale runtime lock of pid ${gone.pid}`]);
     expect(existsSync(runtimeLockPath("school", sb.env))).toBe(false);
     expect(find(fixed.checks, "identity school", /free/)).toMatchObject({ level: "ok" });
+  });
+
+  it("names a running background server and the command that stops it", async () => {
+    addIdentity("school", sb.env);
+    expect(find((await doctor()).checks, "identity school", /background server/)).toBeUndefined();
+    const dir = backgroundDir("school", sb.env);
+    mkdirSync(dir, { recursive: true });
+    // This test's own pid stands for a live server.
+    const state = {
+      v: 1,
+      pid: process.pid,
+      identity: "school",
+      version: "0.0.0",
+      startedAt: NOW.toISOString(),
+      idleMs: 900_000,
+      transport: "socket",
+      socket: join(dir, "sock"),
+    };
+    writeFileSync(join(dir, "server.json"), JSON.stringify(state));
+    expect(find((await doctor()).checks, "identity school", /background server/)).toEqual({
+      area: "identity school",
+      level: "info",
+      text: `background server (pid ${process.pid}) since ${NOW.toISOString()} serves it to turno-browser do; an agent's server of this identity cannot open the browser until it stops; it exits after 15m without a request`,
+      fix: "turno-browser background stop school",
+    });
   });
 
   it("treats a profile lock of a Chrome that is gone as free", async () => {
@@ -248,7 +274,7 @@ describe("browser doctor: identities", () => {
       area: "identity school",
       level: "warn",
       text: "2 challenges in the last 7 days on 2 sites (1 captcha, 1 verify)",
-      fix: "turno browser reputation school",
+      fix: "turno-browser reputation school",
     });
   });
 });
@@ -270,7 +296,7 @@ describe("browser doctor: mcp.toml against the identity's sharing", () => {
       area: "identity work",
       level: "warn",
       text: '[server.browser-work] in mcp.toml lets several sessions in (exclusive = false), but this identity serves one at a time ("sharing": "session"), so those sessions share one current tab',
-      fix: "turno browser set work --sharing tabs",
+      fix: "turno-browser set work --sharing tabs",
     });
   });
 

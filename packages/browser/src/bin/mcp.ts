@@ -22,7 +22,7 @@ import { readIdentitySettings } from "../settings.js";
  */
 
 const HELP = `turno-browser-mcp: a browser MCP server that drives your installed Chrome, with one
-persistent profile per identity (turno identity add browser:<id>).
+persistent profile per identity (turno-browser add <id>).
 
   --identity <id>          use the identity's saved profile (served one session at a time by
                            mcpd, unless the identity's "sharing" is "tabs")
@@ -57,8 +57,8 @@ Engines (these flags win over the identity's identity.json; all off by default):
                            (navigate, snapshot, find, click a link, evaluate); other tools are
                            refused. Needs lightpanda on PATH or TURNO_LIGHTPANDA_PATH
   --engine camoufox        Camoufox (a Firefox build) instead of Chrome, with its own profile;
-                           not recommended for your own accounts. Needs Camoufox and
-                           playwright-core (turno browser doctor says how); never downloaded
+                           off by default. Needs Camoufox and
+                           playwright-core (turno-browser doctor says how); never downloaded
   --engine chrome          the default; turns off an identity's read, Camoufox or attach mode
   --attach <target>        connect to a Chrome you already have open instead of launching
                            one: "auto" (your default Chrome profile, after you turn on remote
@@ -67,12 +67,12 @@ Engines (these flags win over the identity's identity.json; all off by default):
                            that profile; turno closes only the tabs it opened
 
 Live view (wins over the identity's identity.json; off by default):
-  --live                   serve a view of the agent's tab on 127.0.0.1 (turno browser live
+  --live                   serve a view of the agent's tab on 127.0.0.1 (turno-browser live
                            <id> opens it) and let you pause the agent to take the controls
   --live-wait <duration>   how long a call waits while you have the agent paused (default 2m,
                            "5s" to "30m"); then it fails and tells the agent you still have it
 
-Background server (for shell use without turno; the turno-browser client starts it):
+Background server (for shell use without turno; turno-browser do starts it):
   --background             serve the identity over MCP streamable HTTP on a Unix socket in a
                            folder only you can enter (<state>/browser/identities/<id>/background),
                            or on 127.0.0.1 with a per-server token in a file only you can read
@@ -84,7 +84,8 @@ Background server (for shell use without turno; the turno-browser client starts 
   While the background server of an identity runs, it alone drives the identity's browser: a
   stdio server of that identity (an agent's, or mcpd's) answers each call that needs the browser
   with an error that names the background server, and the background server does not start while
-  another process has the identity's Chrome open. Stop it with kill <pid> (SIGTERM).
+  another process has the identity's Chrome open. Stop it with turno-browser background stop <id>
+  (or kill <pid>); turno-browser background shows which run.
 
 Examples:
   turno-browser-mcp --identity work

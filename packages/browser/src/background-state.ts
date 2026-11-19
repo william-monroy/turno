@@ -115,7 +115,8 @@ function backgroundOwnsMessage(id: string, state: BackgroundState): string {
   const idle = state.idleMs > 0 ? `, or wait: it exits after ${duration(state.idleMs)} without a request` : "";
   return (
     `browser identity "${id}" is served by its background server (pid ${state.pid}) since ${state.startedAt}, ` +
-    `which owns the identity's browser while it runs. Stop it with \`kill ${state.pid}\` (it closes its Chrome first)${idle}; ` +
+    `which owns the identity's browser while it runs. Stop it with \`turno-browser background stop ${id}\` ` +
+    `(or \`kill ${state.pid}\`; it closes its Chrome first)${idle}; ` +
     "then try again."
   );
 }

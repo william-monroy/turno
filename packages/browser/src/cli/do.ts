@@ -542,9 +542,9 @@ function summaryOf(c: Ctx, summary: string): string {
   return summary.replace("<browser>", c.names.browser);
 }
 
-/** What `do` says when the host has no transport: turno-browser on its own, for now. */
+/** What `do` says when the host gives no way to reach the identity's server. */
 function noTransport(c: Ctx): string {
-  return `${c.names.browser} do needs turno for now: run \`turno browser do <id> <action>\` (turno-cli), which reaches the identity's browser through its gateway. A standalone mode is coming.`;
+  return `${c.names.browser} do cannot reach a browser here: run \`turno-browser do <id> <action>\` (through the identity's background server) or \`turno browser do <id> <action>\` (through turno's gateway).`;
 }
 
 export function doDetails(c: Ctx): string {

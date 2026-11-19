@@ -1,8 +1,9 @@
 import { type SecretStore, secretStore } from "turno-core/secrets";
+import { names } from "./names.js";
 
 /**
  * Opt-in network and user agent settings of an identity (identity.json format 11), both off by
- * default. They are "not recommended": a real Chrome on the user's own connection is already
+ * default and the user's choice: a real Chrome on the user's own connection is already
  * the most coherent browser a site can see, and these settings can only keep it coherent or
  * break it. The docs say what each one costs.
  *
@@ -95,7 +96,7 @@ export function networkProblems(v: Record<string, unknown>, out: string[]): void
   if (p.password !== undefined) {
     if (typeof p.password !== "string" || !p.password.startsWith(KEYCHAIN) || p.password.length <= KEYCHAIN.length)
       out.push(
-        "proxy.password must be a keychain:<item> reference (store it with: turno secret set <item>): identity.json never holds a password",
+        `proxy.password must be a keychain:<item> reference (store it with: ${names().secretSet("<item>")}): identity.json never holds a password`,
       );
   }
   if (p.password !== undefined && p.username === undefined) out.push("proxy.password needs proxy.username");
@@ -171,7 +172,7 @@ export async function resolveProxy(
     }
     if (value === undefined || value === "")
       throw new Error(
-        `the secret store has no item "${item}" for the proxy ${what} (store it with: turno secret set ${item})`,
+        `the secret store has no item "${item}" for the proxy ${what} (store it with: ${names().secretSet(item)})`,
       );
     return value;
   };

@@ -1,7 +1,7 @@
 {
   "name": "turno-browser",
   "version": "0.4.0",
-  "description": "Browser MCP server that drives your installed Chrome with a persistent profile per identity, built on patchright-core.",
+  "description": "A browser your agents use with your accounts. It stays light on your machine, and the model never sees your passwords.",
   "license": "Apache-2.0",
   "author": "William Frank Monroy Mamani (https://github.com/william-monroy)",
   "homepage": "https://turno.wimo.dev",
@@ -62,11 +62,16 @@
   "keywords": [
     "mcp",
     "model-context-protocol",
+    "mcp-server",
     "browser",
     "chrome",
-    "playwright",
-    "patchright",
-    "ai-agents"
+    "browser-automation",
+    "ai-agents",
+    "coding-agents",
+    "browser-identities",
+    "signed-in-sessions",
+    "credential-vault",
+    "playwright"
   ],
   "mcpName": "io.github.wimo-dev/turno-browser"
 }

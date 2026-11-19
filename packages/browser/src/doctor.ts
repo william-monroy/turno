@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { browserPaths as paths } from "turno-core/paths";
 import { type ProcTable, readProcTable, signalProcess } from "turno-core/process";
 import { type SecretStore, secretStore } from "turno-core/secrets";
+import { backgroundAlive, readBackgroundState } from "./background-state.js";
 import { readHealth } from "./health.js";
 import { identityDir, isValidIdentityId } from "./ids.js";
 import { defaultChromeUserDataDir, parseAttachTarget, resolveAttachEndpoint } from "./engine-attach.js";
@@ -28,6 +29,7 @@ import { findProfileChrome, sweepOrphan } from "./lifecycle.js";
 import { readChallenges, summarizeChallenges } from "./reputation.js";
 import { inUseMessage, readRuntimeLock, runtimeLockAlive, runtimeLockPath } from "./runtime-lock.js";
 import { type IdentitySettings, acceptLanguages, checkIdentitySettings, systemTimezone } from "./settings.js";
+import { names } from "./names.js";
 
 /**
  * `turno browser doctor`: what a browser identity needs to work, one check per row,
@@ -319,6 +321,19 @@ function identityChecks(
     });
   } else {
     add({ level: "ok", text: "free: no process holds it" });
+  }
+
+  // The background server `turno-browser do` starts: while it runs, an agent's server of this
+  // identity refuses to launch the browser, so say it runs and how to stop it.
+  const background = readBackgroundState(id, env);
+  if (background?.transport && backgroundAlive(background)) {
+    const idle =
+      background.idleMs > 0 ? `; it exits after ${Math.round(background.idleMs / 60_000)}m without a request` : "";
+    add({
+      level: "info",
+      text: `background server (pid ${background.pid}) since ${background.startedAt} serves it to turno-browser do; an agent's server of this identity cannot open the browser until it stops${idle}`,
+      fix: `turno-browser background stop ${id}`,
+    });
   }
 
   const check = settings?.health;
@@ -654,5 +669,26 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
       return smoke ? again.map((c) => (c.area === "chrome" && /^smoke launch/.test(c.text) ? smoke : c)) : again;
     });
   }
-  return { checks, fixed };
+  return { checks: checks.map(named), fixed };
+}
+
+/**
+ * A check's fix and text with the commands named the way this process's host types them: the
+ * checks are written with turno's names (the troubleshooting docs are generated from them), and
+ * turno-browser on its own prints `turno-browser set <id> ...` instead.
+ */
+function named(check: DoctorCheck): DoctorCheck {
+  const n = names();
+  if (n.browser === "turno browser") return check;
+  const swap = (s: string) =>
+    s
+      .replace(/turno identity (\w+) browser:(\S+)/g, (_m, sub: string, id: string) => n.identity(sub, id))
+      .replace(/turno secret set (\S+)/g, (_m, item: string) => n.secretSet(item))
+      .replace(/turno browser /g, `${n.browser} `);
+  return {
+    ...check,
+    text: swap(check.text),
+    ...(check.fix ? { fix: swap(check.fix) } : {}),
+    ...(check.manual ? { manual: swap(check.manual) } : {}),
+  };
 }

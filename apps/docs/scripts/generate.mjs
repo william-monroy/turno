@@ -454,8 +454,65 @@ meta("reference/meta.json", {
   title: "Reference",
   description: "Generated from the code",
   root: true,
-  pages: ["index", "config-toml", "mcp-toml", "environment", "exit-codes", "json-output", "cli"],
+  pages: ["index", "config-toml", "mcp-toml", "environment", "exit-codes", "json-output", "cli", "turno-browser"],
 });
+
+// ---------------------------------------------------------------------------------------------
+// turno-browser: the identity commands on their own, and its MCP server
+// ---------------------------------------------------------------------------------------------
+{
+  const BROWSER_DIST = join(ROOT, "packages/browser/dist");
+  const run = (bin, label, args) => {
+    const res = spawnSync(process.execPath, [join(BROWSER_DIST, bin), ...args], {
+      encoding: "utf8",
+      cwd: home,
+      env: { HOME: home, PATH: "/usr/bin:/bin", NO_COLOR: "1", COLUMNS: "100", TERM: "dumb", LANG: "en_US.UTF-8" },
+    });
+    if (res.status !== 0) throw new Error(`${label} ${args.join(" ")} exited ${res.status}: ${res.stderr}`);
+    const text = res.stdout
+      .split("\n")
+      .map((l) => l.trimEnd())
+      .join("\n")
+      .trim();
+    if (text.includes(home)) throw new Error(`${label} ${args.join(" ")} printed the throwaway HOME`);
+    return text;
+  };
+  const tb = (...args) => run("cli/main.js", "turno-browser", args);
+  const main = tb("--help");
+  // The commands, in the order of the main help's sections (up to the flags of every command).
+  const names = [];
+  for (const line of main.slice(0, main.indexOf("Flags of every command")).split("\n")) {
+    const m = /^ {2}([a-z]+) {2,}\S/.exec(line);
+    if (m) names.push(m[1]);
+  }
+  const body = [
+    "`turno-browser` is the command of the turno-browser package: the identity commands on their own, without turno. Inside turno the same commands run as `turno browser <command>` (see [turno browser](/docs/reference/cli/browser)); `setup`, `secret` and `background` are turno-browser's alone, and its `do` goes through the identity's background server instead of mcpd.",
+    "",
+    fence(main, "text", 'title="turno-browser --help"'),
+  ];
+  for (const name of names) {
+    const help = tb(name, "--help");
+    body.push("", `## turno-browser ${name}`, "", fence(help));
+    // A group: one section per subcommand, from the usage lines of its help.
+    const subs = [...help.matchAll(new RegExp(`^ {2}turno-browser ${name} ([a-z]+)\\b`, "gm"))].map((m) => m[1]);
+    for (const sub of new Set(subs)) body.push("", `### turno-browser ${name} ${sub}`, "", fence(tb(name, sub, "--help")));
+  }
+  // turno-browser-mcp's own flags; the Playwright MCP flags it passes on are upstream's to document.
+  const mcpHelp = run("bin/mcp.js", "turno-browser-mcp", ["--help"]);
+  const upstream = mcpHelp.indexOf("Every other flag is a Playwright MCP flag");
+  body.push(
+    "",
+    "## turno-browser-mcp",
+    "",
+    "The MCP server an agent runs for one identity. `turno-browser-mcp --help` also lists the Playwright MCP flags it passes on, left out here.",
+    "",
+    fence((upstream < 0 ? mcpHelp : mcpHelp.slice(0, upstream)).trim(), "text", 'title="turno-browser-mcp --help"'),
+  );
+  emit(
+    "reference/turno-browser.mdx",
+    page({ title: "turno-browser", description: "Every turno-browser command, with the help text it prints.", body: body.join("\n") }),
+  );
+}
 
 // ---------------------------------------------------------------------------------------------
 // Troubleshooting: one page per doctor finding

@@ -479,7 +479,7 @@ describe("the background server as a program, through the client", () => {
     const res = await client.callTool({ name: "browser_snapshot", arguments: {} });
     expect(res.isError).toBe(true);
     expect(textOf(res)).toContain(
-      `browser identity "${ID}" is served by its background server (pid ${state.pid}) since ${state.startedAt}, which owns the identity's browser while it runs. Stop it with \`kill ${state.pid}\` (it closes its Chrome first), or wait: it exits after 15m without a request; then try again.`,
+      `browser identity "${ID}" is served by its background server (pid ${state.pid}) since ${state.startedAt}, which owns the identity's browser while it runs. Stop it with \`turno-browser background stop ${ID}\` (or \`kill ${state.pid}\`; it closes its Chrome first), or wait: it exits after 15m without a request; then try again.`,
     );
     expect(engine.launches).toEqual([]);
     // A tool that needs no browser still answers.

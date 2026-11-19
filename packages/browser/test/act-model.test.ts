@@ -158,10 +158,10 @@ describe("resolveModel", () => {
   it("says what to set when nothing can answer", async () => {
     const base = { env: {}, redactor: new Redactor(), id: "work" };
     await expect(resolveModel({ ...base, settings: {} })).rejects.toThrow(
-      /does not offer MCP sampling and identity "work" names no provider: set one with turno identity set browser:work --act-provider/,
+      /does not offer MCP sampling and identity "work" names no provider: set one with turno-browser set work --act-provider/,
     );
     await expect(resolveModel({ ...base, settings, store: memoryStore({}) })).rejects.toThrow(
-      'the secret store has no item "act-model" for act.key (store it with: turno secret set act-model)',
+      'the secret store has no item "act-model" for act.key (store it with: turno-browser secret set act-model)',
     );
   });
 });

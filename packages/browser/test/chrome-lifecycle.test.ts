@@ -321,7 +321,7 @@ describe.skipIf(reason !== undefined)(reason ? `real Chrome (skipped: ${reason})
     expect(textOf(res)).toMatch(
       /NEEDS_AUTH: browser identity "health" is not signed in: the page did not show "Welcome back"/,
     );
-    expect(textOf(res)).toContain("turno browser login health");
+    expect(textOf(res)).toContain("turno-browser login health");
     expect(readHealth("health", sb.env)).toMatchObject({ status: "needs_auth" });
     expect(
       await waitFor(

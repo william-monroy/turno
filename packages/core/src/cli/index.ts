@@ -11,4 +11,5 @@ export * from "./hints.js";
 export * from "./io.js";
 export * from "./output.js";
 export * from "./secret-input.js";
+export * from "./session.js";
 export * from "./style.js";

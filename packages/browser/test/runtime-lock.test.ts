@@ -86,7 +86,7 @@ describe("runtime lock", () => {
 
   it("names a login as the holder and tells the user to close its window", () => {
     expect(inUseMessage("bank", { nodePid: 12, chromePid: 34, holder: "login", startedAt: T0.toISOString() })).toBe(
-      `browser identity "bank" is in use by turno browser login (pid 12, Chrome pid 34) since ${T0.toISOString()}. ` +
+      `browser identity "bank" is in use by turno-browser login (pid 12, Chrome pid 34) since ${T0.toISOString()}. ` +
         "Close that Chrome window to finish the login, then try again.",
     );
   });
@@ -141,7 +141,7 @@ describe("runtime lock", () => {
     expect(inUseBy("school", sb.env)).toBeUndefined();
     const held = acquireRuntimeLock("school", sb.env, { holder: "login", now: T0 });
     expect(isInUse("school", sb.env)).toBe(true);
-    expect(inUseBy("school", sb.env)).toMatch(/in use by turno browser login/);
+    expect(inUseBy("school", sb.env)).toMatch(/in use by turno-browser login/);
     held.release();
     expect(isInUse("school", sb.env)).toBe(false);
   });

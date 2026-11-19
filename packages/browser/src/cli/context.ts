@@ -3,7 +3,9 @@ import type { Io } from "turno-core/cli";
 import type { BrowserFunctions } from "../api.js";
 import type { ServedIdentity } from "../doctor.js";
 import type { SettingsPatch } from "../settings.js";
+import { type CliNames, STANDALONE_NAMES } from "../names.js";
 import type { DoTransport } from "./do.js";
+import { type BackgroundDoDeps, backgroundTransport, defaultBackgroundDoDeps } from "./do-background.js";
 
 /**
  * What the identity commands need from the program that runs them. They run as `turno-browser
@@ -12,21 +14,7 @@ import type { DoTransport } from "./do.js";
  * gateway that `do` goes through, and its own command names in hints and help.
  */
 
-/** How the commands are typed, for hints, examples and messages. */
-export interface CliNames {
-  /** The program, as errors start: `turno-browser` or `turno`. */
-  program: string;
-  /** How a browser subcommand is typed: `turno-browser` or `turno browser`. */
-  browser: string;
-  /** The word messages put before a subcommand name: "" or "browser ". */
-  subject: string;
-  /** How a command on one identity is typed: `turno-browser add school`, `turno identity add browser:school`. */
-  identity(sub: string, id: string): string;
-  /** How a person stores a secret store item that a `keychain:<item>` reference names. */
-  secretSet(item: string): string;
-  /** The secret store in short, where a line has no room for `secretSet` (default: `secretSet("<item>")`). */
-  secretStore?: string;
-}
+export type { CliNames } from "../names.js";
 
 export interface BrowserCliHost {
   names: CliNames;
@@ -104,26 +92,13 @@ export const openInBrowser: OpenUrl = async (url, io) => {
   });
 };
 
-/** The names of turno-browser on its own. */
-const STANDALONE_NAMES: CliNames = {
-  program: "turno-browser",
-  browser: "turno-browser",
-  subject: "",
-  identity: (sub, id) => `turno-browser ${sub} ${id}`,
-  // turno-browser reads items the way turno-cli's `turno secret set` stores them.
-  secretSet: (item) =>
-    process.platform === "darwin"
-      ? `security add-generic-password -a turno -s ${item} -w`
-      : `secret-tool store --label="turno: ${item}" service turno account ${item}`,
-};
-
-/** The line `add` prints for wiring an agent: S4's `setup` prints the config it names. */
+/** The line `add` prints for wiring an agent: `setup` prints the config it names. */
 function setupLine(id: string): string {
   return `turno-browser setup claude-code --identity ${id}`;
 }
 
-/** turno-browser on its own: no mcp.toml, no gateway. */
-export function standaloneHost(): BrowserCliHost {
+/** turno-browser on its own: no mcp.toml, no gateway; `do` goes through the background server. */
+export function standaloneHost(doDeps: BackgroundDoDeps = defaultBackgroundDoDeps): BrowserCliHost {
   return {
     names: STANDALONE_NAMES,
     footer: `Identities are persistent Chrome profiles that turno-browser-mcp serves to your coding agents.
@@ -138,5 +113,6 @@ credentials in the secret store (turno-browser vault).`,
       io.out(`Sign in to your sites once with \`turno-browser login ${id}\`.`);
     },
     restart: "a new agent session",
+    doTransport: backgroundTransport(doDeps),
   };
 }

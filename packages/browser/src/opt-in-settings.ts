@@ -1,4 +1,5 @@
 import { parseDuration } from "./units.js";
+import { names } from "./names.js";
 
 /**
  * The format 8 keys of identity.json: natural language actions (`act`) and captcha solving
@@ -102,13 +103,13 @@ function timeoutProblem(key: string, v: unknown, out: string[]): void {
 
 function keyProblem(key: string, v: unknown, out: string[], required: boolean): void {
   if (v === undefined) {
-    if (required) out.push(`${key} is required: a keychain:<item> reference (turno secret set <item>)`);
+    if (required) out.push(`${key} is required: a keychain:<item> reference (${names().secretSet("<item>")})`);
     return;
   }
   // Never echo the value: a pasted key would land in a terminal or a log.
   if (!isKeychainRef(v))
     out.push(
-      `${key} must be a keychain:<item> reference (store the key with turno secret set <item>), never the key itself`,
+      `${key} must be a keychain:<item> reference (store the key with ${names().secretSet("<item>")}), never the key itself`,
     );
 }
 

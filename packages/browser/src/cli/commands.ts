@@ -17,6 +17,7 @@ import {
 } from "turno-core/cli";
 import { tildify } from "turno-core/paths";
 import type { BrowserFunctions } from "../api.js";
+import { useNames } from "../names.js";
 import { type BrowserCliHost, type CliDeps, type Ctx, context } from "./context.js";
 import { ACTION_NAMES, DO_JSON, browserDo, doDetails, doFlagNames, doSynopsis } from "./do.js";
 import * as flowCmd from "./flows.js";
@@ -24,6 +25,9 @@ import * as ident from "./identity.js";
 import * as liveCmd from "./live.js";
 import * as session from "./session.js";
 import { vaultCommand } from "./vault.js";
+import { BACKGROUND_JSON, backgroundCommand } from "./background.js";
+import { secretCommand } from "./secret.js";
+import { SETUP_DETAILS, SETUP_JSON, setup } from "./setup.js";
 
 /**
  * The identity commands of turno-browser: `turno-browser <cmd>` on its own, `turno browser <cmd>`
@@ -233,6 +237,8 @@ async function dispatch(c: Ctx, sub: string, rest: string[], io: Io): Promise<nu
         return await liveCmd.pause(c, rest, io);
       case "resume":
         return await liveCmd.resume(c, rest, io);
+      case "setup":
+        return setup(c, rest, io);
       default:
         return fail(`unknown ${c.names.subject}command "${sub}"`);
     }
@@ -304,7 +310,35 @@ function subcommands(c: Ctx): Record<string, Sub> {
     (sub: string): Sub["run"] =>
     (args, io) =>
       dispatch(c, sub, args, io);
+  // What only turno-browser on its own has: inside turno, `turno mcp sync` writes the agents'
+  // configs, `turno secret` stores secrets and `do` goes through mcpd, not a background server.
+  const own: Record<string, Sub> = alone
+    ? {
+        setup: {
+          summary: "print the MCP config that gives an agent an identity (Claude Code, Codex, Cursor...)",
+          synopsis: "<claude-code|codex|cursor|copilot|gemini|json> [--identity <id>] [--json]",
+          details: SETUP_DETAILS,
+          flags: ["--identity", "--json"],
+          json: SETUP_JSON,
+          run: run("setup"),
+        },
+        background: {
+          summary: "the background server do starts per identity: status, start, stop",
+          synopsis: "status|start|stop [<id>]",
+          ownHelp: true,
+          json: BACKGROUND_JSON,
+          run: (args, io) => backgroundCommand(c).run(args, io),
+        },
+        secret: {
+          summary: "store the secrets identity.json names as keychain:<item> (never printed)",
+          synopsis: "set|has|list|remove <item>",
+          ownHelp: true,
+          run: (args, io) => secretCommand(c).run(args, io),
+        },
+      }
+    : {};
   return {
+    ...own,
     // On its own the program says `list`, like `turno identity list`; turno browser keeps `identities`.
     identities: {
       summary: alone ? "same as list" : "list browser identities and whether they are in use",
@@ -504,6 +538,8 @@ export interface BrowserCli {
  * (`api.cli`) with its own host; the `turno-browser` program with `standaloneHost()`.
  */
 export function browserCli(host: BrowserCliHost, deps: CliDeps): BrowserCli {
+  // Messages from the library (doctor fixes, errors) name the commands the way this host does.
+  useNames(host.names);
   const c = context(host, deps);
   const subs = subcommands(c);
   const name = c.names.subject.trim() || c.names.program;

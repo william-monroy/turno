@@ -19,6 +19,7 @@ import {
 import { type Tuning, launchTuning } from "./tuning.js";
 import { IdleTimer, idleMs } from "./idle-timer.js";
 import { type ClientInfo, type IdleTimerLike, type McpConfig, playwright, upstream } from "./upstream.js";
+import { names } from "./names.js";
 
 /**
  * Where the browser context behind an MCP session comes from. The host asks an
@@ -164,7 +165,7 @@ function profileInUse(identity: IdentityRef | undefined, userDataDir: string): E
   const who = chrome ? `a Chrome that turno-browser-mcp did not start (pid ${chrome.pid})` : "another Chrome";
   return new Error(
     `browser identity "${identity.id}" is in use by ${who}: a Chrome opened by hand on this profile, or a login from an older turno. ` +
-      `Close it, then try again; \`turno browser doctor\` shows who holds each identity.`,
+      `Close it, then try again; \`${names().browser} doctor\` shows who holds each identity.`,
   );
 }
 

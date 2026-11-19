@@ -263,7 +263,7 @@ describe.skipIf(reason)("identity.json proxy with a real Chrome and a local prox
     const r = await call(client, "browser_navigate", { url: site.url });
     expect(r.error).toBe(true);
     expect(r.text).toMatch(
-      /the secret store has no item "absent" for the proxy password \(store it with: turno secret set absent\)/,
+      /the secret store has no item "absent" for the proxy password \(store it with: turno-browser secret set absent\)/,
     );
     expect(proxy.seen.relayed).toEqual([]);
     expect(site.reports).toEqual([]);

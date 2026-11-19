@@ -238,7 +238,7 @@ describe("browser_act", () => {
     const r = await run(actTool(), ctx(fakeStock().stock, model), { instruction: "press Go" });
     expect(r.isError).toBe(true);
     expect(r.text).toMatch(
-      /natural language actions are off for identity "work"; the person turns them on with turno identity set browser:work --act/,
+      /natural language actions are off for identity "work"; the person turns them on with turno-browser set work --act/,
     );
     expect(requests).toHaveLength(0);
   });

@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { identityStateDir } from "./ids.js";
 import type { HealthCheck } from "./settings.js";
+import { names } from "./names.js";
 
 /**
  * Session health: whether an identity is still signed in where it matters. The check
@@ -72,7 +73,7 @@ export function healthDue(record: HealthRecord | undefined, check: HealthCheck, 
 export function needsAuthMessage(id: string, record: HealthRecord): string {
   return (
     `NEEDS_AUTH: browser identity "${id}" is not signed in: ${record.detail ?? "the check failed"} at ${record.url} (checked ${record.checkedAt}). ` +
-    `Ask the user to run \`turno browser login ${id}\`, sign in and close the window, then call this tool again.`
+    `Ask the user to run \`${names().browser} login ${id}\`, sign in and close the window, then call this tool again.`
   );
 }
 

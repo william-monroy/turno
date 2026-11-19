@@ -4,6 +4,7 @@ import { browserPaths, writePrivateFile } from "turno-core/paths";
 import { type SecretStore, requireSecretStore } from "turno-core/secrets";
 import { IdentityError, assertIdentityId, identityDir } from "./ids.js";
 import { type TotpParams, parseTotpSecret } from "./totp.js";
+import { names } from "./names.js";
 
 /**
  * The credential vault of a browser identity: a username, a password and optionally
@@ -212,7 +213,7 @@ export async function vaultAdd(
   assertIdentityId(id);
   assertSiteKey(site);
   if (!existsDir(identityDir(id, env)))
-    throw new VaultError(`identity "${id}" does not exist (turno browser add ${id})`);
+    throw new VaultError(`identity "${id}" does not exist (${names().browser} add ${id})`);
   if (!input.urls.length)
     throw new VaultError("give the sign-in page with --url (for example --url https://github.com/login)");
   const origins = [...new Set(input.urls.map(vaultOrigin))];
@@ -272,7 +273,7 @@ export function vaultSetSubmit(
   const env = options.env ?? process.env;
   if (submit !== "confirm" && submit !== "auto") throw new VaultError(`submit must be "confirm" or "auto"`);
   if (!existsDir(identityDir(id, env)))
-    throw new VaultError(`identity "${id}" does not exist (turno browser add ${id})`);
+    throw new VaultError(`identity "${id}" does not exist (${names().browser} add ${id})`);
   const index = readIndex(id, env);
   index.submit = submit;
   writeIndex(id, index, env);
@@ -309,7 +310,7 @@ export async function readCredential(id: string, site: string, options: VaultOpt
   const raw = await guarded(`reading ${site}`, () => storeOf(options).get(vaultItem(id, site)));
   if (raw === undefined)
     throw new VaultError(
-      `the credentials of "${site}" are missing from the secret store; add them again with turno browser vault add ${id} ${site}`,
+      `the credentials of "${site}" are missing from the secret store; add them again with ${names().browser} vault add ${id} ${site}`,
     );
   let v: unknown;
   try {
@@ -319,7 +320,7 @@ export async function readCredential(id: string, site: string, options: VaultOpt
   }
   if (!isCredential(v))
     throw new VaultError(
-      `the secret store item of "${site}" is not a turno-browser credential; add it again with turno browser vault add ${id} ${site}`,
+      `the secret store item of "${site}" is not a turno-browser credential; add it again with ${names().browser} vault add ${id} ${site}`,
     );
   return { username: v.username, password: v.password, ...(v.totp ? { totp: v.totp } : {}) };
 }

@@ -141,7 +141,7 @@ describe("notes", () => {
 
   it("tells a timed out call that the user still has the browser", () => {
     expect(timeoutMessage("work", "browser_navigate", 130_000, "the live view", 120_000)).toBe(
-      'The user paused browser identity "work" 2m 10s ago (the live view) and has not resumed it within 2m 00s, so browser_navigate was not run. The user is probably acting in the browser: wait, or ask them to resume (Resume in the live view, or turno browser resume work), then call again.',
+      'The user paused browser identity "work" 2m 10s ago (the live view) and has not resumed it within 2m 00s, so browser_navigate was not run. The user is probably acting in the browser: wait, or ask them to resume (Resume in the live view, or turno-browser resume work), then call again.',
     );
   });
 
