@@ -35,7 +35,7 @@ export function BrowserPage({ lang: given }: { lang: string }) {
             <div className={s.heroActions}>
               <CopyCommand run={CMD.install} {...labels} />
               <CopyPrompt {...t.hero.prompt} />
-              <Link href={localePath(lang, t.chapters.identities.more.href)} className={s.link}>
+              <Link href={localePath(lang, "/docs/browser")} className={s.link}>
                 {t.hero.docs} <span aria-hidden>→</span>
               </Link>
             </div>
@@ -158,7 +158,7 @@ export function BrowserPage({ lang: given }: { lang: string }) {
           <div className={s.heroActions}>
             <CopyCommand run={CMD.install} {...labels} />
             <CopyPrompt {...t.hero.prompt} />
-            <Link href={localePath(lang, t.chapters.identities.more.href)} className={s.link}>
+            <Link href={localePath(lang, "/docs/browser")} className={s.link}>
               {t.start.docs} <span aria-hidden>→</span>
             </Link>
             <Link href={localePath(lang, "/")} className={s.link}>
