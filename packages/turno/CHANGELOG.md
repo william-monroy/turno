@@ -1,5 +1,123 @@
 # turno-cli
 
+## 0.4.0
+
+### Minor Changes
+
+- 50facc9: Record and replay. `browser_record` saves an agent's actions on an identity as a named flow, each
+  element kept four ways (Playwright's locator, role and name, text, CSS path) and typed text as
+  parameters; passwords, one-time codes and values marked sensitive are never saved, and a vault
+  sign-in is kept as `browser_login` with the site name. `browser_replay` runs a flow with
+  parameters (`keychain:<item>` reads one from the secret store) and, when a step no longer fits,
+  stops with a report the agent can continue from; `browser_flows` lists them. Opt-in per identity
+  (`record` in identity.json, `turno browser record <id>`): every session as a flow, Playwright
+  traces and a screenshot per action under a size cap, with the trace stopped around sign-ins.
+  New commands `turno browser flows|replay|record|traces`; `traces --open` uses the trace viewer
+  bundled with patchright-core.
+  With `"sharing": "tabs"` a recording holds only the session that started it and replay runs in
+  that session's tabs; traces and screenshots are refused in attach mode and in read mode.
+- e94a153: Natural language actions and captcha solving for browser identities, both not recommended and off by default.
+  
+  - `turno identity set browser:<id> --act` lists `browser_act` (an instruction carried out one stock browser action at a time, every step shown), `browser_extract` (data off the page as JSON) and `browser_observe` (proposed calls, not run). The model is your client's, through MCP sampling, or a chat completions API you name with `--act-provider chat-completions --act-endpoint <url> --act-model <name> --act-key keychain:<item>`. The model sees the instruction and a snapshot of the current tab with vault values and password, one-time code and card fields hidden; it can only click, type, select, press keys, hover, drag, wait and go back on that tab; steps, tokens and time are capped per call (`--act-max-steps`, `--act-max-tokens`, `--act-timeout`). A recorded flow keeps the stock steps it chose, never the instruction or the page.
+  - `--captcha-provider task-api --captcha-endpoint <url> --captcha-key keychain:<item>` lists `browser_solve_captcha`, which sends a reCAPTCHA v2, hCaptcha or Turnstile widget and the page address to that solver service and puts the token into the page. The service sees the page, and solving a site's captchas by machine may break its terms: it is meant for your own accounts. Every attempt is a line in the identity's reputation log, and `turno browser reputation` shows a `solved` column once a solver answered. Read mode refuses it.
+  - Keys are only `keychain:` references read from the secret store at use time, refused as literal values without being echoed, and hidden from every result.
+  - identity.json format 8 (`act`, `captcha`); turno-browser API 1.7, which turno-cli now requires.
+- dcc2b97: Two opt-in engines for browser identities and servers, both off by default.
+  
+  Read mode runs an identity (or one server) on Lightpanda instead of Chrome, for reading pages
+  with a fraction of the memory: `turno browser set <id> --engine lightpanda`, or
+  `turno-browser-mcp --engine lightpanda`. turno never downloads Lightpanda; it runs the
+  `lightpanda` on your PATH (or at `TURNO_LIGHTPANDA_PATH`), on a private Unix socket with
+  Lightpanda's telemetry off. The tools that work there run; the others (screenshots, dialogs,
+  drag and drop, uploads, `browser_login`) are refused with the reason before they reach the
+  browser. An identity in read mode keeps its own cookie jar, apart from its Chrome profile.
+  
+  Attach mode connects to the Chrome you already have open, so the agent works in your signed-in
+  browser: `turno browser set <id> --attach auto` (after you turn on remote debugging at
+  chrome://inspect/#remote-debugging, Chrome 144 or newer), a Chrome user data folder, or a
+  loopback endpoint; `turno-browser-mcp --attach <target>` for one server. Chrome asks you to allow
+  each connection. turno works in a tab of its own, closes only the tabs it opened (on
+  `browser_close`, at the end of the session and at the idle limit) and never closes Chrome; the
+  tab governor leaves your tabs alone, and `browser_run_code_unsafe` is refused.
+  
+  `turno browser doctor` gains an Engines section (Lightpanda found or how to install it, a
+  Lightpanda left running, which `--fix` stops) and checks each identity's attach target without
+  connecting. identity.json is now format 6 (`engine`, `attach`), and the turno-browser API is 1.5.
+  
+  Read mode works with `"sharing": "tabs"`. Two pairs are refused with the reason, in identity.json
+  and from server flags: attach mode with `"sharing": "tabs"` (turno keeps one agent's tabs apart
+  from yours in your Chrome, not several sessions apart), and read mode with `humanize` (Lightpanda
+  lays out no page, so there is no pointer path to play). Attach mode works with `humanize`.
+- 4814fb8: Human-like input for browser identities, off by default. `turno identity set browser:<id> --humanize light|full|adaptive` (or `turno-browser-mcp --humanize <level>`, which wins) makes the stock click, hover, type, fill form, select, drag, press key and coordinate tools, and `browser_batch`, move the pointer along a curve from where it last was to a point inside the target, hold the button for tens of milliseconds and type short text key by key with per-key delays. `full` adds a move time that follows distance and target size, overshoot and correction, a reading pause on a new page, longer gaps between words and wheel scrolling; `adaptive` is `light`, and `full` on a site where the identity met a challenge page. Tool names, arguments and results do not change. The setting is the `humanize` key of identity.json (format 4, with an optional `seed`), and turno-cli needs turno-browser API 1.3 for it.
+- bf1cafb: `turno browser do <id> <action>` drives a browser identity from the shell, for coding agents that
+  prefer commands to MCP tools: `open`, `back`, `snapshot`, `read`, `find`, `click`, `type`,
+  `press`, `select`, `hover`, `wait`, `screenshot`, `tabs`, `login` (a vault sign-in), `call` (any
+  tool of the server), `close`, `session` and `end`. Each action is one tool call through mcpd to the
+  identity's turno-browser-mcp, so the tab locks or the one-session lease, attach mode, read mode's
+  refusals, humanize, recordings and the vault apply as they do to an agent. The commands one agent
+  or one terminal shell runs are one session and keep their tab: turno keeps the mcpd session open
+  between them and ties it to the agent (or the shell), and `end` closes it; `--session <name>` or
+  `TURNO_BROWSER_SESSION` keeps several apart. Output is `url:` and `title:` lines and what the
+  action returned, errors on stderr with exit 1, or one object with `--json`. `turno browser <id>
+  <action>` is the short form when the id is not a subcommand. The Claude Code plugin adds a short
+  `browser-identity` skill that teaches the loop and reads the installed help first.
+- 6698608: Live view and take-over for browser identities, off by default. `turno browser set <id> --live true` (or `turno-browser-mcp --live`) serves a view of the agent's tab on 127.0.0.1 with a per-server token; `turno browser live <id>` opens it through a link that works once and is never printed. `turno browser pause <id>` (or Pause in the view) holds the agent's next call, up to `live.wait` (2 minutes by default), while you act in the window or through the view; `turno browser resume <id>` lets it go, and each held call is told what changed (URL, title, tabs, your input) and a call that would act on stale refs is not run: it returns an error with a fresh snapshot. The natural language and captcha tools are held too, and a `browser_act` run stops at its next step. A page that holds a vault value or a password is never shown, including a sign-in typed key by key with humanize. Read mode and attach mode refuse the view and keep pause and resume. turno-browser API 1.9, identity.json format 10.
+- c716051: Opt-in network and user agent settings, and a Camoufox engine, all off by default and not
+  recommended for your own accounts. identity.json format 11 adds `userAgent` and `proxy`, and the
+  `engine` key takes `"camoufox"` (also format 11); API_VERSION is 1.10 and turno-cli needs it.
+  `"userAgent": "coherent"` takes no typed value: a headless Chrome gets the user agent a headed one
+  of the same version sends, with its real client hints metadata, and a launch check refuses any
+  contradiction between the user agent, client hints, platform, headers, languages and time zone.
+  `proxy` sends the identity's traffic (sign-ins included) through an http, https or SOCKS proxy,
+  with its password only from the secret store, hidden from every tool result, and WebRTC limited
+  to the proxy. `--engine camoufox` runs an identity on an installed Camoufox through stock
+  playwright-core, with its own Firefox profile; turno never downloads it, and every stock tool but
+  `browser_run_code_unsafe` runs, as do natural language actions, `browser_login` and
+  `turno browser do`. Captcha solving is refused with it, and the live view shows no picture there
+  (pause and resume work). The act model's prompt and the live view's tab list hide the proxy
+  credentials. New flags on `turno identity set` (`--user-agent`,
+  `--proxy-server`, `--proxy-username`, `--proxy-password`, `--no-proxy`), doctor checks for
+  Camoufox and the proxy credentials, and fingerprint bench checks that compare headers and a
+  worker with the page.
+- 4b9556f: Several agent sessions can now share one browser identity, each in its own tabs. Turn it on per identity with `"sharing": "tabs"` in identity.json (`turno identity set browser:<id> --sharing tabs`, or the server's `--sharing tabs`) and serve the identity with `exclusive = false` in mcp.toml; the default stays one session at a time. Each session gets its own current tab and holds the tabs it works on: another session's call on one of them waits up to 10 seconds and then fails with a message that names the holder. A session lets go of its tabs when it ends (mcpd now tells servers that declare the `io.turno/sessions` capability), when a tab closes, or after 5 minutes without a call. `browser_close` closes only the calling session's tabs, tab lists mark the tabs other sessions hold, and the tab governor's cap counts each session's tabs apart. `turno identity add browser:<id> --sharing tabs` prints the matching mcp.toml block. turno-browser's API version is now 1.4.
+- 3bd7bc2: Follow-ups for browser identities.
+  
+  A tool call no longer starts while the tab governor is still closing a popup or a parked tab, so
+  the call cannot fail with "Target page, context or browser has been closed". A Chrome that does
+  not stop after SIGKILL gets 5 seconds instead of 2 before turno calls it a survivor.
+  
+  A server in read mode stops a Lightpanda that a killed server left running on the same cookie jar
+  when it starts, and removes its socket folder.
+  
+  `turno browser doctor` warns when an identity that serves one session at a time
+  (`"sharing": "session"`) is served by an mcp.toml server with `exclusive = false`, and says how to
+  switch it to `"sharing": "tabs"`.
+  
+  The tab lock wait (10 seconds) and the idle release (5 minutes) of `"sharing": "tabs"` can be set
+  per identity: `"tabLocks": { "wait": "30s", "release": "10m" }` in identity.json, or
+  `turno browser set <id> --tab-lock-wait 30s --tab-lock-release 10m`. identity.json is now format
+  9 and the turno-browser API is 1.8.
+  
+  The `light` humanize level moves the pointer on a visible arc (some 4 to 8% longer than the
+  straight line) instead of an almost straight path. With humanize on, `browser_login` clicks into
+  each field and types the value key by key; the keys go to Chrome only, never to a result, a
+  recording or a log.
+  
+  When another element covers the target of a click, hover, type, select or drag before the call,
+  and still covers it 300 ms later, the error names that element at once instead of after the 5
+  second action timeout.
+  
+  Chrome keeps its third-party storage partitioning on, as a person's Chrome does: Playwright turns
+  it off, and turno now passes Playwright's list of disabled features without it.
+
+### Patch Changes
+
+- 31a9a36: `turno doctor`, `turno status`, `turno mcp daemon status` and `turno doctor --security` no longer
+  wait for lsof to tell who holds mcpd's port. A free port is told by a refused connection, and a
+  running mcpd's port is checked against the pid it reports, so lsof's scan of every process (which
+  takes seconds on a busy Mac) runs only when another process holds the port. When lsof cannot say
+  which process that is, doctor still reports the port as in use.
+
 ## 0.3.0
 
 ### Minor Changes
