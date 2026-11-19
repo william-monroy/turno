@@ -375,8 +375,10 @@ More in [Browser identities](https://turno.wimo.dev/docs/concepts/browser-identi
 [`turno browser`](https://turno.wimo.dev/docs/reference/cli/browser).
 
 **Acceptable use.** Use it with your own accounts, on sites whose terms allow automated access
-by you, and at a human pace. Do not use it to get around access controls, paywalls, CAPTCHAs or
-rate limits, to scrape at scale, or to access accounts that are not yours.
+by you, and at a human pace. Do not use it to get around access controls, paywalls or rate
+limits, to scrape at scale, or to access accounts that are not yours. Captcha solving and natural
+language actions are off unless you turn them on per identity; both send page content to a third
+party you pick, and captcha solving may break a site's terms.
 
 ### Accounts bridge
 

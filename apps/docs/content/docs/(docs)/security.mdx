@@ -71,7 +71,9 @@ turno identity log --verify   # checks the hash chain; exits 1 when it is broken
 
 `turno-browser-mcp` serves over stdio, through mcpd. It refuses `--port` or `--host` together with `--identity`, which would serve a signed-in browser over HTTP, unless you pass `--allow-http-identity`; it then listens on 127.0.0.1 only.
 
-Use it with your own accounts, on sites whose terms allow automated access by you, and at a human pace. Do not use it to get around access controls, paywalls, CAPTCHAs or rate limits, to scrape at scale, or to access accounts that are not yours.
+Use it with your own accounts, on sites whose terms allow automated access by you, and at a human pace. Do not use it to get around access controls, paywalls or rate limits, to scrape at scale, or to access accounts that are not yours.
+
+Two capabilities send page content to a third party you pick, and both are off unless you turn them on per identity: [natural language actions](/docs/concepts/browser-identities#natural-language-actions) send the instruction and a snapshot of the page to a model (vault values and sensitive fields hidden), and [captcha solving](/docs/concepts/browser-identities#captcha-solving) sends the page address and the captcha to a solver service, which may break a site's terms and is meant for your own accounts. Their keys live only in the secret store, as `keychain:` references, and every solve is logged in the identity's reputation log.
 
 ## When turno goes online
 
