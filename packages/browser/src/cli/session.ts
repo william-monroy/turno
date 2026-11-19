@@ -1,13 +1,12 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { tildify } from "../../core/paths.js";
-import { DRY_RUN, bool, parseFlags, str } from "../args.js";
-import { type Io, fail, needsAnswer, noInputReason } from "../io.js";
-import { type VaultInput, terminalInput } from "./browser-vault.js";
-import type { BrowserApi, BrowserDeps } from "./browser.js";
+import { DRY_RUN, type Io, bool, fail, needsAnswer, noInputReason, parseFlags, str } from "turno-core/cli";
+import { tildify } from "turno-core/paths";
+import type { Ctx, VaultInput } from "./context.js";
+import { terminalInput } from "./vault.js";
 
 /**
- * `turno browser export` and `turno browser import`: an identity's signed-in session
+ * `export` and `import`: an identity's signed-in session
  * (cookies, localStorage, IndexedDB) as one file encrypted under a passphrase, with an expiry
  * inside. The passphrase comes from a hidden prompt (asked twice on export) or the first line
  * of stdin, never from a flag.
@@ -31,9 +30,9 @@ export function parseExpiry(text: string): number {
   return ms;
 }
 
-async function passphrase(io: Io, input: VaultInput, confirm: boolean): Promise<string> {
+async function passphrase(io: Io, input: VaultInput, confirm: boolean, subject: string): Promise<string> {
   if (input.isTty()) {
-    if (noInputReason(io.env)) needsAnswer(confirm ? "browser export" : "browser import", "the passphrase on stdin");
+    if (noInputReason(io.env)) needsAnswer(`${subject}${confirm ? "export" : "import"}`, "the passphrase on stdin");
     const first = await input.hidden("Passphrase (input hidden): ");
     if (confirm && (await input.hidden("Passphrase again: ")) !== first)
       return fail("the passphrases differ; nothing was written");
@@ -42,22 +41,19 @@ async function passphrase(io: Io, input: VaultInput, confirm: boolean): Promise<
   return (await input.stdin()).split(/\r?\n/)[0] ?? "";
 }
 
-export async function exportSession(
-  mod: BrowserApi,
-  args: string[],
-  io: Io,
-  input: VaultInput = terminalInput,
-): Promise<number> {
+export async function exportSession(c: Ctx, args: string[], io: Io): Promise<number> {
+  const mod = c.api;
+  const input = c.deps.input ?? terminalInput;
   const p = parseFlags(args, EXPORT_FLAGS, 1);
   const id = p.positionals[0];
-  if (!id) return fail("usage: turno browser export <id> --out <file> [--expires 7d] [--force]");
+  if (!id) return fail(`usage: ${c.names.browser} export <id> --out <file> [--expires 7d] [--force]`);
   mod.assertIdentityId(id);
   if (!mod.identityExists(id, io.env)) return fail(`browser identity "${id}" does not exist`);
   const out = str(p, "out");
   if (!out) return fail("give the file to write with --out (for example --out school.session)");
   const expiresInMs = parseExpiry(str(p, "expires") ?? "7d");
   const file = resolve(out);
-  const secret = await passphrase(io, input, true);
+  const secret = await passphrase(io, input, true, c.names.subject);
   const { sealed, summary } = await mod.exportSession(id, { passphrase: secret, expiresInMs, env: io.env });
   try {
     writeFileSync(file, sealed, { mode: 0o600, flag: bool(p, "force") ? "w" : "wx" });
@@ -73,16 +69,13 @@ export async function exportSession(
   return 0;
 }
 
-export async function importSession(
-  mod: BrowserApi,
-  args: string[],
-  io: Io,
-  deps: BrowserDeps,
-  input: VaultInput = terminalInput,
-): Promise<number> {
+export async function importSession(c: Ctx, args: string[], io: Io): Promise<number> {
+  const mod = c.api;
+  const deps = c.deps;
+  const input = c.deps.input ?? terminalInput;
   const p = parseFlags(args, IMPORT_FLAGS, 1);
   const path = p.positionals[0];
-  if (!path) return fail("usage: turno browser import <file> [--as <id>] [--yes] [--dry-run]");
+  if (!path) return fail(`usage: ${c.names.browser} import <file> [--as <id>] [--yes] [--dry-run]`);
   let text: string;
   try {
     text = readFileSync(resolve(path), "utf8");
@@ -91,7 +84,7 @@ export async function importSession(
   }
   const as = str(p, "as");
   if (as) mod.assertIdentityId(as);
-  const secret = await passphrase(io, input, false);
+  const secret = await passphrase(io, input, false, c.names.subject);
   const { summary } = await mod.readSessionExport(text, secret);
   const id = as ?? summary.identity;
   const exists = mod.identityExists(id, io.env);
@@ -101,7 +94,7 @@ export async function importSession(
     return 0;
   }
   if (exists && !bool(p, "yes")) {
-    if (!deps.interactive(io)) needsAnswer("browser import into an existing identity");
+    if (!deps.interactive(io)) needsAnswer(`${c.names.subject}import into an existing identity`);
     if (
       !(await deps.confirm(
         `Replace the cookies and site storage of "${id}"? Its current sign-ins are lost. [y/N] `,

@@ -1,7 +1,7 @@
 {
   "name": "turno-core",
   "version": "0.1.0",
-  "description": "Shared building blocks of turno-cli and turno-browser: XDG paths, the OS secret store (macOS Keychain, Linux Secret Service) and process helpers.",
+  "description": "Shared building blocks of turno-cli and turno-browser: XDG paths, the OS secret store (macOS Keychain, Linux Secret Service), process helpers and the command line toolkit.",
   "license": "Apache-2.0",
   "author": "William Frank Monroy Mamani (https://github.com/william-monroy)",
   "homepage": "https://turno.wimo.dev",
@@ -35,6 +35,14 @@
     "./process": {
       "types": "./dist/process.d.ts",
       "default": "./dist/process.js"
+    },
+    "./cli": {
+      "types": "./dist/cli/index.d.ts",
+      "default": "./dist/cli/index.js"
+    },
+    "./cli/*": {
+      "types": "./dist/cli/*.d.ts",
+      "default": "./dist/cli/*.js"
     },
     "./package.json": "./package.json"
   },

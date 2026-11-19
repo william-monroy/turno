@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type BrowserApi, type BrowserDeps, browserCommand } from "../src/cli/commands/browser.js";
-import { type VaultInput, vaultCommand } from "../src/cli/commands/browser-vault.js";
-import { fakeIo } from "./helpers/cli.js";
-import { type Sandbox, sandbox } from "./helpers/sandbox.js";
+import type { BrowserFunctions as BrowserApi } from "../../src/api.js";
+import type { VaultInput } from "../../src/cli/context.js";
+import { vaultCommand } from "../../src/cli/vault.js";
+import { type Sandbox, sandbox } from "../helpers/sandbox.js";
+import { cli, ctx, fakeIo } from "./helpers.js";
 
 let sb: Sandbox;
 beforeEach(() => {
@@ -71,11 +72,7 @@ function setup(input: Partial<VaultInput> = {}) {
   const cleared: string[] = [];
   const order: string[] = [];
   const asked: string[] = [];
-  const deps: BrowserDeps = {
-    load: async () => fakeModule(added, removed, cleared, order),
-    interactive: () => false,
-    confirm: async () => false,
-  };
+  const fake = fakeModule(added, removed, cleared, order);
   const vaultInput: VaultInput = {
     isTty: () => false,
     hidden: async (prompt) => {
@@ -89,13 +86,21 @@ function setup(input: Partial<VaultInput> = {}) {
     stdin: async () => `${PASSWORD}\n${TOTP}\n`,
     ...input,
   };
-  return { added, removed, cleared, order, asked, deps, cmd: vaultCommand(deps, vaultInput) };
+  return {
+    added,
+    removed,
+    cleared,
+    order,
+    asked,
+    browser: cli(fake, { input: vaultInput }).command,
+    cmd: vaultCommand(ctx(fake, { input: vaultInput })),
+  };
 }
 
 /** Everything the command printed, to check no value ever shows. */
 const printed = (io: ReturnType<typeof fakeIo>) => [...io.lines, ...io.errors].join("\n");
 
-describe("turno browser vault", () => {
+describe("vault", () => {
   it("adds a site from stdin: the password on line 1, the TOTP secret on line 2, never printed", async () => {
     const { cmd, added } = setup();
     const io = fakeIo(sb.env);
@@ -144,7 +149,7 @@ describe("turno browser vault", () => {
     expect(await run(["add", "nobody", "github", "--url", "https://github.com", "--username", "a"])).toMatch(
       /does not exist/,
     );
-    expect(await run(["add", "work"])).toMatch(/usage: turno browser vault add/);
+    expect(await run(["add", "work"])).toMatch(/usage: turno-browser vault add/);
     expect(added).toEqual([]);
   });
 
@@ -199,9 +204,8 @@ describe("turno browser vault", () => {
     expect(msg).toMatch(/"confirm".*"auto"/);
   });
 
-  it("has help with examples for the group and each subcommand, through turno browser", async () => {
-    const { deps } = setup();
-    const browser = browserCommand(deps);
+  it("has help with examples for the group and each subcommand, through the command group", async () => {
+    const { browser } = setup();
     for (const args of [
       ["vault", "--help"],
       ["vault", "add", "--help"],
@@ -209,14 +213,14 @@ describe("turno browser vault", () => {
     ]) {
       const io = fakeIo(sb.env);
       expect(await browser.run(args, io)).toBe(0);
-      expect(io.lines.join("\n")).toMatch(/Examples:[\s\S]*turno browser vault/);
+      expect(io.lines.join("\n")).toMatch(/Examples:[\s\S]*turno-browser vault/);
     }
   });
 
   it("clears the vault before removing the identity", async () => {
-    const { deps, order, cleared } = setup();
+    const { browser, order, cleared } = setup();
     const io = fakeIo(sb.env);
-    expect(await browserCommand(deps).run(["remove", "work"], io)).toBe(0);
+    expect(await browser.run(["remove", "work"], io)).toBe(0);
     expect(cleared).toEqual(["work"]);
     expect(order).toEqual(["clear", "remove"]);
     expect(io.lines.join("\n")).toMatch(/deleted 2 vault credentials/);

@@ -8,12 +8,14 @@ and the agent works in that same signed-in browser afterwards.
 
 ```sh
 npm install --global turno-browser
-turno identity add browser:school     # a new identity, and its mcp.toml entry
-turno identity login browser:school   # sign in by hand once; cookies persist
+turno-browser add school      # a new identity, and how to connect an agent to it
+turno-browser login school    # sign in by hand once; cookies persist
 ```
 
 It is a separate package from [turno](https://www.npmjs.com/package/turno-cli), not installed
-with it; turno works without it. The whole story is at [turno.wimo.dev](https://turno.wimo.dev).
+with it; turno works without it. The `turno-browser` command manages identities on its own; with
+turno installed, `turno browser <command>` and `turno identity ... browser:<id>` run the same
+commands and add what turno has, like the `mcp.toml` block and `turno browser do` through mcpd. The whole story is at [turno.wimo.dev](https://turno.wimo.dev).
 
 ## Why
 
@@ -196,6 +198,9 @@ turno identity set browser:school --no-block --no-cache   # both off again
   launch on a temporary profile, and each identity's settings, lock and sign-in.
 
 ## Run it directly
+
+`turno-browser --help` lists every command by section (identities, sign-ins, flows, checks), and
+`turno-browser <command> --help` shows one. The MCP server itself is `turno-browser-mcp`:
 
 ```sh
 turno-browser-mcp --identity school

@@ -15,6 +15,7 @@ import { vaultAdd, vaultClear, vaultList, vaultRemove, vaultSetSubmit } from "./
 import { checkIdentitySettings, identitySettingsPath, writeIdentitySettings } from "./settings.js";
 import { manifestSnippet } from "./snippet.js";
 import { backgroundStatus, openBackgroundSession, startBackground, stopBackground } from "./client.js";
+import { browserCli } from "./cli/commands.js";
 
 /**
  * The contract between turno-browser and turno-cli. turno-cli installs this package
@@ -28,7 +29,7 @@ import { backgroundStatus, openBackgroundSession, startBackground, stopBackgroun
  *
  * `test/api.test.ts` lists the members, so a change here cannot ship without the version.
  */
-export const API_VERSION = Object.freeze({ major: 1, minor: 11 } as const);
+export const API_VERSION = Object.freeze({ major: 1, minor: 12 } as const);
 
 /** What `API_VERSION` looks like to a reader that does not know this package's version. */
 export interface ApiVersion {
@@ -50,8 +51,10 @@ export interface ApiVersion {
  * and (1.10) the `userAgent` and `proxy` keys and the `"camoufox"` engine of identity.json, and
  * the Camoufox and network checks of `runDoctor` (no new member: an older package refuses them),
  * and (1.11) the background server of an identity: start, status, stop, and its sessions.
+ * and (1.12) `cli`, the identity commands themselves (`turno-browser <cmd>`), which turno-cli runs
+ * as `turno browser <cmd>` and `turno identity ... browser:<id>` with a host of its own.
  */
-export const api = Object.freeze({
+const functions = {
   ENGINES,
   engineId,
   listIdentities,
@@ -98,6 +101,11 @@ export const api = Object.freeze({
   backgroundStatus,
   stopBackground,
   openBackgroundSession,
-});
+};
+
+/** The functions the identity commands call; tests of the commands pass fakes of them. */
+export type BrowserFunctions = typeof functions;
+
+export const api = Object.freeze({ ...functions, cli: browserCli });
 
 export type BrowserApi = typeof api;

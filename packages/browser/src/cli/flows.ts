@@ -1,25 +1,37 @@
-import { tildify } from "../../core/paths.js";
-import { DRY_RUN, type FlagSpec, JSON_FLAG, bool, parseFlags, str } from "../args.js";
-import { Exit } from "../exit.js";
-import { type Io, fail, needsAnswer, noInputReason } from "../io.js";
-import { emit, jsonOutput } from "../output.js";
-import { style } from "../style.js";
-import type { BrowserApi } from "./browser.js";
-import { describeRecord } from "./browser-identity.js";
-import { type VaultInput, terminalInput } from "./browser-vault.js";
+import {
+  DRY_RUN,
+  Exit,
+  type FlagSpec,
+  type Io,
+  JSON_FLAG,
+  bool,
+  emit,
+  fail,
+  jsonOutput,
+  needsAnswer,
+  noInputReason,
+  parseFlags,
+  str,
+  style,
+} from "turno-core/cli";
+import { tildify } from "turno-core/paths";
+import type { BrowserFunctions } from "../api.js";
+import type { Ctx } from "./context.js";
+import { describeRecord } from "./identity.js";
+import { terminalInput } from "./vault.js";
 
 /**
- * `turno browser flows|replay|traces|record`: the saved flows of an identity, running one
+ * `flows|replay|traces|record`: the saved flows of an identity, running one
  * outside an agent, its recordings (traces and screenshots), and what it records. The flows and
  * recordings themselves are turno-browser's (`flows.ts`, `recordings.ts`); this file only shows
  * and drives them.
  */
 
-/** `turno browser flows <id> --json`: one element per flow. */
+/** `flows <id> --json`: one element per flow. */
 export const FLOWS_JSON = jsonOutput(["name", "description", "steps", "params", "start", "auto", "updated", "file"]);
-/** `turno browser replay --json`. */
+/** `replay --json`. */
 export const REPLAY_JSON = jsonOutput(["identity", "flow", "ok", "report"]);
-/** `turno browser traces <id> --json`: one element per recording. */
+/** `traces <id> --json`: one element per recording. */
 export const TRACES_JSON = jsonOutput([
   "name",
   "dir",
@@ -32,16 +44,17 @@ export const TRACES_JSON = jsonOutput([
   "bytes",
   "notes",
 ]);
-/** `turno browser record <id> --json`. */
+/** `record <id> --json`. */
 export const RECORD_JSON = jsonOutput(["id", "dryRun", "record", "flowsDir", "recordingsDir"]);
 
-type Flow = ReturnType<BrowserApi["readFlow"]>;
+type Flow = ReturnType<BrowserFunctions["readFlow"]>;
 
-function needIdentity(mod: BrowserApi, id: string | undefined, sub: string, io: Io): string {
-  if (!id) return fail(`browser ${sub} needs an identity id (for example: turno browser ${sub} school)`);
-  mod.assertIdentityId(id);
-  if (!mod.identityExists(id, io.env))
-    return fail(`identity "${id}" does not exist (turno identity add browser:${id})`);
+/** The identity a subcommand names, which must exist. */
+export function needIdentity(c: Ctx, id: string | undefined, sub: string, io: Io): string {
+  const n = c.names;
+  if (!id) return fail(`${n.subject}${sub} needs an identity id (for example: ${n.browser} ${sub} school)`);
+  c.api.assertIdentityId(id);
+  if (!c.api.identityExists(id, io.env)) return fail(`identity "${id}" does not exist (${n.identity("add", id)})`);
   return id;
 }
 
@@ -64,12 +77,13 @@ function stepLine(step: Flow["steps"][number]): string {
   return `${step.tool}${what === undefined ? "" : ` ${String(what)}`}${text?.$param ? ` with {${text.$param}}` : ""}`;
 }
 
-export function flows(mod: BrowserApi, args: string[], io: Io): number {
+export function flows(c: Ctx, args: string[], io: Io): number {
+  const mod = c.api;
   const p = parseFlags(args, FLOWS_FLAGS, 2);
-  const id = needIdentity(mod, p.positionals[0], "flows", io);
+  const id = needIdentity(c, p.positionals[0], "flows", io);
   const name = p.positionals[1];
   if (bool(p, "remove")) {
-    if (!name) return fail("--remove needs a flow name: turno browser flows <id> <flow> --remove");
+    if (!name) return fail(`--remove needs a flow name: ${c.names.browser} flows <id> <flow> --remove`);
     mod.readFlow(id, name, io.env);
     if (bool(p, "dry-run")) {
       io.out(`(dry run) would delete flow "${name}" of "${id}"`);
@@ -136,17 +150,14 @@ const REPLAY_FLAGS: FlagSpec = {
  * command line must be a `keychain:<item>` reference (a value would sit in the shell history and
  * the process list); on a terminal a missing one is asked for, hidden.
  */
-export async function replay(
-  mod: BrowserApi,
-  args: string[],
-  io: Io,
-  input: VaultInput = terminalInput,
-): Promise<number> {
+export async function replay(c: Ctx, args: string[], io: Io): Promise<number> {
+  const mod = c.api;
+  const input = c.deps.input ?? terminalInput;
   const p = parseFlags(args, REPLAY_FLAGS, 2);
-  const id = needIdentity(mod, p.positionals[0], "replay", io);
+  const id = needIdentity(c, p.positionals[0], "replay", io);
   const name = p.positionals[1];
   if (!name)
-    return fail("usage: turno browser replay <id> <flow> [--param name=value]... [--from <step>] [--headless]");
+    return fail(`usage: ${c.names.browser} replay <id> <flow> [--param name=value]... [--from <step>] [--headless]`);
   const flow = mod.readFlow(id, name, io.env);
   const params: Record<string, string> = {};
   for (const pair of (p.values.param as string[] | undefined) ?? []) {
@@ -158,7 +169,7 @@ export async function replay(
     const given = params[param.name];
     if (param.sensitive && given !== undefined && !given.startsWith("keychain:"))
       return fail(
-        `"${param.name}" is sensitive: pass it as --param ${param.name}=keychain:<item> (turno secret set <item>), not as a value on the command line`,
+        `"${param.name}" is sensitive: pass it as --param ${param.name}=keychain:<item> (${c.names.secretSet("<item>")}), not as a value on the command line`,
       );
     if (param.sensitive && given === undefined) {
       if (!input.isTty() || noInputReason(io.env))
@@ -188,9 +199,10 @@ export async function replay(
 
 const TRACES_FLAGS: FlagSpec = { open: { type: "boolean" }, segment: { type: "string" }, ...JSON_FLAG };
 
-export async function traces(mod: BrowserApi, args: string[], io: Io): Promise<number> {
+export async function traces(c: Ctx, args: string[], io: Io): Promise<number> {
+  const mod = c.api;
   const p = parseFlags(args, TRACES_FLAGS, 2);
-  const id = needIdentity(mod, p.positionals[0], "traces", io);
+  const id = needIdentity(c, p.positionals[0], "traces", io);
   const wanted = p.positionals[1];
   const list = mod.listRecordings(id, io.env);
   const s = style(io);
@@ -228,7 +240,7 @@ export async function traces(mod: BrowserApi, args: string[], io: Io): Promise<n
   }
   if (!shown.length) {
     io.out(
-      `No recordings for "${id}". Turn them on with: turno browser record ${id} --traces --screenshots (they start with the next Chrome)`,
+      `No recordings for "${id}". Turn them on with: ${c.names.browser} record ${id} --traces --screenshots (they start with the next Chrome)`,
     );
     return Exit.ok;
   }
@@ -247,7 +259,7 @@ export async function traces(mod: BrowserApi, args: string[], io: Io): Promise<n
     for (const note of r.notes) io.out(s.note("info", note, 2));
   }
   io.out("");
-  io.out(s.muted(`Open a trace: turno browser traces ${id} [<recording>] --open [--segment <n>]`));
+  io.out(s.muted(`Open a trace: ${c.names.browser} traces ${id} [<recording>] --open [--segment <n>]`));
   return Exit.ok;
 }
 
@@ -261,10 +273,11 @@ const RECORD_FLAGS: FlagSpec = {
   ...JSON_FLAG,
 };
 
-/** `turno browser record <id>`: what the identity records, and turning it on or off. */
-export function record(mod: BrowserApi, args: string[], io: Io): number {
+/** `record <id>`: what the identity records, and turning it on or off. */
+export function record(c: Ctx, args: string[], io: Io): number {
+  const mod = c.api;
   const p = parseFlags(args, RECORD_FLAGS, 1);
-  const id = needIdentity(mod, p.positionals[0], "record", io);
+  const id = needIdentity(c, p.positionals[0], "record", io);
   const current = mod.checkIdentitySettings(id, io.env).settings?.record;
   const on = (["flows", "traces", "screenshots"] as const).filter((k) => bool(p, k));
   const maxSize = str(p, "max-size");

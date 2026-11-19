@@ -1,14 +1,14 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type BrowserApi, type BrowserDeps, browserCommand } from "../src/cli/commands/browser.js";
-import { replay, traces } from "../src/cli/commands/browser-flows.js";
-import type { VaultInput } from "../src/cli/commands/browser-vault.js";
-import { fakeIo } from "./helpers/cli.js";
-import { type Sandbox, sandbox } from "./helpers/sandbox.js";
+import type { BrowserFunctions as BrowserApi } from "../../src/api.js";
+import type { VaultInput } from "../../src/cli/context.js";
+import * as flowCmd from "../../src/cli/flows.js";
+import { type Sandbox, sandbox } from "../helpers/sandbox.js";
+import { cli, ctx, fakeIo, real } from "./helpers.js";
 
 /**
- * `turno browser record|flows|replay|traces`. The real turno-browser from the workspace runs
+ * `record|flows|replay|traces`. The real turno-browser from the workspace runs
  * against the sandbox HOME for identity.json and flow files; replay and the trace viewer come
  * from a fake, so no browser starts.
  */
@@ -19,19 +19,17 @@ beforeEach(() => {
 });
 afterEach(() => sb.cleanup());
 
-const real = async (): Promise<BrowserApi> => (await import("turno-browser")).api;
-const deps = (load: () => Promise<BrowserApi | undefined> = real): BrowserDeps => ({
-  load,
-  interactive: () => false,
-  confirm: async () => false,
-});
+type IoOf = Parameters<typeof flowCmd.replay>[2];
+const replay = (m: BrowserApi, args: string[], io: IoOf, input?: VaultInput) =>
+  flowCmd.replay(ctx(m, input ? { input } : {}), args, io);
+const traces = (m: BrowserApi, args: string[], io: IoOf) => flowCmd.traces(ctx(m), args, io);
 const run = (p: Promise<number>) => p.then(String, (e: Error) => e.message);
 const settingsFile = (id: string) => join(sb.home, ".local", "share", "turno", "browser", "identities", `${id}.json`);
 const flowsFolder = (id: string) => join(sb.home, ".local", "share", "turno", "browser", "flows", id);
 
 async function browser(args: string[]) {
   const io = fakeIo(sb.env);
-  const code = await run(browserCommand(deps()).run(args, io));
+  const code = await run(cli(await real()).command.run(args, io));
   return { code, out: io.lines.join("\n"), err: io.errors.join("\n") };
 }
 
@@ -67,7 +65,7 @@ function saveFlow(id: string, flow: Record<string, unknown> = FLOW): void {
   writeFileSync(join(flowsFolder(id), `${flow.name}.json`), JSON.stringify(flow));
 }
 
-describe("turno browser record and set --record-*", () => {
+describe("turno-browser record and set --record-*", () => {
   it("shows what an identity records, turns parts on, refuses bad combinations, and turns it all off", async () => {
     expect((await browser(["add", "school"])).code).toBe("0");
     const none = await browser(["record", "school"]);
@@ -115,7 +113,7 @@ describe("turno browser record and set --record-*", () => {
   });
 });
 
-describe("turno browser flows", () => {
+describe("turno-browser flows", () => {
   it("lists, shows and removes saved flows", async () => {
     await browser(["add", "school"]);
     expect((await browser(["flows", "school"])).out).toMatch(/No saved flows for "school"/);
@@ -142,7 +140,7 @@ describe("turno browser flows", () => {
   });
 });
 
-describe("turno browser replay", () => {
+describe("turno-browser replay", () => {
   async function withFake() {
     const base = await real();
     base.addIdentity("school", sb.env);
@@ -208,7 +206,7 @@ describe("turno browser replay", () => {
   });
 });
 
-describe("turno browser traces", () => {
+describe("turno-browser traces", () => {
   const RECS = [
     {
       name: "20261118-100000-000",

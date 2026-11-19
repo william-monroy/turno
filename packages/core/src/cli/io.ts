@@ -1,0 +1,263 @@
+/** Small helpers shared by command modules. Keep this file free of heavy imports. */
+import { Exit } from "./exit.js";
+import type { JsonOutput } from "./output.js";
+
+/** A wrong command line: main prints `turno: <message>` and exits 2 (Exit.usage). */
+export class UsageError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UsageError";
+  }
+}
+
+/** A plain error with its exit code (see exit.ts): main prints `turno: <message>` and returns `code`. */
+export class CliError extends Error {
+  constructor(
+    message: string,
+    readonly code: number = Exit.failure,
+  ) {
+    super(message);
+    this.name = "CliError";
+  }
+}
+
+export interface Io {
+  out: (line?: string) => void;
+  err: (line?: string) => void;
+  env: NodeJS.ProcessEnv;
+  isTty: boolean;
+  /** Ask a question and return the answer; only set when a person can answer (stdin is a TTY). */
+  ask?: (question: string) => Promise<string>;
+  /** The global --color flag of this run, when given (see `colors`). */
+  color?: ColorMode;
+}
+
+async function askStdin(question: string): Promise<string> {
+  const { createInterface } = await import("node:readline/promises");
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    return await rl.question(question);
+  } finally {
+    rl.close();
+  }
+}
+
+export function defaultIo(): Io {
+  return {
+    out: (line = "") => process.stdout.write(`${line}\n`),
+    err: (line = "") => process.stderr.write(`${line}\n`),
+    env: process.env,
+    isTty: Boolean(process.stdout.isTTY),
+    ...(process.stdin.isTTY && process.stderr.isTTY && !noInputReason(process.env) ? { ask: askStdin } : {}),
+  };
+}
+
+/**
+ * The variables each coding agent sets for the commands it runs, by agent id: inside them nobody
+ * reads a question, so turno never asks one. Kept here rather than in
+ * the adapters because every run loads io.ts and it stays free of heavy imports; a test keeps the
+ * ids in step with src/agents.
+ */
+export const AGENT_SESSION_ENV: Readonly<Record<string, readonly string[]>> = {
+  claude: ["CLAUDECODE", "CLAUDE_CODE_CHILD_SESSION"],
+  codex: ["CODEX_THREAD_ID", "CODEX_SANDBOX"],
+  copilot: ["COPILOT_CLI", "COPILOT_AGENT_SESSION_ID"],
+  cursor: ["CURSOR_AGENT"],
+};
+
+const on = (v: string | undefined): boolean => v !== undefined && v !== "" && v !== "0" && v.toLowerCase() !== "false";
+
+/**
+ * The variable that keeps turno from asking anything here (TURNO_NO_INPUT, or an agent's), or
+ * undefined when a person may answer on a terminal. TURNO_NO_INPUT=1 (or --no-input) turns
+ * questions off; TURNO_NO_INPUT=0 allows them inside an agent session, for a person in an
+ * editor terminal that sets an agent variable.
+ */
+export function noInputReason(env: NodeJS.ProcessEnv): string | undefined {
+  const own = env.TURNO_NO_INPUT;
+  if (own !== undefined && own !== "") return on(own) ? "TURNO_NO_INPUT" : undefined;
+  return Object.values(AGENT_SESSION_ENV)
+    .flat()
+    .find((name) => on(env[name]));
+}
+
+/** The same Io without a way to ask. */
+export function withoutAsk(io: Io): Io {
+  const { ask: _ask, ...rest } = io;
+  return rest;
+}
+
+/**
+ * A question nobody can answer here (no terminal, --no-input, an agent session): exit 2 and
+ * name the flag that answers it, the same way for every command.
+ */
+export function needsAnswer(what: string, flag = "--yes"): never {
+  throw new UsageError(`${what} needs an answer; pass ${flag} (or run it in a terminal)`);
+}
+
+/** Ask a yes/no question; false without a person to answer. */
+export async function confirm(io: Io, question: string): Promise<boolean> {
+  if (!io.ask) return false;
+  const answer = (await io.ask(`${question} [y/N] `)).trim().toLowerCase();
+  return answer === "y" || answer === "yes";
+}
+
+/** What a positional argument holds, for shell completion. */
+export type ArgKind =
+  | "profile"
+  | "profile-or-auto"
+  | "dir"
+  | "identity"
+  | "server"
+  | "stamp"
+  | "terminal"
+  | "key"
+  | "shell"
+  | "any";
+
+/** Completion data of a command or subcommand. */
+export interface Completion {
+  args?: ArgKind[];
+  /** Long flags, with the leading dashes. */
+  flags?: string[];
+}
+
+/** A command module: `export const command: Command = { ... }`. */
+export interface Command extends Completion {
+  /** One line for `turno help`. */
+  summary: string;
+  usage: string;
+  hidden?: boolean;
+  /** Its `--json` output, so `--json=fields` answers before the command runs. */
+  json?: JsonOutput;
+  /** Subcommand names (visible ones) with their completion data. */
+  subcommands?: Record<string, Completion>;
+  run(args: string[], io: Io): Promise<number>;
+}
+
+/** When to color output: `--color auto|always|never`, or TURNO_COLOR. */
+export type ColorMode = "auto" | "always" | "never";
+
+const COLOR_MODES: readonly ColorMode[] = ["auto", "always", "never"];
+
+export function isColorMode(v: string | undefined): v is ColorMode {
+  return v !== undefined && (COLOR_MODES as readonly string[]).includes(v);
+}
+
+/**
+ * Whether output gets ANSI colors. The first rule that applies wins:
+ *
+ * 1. `--color always|never` on the command line;
+ * 2. TURNO_COLOR=always|never (any other value counts as auto; --color auto sets it aside);
+ * 3. NO_COLOR set and not empty: off (https://no-color.org, which lets a flag or a tool's own
+ *    setting override it);
+ * 4. FORCE_COLOR: 0 or false turns colors off, anything else turns them on, also in a pipe;
+ * 5. CLICOLOR_FORCE set and not 0: on, also in a pipe (https://bixense.com/clicolors);
+ * 6. CLICOLOR=0, or TERM=dumb: off;
+ * 7. auto: on when output is a terminal.
+ *
+ * `--json` output is never colored outside a terminal, whatever this says (output.ts).
+ */
+export function colors(io: Pick<Io, "env" | "isTty" | "color">): boolean {
+  // An explicit --color auto also sets TURNO_COLOR aside.
+  const own = io.color ?? io.env.TURNO_COLOR;
+  if (own === "always") return true;
+  if (own === "never") return false;
+  const env = io.env;
+  if (env.NO_COLOR) return false;
+  const force = env.FORCE_COLOR;
+  if (force !== undefined && force !== "") return force !== "0" && force !== "false";
+  if (env.CLICOLOR_FORCE && env.CLICOLOR_FORCE !== "0") return true;
+  if (env.CLICOLOR === "0" || env.TERM === "dumb") return false;
+  return io.isTty;
+}
+
+export function paint(io: Io, text: string, code: string): string {
+  return colors(io) ? `\x1b[${code}m${text}\x1b[0m` : text;
+}
+
+export function fail(message: string): never {
+  throw new UsageError(message);
+}
+
+/** "1 project", "2 projects". */
+export function plural(n: number, word: string, many = `${word}s`): string {
+  return `${n} ${n === 1 ? word : many}`;
+}
+
+/** Help text width. */
+const WIDTH = 80;
+
+/** Break `text` into lines of at most `width` columns at spaces (a longer word stays whole). */
+export function wrap(text: string, width: number): string[] {
+  const lines: string[] = [];
+  let line = "";
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    if (line && line.length + 1 + word.length > width) {
+      lines.push(line);
+      line = word;
+    } else line = line ? `${line} ${word}` : word;
+  }
+  if (line) lines.push(line);
+  return lines.length ? lines : [""];
+}
+
+/**
+ * Two-column rows (`  left  summary`) within WIDTH columns: summaries wrap under their
+ * column, and a left side too wide for the column goes on its own line.
+ */
+export function columns(rows: readonly (readonly [string, string])[], indent = 2, maxLeft = 32, left?: number): string {
+  const fit = rows.map(([l]) => l.length).filter((n) => n <= maxLeft);
+  const w = left ?? Math.max(0, ...fit);
+  const pad = " ".repeat(indent);
+  const out: string[] = [];
+  for (const [left, summary] of rows) {
+    const col = indent + w + 2;
+    const body = wrap(summary, Math.max(20, WIDTH - col));
+    if (left.length > w) {
+      const [first, ...more] = wrap(left, WIDTH - indent - 4);
+      out.push(`${pad}${first}`);
+      for (const l of more) out.push(`${pad}    ${l}`);
+      for (const l of body) out.push(`${" ".repeat(col)}${l}`);
+      continue;
+    }
+    out.push(`${pad}${left.padEnd(w)}  ${body[0]}`);
+    for (const l of body.slice(1)) out.push(`${" ".repeat(col)}${l}`);
+  }
+  return out.join("\n");
+}
+
+/**
+ * The `Examples:` block that ends a command's help: one `$ command` per line, with an optional
+ * `  # why` after it.
+ */
+export function examplesBlock(examples: readonly string[]): string {
+  return ["Examples:", ...examples.map((e) => `  $ ${e}`)].join("\n");
+}
+
+/** Edit distance with adjacent transpositions (so "stauts" is 1 away from "status"). */
+export function distance(a: string, b: string): number {
+  const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) =>
+    Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
+  );
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i]![j] = Math.min(d[i - 1]![j]! + 1, d[i]![j - 1]! + 1, d[i - 1]![j - 1]! + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1])
+        d[i]![j] = Math.min(d[i]![j]!, d[i - 2]![j - 2]! + 1);
+    }
+  }
+  return d[a.length]![b.length]!;
+}
+
+/** The closest of `candidates` to `word` (at most 2 edits, 1 for words of 3 letters or less). */
+export function closest(word: string, candidates: readonly string[]): string | undefined {
+  const max = word.length <= 3 ? 1 : 2;
+  let best: { c: string; d: number } | undefined;
+  for (const c of candidates) {
+    const d = distance(word.toLowerCase(), c);
+    if (d <= max && (!best || d < best.d)) best = { c, d };
+  }
+  return best?.c;
+}
