@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import type { Page } from "patchright-core";
 import type { SecretStore } from "turno-core/secrets";
 import { CallToolRequestSchema, type CallToolResult, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { explainFailure } from "./diagnose.js";
@@ -21,13 +22,16 @@ import {
 } from "./health.js";
 import { HumanInput, adaptiveSites, humanizeTools } from "./human-input.js";
 import { identityStateDir } from "./ids.js";
+import { idleMs } from "./idle-timer.js";
+import { FlowRecorder, type PendingStep, secretValues } from "./recorder.js";
+import { Recording, tracesTmpDir } from "./recordings.js";
 import { Redactor, SCRIPT_TOOLS, VaultGuard } from "./redact.js";
 import { type ChallengeEvent, recordChallenge, watchChallenges } from "./reputation.js";
 import { installResources } from "./resources.js";
 import { SESSION_CAPABILITY, SESSION_ENDED_METHOD, SESSION_META_KEY, sessionFromMeta } from "./session.js";
 import { type SessionView, TabSharing, viewConfig } from "./sharing.js";
 import { DEFAULT_TAB_LOCKS, DIRECT_SESSION, type TabLockPolicy } from "./tab-locks.js";
-import { readIdentitySettings } from "./settings.js";
+import { type RecordSettings, readIdentitySettings } from "./settings.js";
 import { type StockAccess, TURNO_TOOLS, type TurnoTool, checkTurnoTools, parseArguments } from "./tools.js";
 import { type Tuning, type TuningFlags, resolveTuning } from "./tuning.js";
 import { vaultHasSites } from "./vault.js";
@@ -222,6 +226,8 @@ interface Running {
   idle?: CallIdleTimer;
   /** `"sharing": "tabs"`: each session's backend and its tab locks. */
   sharing?: TabSharing;
+  /** Traces and screenshots of this browser, when identity.json `record` asks for them. */
+  recording?: Recording;
 }
 
 class SessionBackend extends EventEmitter implements ServerBackend {
@@ -231,6 +237,10 @@ class SessionBackend extends EventEmitter implements ServerBackend {
   private live: BrowserBackendInstance | undefined;
   private launched: LaunchedBrowser | undefined;
   private disposed = false;
+  /** identity.json `record` as of the last launch. */
+  private recordSettings: RecordSettings | undefined;
+  /** Each client session's flow recorder: a recording belongs to the session that started it. */
+  private readonly recorders = new Map<string, FlowRecorder>();
 
   constructor(
     private readonly host: {
@@ -246,6 +256,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       guard: VaultGuard;
       vaultStore?: SecretStore;
       tabLocks: TabLockPolicy;
+      stockTypes: ReadonlyMap<string, string>;
     },
     private readonly title: (clientInfo: ClientInfo) => string,
   ) {
@@ -254,6 +265,19 @@ class SessionBackend extends EventEmitter implements ServerBackend {
 
   async initialize(clientInfo: ClientInfo): Promise<void> {
     this.clientInfo = clientInfo;
+  }
+
+  /** The flow recorder of a client session (identities only). */
+  private recorderFor(session: string | undefined): FlowRecorder | undefined {
+    const identity = this.host.identity;
+    if (!identity) return undefined;
+    const key = session ?? DIRECT_SESSION;
+    let recorder = this.recorders.get(key);
+    if (!recorder) {
+      recorder = new FlowRecorder(identity, this.host.redactor, () => this.recordSettings?.flows === true);
+      this.recorders.set(key, recorder);
+    }
+    return recorder;
   }
 
   dynamicTools(): ToolSchemaJson[] {
@@ -281,15 +305,29 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     const { config, cliOptions, stock, engine, identity } = this.host;
     const promise = (async (): Promise<Running> => {
       if (identity) refuseWhileNeedsAuth(identity);
-      const tuning = resolveTuning(
-        identity ? readIdentitySettings(identity.id, identity.env) : undefined,
-        this.host.tuning,
-      );
+      const settings = identity ? readIdentitySettings(identity.id, identity.env) : undefined;
+      const tuning = resolveTuning(settings, this.host.tuning);
+      this.recordSettings = settings?.record;
+      const noTraces = config.capabilities?.includes("devtools")
+        ? "the devtools capability records traces of its own"
+        : undefined;
+      const traces = identity && settings?.record?.traces && !noTraces;
+      const title = this.title(clientInfo);
       const launched = await engine.launch({
-        config,
+        // Playwright writes a trace's raw files to tracesDir as it records: an identity's
+        // recording keeps them in its own folder instead of the workspace (`recordings.ts`).
+        config: traces
+          ? {
+              ...config,
+              browser: {
+                ...config.browser,
+                launchOptions: { ...config.browser.launchOptions, tracesDir: tracesTmpDir(identity.id, identity.env) },
+              },
+            }
+          : config,
         clientInfo,
         cliOptions,
-        title: this.title(clientInfo),
+        title,
         tuning,
         ...(identity ? { identity } : {}),
       });
@@ -315,6 +353,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       const isCurrent = () => this.current === promise;
       let governor: TabGovernor | undefined;
       let sharing: TabSharing | undefined;
+      let recording: Recording | undefined;
       const gone = () => {
         governor?.dispose();
         sharing?.dispose();
@@ -332,6 +371,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         ...(idle ? { idleTimer: idle } : {}),
         dispose: async () => {
           gone();
+          await recording?.close().catch(() => {});
           await launched.close();
         },
       });
@@ -345,6 +385,19 @@ class SessionBackend extends EventEmitter implements ServerBackend {
             tuning.resources,
             join(identityStateDir(identity.id, identity.env), "resource-cache"),
           );
+        // Never in read or attach mode: the engine refuses traces and screenshots there first.
+        const idleLimit = idleMs(sessionConfig);
+        if (identity && profile && settings?.record)
+          recording = await Recording.open({
+            identity,
+            settings: settings.record,
+            context: launched.context,
+            redactor: this.host.redactor,
+            guard: this.host.guard,
+            title,
+            ...(noTraces ? { noTraces } : {}),
+            ...(idleLimit ? { idleMs: idleLimit } : {}),
+          });
       } catch (error) {
         await launched.close();
         throw error;
@@ -394,6 +447,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       }
       backend.on("dynamictoolschange", () => this.emit("dynamictoolschange"));
       backend.once("disconnected", () => {
+        recording?.abandon();
         gone();
         void backend.dispose().catch(() => {});
       });
@@ -409,6 +463,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         tuning,
         ...(idle ? { idle } : {}),
         ...(sharing ? { sharing } : {}),
+        ...(recording ? { recording } : {}),
       };
     })();
     promise.catch(() => {
@@ -454,6 +509,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     let stock: StockAccess | undefined;
     let endCall: (() => void) | undefined;
     let shared: { sharing: TabSharing; view: SessionView; key: string } | undefined;
+    let recording: Recording | undefined;
     if (tool.browser !== false) {
       const running = await this.browser();
       endCall = running.idle?.begin();
@@ -479,8 +535,11 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         shared = { sharing: running.sharing, view, key };
       }
       stock = this.stockAccess(view, signal, session);
+      recording = running.recording;
     }
+    const recorder = this.recorderFor(session);
     try {
+      await recording?.beforeCall();
       const context = {
         config: this.host.config,
         clientInfo,
@@ -488,6 +547,8 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         ...(stock ? { stock } : {}),
         ...(signal ? { signal } : {}),
         ...(session ? { session } : {}),
+        ...(recorder ? { recorder } : {}),
+        ...(recording ? { recording } : {}),
         ...(this.host.identity
           ? {
               vault: {
@@ -495,14 +556,21 @@ class SessionBackend extends EventEmitter implements ServerBackend {
                 redactor: this.host.redactor,
                 guard: this.host.guard,
                 ...(this.host.vaultStore ? { store: this.host.vaultStore } : {}),
+                ...(recording ? { beforeFill: (page: Page) => recording.pauseForSecret(page) } : {}),
               },
             }
           : {}),
       };
-      return await tool.handle(context, parsed.params);
+      const result = await tool.handle(context, parsed.params);
+      if (name === "browser_login") {
+        if (!result.isError) recorder?.record("browser_login", { site: parsed.params.site });
+        await recording?.afterStep({ tool: name, ok: !result.isError, screenshot: false });
+      }
+      return result;
     } catch (error) {
       return errorResult(String(error), json);
     } finally {
+      recording?.callEnded();
       if (shared) {
         shared.sharing.after(shared.key, shared.view);
         shared.sharing.locks.end(shared.key);
@@ -533,13 +601,17 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     const endCall = idle?.begin();
     const { backend, config } = running;
     const refused = this.refuseScript(name, backend);
-    if (refused) return errorResult(refused, json);
+    if (refused) {
+      endCall?.();
+      return errorResult(refused, json);
+    }
     const snapshot = config.snapshot ?? {};
     const mode = snapshot.mode;
     if (options.snapshot === false) config.snapshot = { ...snapshot, mode: "none" };
     governor.beginCall();
     let result: ToolResult;
     try {
+      const pending = await this.beforeStock(running, session, name, args, backendContext(backend)?.currentTab()?.page);
       await governor.prepare(name, args);
       if (tuning.backgroundThrottling && !launched.userBrowser && name !== "browser_tabs")
         await backendContext(backend)
@@ -549,8 +621,10 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       result = await backend.callTool(name, args, signal);
       if (result.isError)
         result = await explainFailure(backendContext(backend)?.currentTab()?.page, name, args, result, json);
+      await this.afterStock(running, session, name, args, pending, result, backendContext(backend)?.currentTab()?.page);
       await governor.afterCall();
     } finally {
+      running.recording?.callEnded();
       endCall?.();
       governor.endCall();
       if (options.snapshot === false) config.snapshot = { ...snapshot, ...(mode === undefined ? {} : { mode }) };
@@ -599,6 +673,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
             };
           }
           const tabs = sharing.tabView(view);
+          const pending = await this.beforeStock(running, key, name, args, tabs.current());
           await governor.prepare(name, args, tabs);
           if (tuning.backgroundThrottling && name !== "browser_tabs")
             await tabs
@@ -607,12 +682,14 @@ class SessionBackend extends EventEmitter implements ServerBackend {
               .catch(() => {});
           result = await backend.callTool(name, args, signal);
           if (result.isError) result = await explainFailure(tabs.current(), name, args, result, json);
+          await this.afterStock(running, key, name, args, pending, result, tabs.current());
           // The tab the call left current is the session's before the cap counts its tabs.
           sharing.after(key, view);
           await governor.afterCall();
         }
       }
     } finally {
+      running.recording?.callEnded();
       if (view && name !== "browser_close") sharing.after(key, view);
       sharing.locks.end(key);
       endCall?.();
@@ -629,6 +706,53 @@ class SessionBackend extends EventEmitter implements ServerBackend {
   }
 
   /**
+   * Before a stock call: the flow step it may become (`recorder.ts`), and a trace stopped and
+   * saved before a value goes into a secret field, as before a vault fill (`recordings.ts`).
+   */
+  private async beforeStock(
+    running: Running,
+    session: string | undefined,
+    name: string,
+    args: Record<string, unknown>,
+    page: Page | undefined,
+  ): Promise<PendingStep | undefined> {
+    const { recording } = running;
+    await recording?.beforeCall();
+    const recorder = this.recorderFor(session);
+    const pending = recorder?.active ? await recorder.capture(name, args, page).catch(() => undefined) : undefined;
+    if (recording && page && (name === "browser_type" || name === "browser_fill_form")) {
+      const secrets = await secretValues(page, name, args);
+      if (secrets.length) {
+        for (const v of secrets) this.host.redactor.add(v, "sensitive value");
+        await recording.pauseForSecret(page);
+      }
+    }
+    return pending;
+  }
+
+  /** After a stock call: keep the flow step when it worked, and the recording's screenshot. */
+  private async afterStock(
+    running: Running,
+    session: string | undefined,
+    name: string,
+    args: Record<string, unknown>,
+    pending: PendingStep | undefined,
+    result: ToolResult,
+    page: Page | undefined,
+  ): Promise<void> {
+    if (pending && !result.isError) this.recorderFor(session)?.commit(pending);
+    const type = this.host.stockTypes.get(name);
+    if (running.recording && type !== "readOnly" && type !== "assertion")
+      await running.recording.afterStep({
+        tool: name,
+        element: args.element ?? args.startElement,
+        ok: !result.isError,
+        ...(page ? { page } : {}),
+        screenshot: true,
+      });
+  }
+
+  /**
    * The script tools near the vault: `browser_evaluate` and `browser_run_code_unsafe`
    * are refused on a page browser_login filled, until it navigates; `browser_run_code_unsafe`
    * runs code in this process, which can read the secret store, so it is refused for an
@@ -641,7 +765,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       return `${name} is refused for browser identity "${identity.id}" because it has vault credentials: it runs code in the server process, which can read the secret store. Use the other browser tools, or an identity without a vault.`;
     }
     if (this.host.guard.holds(backendContext(backend)?.currentTab()?.page)) {
-      return `${name} is refused on this page: it holds values browser_login filled from the vault. Submit the form or navigate away first.`;
+      return `${name} is refused on this page: it holds values browser_login filled from the vault (or a password typed while recording). Submit the form or navigate away first.`;
     }
     return undefined;
   }
@@ -663,6 +787,9 @@ class SessionBackend extends EventEmitter implements ServerBackend {
 
   /** mcpd said a client session ended: with `"sharing": "tabs"` its tabs are free at once. */
   async endSession(session: string): Promise<void> {
+    // A flow the session was recording and never stopped is dropped with it.
+    this.recorders.get(session)?.cancel();
+    this.recorders.delete(session);
     const current = this.current;
     if (!current) return;
     const running = await current.catch(() => undefined);
@@ -752,6 +879,7 @@ export function createHost(options: HostOptions): Host {
   const { config, cliOptions } = options;
   const stock = tools.filteredTools(config);
   const stockSchemas = new Map(stock.map((t) => [t.schema.name, t.schema.inputSchema]));
+  const stockTypes = new Map(stock.map((t) => [t.schema.name, t.schema.type]));
   const turnoTools = options.turnoTools ?? TURNO_TOOLS;
   checkTurnoTools(turnoTools, tools.browserTools);
   const turno = new Map(turnoTools.map((t) => [t.schema.name, t]));
@@ -769,6 +897,7 @@ export function createHost(options: HostOptions): Host {
     cliOptions,
     stock,
     stockSchemas,
+    stockTypes,
     turno,
     engine,
     tuning: options.tuning ?? {},
