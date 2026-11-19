@@ -27,7 +27,8 @@ Each browser identity can keep its credentials in the OS secret store, and the n
 
 ```sh
 turno browser vault add school campus \
-  --url https://campus.example.edu/login --username me --totp
+  --url https://campus.example.edu/login \
+  --username me --totp
 turno browser vault list school
 ```
 
@@ -38,8 +39,10 @@ turno browser vault list school
 The file holds the identity's cookies, localStorage and IndexedDB, encrypted with a passphrase (scrypt and AES-256-GCM). It expires after 7 days by default and never holds vault credentials. With `"keychain": "system"` in `identity.json`, Chrome also encrypts the cookies on disk with the OS keychain, so a copy of the folder does not carry the sessions.
 
 ```sh
-turno browser export school --out school.turno-session
-turno browser import school.turno-session --as school
+turno browser export school \
+  --out school.turno-session
+turno browser import school.turno-session \
+  --as school
 ```
 
 </Highlight>
@@ -49,7 +52,8 @@ turno browser import school.turno-session --as school
 An agent that browses for an hour used to leave dozens of tabs behind. Now each session keeps at most 8 pages; past that the least recently used one closes, never the agent's current tab. Pop-unders that open while no tool call runs are closed. A tab unused for 5 minutes is parked on a blank page and stops using CPU; the next call that needs it loads it again, and after 15 minutes it closes. Every result says what was closed or parked.
 
 ```sh
-turno browser set school --tabs-max 12 --tabs-park 10m
+turno browser set school \
+  --tabs-max 12 --tabs-park 10m
 ```
 
 </Highlight>
@@ -65,7 +69,9 @@ turno browser set school --tabs-max 12 --tabs-park 10m
 Two opt-in settings per identity, both off by default: `block` drops trackers, images, media or fonts you name, and `cache` keeps images, fonts, stylesheets and scripts on disk for that identity only, following `Cache-Control` and never storing anything tied to a cookie or an `Authorization` header.
 
 ```sh
-turno browser set research --block-trackers true --block-types image,media --cache
+turno browser set research \
+  --block-trackers true \
+  --block-types image,media --cache
 ```
 
 </Highlight>
@@ -81,9 +87,13 @@ Every `--json` object now carries `schemaVersion`, `--json=fields` lists a comma
 Safe mode (`--no-gateway` or `TURNO_SAFE=1`) opens the agent with the profile's account but without the gateway, its token, the status line or the hooks: the fastest way to tell whether a problem is turno's.
 
 ```sh
-turno mcp call github list_issues --arg repo=wimo-dev/turno   # call a tool as a session would
-turno doctor --report                                         # a Markdown block for an issue, no secrets
-turno run work --no-gateway                                   # open the agent without turno's gateway
+# call a tool as a session would
+turno mcp call github list_issues \
+  --arg repo=wimo-dev/turno
+# a Markdown block for an issue, no secrets
+turno doctor --report
+# open the agent without turno's gateway
+turno run work --no-gateway
 ```
 
 </Highlight>
