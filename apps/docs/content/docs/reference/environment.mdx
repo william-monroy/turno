@@ -34,6 +34,7 @@ This page lists every environment variable turno reads. `turno help environment`
 | `TURNO_NO_UPDATE_NOTIFIER` | 1: same as TURNO_NO_UPDATE_CHECK (the name gh uses) |
 | `TURNO_REGISTRY` | npm registry for update checks (default: npm_config_registry, else registry.npmjs.org) |
 | `TURNO_BROWSER_IDLE` | turno-browser closes Chrome after this long without a tool call (default: 15m) |
+| `TURNO_BROWSER_BACKGROUND_IDLE` | the background server of a browser identity exits after this long without a request (default: 15m; 0: never) |
 | `TURNO_LIGHTPANDA_PATH` | the Lightpanda binary turno-browser's read mode runs (default: lightpanda on PATH) |
 | `TURNO_BROWSER_SESSION` | the session name of turno browser do (same as --session; default: default), to keep several apart |
 | `TURNO_CAMOUFOX_PATH` | the Camoufox executable turno-browser's camoufox engine runs (default: the newest in Camoufox's cache) |
@@ -105,6 +106,10 @@ How turno behaves:
                             npm_config_registry, else registry.npmjs.org)
   TURNO_BROWSER_IDLE        turno-browser closes Chrome after this long without
                             a tool call (default: 15m)
+  TURNO_BROWSER_BACKGROUND_IDLE
+                            the background server of a browser identity exits
+                            after this long without a request (default: 15m; 0:
+                            never)
   TURNO_LIGHTPANDA_PATH     the Lightpanda binary turno-browser's read mode runs
                             (default: lightpanda on PATH)
   TURNO_BROWSER_SESSION     the session name of turno browser do (same as

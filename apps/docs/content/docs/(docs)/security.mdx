@@ -69,7 +69,7 @@ turno identity log --verify   # checks the hash chain; exits 1 when it is broken
 
 ## The browser package
 
-`turno-browser-mcp` serves over stdio, through mcpd. It refuses `--port` or `--host` together with `--identity`, which would serve a signed-in browser over HTTP, unless you pass `--allow-http-identity`; it then listens on 127.0.0.1 only.
+`turno-browser-mcp` serves over stdio, through mcpd. It refuses `--port` or `--host` together with `--identity`, which would serve a signed-in browser over HTTP, unless you pass `--allow-http-identity`; it then listens on 127.0.0.1 only. With `--background` (shell use without turno) it listens on a Unix socket in a folder only your user can enter, or, where a socket cannot be used, on 127.0.0.1 with a random token per server, kept in a file only your user can read and never in its state file.
 
 Use it with your own accounts, on sites whose terms allow automated access by you, and at a human pace. Do not use it to get around access controls, paywalls or rate limits, to scrape at scale, or to access accounts that are not yours.
 
