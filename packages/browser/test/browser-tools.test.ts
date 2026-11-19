@@ -125,15 +125,19 @@ async function site(): Promise<{
     "/later": `<title>before</title><button id="go" onclick="setTimeout(() => { document.title = 'after'; }, 1500)">Go</button>`,
     "/res": `<title>resources</title><link rel="stylesheet" href="/static/app.css"><link rel="stylesheet" href="/static/nostore.css">
       <script src="/static/cookie.js"></script><script src="/promo/ad.js"></script><img src="/static/logo.svg" alt="logo"><h1>Resources</h1>`,
-    // Timer ticks in the last second, and whether the page was ever hidden, kept in the DOM (a
-    // stock tool's evaluate runs in an isolated world).
+    // Timer ticks in each of the last whole seconds (oldest first, the running second left out),
+    // and whether the page was ever hidden, kept in the DOM (a stock tool's evaluate runs in an
+    // isolated world).
     "/busy": `<title>busy</title><script>
       document.addEventListener("visibilitychange", () => { if (document.hidden) document.documentElement.dataset.hidden = "seen"; });
-      const ticks = [];
+      const counts = new Map();
       (function tick() {
-        const now = performance.now(); ticks.push(now);
-        while (ticks[0] < now - 1000) ticks.shift();
-        document.documentElement.dataset.rate = String(ticks.length);
+        const second = Math.floor(performance.now() / 1000);
+        counts.set(second, (counts.get(second) ?? 0) + 1);
+        for (const s of counts.keys()) if (s < second - 6) counts.delete(s);
+        const done = [];
+        for (let s = second - 6; s < second; s++) done.push(counts.get(s) ?? 0);
+        document.documentElement.dataset.seconds = done.join(",");
         setTimeout(tick, 4);
       })();
     </script>busy`,
@@ -385,10 +389,14 @@ describe.skipIf(reason !== undefined)(
       const state = await call(client, "browser_evaluate", {
         function: "() => JSON.stringify(document.documentElement.dataset)",
       });
-      // Focus emulation keeps it visible, and its timers at full speed: about 200 ticks a second
-      // locally, 18 and up on slow CI runners (throttled it is 1 or 2).
+      // Focus emulation keeps it visible, so Chrome never throttles its timers. The rate is read
+      // from two whole seconds it spent in the background (the two before the last one),
+      // not from the second after it was selected again, which runs at foreground speed either
+      // way: about 200 ticks a second locally, and far fewer on a loaded CI runner, whose CPU
+      // starves the timer chain; throttled, Chrome wakes a hidden tab's timers once a second.
       expect(state).not.toContain("hidden");
-      expect(Number(/rate\\":\\"(\d+)/.exec(state)?.[1])).toBeGreaterThan(10);
+      const seconds = (/seconds\\":\\"([\d,]+)/.exec(state)?.[1] ?? "").split(",").map(Number);
+      expect(Math.min(...seconds.slice(-3, -1))).toBeGreaterThan(3);
     }, 60_000);
 
     it("with --background-throttling, slows a tab in the background and still acts at once on the current tab", async () => {
