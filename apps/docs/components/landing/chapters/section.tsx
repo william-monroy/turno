@@ -87,7 +87,7 @@ const HEADER = 56;
 
 export function Chapter({
   id,
-  n,
+  index,
   lang,
   copy,
   commands,
@@ -97,7 +97,8 @@ export function Chapter({
   quiet = false,
 }: {
   id: StoryId;
-  n: number;
+  /** Where the chapter stands in the story, from 0: the first draws in full, and the side of the list alternates. */
+  index: number;
   lang: Lang;
   copy: SectionCopy;
   commands: ChapterCommand[];
@@ -124,7 +125,7 @@ export function Chapter({
   const [chosen, setChosen] = useState(0);
   const [run, setRun] = useState(0);
   const [line, setLine] = useState<OutLine | null>(null);
-  const brisk = n > 1;
+  const brisk = index > 0;
   const drawBeats = brisk ? BRISK_BEATS : DRAW_BEATS;
 
   // Hide what has not drawn yet only once React runs: without it the page shows everything.
@@ -175,7 +176,6 @@ export function Chapter({
   };
 
   const state = !armed || reduced ? "still" : "armed";
-  const number = String(n).padStart(2, "0");
 
   return (
     <section
@@ -186,18 +186,13 @@ export function Chapter({
       data-state={state}
       data-pace={brisk ? "brisk" : "full"}
       data-quiet={quiet || undefined}
-      data-flip={n % 2 === 0 || undefined}
+      data-flip={index % 2 === 1 || undefined}
       data-current={current || undefined}
     >
       <div ref={headRef} className={`t-wrap ${s.head}`} data-play={headIn || undefined}>
         <p className={`t-label ${s.label}`}>
-          {/* On wide screens the number hangs on the thread in the gutter instead. */}
-          <span aria-hidden className={s.knot}>
-            {number}
-          </span>
-          <span className={s.num}>
-            <span className={s.n}>{number}</span> ·{" "}
-          </span>
+          {/* On wide screens the label hangs on the thread in the gutter by a knot. */}
+          <span aria-hidden className={s.knot} />
           {copy.label}
         </p>
         <SetHeadline id={`${id}-title`} parts={copy.headline} />
@@ -441,7 +436,7 @@ function useSeenOnce(ref: RefObject<Element | null>, share: number): boolean {
   return seen;
 }
 
-/** True while the section holds the middle of the screen: its number on the thread is lit. */
+/** True while the section holds the middle of the screen: its knot on the thread is lit. */
 function useCurrent(ref: RefObject<Element | null>): boolean {
   const [current, setCurrent] = useState(false);
   useEffect(() => {

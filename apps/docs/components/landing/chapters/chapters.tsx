@@ -51,7 +51,7 @@ export function Chapters({ lang }: { lang: Lang }) {
           <Chapter
             key={id}
             id={id}
-            n={index + 1}
+            index={index}
             lang={lang}
             copy={t.sections[id]}
             commands={chapter.commands(lang)}
