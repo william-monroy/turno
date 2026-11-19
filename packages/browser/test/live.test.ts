@@ -145,11 +145,14 @@ describe("notes", () => {
     );
   });
 
-  it("refuses the view in read mode and attach mode, and only there", () => {
+  it("refuses the view in read mode, attach mode and Camoufox, and only there", () => {
     expect(viewRefusal("lightpanda")).toMatch(
       /^Read mode \(Lightpanda\) renders no pixels.*Pause and resume still work\.$/,
     );
     expect(viewRefusal("attach")).toMatch(/^Attach mode drives your own Chrome, which you already see/);
+    expect(viewRefusal("camoufox")).toMatch(
+      /^The view is a Chrome DevTools Protocol screencast, and Camoufox is a Firefox build that has none.*Pause and resume still work\.$/,
+    );
     expect(viewRefusal("chrome")).toBeUndefined();
     expect(viewRefusal(undefined)).toBeUndefined();
   });

@@ -172,6 +172,10 @@ export function captchaProblems(c: unknown, settings: Record<string, unknown>, o
     if (!["provider", "endpoint", "key", "timeout"].includes(k)) out.push(`unknown key "captcha.${k}"`);
   if (settings.engine === "lightpanda")
     out.push('captcha does not go with engine "lightpanda": read mode runs no captcha widget to solve');
+  if (settings.engine === "camoufox")
+    out.push(
+      "captcha does not go with engine \"camoufox\": the token is set from Patchright's isolated script world and the widget's callback from the page's own, and Camoufox runs on stock Playwright",
+    );
 }
 
 /** The budgets of an `act` group, defaults filled in. */

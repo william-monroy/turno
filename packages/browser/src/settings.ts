@@ -643,8 +643,7 @@ export function writeIdentitySettings(
     FORMAT_2_KEYS,
   ];
   // Camoufox is an engine value, not a key: it writes format 11, so an older turno-browser refuses it.
-  const newest =
-    next.engine === "camoufox" ? 0 : formats.findIndex((keys) => keys.some((k) => next[k] !== undefined));
+  const newest = next.engine === "camoufox" ? 0 : formats.findIndex((keys) => keys.some((k) => next[k] !== undefined));
   next.version = newest < 0 ? 1 : IDENTITY_FORMAT_VERSION - newest;
   if (typeof next.locale === "string") next.locale = canonicalLocale(next.locale) ?? next.locale;
   if (Array.isArray(next.languages)) next.languages = (next.languages as string[]).map((l) => canonicalLocale(l) ?? l);

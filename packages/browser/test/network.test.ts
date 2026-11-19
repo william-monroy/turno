@@ -99,7 +99,7 @@ describe("identity.json userAgent and proxy (format 11)", () => {
     expect(
       writeIdentitySettings("rec", { proxy: { server: "http://p.example.com" }, record: { traces: true } }, sb.env)
         .version,
-    ).toBe(8);
+    ).toBe(11);
     // A refused write leaves the file as it was, so a literal password never lands on disk.
     expect(JSON.stringify(readIdentitySettings("px", sb.env))).not.toContain(PASSWORD);
   });
@@ -128,6 +128,14 @@ describe("identity.json userAgent and proxy (format 11)", () => {
     );
     // Camoufox alone is format 11: an older turno-browser refuses it instead of misreading it.
     expect(writeIdentitySettings("c7", { engine: "camoufox" }, sb.env).version).toBe(11);
+    // Captcha solving needs Patchright's script worlds; act and the live view's pause work.
+    const captcha = { provider: "task-api", endpoint: "https://solver.example.com", key: "keychain:solver" } as const;
+    expect(() => writeIdentitySettings("c8", { engine: "camoufox", captcha }, sb.env)).toThrow(
+      /captcha does not go with engine "camoufox": the token is set from Patchright's isolated script world/,
+    );
+    expect(writeIdentitySettings("c9", { engine: "camoufox", act: {}, live: { enabled: true } }, sb.env).version).toBe(
+      11,
+    );
     expect(networkEngineClash("chrome", { userAgent: "coherent", proxy: {} })).toBeUndefined();
     expect(networkEngineClash("attach", { userAgent: "coherent", proxy: {} })).toMatch(
       /^userAgent and proxy do not go with attach mode/,
@@ -296,9 +304,13 @@ describe("the camoufox engine without a browser", () => {
     expect(findPlaywrightCore({ ...sb.env, TURNO_PLAYWRIGHT_CORE: join(sb.home, "none") })).toBeUndefined();
   });
 
-  it("refuses browser_run_code_unsafe only", () => {
-    expect(camoufoxRefusal("browser_click")).toBeUndefined();
+  it("refuses browser_run_code_unsafe and browser_solve_captcha only", () => {
+    for (const tool of ["browser_click", "browser_act", "browser_extract", "browser_observe", "browser_login"])
+      expect(camoufoxRefusal(tool)).toBeUndefined();
     expect(camoufoxRefusal("browser_run_code_unsafe")).toMatch(/not available with the Camoufox engine/);
+    expect(camoufoxRefusal("browser_solve_captcha")).toMatch(
+      /^browser_solve_captcha is not available with the Camoufox engine: it sets the token from Patchright's isolated script world/,
+    );
   });
 
   it("reports a missing Camoufox at launch with the install command", async () => {

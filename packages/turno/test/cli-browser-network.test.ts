@@ -99,4 +99,31 @@ describe("turno identity set: network and user agent", () => {
       /engine camoufox: a Firefox build that reports values other than the computer's own/,
     );
   });
+
+  it("refuses Camoufox with captcha solving, and keeps act and the live view", async () => {
+    await setup();
+    expect(
+      await identity.run(
+        [
+          "set",
+          "browser:net",
+          "--captcha-provider",
+          "task-api",
+          "--captcha-endpoint",
+          "https://solver.example.com",
+          "--captcha-key",
+          "keychain:solver",
+        ],
+        fakeIo(sb.env),
+      ),
+    ).toBe(0);
+    await expect(identity.run(["set", "browser:net", "--engine", "camoufox"], fakeIo(sb.env))).rejects.toThrow(
+      /captcha does not go with engine "camoufox"/,
+    );
+    expect(await identity.run(["set", "browser:net", "--no-captcha"], fakeIo(sb.env))).toBe(0);
+    expect(
+      await identity.run(["set", "browser:net", "--engine", "camoufox", "--act", "--live", "true"], fakeIo(sb.env)),
+    ).toBe(0);
+    expect(saved("net")).toMatchObject({ version: 11, engine: "camoufox", act: {}, live: { enabled: true } });
+  });
 });

@@ -36,7 +36,9 @@ Usage:
       [--act-timeout <duration>] [--no-act] [--captcha-provider task-api]
       [--captcha-endpoint <url>] [--captcha-key keychain:<item>]
       [--captcha-timeout <duration>] [--no-captcha] [--live true|false]
-      [--live-wait <duration>] [--no-live] [--dry-run] [--json]
+      [--live-wait <duration>] [--no-live] [--user-agent coherent]
+      [--proxy-server <url>] [--proxy-username <name|keychain:item>]
+      [--proxy-password keychain:<item>] [--no-proxy] [--dry-run] [--json]
                                 change a browser identity's identity.json:
                                 place, languages, health check, tabs, blocking,
                                 cache
@@ -132,7 +134,9 @@ Usage:
       [--act-timeout <duration>] [--no-act] [--captcha-provider task-api]
       [--captcha-endpoint <url>] [--captcha-key keychain:<item>]
       [--captcha-timeout <duration>] [--no-captcha] [--live true|false]
-      [--live-wait <duration>] [--no-live] [--dry-run] [--json]
+      [--live-wait <duration>] [--no-live] [--user-agent coherent]
+      [--proxy-server <url>] [--proxy-username <name|keychain:item>]
+      [--proxy-password keychain:<item>] [--no-proxy] [--dry-run] [--json]
     change a browser identity's identity.json: place, languages, health check,
     tabs, blocking, cache
 
@@ -168,9 +172,13 @@ Input:
                                   overshoot, reading pauses, wheel scrolling) or adaptive
                                   (light, full on a site after a challenge page there)
 
-Which engine runs this identity (both off by default):
+Which engine runs this identity (all off by default):
   --engine lightpanda             read mode: Lightpanda instead of Chrome, for reading pages;
                                   needs lightpanda on PATH (turno browser doctor says how)
+  --engine camoufox               Camoufox (a Firefox build) with its own profile; not
+                                  recommended for your own accounts; needs Camoufox and
+                                  playwright-core (turno browser doctor says how); no captcha
+                                  solving, and no picture in the live view
   --attach auto|<dir>|<url>       use the Chrome you have open instead of the identity's own:
                                   "auto" is your default Chrome profile, after you turn on
                                   chrome://inspect/#remote-debugging; Chrome asks you to allow
@@ -205,6 +213,19 @@ The live view and take-over (off by default; turno browser live, pause, resume):
   --live <bool>                   serve a view of the agent's tab on 127.0.0.1 and let you pause
                                   the agent to take the controls (from the next server start)
   --live-wait <duration>          how long a paused call waits for you, "5s" to "30m" (default 2m)
+
+Network and user agent (not recommended, all off by default; for your own accounts and sites
+you may automate):
+  --user-agent coherent           the installed Chrome's own user agent and client hints, with
+                                  this identity's languages and time zone, checked at every
+                                  launch (a headless Chrome stops saying HeadlessChrome); turno
+                                  never takes a typed user agent
+  --proxy-server <url>            send this identity's traffic through a proxy: http://,
+                                  https://, socks4:// or socks5://host:port; its operator sees
+                                  where you go, and sites see its address
+  --proxy-username <name>         the proxy user name, or keychain:<item>
+  --proxy-password keychain:<item> the password, only from the secret store (turno secret set)
+  --no-proxy                      remove the proxy
 
 Examples:
   $ turno identity set browser:school --timezone Europe/Madrid --languages es-ES,es,en

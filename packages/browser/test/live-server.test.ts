@@ -284,7 +284,7 @@ describe("the live view in the host", () => {
     await client.close();
   });
 
-  it("refuses the view in read mode and in attach mode before any browser starts, and pause still works", async () => {
+  it("refuses the view in read mode, in attach mode and with Camoufox before any browser starts, and pause still works", async () => {
     addIdentity("reader", sb.env);
     writeIdentitySettings("reader", { engine: "lightpanda", live: { enabled: true } }, sb.env);
     await host("reader");
@@ -299,5 +299,12 @@ describe("the live view in the host", () => {
       /^Attach mode drives your own Chrome, which you already see/,
     );
     expect((await livePause("mine", sb.env)).paused).not.toBeNull();
+
+    // Camoufox is Firefox: no CDP screencast. Nothing launches it here.
+    addIdentity("fox", sb.env);
+    writeIdentitySettings("fox", { engine: "camoufox", live: { enabled: true } }, sb.env);
+    await host("fox");
+    await expect(liveLink("fox", sb.env)).rejects.toThrow(/^The view is a Chrome DevTools Protocol screencast/);
+    expect((await livePause("fox", sb.env)).paused).not.toBeNull();
   });
 });

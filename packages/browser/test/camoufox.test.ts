@@ -4,12 +4,15 @@ import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { CreateMessageRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { camoufoxProfileDir, findPlaywrightCore } from "../src/engine-camoufox.js";
 import { addIdentity } from "../src/identities.js";
+import { liveLink, livePause, liveResume, liveStatus } from "../src/live-client.js";
 import { listRecordings } from "../src/recordings.js";
 import { writeIdentitySettings } from "../src/settings.js";
-import { killSandboxProcesses, waitFor } from "./helpers/chrome.js";
+import { vaultAdd } from "../src/vault.js";
+import { stopSandboxProcesses, waitFor } from "./helpers/chrome.js";
 import { type FakeSecretStore, fakeSecretStore } from "./helpers/fake-secret-store.js";
 import { localProxy } from "./helpers/local-proxy.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -48,12 +51,17 @@ const PAGE = `<title>fox</title>
 <p id="out">idle</p>
 <script>console.log('fox-console')</script>`;
 
+const LOGIN = `<title>Sign in</title><form onsubmit="event.preventDefault()">
+<label>Email <input name="email" type="email" autocomplete="username"></label>
+<label>Password <input name="password" type="password" autocomplete="current-password"></label>
+<button>Sign in</button></form>`;
+
 let web: Server;
 let base = "";
 beforeAll(async () => {
   web = createServer((req, res) => {
     res.setHeader("content-type", "text/html");
-    res.end(req.url === "/second" ? "<title>second</title><p>Second page</p>" : PAGE);
+    res.end(req.url === "/second" ? "<title>second</title><p>Second page</p>" : req.url === "/login" ? LOGIN : PAGE);
   });
   await new Promise<void>((r) => web.listen(0, "127.0.0.1", r));
   base = `http://127.0.0.1:${(web.address() as { port: number }).port}`;
@@ -75,7 +83,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   for (const t of running.splice(0)) await t.close().catch(() => {});
-  killSandboxProcesses(sb.home);
+  await stopSandboxProcesses(sb.home);
   for (const p of proxies.splice(0)) {
     p.closeAllConnections();
     await new Promise((r) => p.close(() => r(undefined)));
@@ -83,7 +91,8 @@ afterEach(async () => {
   sb.cleanup();
 });
 
-async function start(args: string[]): Promise<Client> {
+/** Starts the server; `sampling` answers MCP sampling requests (the act model) with the prompt's text. */
+async function start(args: string[], sampling?: (prompt: string) => string): Promise<Client> {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [bin, "--headless", ...args],
@@ -95,7 +104,15 @@ async function start(args: string[]): Promise<Client> {
     serverLog += d.toString();
   });
   running.push(transport);
-  const client = new Client({ name: "camoufox", version: "0.0.0" });
+  const client = new Client({ name: "camoufox", version: "0.0.0" }, { capabilities: sampling ? { sampling: {} } : {} });
+  if (sampling)
+    client.setRequestHandler(CreateMessageRequestSchema, async (request) => {
+      const prompt = [
+        request.params.systemPrompt ?? "",
+        ...request.params.messages.map((m) => (m.content as { text?: string }).text ?? ""),
+      ].join("\n");
+      return { role: "assistant", model: "test-client-model", content: { type: "text", text: sampling(prompt) } };
+    });
   await client.connect(transport);
   return client;
 }
@@ -240,4 +257,65 @@ describe.skipIf(reason)("the camoufox engine with a real Firefox build", () => {
     expect(opened.error, opened.text).toBe(false);
     expect((await call(tabs, "browser_snapshot")).text).toContain("Camoufox page");
   }, 90_000);
+  it("runs natural language actions, browser_login and the live view's pause, and refuses the view and captcha solving", async () => {
+    const password = "F0x vault&<pass>";
+    addIdentity("fox", sb.env);
+    writeIdentitySettings("fox", { engine: "camoufox", act: {}, live: { enabled: true } }, sb.env);
+    await vaultAdd("fox", "local", { urls: [`${base}/login`], username: "ada@example.com", password }, { env: sb.env });
+    const prompts: string[] = [];
+    const client = await start(["--identity", "fox"], (prompt) => {
+      prompts.push(prompt);
+      const steps = (prompt.match(/^\d+\. /gm) ?? []).length;
+      const at = (tool: string, args: Record<string, unknown>) =>
+        JSON.stringify({ tool, arguments: args, why: "test" });
+      if (steps === 0)
+        return at("browser_type", { target: ref(prompt, "textbox", "Name"), element: "Name", text: "Ada" });
+      if (steps === 1) return at("browser_click", { target: ref(prompt, "button", "Press"), element: "Press" });
+      return JSON.stringify({ done: true, success: true, summary: "pressed" });
+    });
+    // The view needs a CDP screencast; pause and resume do not.
+    const before = await liveStatus("fox", sb.env);
+    expect(before?.view.reason).toMatch(/^The view is a Chrome DevTools Protocol screencast/);
+    await expect(liveLink("fox", sb.env)).rejects.toThrow(/Camoufox is a Firefox build/);
+
+    expect((await call(client, "browser_navigate", { url: base })).error).toBe(false);
+    const acted = await call(client, "browser_act", { instruction: "Type Ada as the name, then press the button" });
+    expect(acted.error, `${acted.text}\n${serverLog}`).toBe(false);
+    expect(prompts.length).toBeGreaterThanOrEqual(3);
+    expect(prompts[0]).toContain("Camoufox page");
+    const out = await call(client, "browser_evaluate", {
+      function: "() => document.getElementById('out').textContent",
+    });
+    expect(out.text).toContain("clicked");
+
+    expect((await call(client, "browser_navigate", { url: `${base}/login` })).error).toBe(false);
+    const login = await call(client, "browser_login", { site: "local" });
+    expect(login.error, login.text).toBe(false);
+    expect(login.text.includes(password)).toBe(false);
+    // The vault guard holds the page on Firefox too: no script reads the filled values back.
+    const read = await call(client, "browser_evaluate", {
+      function: "() => document.querySelector('input[type=password]').value",
+    });
+    expect(read.error).toBe(true);
+    expect(read.text).toMatch(/holds values browser_login filled from the vault/);
+
+    const running = await liveStatus("fox", sb.env);
+    expect(running?.engine).toBe("camoufox");
+    expect(running?.view.available).toBe(false);
+    expect((await livePause("fox", sb.env)).paused).not.toBeNull();
+    expect((await liveResume("fox", sb.env)).paused).toBeNull();
+    await call(client, "browser_close");
+
+    // captcha with engine camoufox is refused in identity.json; with --engine camoufox, by the tool.
+    addIdentity("solver", sb.env);
+    writeIdentitySettings(
+      "solver",
+      { captcha: { provider: "task-api", endpoint: "https://solver.example.com", key: "keychain:solver" } },
+      sb.env,
+    );
+    const solver = await start(["--identity", "solver", "--engine", "camoufox"]);
+    const refused = await call(solver, "browser_solve_captcha", {});
+    expect(refused.error).toBe(true);
+    expect(refused.text).toMatch(/browser_solve_captcha is not available with the Camoufox engine/);
+  }, 120_000);
 });

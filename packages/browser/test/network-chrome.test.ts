@@ -5,11 +5,13 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { CreateMessageRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { addIdentity } from "../src/identities.js";
+import { liveStatus } from "../src/live-client.js";
 import { listRecordings, recordingsDir, zipTexts } from "../src/recordings.js";
 import { writeIdentitySettings } from "../src/settings.js";
-import { chromeUnavailable, killSandboxProcesses, waitFor } from "./helpers/chrome.js";
+import { chromeUnavailable, stopSandboxProcesses, waitFor } from "./helpers/chrome.js";
 import { type FakeSecretStore, fakeSecretStore } from "./helpers/fake-secret-store.js";
 import { localProxy } from "./helpers/local-proxy.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -38,14 +40,15 @@ beforeEach(() => {
 });
 afterEach(async () => {
   for (const t of running.splice(0)) await t.close().catch(() => {});
-  killSandboxProcesses(sb.home);
+  await stopSandboxProcesses(sb.home);
   for (const s of sockets) s.destroy();
   sockets.clear();
   for (const s of servers.splice(0)) await new Promise((r) => s.close(() => r(undefined)));
   sb.cleanup();
 });
 
-async function start(id: string): Promise<Client> {
+/** Starts the server for `id`; `sampling` answers MCP sampling requests (the act model) with the prompt's text. */
+async function start(id: string, sampling?: (prompt: string) => string): Promise<Client> {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [bin, "--identity", id, "--headless"],
@@ -54,7 +57,18 @@ async function start(id: string): Promise<Client> {
     stderr: "pipe",
   });
   running.push(transport);
-  const client = new Client({ name: "network-chrome", version: "0.0.0" });
+  const client = new Client(
+    { name: "network-chrome", version: "0.0.0" },
+    { capabilities: sampling ? { sampling: {} } : {} },
+  );
+  if (sampling)
+    client.setRequestHandler(CreateMessageRequestSchema, async (request) => {
+      const prompt = [
+        request.params.systemPrompt ?? "",
+        ...request.params.messages.map((m) => (m.content as { text?: string }).text ?? ""),
+      ].join("\n");
+      return { role: "assistant", model: "test-client-model", content: { type: "text", text: sampling(prompt) } };
+    });
   await client.connect(transport);
   return client;
 }
@@ -281,6 +295,47 @@ describe.skipIf(reason)("identity.json proxy with a real Chrome and a local prox
     const basic = Buffer.from(`alice:${PASSWORD}`).toString("base64");
     expect(recorded.includes(PASSWORD)).toBe(false);
     expect(recorded.includes(basic)).toBe(false);
+  });
+
+  it("keeps the proxy credentials out of the act model's prompt and the live view's tab list", async () => {
+    const proxy = await localProxy("alice", PASSWORD, listen);
+    store.write("proxy-pass", PASSWORD);
+    addIdentity("act", sb.env);
+    writeIdentitySettings(
+      "act",
+      {
+        proxy: { server: proxy.server, username: "alice", password: "keychain:proxy-pass" },
+        act: {},
+        live: { enabled: true },
+      },
+      sb.env,
+    );
+    // A page that shows the credentials, as a page that echoed them would.
+    const basic = Buffer.from(`alice:${PASSWORD}`).toString("base64");
+    const shown = PASSWORD.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const port = await listen(
+      createServer((_req, res) => {
+        res.setHeader("content-type", "text/html");
+        res.end(`<title>echo ${shown}</title><p>alice:${shown}</p><p>${basic}</p><button>Go</button>`);
+      }),
+    );
+    const prompts: string[] = [];
+    const client = await start("act", (prompt) => {
+      prompts.push(prompt);
+      return JSON.stringify({ done: true, success: true, summary: "read the page" });
+    });
+    const nav = await call(client, "browser_navigate", { url: `http://127.0.0.1:${port}/echo` });
+    expect(nav.error, nav.text).toBe(false);
+    expect(proxy.seen.relayed).toContain("/echo");
+    const acted = await call(client, "browser_act", { instruction: "Read the page" });
+    expect(acted.error, acted.text).toBe(false);
+    expect(prompts.length).toBeGreaterThan(0);
+    const status = JSON.stringify(await liveStatus("act", sb.env));
+    expect(status).toContain("/echo");
+    for (const text of [...prompts, acted.text, nav.text, status]) {
+      expect(text.includes(PASSWORD)).toBe(false);
+      expect(text.includes(basic)).toBe(false);
+    }
   });
 
   it("works with userAgent coherent, humanize and tab sharing on one identity", async () => {

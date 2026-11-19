@@ -44,6 +44,8 @@ import { upstream } from "./upstream.js";
 const NOT_IN_CAMOUFOX: Readonly<Record<string, string>> = {
   browser_run_code_unsafe:
     "it runs Playwright code against the patchright-core API, and Camoufox runs on stock Playwright",
+  browser_solve_captcha:
+    "it sets the token from Patchright's isolated script world and calls the widget's callback in the page's own, and Camoufox runs on stock Playwright",
 };
 
 /** Why the Camoufox engine refuses this tool, or undefined when it runs it. */

@@ -411,6 +411,9 @@ With the other settings:
 - Attach mode: it works in the agent's own tab of your Chrome, never in your tabs.
 - Read mode (`"engine": "lightpanda"`): `browser_extract` and `browser_observe` work; `browser_act`
   can only use the tools read mode runs (no drag).
+- [Camoufox](#camoufox): it works, through the same stock tools.
+- [A proxy](#a-proxy): the proxy's user name and password are hidden from the prompt like vault
+  values.
 - `humanize`: each action is the stock tool call, so it moves and types like the agent's own calls.
 - Recordings: a flow records the stock steps the model chose, never the instruction, the prompt or
   the page it read, and a trace or screenshot covers those steps like any other.
@@ -450,7 +453,9 @@ reputation` shows a `solved` column once a solver answered.
 
 With the other settings: it works with `"sharing": "tabs"` (in the calling session's tab) and in
 attach mode (in the agent's own tab); read mode refuses it, since Lightpanda runs no widget, and
-`turno identity set` refuses the combination. It is not recorded in a flow: a replay that meets
+`turno identity set` refuses the combination. Camoufox refuses it too: the token is set from
+Patchright's isolated script world and the widget's callback runs in the page's own, and Camoufox
+runs on stock Playwright. It is not recorded in a flow: a replay that meets
 the captcha again stops at the next step, where the agent can call `browser_solve_captcha` and go
 on with `from`.
 
@@ -519,6 +524,10 @@ With the other settings:
   Chrome, then resume.
 - Read mode (`"engine": "lightpanda"`): Lightpanda renders no pixels, so there is no view. Pause
   and resume work.
+- [Camoufox](#camoufox): the view is a Chrome DevTools Protocol screencast, which Firefox does not
+  have, so there is no view. Pause and resume work; with a headed Camoufox, act in its window.
+- [A proxy](#a-proxy): the view's tab list hides the proxy's user name and password like vault
+  values. The proxy signs in inside the browser, so no page holds them to show.
 - `"sharing": "tabs"`: a pause holds every session. The view lists every tab with the session that
   holds it and follows the tab of the latest call from any session; pick a tab to stay on it. Each
   held call's note is about its own session's current tab.
@@ -564,7 +573,7 @@ turno browser reputation school    # counts per site, and whether they go up or 
 ## Network and user agent
 
 Two settings change how an identity's browser reaches sites. Both are off by default, set per
-identity in `identity.json` (format 8), and **not recommended**: the default, your own Chrome on
+identity in `identity.json` (format 11), and **not recommended**: the default, your own Chrome on
 your own connection, is already one coherent browser. They exist for your own accounts and for
 sites you may automate, when you have a reason, and each one has a cost:
 
@@ -642,6 +651,7 @@ address that way. Sites see the proxy's address, and its operator sees where you
 | Read mode | refused: Lightpanda presents its own user agent | refused: not checked with a proxy |
 | Camoufox | refused: Firefox sends no client hints, and Camoufox presents its own values | works (WebRTC limited the same way) |
 | Tab sharing, humanize | work | work |
+| Natural language actions, live view, `turno browser do` | work | work; the act model's prompt and the view's tab list hide the credentials like vault values |
 | Recordings | work | flows and screenshots work; `record.traces` is refused with a proxy password, since a trace keeps the browser's launch options, password included |
 | A server flag of its own (`--user-agent`, `--device`, `--proxy-server`) | refused: keep one | refused: keep one |
 
@@ -651,7 +661,7 @@ the first tool call, before any browser opens.
 ## Engines
 
 An identity runs on the Chrome turno launches on its own profile. Three other engines are there
-when you ask for one, per identity in `identity.json` (format 6, format 8 for Camoufox) or per
+when you ask for one, per identity in `identity.json` (format 6, format 11 for Camoufox) or per
 server with a flag, which wins over the file:
 
 | Engine | Set it | What it is for |
@@ -756,9 +766,18 @@ languages and time zone, and its `proxy` when set. `userAgent` and `"keychain": 
 refused with it, and so is attach mode.
 
 Every stock tool runs except `browser_run_code_unsafe`, which runs code written for Patchright's
-API; it is refused with the reason. That was checked with Playwright's own Firefox build in
-Camoufox's place (an official Camoufox build was not available to test), along with a proxy,
-humanize, tab sharing and recordings. The health check, reputation log, blocking and cache run the
+API; it is refused with the reason. With the opt-in features:
+
+- [Natural language actions](#natural-language-actions) and `browser_login` work, and so does
+  [`turno browser do`](#from-the-shell), which calls the same server.
+- [Captcha solving](#captcha-solving) is refused, in `identity.json` and, with `--engine camoufox`,
+  when `browser_solve_captcha` is called: it relies on Patchright's script worlds.
+- The [live view](#live-view-and-take-over) shows no picture, since it is a Chrome screencast;
+  pause and resume work.
+
+That was checked with Playwright's own Firefox build in Camoufox's place (an official Camoufox
+build was not available to test), along with a proxy, humanize, tab sharing, recordings,
+natural language actions, `browser_login` and the live view's pause. The health check, reputation log, blocking and cache run the
 same code as with Chrome and were not checked on Firefox separately.
 
 ### Attach to your Chrome

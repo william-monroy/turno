@@ -63,7 +63,8 @@ export interface LiveFile {
 }
 
 /**
- * Why the live view shows no pixels with this engine; undefined when it can. Pause and resume
+ * Why the live view shows no pixels with this engine (read mode, attach mode, Camoufox);
+ * undefined when it can. Pause and resume
  * work with every engine.
  */
 export function viewRefusal(engine: string | undefined): string | undefined {
@@ -71,6 +72,8 @@ export function viewRefusal(engine: string | undefined): string | undefined {
     return "Read mode (Lightpanda) renders no pixels, so there is nothing to show. Pause and resume still work.";
   if (engine === "attach")
     return "Attach mode drives your own Chrome, which you already see; a view would stream your own tabs, so it is off. Pause and resume still work.";
+  if (engine === "camoufox")
+    return "The view is a Chrome DevTools Protocol screencast, and Camoufox is a Firefox build that has none, so there is nothing to show; Camoufox's own window shows the page when it runs headed. Pause and resume still work.";
   return undefined;
 }
 

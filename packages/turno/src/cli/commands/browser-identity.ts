@@ -654,7 +654,8 @@ Which engine runs this identity (all off by default):
                                   needs lightpanda on PATH (turno browser doctor says how)
   --engine camoufox               Camoufox (a Firefox build) with its own profile; not
                                   recommended for your own accounts; needs Camoufox and
-                                  playwright-core (turno browser doctor says how)
+                                  playwright-core (turno browser doctor says how); no captcha
+                                  solving, and no picture in the live view
   --attach auto|<dir>|<url>       use the Chrome you have open instead of the identity's own:
                                   "auto" is your default Chrome profile, after you turn on
                                   chrome://inspect/#remote-debugging; Chrome asks you to allow
