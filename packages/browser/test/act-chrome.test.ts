@@ -51,6 +51,14 @@ const FORM = `<title>Form</title><h1>Greeter</h1>
   <p id="out"></p>
   <ul><li>Apple 1 USD</li><li>Pear 2 USD</li></ul>`;
 
+/** A name field that counts trusted key presses, and a button a cookie banner covers. */
+const COVERED = `<title>Covered</title><label>Name <input id="name"></label><p id="keys">none</p>
+  <button id="save">Save</button>
+  <div class="cookie-banner" role="dialog" aria-label="We use cookies" style="position:fixed;left:0;right:0;bottom:0;height:60%;background:#fff">
+    <button>Accept all</button></div>
+  <script>let n = 0; document.getElementById("name").addEventListener("keydown", (e) => { if (e.isTrusted) document.getElementById("keys").textContent = "keys " + ++n; });
+    document.getElementById("save").style.cssText = "position:fixed;bottom:20%;left:40px";</script>`;
+
 const CAPTCHA = `<title>Checkout</title><form id="f">
   <div class="g-recaptcha" data-sitekey="test-site-key-123" data-callback="onToken"></div>
   <textarea name="g-recaptcha-response" id="g-recaptcha-response" style="display:none"></textarea>
@@ -106,17 +114,19 @@ async function web(llmReply: (prompt: string) => string): Promise<Web> {
       return;
     }
     res.setHeader("content-type", "text/html; charset=utf-8");
-    res.end(path === "/form" ? FORM : path === "/captcha" ? CAPTCHA : "<title>404</title>");
+    res.end(
+      path === "/form" ? FORM : path === "/captcha" ? CAPTCHA : path === "/covered" ? COVERED : "<title>404</title>",
+    );
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const { port } = server.address() as { port: number };
   return { url: `http://127.0.0.1:${port}`, llm, solver, close: () => new Promise((r) => server.close(() => r())) };
 }
 
-async function start(id: string, sampling?: (prompt: string) => string): Promise<Client> {
+async function start(id: string, sampling?: (prompt: string) => string, args: string[] = []): Promise<Client> {
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [bin, "--identity", id, "--headless"],
+    args: [bin, "--identity", id, "--headless", ...args],
     env: sb.env as Record<string, string>,
     cwd: sb.home,
     stderr: "pipe",
@@ -210,6 +220,39 @@ describe.skipIf(reason !== undefined)(
       expect(file).not.toContain(instruction);
       expect(file).not.toContain("Current page");
       expect(file.includes(PAGE_SECRET), "page secret in the flow").toBe(false);
+    }, 90_000);
+
+    it("types its steps with humanize and hears at once which element covers a button", async () => {
+      const site = await web(() => "");
+      onTestFinished(() => site.close());
+      addIdentity("human", sb.env);
+      writeIdentitySettings("human", { act: {}, humanize: { level: "light", seed: 3 } }, sb.env);
+      const prompts: string[] = [];
+      // A 60 s action timeout: only the check before the call answers within the time below.
+      const client = await start(
+        "human",
+        (prompt) => {
+          prompts.push(prompt);
+          const steps = (prompt.match(/^\d+\. /gm) ?? []).length;
+          const at = (tool: string, args: Record<string, unknown>) =>
+            JSON.stringify({ tool, arguments: args, why: "test" });
+          if (steps === 0)
+            return at("browser_type", { target: ref(prompt, "textbox", "Name"), element: "Name", text: "Ada" });
+          if (steps === 1) return at("browser_click", { target: ref(prompt, "button", "Save"), element: "Save" });
+          return JSON.stringify({ done: true, success: false, summary: "a cookie banner is in the way" });
+        },
+        ["--timeout-action", "60000"],
+      );
+      await call(client, "browser_navigate", { url: `${site.url}/covered` });
+      const t0 = Date.now();
+      const acted = await call(client, "browser_act", { instruction: "Save the name Ada" });
+      expect(Date.now() - t0).toBeLessThan(30_000);
+      expect(acted.text).toMatch(/1\. browser_type e\d+ \(Name\) "Ada": ok/);
+      expect(acted.text).toMatch(/2\. browser_click e\d+ \(Save\): failed/);
+      expect(acted.text).toContain('dialog "We use cookies" (div.cookie-banner) covers it');
+      // The model heard which element is in the way, and the name was typed key by key.
+      expect(prompts[2]).toContain('dialog "We use cookies" (div.cookie-banner) covers it');
+      expect((await call(client, "browser_snapshot")).text).toContain("keys 3");
     }, 90_000);
 
     it("extracts data through a configured provider, its key read from the secret store and never shown", async () => {
