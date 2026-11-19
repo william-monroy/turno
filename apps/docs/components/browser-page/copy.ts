@@ -296,7 +296,7 @@ const en: BrowserCopy = {
   tags: { on: "on", optIn: "opt in" },
   facts: [
     { title: "On your machine", text: "No cloud browser and no bill per hour." },
-    { title: "The Chrome you have", text: "Headed, with a real profile per identity." },
+    { title: "The Chrome you have", text: "It drives the Google Chrome on your machine and downloads no browser." },
     { title: "No account, no API key", text: "Install it and it works." },
     { title: "Free and open source", text: "Apache-2.0." },
   ],
@@ -595,7 +595,7 @@ const es: BrowserCopy = {
   tags: { on: "activo", optIn: "opcional" },
   facts: [
     { title: "En tu máquina", text: "Sin navegador en la nube ni cobro por hora." },
-    { title: "El Chrome que ya tienes", text: "Con ventana, y un perfil real por identidad." },
+    { title: "El Chrome que ya tienes", text: "Maneja el Google Chrome de tu máquina y no descarga ningún navegador." },
     { title: "Sin cuenta ni API key", text: "Lo instalas y funciona." },
     { title: "Gratis y de código abierto", text: "Apache-2.0." },
   ],
