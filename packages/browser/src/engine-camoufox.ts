@@ -12,12 +12,13 @@ import { FIREFOX_PROXY_PREFS, resolveProxy } from "./network.js";
 import { acquireRuntimeLock } from "./runtime-lock.js";
 import { acceptLanguages, chromeEnv, readIdentitySettings, systemTimezone } from "./settings.js";
 import { upstream } from "./upstream.js";
+import { names } from "./names.js";
 
 /**
  * The `camoufox` engine: Camoufox, a Firefox build with its own fingerprint handling, instead
  * of Chrome. Opt-in only (identity.json `"engine": "camoufox"`, or `--engine camoufox`), off by
- * default, and not recommended for the user's own accounts: a Firefox with a changed fingerprint
- * is something sites look for, and the identity's Chrome profile and sign-ins do not carry over.
+ * default and the user's choice. A Firefox with a changed fingerprint is something sites look
+ * for, and the identity's Chrome profile and sign-ins do not carry over.
  *
  * turno never downloads it. Two things must be installed:
  *
@@ -52,7 +53,7 @@ const NOT_IN_CAMOUFOX: Readonly<Record<string, string>> = {
 export function camoufoxRefusal(tool: string): string | undefined {
   const why = NOT_IN_CAMOUFOX[tool];
   if (!why) return undefined;
-  return `${tool} is not available with the Camoufox engine: ${why}. Use the Chrome engine for it (\`turno browser set <id> --engine chrome\`).`;
+  return `${tool} is not available with the Camoufox engine: ${why}. Use the Chrome engine for it (\`${names().browser} set <id> --engine chrome\`).`;
 }
 
 /** How to install Camoufox, for errors and `turno browser doctor`. */
@@ -143,7 +144,7 @@ function camoufoxMissing(env: NodeJS.ProcessEnv): Error {
     ? `TURNO_CAMOUFOX_PATH (${configured}) is not an executable file with an absolute path`
     : `no Camoufox build is in ${camoufoxCacheDir(env)}`;
   return new Error(
-    `the camoufox engine needs Camoufox, and ${where}. Install it: ${camoufoxInstallHint()}. turno never downloads it for you; \`turno browser doctor\` checks it.`,
+    `the camoufox engine needs Camoufox, and ${where}. Install it: ${camoufoxInstallHint()}. turno never downloads it for you; \`${names().browser} doctor\` checks it.`,
   );
 }
 

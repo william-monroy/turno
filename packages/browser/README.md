@@ -15,7 +15,7 @@ turno-browser login school    # sign in by hand once; cookies persist
 It is a separate package from [turno](https://www.npmjs.com/package/turno-cli), not installed
 with it; turno works without it. The `turno-browser` command manages identities on its own; with
 turno installed, `turno browser <command>` and `turno identity ... browser:<id>` run the same
-commands and add what turno has, like the `mcp.toml` block and `turno browser do` through mcpd. The whole story is at [turno.wimo.dev](https://turno.wimo.dev).
+commands and add what turno has, like the `mcp.toml` block and `do` through mcpd instead of a background server. The whole story is at [turno.wimo.dev](https://turno.wimo.dev).
 
 ## Why
 
@@ -39,7 +39,7 @@ commands and add what turno has, like the `mcp.toml` block and `turno browser do
 | [Live view and take-over](https://turno.wimo.dev/docs/concepts/browser-identities#live-view-and-take-over) | opt-in: watch the agent's tab on 127.0.0.1, pause it, act, and resume; the agent is told what changed |
 | [Blocking and cache](#lighter-pages) | opt-in: block trackers, images, media or fonts; cache static resources on disk |
 | [Engines](https://turno.wimo.dev/docs/concepts/browser-identities#engines) | opt-in: read mode on Lightpanda for reading pages with little memory, attach to the Chrome you have open, or Camoufox |
-| [From the shell](https://turno.wimo.dev/docs/concepts/browser-identities#from-the-shell) | `turno browser do <id> open`, `snapshot`, `click`, `type`, `read`: the same browser and rules, as shell commands for coding agents |
+| [From the shell](https://turno.wimo.dev/docs/concepts/browser-identities#from-the-shell) | `turno-browser do <id> open`, `snapshot`, `click`, `type`, `read`: the same browser and rules, as shell commands for coding agents |
 | [Health and reputation](#know-when-something-is-wrong) | a signed-out identity says so, and each site's challenges are counted |
 | [`turno browser doctor`](#know-when-something-is-wrong) | checks Chrome and every identity, with a fix for each problem |
 

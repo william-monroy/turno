@@ -1,9 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { fakeSecretStore } from "../helpers/fake-secret-store.js";
+import { type FakeSecretStore, fakeSecretStore } from "../helpers/fake-secret-store.js";
 import { type Sandbox, sandbox } from "../helpers/sandbox.js";
 
 /**
@@ -18,20 +18,42 @@ const PKG = JSON.parse(readFileSync(new URL("../../package.json", import.meta.ur
 };
 
 let sb: Sandbox;
+let store: FakeSecretStore;
 beforeEach(() => {
   sb = sandbox();
-  fakeSecretStore(sb);
+  store = fakeSecretStore(sb);
 });
 afterEach(() => sb.cleanup());
 
 function run(args: string[], input = "") {
+  return runWith(args, {}, input);
+}
+
+function runWith(args: string[], extra: NodeJS.ProcessEnv, input = "") {
   const r = spawnSync(process.execPath, [BIN, ...args], {
-    env: { ...sb.env, TURNO_NO_INPUT: "1" },
+    env: { ...sb.env, TURNO_NO_INPUT: "1", ...extra },
     encoding: "utf8",
     input,
     timeout: 30_000,
   });
   return { code: r.status, out: r.stdout, err: r.stderr };
+}
+
+/** A PATH where turno-browser-mcp is found: a stand-in in the sandbox. */
+function onPath(): NodeJS.ProcessEnv {
+  const dir = join(sb.home, "mcpbin");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "turno-browser-mcp"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  return { PATH: `${dir}:${sb.env.PATH ?? ""}` };
+}
+
+/** Every file under `dir`, for "writes nothing". */
+function files(dir: string): string[] {
+  return readdirSync(dir, { recursive: true, withFileTypes: true })
+    .filter((e) => e.isFile())
+    .map((e) => join(e.parentPath, e.name))
+    .filter((f) => !f.includes("/mcpbin/"))
+    .sort();
 }
 
 const settingsFile = (id: string) => join(sb.home, ".local", "share", "turno", "browser", "identities", `${id}.json`);
@@ -42,7 +64,7 @@ describe("turno-browser", () => {
     expect(run(["--version"])).toMatchObject({ code: 0, out: `turno-browser ${PKG.version}\n` });
     const help = run(["--help"]);
     expect(help.code).toBe(0);
-    for (const section of ["Identities", "Sign-ins and sessions", "Flows and recordings", "Checks"])
+    for (const section of ["Identities", "Connect an agent", "Sign-ins and sessions", "Flows and recordings", "Checks"])
       expect(help.out).toContain(section);
     expect(help.out).toMatch(/^ {2}add +create an identity/m);
     expect(help.out).toContain("turno-browser-mcp --identity <id>");
@@ -113,20 +135,127 @@ describe("turno-browser", () => {
     expect(report.checks.some((c) => c.area === "identity school")).toBe(true);
   });
 
-  it("says do needs turno for now, and still prints its help", () => {
+  it("runs do through the identity's background server, and prints its help", () => {
     run(["add", "school"]);
-    const r = run(["do", "school", "open", "https://example.com"]);
-    expect(r.code).toBe(1);
-    expect(r.err).toMatch(/^turno-browser: turno-browser do needs turno for now: run `turno browser do <id> <action>`/);
-    expect(r.err).toMatch(/A standalone mode is coming\.$/m);
-    const short = run(["school", "snapshot"]);
-    expect(short.code).toBe(1);
-    expect(short.err).toMatch(/needs turno for now/);
+    const session = run(["do", "school", "session"]);
+    expect(session.code).toBe(0);
+    expect(session.out).toContain("server: not running; the next action starts it");
+    expect(session.out).toContain("state: none yet; the next action opens it");
+    expect(run(["do", "school", "end"])).toMatchObject({ code: 0, out: "no session default of school to end\n" });
+    const missing = run(["do", "nobody", "open", "https://example.com"]);
+    expect(missing.code).toBe(1);
+    expect(missing.err).toBe('turno-browser: browser identity "nobody" does not exist (turno-browser add nobody)\n');
     const help = run(["do", "--help"]);
     expect(help.code).toBe(0);
     expect(help.out).toContain("turno-browser do <id> <action>");
-    expect(help.out).toContain("needs turno for now");
+    expect(help.out).toContain("through its background server");
     expect(help.out).not.toContain("--profile");
+  });
+
+  it("shows, starts and stops background servers by name", () => {
+    run(["add", "school"]);
+    expect(run(["background"])).toMatchObject({
+      code: 0,
+      out: "No background server runs. turno-browser do <id> <action> starts one.\n",
+    });
+    expect(JSON.parse(run(["background", "status", "--json"]).out)).toEqual([]);
+    expect(run(["background", "stop", "school"])).toMatchObject({
+      code: 0,
+      out: 'no background server of "school" runs\n',
+    });
+    expect(run(["background", "start", "nobody"]).code).toBe(2);
+    expect(run(["background", "--help"]).out).toContain("turno-browser background stop <id>");
+  });
+
+  it("prints the MCP config of each agent, and writes nothing", () => {
+    run(["add", "school"]);
+    const before = files(sb.home);
+    const claude = runWith(["setup", "claude-code", "--identity", "school"], onPath());
+    expect(claude.code).toBe(0);
+    expect(claude.out).toBe(
+      [
+        'Run this once to give Claude Code the browser identity "school":',
+        "",
+        "claude mcp add --scope user browser-school -- turno-browser-mcp --identity school",
+        "",
+        "--scope user adds it to every project; leave it out to add it to the current folder only.",
+        "Start a new agent session to load it. Sign in to your sites once with turno-browser login school.",
+        "",
+      ].join("\n"),
+    );
+    const codex = runWith(["setup", "codex"], onPath());
+    expect(codex.out).toContain(
+      '[mcp_servers.browser-school]\ncommand = "turno-browser-mcp"\nargs = ["--identity", "school"]\n',
+    );
+    expect(codex.out).toContain("Or run: codex mcp add browser-school -- turno-browser-mcp --identity school");
+    for (const [agent, entry] of [
+      ["cursor", { type: "stdio", command: "turno-browser-mcp", args: ["--identity", "school"] }],
+      ["copilot", { type: "local", command: "turno-browser-mcp", args: ["--identity", "school"], tools: ["*"] }],
+      ["gemini", { command: "turno-browser-mcp", args: ["--identity", "school"] }],
+      ["json", { command: "turno-browser-mcp", args: ["--identity", "school"] }],
+    ] as const) {
+      const r = runWith(["setup", agent, "--json"], onPath());
+      expect(r.code).toBe(0);
+      const out = JSON.parse(r.out) as { config: string; server: string };
+      expect(out.server).toBe("browser-school");
+      expect(JSON.parse(out.config)).toEqual({ mcpServers: { "browser-school": entry } });
+    }
+    // Not on the PATH: the full path of this install's server.
+    const full = runWith(["setup", "json", "--json"], { PATH: dirname(process.execPath) });
+    expect(JSON.parse(full.out)).toMatchObject({
+      command: fileURLToPath(new URL("../../dist/bin/mcp.js", import.meta.url)),
+      notes: expect.arrayContaining([expect.stringMatching(/not on the PATH/)]),
+    });
+    expect(files(sb.home)).toEqual(before);
+  });
+
+  it("refuses setup without an agent it knows or an identity to pick", () => {
+    expect(run(["setup", "claude-code"])).toMatchObject({
+      code: 2,
+      err: "turno-browser: no identity yet: create one with turno-browser add <id>, then turno-browser setup <agent> --identity <id>\n",
+    });
+    run(["add", "school"]);
+    run(["add", "work"]);
+    expect(run(["setup", "codex"]).err).toBe("turno-browser: pick an identity with --identity: school, work\n");
+    expect(run(["setup", "vim", "--identity", "school"]).err).toBe(
+      'turno-browser: unknown agent "vim" (agents: claude-code, codex, cursor, copilot, gemini, json)\n',
+    );
+    expect(run(["setup", "codex", "--identity", "nobody"])).toMatchObject({ code: 2 });
+  });
+
+  it("stores, checks, lists and removes the secrets identity.json names, never printing them", () => {
+    run(["add", "school"]);
+    run([
+      "set",
+      "school",
+      "--proxy-server",
+      "http://proxy.example.com:8080",
+      "--proxy-username",
+      "alice",
+      "--proxy-password",
+      "keychain:school-proxy",
+    ]);
+    const missing = run(["secret", "list"]);
+    expect(missing.code).toBe(1);
+    expect(missing.out).toMatch(
+      /^MISSING {2}keychain:school-proxy {2}\(school\) {2}turno-browser secret set school-proxy$/m,
+    );
+    const set = run(["secret", "set", "school-proxy"], "correct-horse-battery");
+    expect(set).toMatchObject({ code: 0, out: "stored keychain:school-proxy\n" });
+    expect(store.read("school-proxy")).toBe("correct-horse-battery");
+    expect(run(["secret", "has", "school-proxy"]).code).toBe(0);
+    const list = run(["secret", "list", "--json"]);
+    expect(list.code).toBe(0);
+    expect(JSON.parse(list.out)).toEqual([
+      { schemaVersion: 1, item: "school-proxy", stored: true, identities: ["school"] },
+    ]);
+    expect(list.out + set.out).not.toContain("correct-horse");
+    expect(run(["secret", "remove", "school-proxy"])).toMatchObject({
+      code: 0,
+      out: "removed keychain:school-proxy\n",
+    });
+    expect(run(["secret", "has", "school-proxy"]).code).toBe(1);
+    expect(run(["secret", "set", "empty"], "").code).toBe(2);
   });
 
   it("reports usage errors with exit 2, as text or JSON", () => {

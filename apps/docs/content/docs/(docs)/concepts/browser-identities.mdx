@@ -201,23 +201,45 @@ example two subagents each in its own tab; `session` shows which one a command w
 
 ### Without turno: the background server
 
-Without mcpd, the session that keeps a shell's tab lives in the identity's background server,
-`turno-browser-mcp --identity <id> --background`. turno-browser's client starts it on first use,
-detached from the shell, and it serves MCP over a Unix socket in
-`~/.local/state/turno/browser/identities/<id>/background/`, a folder only your user can enter (on a
-system without Unix sockets, 127.0.0.1 with a random token per server in a file only your user
-can read). Its `server.json` there names its pid, and its output goes to `server.log`. Each
-connection is one session with the identity's sharing rules: one session at a time with
-`"sharing": "session"` (another session's call gets an error that names the holder; the hold ends
-with the session, when its process exits, or after 5 minutes without a call), its own tabs with
-`"sharing": "tabs"`. It exits after 15 minutes without a request, or on `kill <pid>`, closing
-Chrome first.
+`turno-browser do` runs the same actions without turno. With turno installed, `turno browser do`
+goes through mcpd as above; `turno-browser do`, the command of the turno-browser package, goes
+through the identity's background server instead, with the same actions, output, session rules
+(`session`, `end`, `--session`) and exit codes:
+
+```sh
+turno-browser do school open https://example.com   # starts the background server if needed
+turno-browser do school snapshot
+turno-browser do school end
+turno-browser background                           # which background servers run
+turno-browser background stop school               # stop one and its Chrome
+```
+
+The background server is `turno-browser-mcp --identity <id> --background`. The first `do` starts
+it, detached from the shell (`turno-browser background start <id>` starts it ahead), and it serves
+MCP over a Unix socket in `~/.local/state/turno/browser/identities/<id>/background/`, a folder only
+your user can enter (on a system without Unix sockets, 127.0.0.1 with a random token per server in
+a file only your user can read). Its `server.json` there names its pid, its output goes to
+`server.log`, and the sessions of `do` are saved under `do/` there. Each connection is one session
+with the identity's sharing rules: one session at a time with `"sharing": "session"` (another
+session's call gets an error that names the holder; the hold ends with the session, when its
+process exits, or after 5 minutes without a call), its own tabs with `"sharing": "tabs"`. It exits
+after 15 minutes without a request, or on `turno-browser background stop <id>`, closing Chrome
+first. `turno-browser doctor` lists a running background server under its identity.
 
 While the background server of an identity runs, it alone drives that identity's browser. A
 `turno-browser-mcp` that an agent or mcpd started for the same identity answers each call that
-needs the browser with an error naming the background server and how to stop it, and starts no
-Chrome; the other way round, the background server does not start while another process has the
-identity's Chrome open, and says which one. Calls are never passed from one server to the other.
+needs the browser with an error naming the background server and the command that stops it, and
+starts no Chrome; the other way round, the background server does not start while another process
+has the identity's Chrome open, and says which one. Calls are never passed from one server to the
+other.
+
+To give an agent the identity without turno, `turno-browser setup <agent> --identity <id>` prints
+its MCP config (it writes nothing): a `claude mcp add` command for `claude-code`, a
+`[mcp_servers]` block for `codex`, an `mcpServers` entry for `cursor`, `copilot` and `gemini`, and
+the generic entry for `json`. `--json` prints it as one object for scripts. Secrets that
+identity.json names as `keychain:<item>` go in the secret store with `turno-browser secret set
+<item>` (the same items `turno secret set` stores). The [turno-browser reference](/docs/reference/turno-browser)
+has the help of every command.
 
 ### The skill
 

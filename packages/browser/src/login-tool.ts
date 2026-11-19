@@ -7,6 +7,7 @@ import { totp, totpSecondsLeft } from "./totp.js";
 import type { TurnoTool } from "./tools.js";
 import { type ToolSchema, upstream } from "./upstream.js";
 import { type Credential, VaultError, type VaultSite, originAllowed, readCredential, vaultSite } from "./vault.js";
+import { names as commandNames } from "./names.js";
 
 /**
  * `browser_login`: fills a site's username, password and current one-time code from
@@ -101,7 +102,7 @@ function schema(): ToolSchema {
       "You name the site; the values are never shown to you, and they are hidden from every later result of this server.",
       "The current page must be on the site's own sign-in page (the origins it was stored with).",
       "Fields found on the page are filled (a two-step sign-in needs one call per step). It does not submit the form unless the identity allows it: click the sign-in button yourself afterwards.",
-      "The person adds credentials with `turno browser vault add <identity> <site>`.",
+      `The person adds credentials with \`${commandNames().browser} vault add <identity> <site>\`.`,
     ].join(" "),
     inputSchema: z.object({
       site: z.string().describe("The site key in the vault, for example github"),
@@ -185,7 +186,7 @@ export function loginTool(): TurnoTool {
       const found = vaultSite(id, siteKey, env);
       if (!found)
         throw new VaultError(
-          `identity "${id}" has no credentials for "${siteKey}" in its vault; the person adds them with: turno browser vault add ${id} ${siteKey} --url <sign-in page>`,
+          `identity "${id}" has no credentials for "${siteKey}" in its vault; the person adds them with: ${commandNames().browser} vault add ${id} ${siteKey} --url <sign-in page>`,
         );
       const { site, submit } = found;
       const page = ctx.stock?.currentPage();

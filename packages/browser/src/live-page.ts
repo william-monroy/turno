@@ -1,3 +1,4 @@
+import { names } from "./names.js";
 /**
  * The live view page: one HTML document with its style and script inline, allowed by a nonce
  * in the Content-Security-Policy. It reads the server's events (`/events`: the state and the
@@ -85,7 +86,7 @@ events.addEventListener("frame", (e) => {
   size = { w: f.w, h: f.h };
   frame.src = "data:image/jpeg;base64," + f.data;
 });
-events.onerror = () => { $("status").textContent = "Disconnected: the server stopped or restarted. Open the view again with turno browser live."; };
+events.onerror = () => { $("status").textContent = "Disconnected: the server stopped or restarted. Open the view again with turno-browser live."; };
 $("pause").onclick = () => post("/pause");
 $("resume").onclick = () => post("/resume");
 function point(e) {
@@ -141,6 +142,6 @@ export function livePage(nonce: string): string {
 export function deniedPage(identity: string): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>turno live view</title></head>
-<body><p>This live view needs a fresh link. Run <code>turno browser live ${identity}</code>: it opens one that works once.</p></body></html>
+<body><p>This live view needs a fresh link. Run <code>${names().browser} live ${identity}</code>: it opens one that works once.</p></body></html>
 `;
 }

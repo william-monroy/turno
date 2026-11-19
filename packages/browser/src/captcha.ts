@@ -5,6 +5,7 @@ import { recordSolve } from "./reputation.js";
 import { readIdentitySettings } from "./settings.js";
 import type { TurnoTool } from "./tools.js";
 import { type ToolResult, type ToolSchema, upstream } from "./upstream.js";
+import { names } from "./names.js";
 
 /**
  * Captcha solving, off by default (identity.json `captcha`). `browser_solve_captcha` finds a
@@ -264,7 +265,7 @@ async function resolveSolver(
   const key = await store.get(item).catch(() => undefined);
   if (key === undefined)
     throw new SolverError(
-      `the secret store has no item "${item}" for captcha.key (store it with: turno secret set ${item})`,
+      `the secret store has no item "${item}" for captcha.key (store it with: ${names().secretSet(item)})`,
     );
   vault.redactor.add(key, "captcha solver key");
   return taskApiSolver({
@@ -315,7 +316,7 @@ export function solveCaptchaTool(): TurnoTool {
       }
       if (!settings)
         return fail(
-          `captcha solving is off for identity "${identity.id}"; only the person can turn it on (turno identity set browser:${identity.id} --captcha-provider task-api --captcha-endpoint <url> --captcha-key keychain:<item>). Otherwise ask them to answer it in the browser window.`,
+          `captcha solving is off for identity "${identity.id}"; only the person can turn it on (${names().identity("set", identity.id)} --captcha-provider task-api --captcha-endpoint <url> --captcha-key keychain:<item>). Otherwise ask them to answer it in the browser window.`,
         );
       if (!page) return fail("there is no page open: navigate to the page with the captcha first");
       let url: URL;

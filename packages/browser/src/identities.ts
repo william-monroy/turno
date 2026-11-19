@@ -7,6 +7,7 @@ import { removeFlows } from "./flows.js";
 import { inUseMessage, readRuntimeLock, runtimeLockAlive } from "./runtime-lock.js";
 import { type SettingsPatch, identitySettingsPath, systemTimezone, writeIdentitySettings } from "./settings.js";
 import { vaultHasSites, vaultPath } from "./vault.js";
+import { names } from "./names.js";
 
 export { IdentityError, assertIdentityId, identityDir, identityStateDir, isValidIdentityId };
 
@@ -80,7 +81,7 @@ export function removeIdentity(id: string, env: NodeJS.ProcessEnv = process.env)
   if (isInUse(id, env)) throw new IdentityError(`identity "${id}" is in use by a running Chrome; close it first`);
   if (vaultHasSites(id, env))
     throw new IdentityError(
-      `identity "${id}" still has vault credentials; remove them first (turno browser remove does)`,
+      `identity "${id}" still has vault credentials; remove them first (${names().browser} remove does)`,
     );
   rmSync(dir, { recursive: true, force: true });
   rmSync(vaultPath(id, env), { force: true });

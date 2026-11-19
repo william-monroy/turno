@@ -240,7 +240,7 @@ describe("identity", () => {
     expect(text).toMatch(
       /^### Error\nError: NEEDS_AUTH: browser identity "school" is not signed in: the page did not show "Inbox" at https:\/\/mail\.example\.com\//,
     );
-    expect(text).toContain("`turno browser login school`");
+    expect(text).toContain("`turno-browser login school`");
     expect(engine.closed).toBe(1);
     expect(readHealth("school", sb.env)).toMatchObject({ status: "needs_auth", url: "https://mail.example.com/" });
 

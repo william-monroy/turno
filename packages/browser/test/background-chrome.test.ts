@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -127,6 +128,28 @@ describe.skipIf(reason !== undefined)(
       );
       expect(readLockPid(profileDir())).toBe(chrome);
       expect(alive(chrome!)).toBe(true);
+    }, 90_000);
+
+    it("serves turno-browser do from the shell: one session keeps its tab across commands", () => {
+      const cli = join(fileURLToPath(new URL("..", import.meta.url)), "dist", "cli", "main.js");
+      const tb = (...args: string[]) =>
+        spawnSync(process.execPath, [cli, ...args], {
+          env: { ...env, TURNO_NO_INPUT: "1" },
+          encoding: "utf8",
+          timeout: 60_000,
+        });
+      expect(tb("add", ID).status).toBe(0);
+      // Started ahead, headless; `do` would start it on its own too.
+      expect(tb("background", "start", ID, "--headless").stdout).toMatch(/^started the background server of "work"/);
+      const open = tb("do", ID, "open", page("shell"));
+      expect(open.stderr).toBe("");
+      expect(open.stdout).toContain("title: shell");
+      expect(tb("do", ID, "read").stdout.trim()).toBe("shell");
+      const json = JSON.parse(tb("do", ID, "snapshot", "--json").stdout);
+      expect(json).toMatchObject({ identity: ID, server: "background", session: { resumed: true }, ok: true });
+      expect(tb("do", ID, "end").stdout).toBe(`ended session default of ${ID}\n`);
+      expect(tb("background", "status", "--json").stdout).toContain(`"identity": "${ID}"`);
+      expect(tb("background", "stop", ID).stdout).toMatch(/^stopped the background server of "work"/);
     }, 90_000);
   },
 );

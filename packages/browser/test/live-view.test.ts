@@ -198,7 +198,7 @@ describe.skipIf(reason)(`live view and take-over with a real Chrome${reason ? ` 
     const out = await held;
     expect(out.error, out.text).toBe(true);
     expect(out.text).toMatch(
-      /^### Error\nbrowser_click was not run: the user changed the browser while you waited \(below\)\.\n\n### Paused by the user\nThe user paused this browser \(turno browser pause\) for \d+s/,
+      /^### Error\nbrowser_click was not run: the user changed the browser while you waited \(below\)\.\n\n### Paused by the user\nThe user paused this browser \(turno-browser pause\) for \d+s/,
     );
     expect(out.text).toContain(`- Current tab: ${web.url}/a -> ${web.url}/b`);
     expect(out.text).toContain('- Title: "A" -> "B"');

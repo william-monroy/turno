@@ -11,6 +11,7 @@ import { IdleTimer, idleMs } from "./idle-timer.js";
 import { identityStateDir } from "./ids.js";
 import { type StopOptions, stopChrome } from "./lifecycle.js";
 import { playwright, upstream } from "./upstream.js";
+import { names } from "./names.js";
 
 /**
  * Read mode: the `lightpanda` engine. Lightpanda is a headless browser written from
@@ -83,7 +84,7 @@ export function readModeRefusal(tool: string): string | undefined {
   const why = NOT_IN_READ_MODE[tool] ?? "it was not checked against Lightpanda";
   return (
     `${tool} is not available in read mode (the Lightpanda engine): ${why}. ` +
-    "Use the Chrome engine for it (`turno browser set <id> --engine chrome`, or start the server without `--engine lightpanda`)."
+    `Use the Chrome engine for it (\`${names().browser} set <id> --engine chrome\`, or start the server without \`--engine lightpanda\`).`
   );
 }
 
@@ -138,7 +139,7 @@ export function lightpandaMissing(env: NodeJS.ProcessEnv): Error {
     ? `TURNO_LIGHTPANDA_PATH (${configured}) is not an executable file with an absolute path`
     : "lightpanda is not on PATH";
   return new Error(
-    `read mode needs Lightpanda, and ${where}. Install it: ${lightpandaInstallHint()}. turno never downloads it for you; \`turno browser doctor\` checks it.`,
+    `read mode needs Lightpanda, and ${where}. Install it: ${lightpandaInstallHint()}. turno never downloads it for you; \`${names().browser} doctor\` checks it.`,
   );
 }
 

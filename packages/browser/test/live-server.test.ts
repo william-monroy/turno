@@ -101,7 +101,7 @@ describe("the live view server", () => {
   it("pauses and resumes through the socket, as turno browser pause and resume do", async () => {
     const server = await startServer();
     const paused = await livePause("work", sb.env);
-    expect(paused.paused?.by).toBe("turno browser pause");
+    expect(paused.paused?.by).toBe("turno-browser pause");
     expect(server.paused).toBe(true);
     const held = server.gate.wait(server.waitMs);
     expect((await liveResume("work", sb.env)).paused).toBeNull();
@@ -115,7 +115,7 @@ describe("the live view server", () => {
 
     const anonymous = await http(port, "GET", "/");
     expect(anonymous.status).toBe(401);
-    expect(anonymous.body).toContain("turno browser live work");
+    expect(anonymous.body).toContain("turno-browser live work");
     expect((await http(port, "GET", "/state")).status).toBe(401);
     expect((await http(port, "GET", "/?code=not-a-code")).status).toBe(403);
 
@@ -201,7 +201,7 @@ describe("the live view server", () => {
     expect(await liveStatus("work", sb.env)).toBeUndefined();
     const error = await livePause("work", sb.env).catch((e: Error) => e);
     expect(error).toBeInstanceOf(LiveError);
-    expect((error as Error).message).toContain("turno browser set work --live true");
+    expect((error as Error).message).toContain("turno-browser set work --live true");
   });
 
   it("drops a live.json whose server is gone", () => {
@@ -290,7 +290,7 @@ describe("the live view in the host", () => {
     await host("reader");
     expect((await liveStatus("reader", sb.env))?.view.reason).toMatch(/^Read mode \(Lightpanda\) renders no pixels/);
     await expect(liveLink("reader", sb.env)).rejects.toThrow(/renders no pixels/);
-    expect((await livePause("reader", sb.env)).paused?.by).toBe("turno browser pause");
+    expect((await livePause("reader", sb.env)).paused?.by).toBe("turno-browser pause");
 
     addIdentity("mine", sb.env);
     writeIdentitySettings("mine", { attach: "auto", live: { enabled: true } }, sb.env);

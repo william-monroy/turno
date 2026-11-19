@@ -9,6 +9,7 @@
     "environment",
     "exit-codes",
     "json-output",
-    "cli"
+    "cli",
+    "turno-browser"
   ]
 }

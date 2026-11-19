@@ -9,6 +9,7 @@ import type { IdentityRef } from "./engine.js";
 import { type LiveFile, type LivePolicy, PauseGate, type TabState, liveFilePath } from "./live.js";
 import { deniedPage, livePage } from "./live-page.js";
 import type { Redactor, VaultGuard } from "./redact.js";
+import { names } from "./names.js";
 
 /**
  * The live view server of one turno-browser-mcp process, when identity.json `live.enabled` or
@@ -258,7 +259,7 @@ export class LiveServer {
     }, 15_000);
     this.heartbeat.unref();
     this.o.log?.(
-      `live view on http://127.0.0.1:${this.port} for "${this.o.identity.id}"; open it with: turno browser live ${this.o.identity.id}`,
+      `live view on http://127.0.0.1:${this.port} for "${this.o.identity.id}"; open it with: ${names().browser} live ${this.o.identity.id}`,
     );
   }
 
@@ -625,8 +626,10 @@ export class LiveServer {
       if (route === "GET /state") return this.json(res, 200, await this.fullStatus());
       if (route === "GET /events" && !trusted) return this.events(req, res);
       if (route === "POST /pause") {
-        await readJson(req);
-        await this.pause(trusted ? "turno browser pause" : "the live view", trusted);
+        const body = await readJson(req);
+        // The command that paused, as the local client names it; only a short command name is taken.
+        const by = typeof body.by === "string" && /^[a-z][a-z -]{0,38} pause$/.test(body.by) ? body.by : undefined;
+        await this.pause(trusted ? (by ?? `${names().browser} pause`) : "the live view", trusted);
         return this.json(res, 200, await this.fullStatus());
       }
       if (route === "POST /resume") {

@@ -677,7 +677,7 @@ What turno-browser records for this identity (all off by default; ${b} record):
   --record-max-size <size>        cap of the traces and screenshots, "10MB" to "10GB" (default 200MB)
 Vault sign-ins and passwords never reach a flow, a trace or a screenshot.
 
-Not recommended, off by default, for your own accounts only (they send page content to a third
+Off by default, for your own accounts only (they send page content to a third
 party you pick, and many sites' terms forbid them; the server lists their tools from its next start):
   --act                           natural language actions (browser_act, browser_extract,
                                   browser_observe) with your client's model (MCP sampling)
@@ -700,8 +700,7 @@ The live view and take-over (off by default; ${b} live, pause, resume):
                                   the agent to take the controls (from the next server start)
   --live-wait <duration>          how long a paused call waits for you, "5s" to "30m" (default 2m)
 
-Network and user agent (not recommended, all off by default; for your own accounts and sites
-you may automate):
+Network and user agent (all off by default; for your own accounts and sites you may automate):
   --user-agent coherent           the installed Chrome's own user agent and client hints, with
                                   this identity's languages and time zone, checked at every
                                   launch (a headless Chrome stops saying HeadlessChrome); turno

@@ -139,7 +139,7 @@ describe("health record", () => {
       }),
     ).toBe(
       `NEEDS_AUTH: browser identity "school" is not signed in: the page did not show "Inbox" at ${check.url} (checked ${NOW.toISOString()}). ` +
-        "Ask the user to run `turno browser login school`, sign in and close the window, then call this tool again.",
+        "Ask the user to run `turno-browser login school`, sign in and close the window, then call this tool again.",
     );
   });
 });
