@@ -37,9 +37,16 @@ Tabs (these flags win over the identity's identity.json):
   --background-throttling  let Chrome slow down tabs that are not in front (default off); the
                            agent's tab is brought to the front before each call
 
+Input (wins over the identity's identity.json):
+  --humanize <level>       off (default), light, full or adaptive: the pointer travels a curve
+                           to a point inside the target, keys are typed with human delays;
+                           full adds overshoot, reading pauses and wheel scrolling; adaptive is
+                           light, and full on a site that showed a challenge page
+
 Examples:
   turno-browser-mcp --identity work
   turno-browser-mcp --identity work --max-tabs 4 --park-after 2m
+  turno-browser-mcp --identity work --humanize light
   turno-browser-mcp --headless --popups keep
 
 Every other flag is a Playwright MCP flag:

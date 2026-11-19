@@ -109,6 +109,31 @@ describe("writeIdentitySettings", () => {
     expect(readFileSync(identitySettingsPath("school", sb.env), "utf8")).toBe(before);
   });
 
+  it("writes humanize as format 4, checks its level and seed, and goes back to the lower format without it", () => {
+    const written = writeIdentitySettings("school", { humanize: { level: "light" } }, sb.env, T0);
+    expect(written.version).toBe(4);
+    expect(written.humanize).toEqual({ level: "light" });
+    expect(writeIdentitySettings("school", { humanize: { level: "full", seed: 42 } }, sb.env, T1).humanize).toEqual({
+      level: "full",
+      seed: 42,
+    });
+    expect(() => writeIdentitySettings("school", { humanize: { level: "max" as never } }, sb.env, T1)).toThrow(
+      /humanize.level must be "off", "light", "full", "adaptive"/,
+    );
+    expect(() => writeIdentitySettings("school", { humanize: { level: "light", seed: -1 } }, sb.env, T1)).toThrow(
+      /humanize.seed must be a whole number/,
+    );
+    expect(() =>
+      writeIdentitySettings("school", { humanize: { level: "light", speed: 2 } as never }, sb.env, T1),
+    ).toThrow(/unknown key "humanize.speed"/);
+    expect(() => writeIdentitySettings("school", { humanize: "light" as never }, sb.env, T1)).toThrow(
+      /humanize must be an object/,
+    );
+    const removed = writeIdentitySettings("school", { humanize: null, timezone: "UTC" }, sb.env, T1);
+    expect(removed.humanize).toBeUndefined();
+    expect(removed.version).toBe(1);
+  });
+
   it("rejects an invalid identity id before touching the disk", () => {
     expect(() => writeIdentitySettings("../x", { timezone: "UTC" }, sb.env, T0)).toThrow(/invalid identity/);
   });

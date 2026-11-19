@@ -2,6 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { browserPaths as paths } from "turno-core/paths";
+import { HUMANIZE_LEVELS, type HumanizeLevel } from "./humanize.js";
 import { assertIdentityId, identityDir } from "./identities.js";
 import type { TuningFlags } from "./tuning.js";
 import { parseDuration } from "./units.js";
@@ -23,7 +24,7 @@ import { parseDuration } from "./units.js";
  * Headed mode and `viewport: null` are already the program's defaults for headed runs, so
  * nothing is added for them; no init scripts are ever added.
  *
- * The tab governor and background throttling flags (`TUNING_FLAGS`) are turno's: they are
+ * The tab governor, background throttling and humanize flags (`TUNING_FLAGS`) are turno's: they are
  * taken out here and win over identity.json.
  *
  * An identity holds saved logins, so serving it over HTTP (`--port`, `--host`) lets any local
@@ -126,6 +127,7 @@ export const TUNING_FLAGS = {
   "--park-after": "<duration>",
   "--close-after": "<duration>",
   "--background-throttling": "",
+  "--humanize": "<off|light|full|adaptive>",
 } as const;
 
 function tuningValue(flag: keyof typeof TUNING_FLAGS, value: string, out: TuningFlags): void {
@@ -133,6 +135,10 @@ function tuningValue(flag: keyof typeof TUNING_FLAGS, value: string, out: Tuning
     if (!/^\d+$/.test(value) || Number(value) > 100)
       throw new Error(`--max-tabs must be a whole number from 0 (no cap) to 100, not "${value}"`);
     out.maxTabs = Number(value);
+  } else if (flag === "--humanize") {
+    if (!(HUMANIZE_LEVELS as readonly string[]).includes(value))
+      throw new Error(`--humanize must be ${HUMANIZE_LEVELS.join(", ")}, not "${value}"`);
+    out.humanize = value as HumanizeLevel;
   } else if (flag === "--popups") {
     if (value !== "close" && value !== "keep") throw new Error(`--popups must be "close" or "keep", not "${value}"`);
     out.popups = value;

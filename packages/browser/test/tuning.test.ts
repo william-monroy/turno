@@ -11,6 +11,7 @@ describe("resolveTuning", () => {
       tabs: { max: 8, popups: "close", parkMs: 300_000, closeMs: 900_000 },
       backgroundThrottling: false,
       resources: {},
+      humanize: { level: "off" },
     });
     expect(DEFAULT_TABS).toEqual({ max: 8, popups: "close", parkMs: 300_000, closeMs: 900_000 });
   });
@@ -21,6 +22,7 @@ describe("resolveTuning", () => {
       tabs: { max: 4, popups: "close", parkMs: 120_000, closeMs: 0 },
       backgroundThrottling: true,
       resources: {},
+      humanize: { level: "off" },
     });
     expect(
       resolveTuning(settings, { maxTabs: 0, popups: "keep", closeAfterMs: 60_000, backgroundThrottling: false }),
@@ -28,7 +30,19 @@ describe("resolveTuning", () => {
       tabs: { max: 0, popups: "keep", parkMs: 120_000, closeMs: 60_000 },
       backgroundThrottling: false,
       resources: {},
+      humanize: { level: "off" },
     });
+  });
+
+  it("keeps human-like input off unless --humanize or identity.json turns it on; the flag wins and the seed stays", () => {
+    expect(resolveTuning({ ...base, version: 4, humanize: { level: "full", seed: 7 } }).humanize).toEqual({
+      level: "full",
+      seed: 7,
+    });
+    expect(
+      resolveTuning({ ...base, version: 4, humanize: { level: "full", seed: 7 } }, { humanize: "off" }).humanize,
+    ).toEqual({ level: "off", seed: 7 });
+    expect(resolveTuning(undefined, { humanize: "adaptive" }).humanize).toEqual({ level: "adaptive" });
   });
 
   it("turns on blocking and the cache only when identity.json asks, with a 100MB cache by default", () => {
@@ -99,6 +113,17 @@ describe("extractTuning", () => {
       '--park-after must be a duration like "5m", "90s" or "0" (off), not "5 minutes"',
     );
     expect(() => extractTuning(["--background-throttling=yes"])).toThrow("--background-throttling takes no value");
+    expect(() => extractTuning(["--humanize", "max"])).toThrow(
+      '--humanize must be off, light, full, adaptive, not "max"',
+    );
+  });
+
+  it("takes --humanize out, in both spellings", () => {
+    expect(extractTuning(["--humanize", "light", "--headless"])).toEqual({
+      tuning: { humanize: "light" },
+      rest: ["--headless"],
+    });
+    expect(extractTuning(["--humanize=adaptive"])).toEqual({ tuning: { humanize: "adaptive" }, rest: [] });
   });
 });
 
