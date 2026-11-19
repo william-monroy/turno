@@ -287,6 +287,22 @@ describe("upstream contract (patchright-core 1.64.3)", () => {
     expect(context).toMatch(/\n {6}tabs\(\) \{\n {8}return this\._tabs;/);
     expect(context).toMatch(/\n {6}currentTab\(\) \{\n {8}return this\._currentTab;/);
     expect(context).toContain("const tab2 = new Tab(this, page, isolatedContext, (tab3) => this._onPageClosed(tab3));");
+    // "sharing": "tabs" points each session's backend at its own tab with these.
+    expect(context).toMatch(
+      /\n {6}_setCurrentTab\(tab2\) \{\n {8}if \(this\._currentTab === tab2\)\n {10}return;\n {8}this\._currentTab = tab2;/,
+    );
+    expect(context).toMatch(/\n {6}async newTab\(isolatedContext\) \{[\s\S]*?return this\._currentTab;/);
+    expect(context).toContain("async ensureBrowserContext(isolatedContext) {");
+    // Upstream adopts the next page when a backend has no current tab, and a neighbour on close.
+    expect(context).toContain("if (!this._currentTab)\n          this._setCurrentTab(tab2);");
+    expect(context).toContain("this._setCurrentTab(this._tabs[Math.min(index, this._tabs.length - 1)]);");
+    // Disposing a session's backend leaves the pages of the shared browser context open.
+    expect(context).toMatch(
+      /async dispose\(\) \{[\s\S]*?for \(const tab2 of this\._tabs\)\n {10}await tab2\.dispose\(\);/,
+    );
+    expect(bundleSource).toContain(
+      "async dispose() {\n        await disposeAll(this._disposables);\n        this._consoleLog.stop();\n      }",
+    );
     expect(bundleSource).toMatch(
       /Tab = class _Tab extends import_events\d+\.EventEmitter \{\n {6}constructor\(context, page, isolatedContext, onPageClose\) \{[\s\S]*?this\.page = page;/,
     );

@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 
 export { API_VERSION, type ApiVersion, type BrowserApi, api } from "./api.js";
-export { SESSION_META_KEY } from "./session.js";
+export { SESSION_CAPABILITY, SESSION_ENDED_METHOD, SESSION_META_KEY } from "./session.js";
 export { manifestSnippet } from "./snippet.js";
 export {
   IdentityError,

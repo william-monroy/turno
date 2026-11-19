@@ -98,6 +98,15 @@ export interface UpstreamContext {
   tabs(): UpstreamTab[];
   /** The tab the stock tools act on. */
   currentTab(): UpstreamTab | undefined;
+  /**
+   * Builds the tab list (every page of the browser context, then each new one) on first use.
+   * `"sharing": "tabs"` calls it as soon as a session's view exists, so the view knows every tab.
+   */
+  ensureBrowserContext(): Promise<unknown>;
+  /** Opens a page and makes it the current tab (`browser_tabs` action `new`). */
+  newTab(): Promise<UpstreamTab>;
+  /** Points the stock tools at a tab without bringing it to the front (`"sharing": "tabs"`). */
+  _setCurrentTab(tab: UpstreamTab | undefined): void;
 }
 
 /**

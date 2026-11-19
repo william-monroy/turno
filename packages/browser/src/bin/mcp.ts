@@ -19,7 +19,8 @@ import { installShutdownGuard, sweepOrphan } from "../lifecycle.js";
 const HELP = `turno-browser-mcp: a browser MCP server that drives your installed Chrome, with one
 persistent profile per identity (turno identity add browser:<id>).
 
-  --identity <id>          use the identity's saved profile (served one session at a time by mcpd)
+  --identity <id>          use the identity's saved profile (served one session at a time by
+                           mcpd, unless the identity's "sharing" is "tabs")
   --allow-http-identity    allow --port or --host together with --identity; the server then
                            binds to 127.0.0.1 only. Any local process can use that browser.
 
@@ -36,6 +37,9 @@ Tabs (these flags win over the identity's identity.json):
   --close-after <duration> close a page unused this long (default 15m; 0: never)
   --background-throttling  let Chrome slow down tabs that are not in front (default off); the
                            agent's tab is brought to the front before each call
+  --sharing <session|tabs> "tabs": several agent sessions use the browser at once, each in
+                           its own tabs, which it locks (default "session", one at a time;
+                           mcp.toml then needs exclusive = false for this server)
 
 Input (wins over the identity's identity.json):
   --humanize <level>       off (default), light, full or adaptive: the pointer travels a curve

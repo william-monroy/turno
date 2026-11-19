@@ -9,7 +9,7 @@ import type { SecretStore } from "turno-core/secrets";
 import { CallToolRequestSchema, type CallToolResult, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { explainFailure } from "./diagnose.js";
 import { type Engine, type IdentityRef, type LaunchedBrowser, createUpstreamEngine, selectEngine } from "./engine.js";
-import { TabGovernor } from "./governor.js";
+import { TabGovernor, type TabView } from "./governor.js";
 import {
   type HealthContext,
   NEEDS_AUTH_HOLD_MS,
@@ -24,7 +24,9 @@ import { identityStateDir } from "./ids.js";
 import { Redactor, SCRIPT_TOOLS, VaultGuard } from "./redact.js";
 import { type ChallengeEvent, recordChallenge, watchChallenges } from "./reputation.js";
 import { installResources } from "./resources.js";
-import { sessionFromMeta } from "./session.js";
+import { SESSION_CAPABILITY, SESSION_ENDED_METHOD, SESSION_META_KEY, sessionFromMeta } from "./session.js";
+import { type SessionView, TabSharing, viewConfig } from "./sharing.js";
+import { DEFAULT_TAB_LOCKS, DIRECT_SESSION, type TabLockPolicy } from "./tab-locks.js";
 import { readIdentitySettings } from "./settings.js";
 import { type StockAccess, TURNO_TOOLS, type TurnoTool, checkTurnoTools, parseArguments } from "./tools.js";
 import { type Tuning, type TuningFlags, resolveTuning } from "./tuning.js";
@@ -64,7 +66,9 @@ import {
  *   added to the result; a click or type that fails because of the element gets an error that
  *   says what is in the way (`diagnose.ts`);
  * - gives each browser its own copy of the config, so the identity's `settle` and a batch's
- *   snapshot-free steps change only that session.
+ *   snapshot-free steps change only that session;
+ * - with `"sharing": "tabs"`, serves several agent sessions (mcpd's `_meta["io.turno/session"]`)
+ *   in that one browser, each with its own backend, current tab and tab locks (`sharing.ts`).
  *
  * stdio, the transport mcpd and every agent use, is served by turno with the MCP SDK.
  * `--port` keeps upstream's HTTP server (Host check, streamable HTTP and SSE) serving the
@@ -91,6 +95,8 @@ export interface HostOptions {
   tuning?: TuningFlags;
   /** The secret store the vault reads (tests inject a fake); default: this machine's. */
   vaultStore?: SecretStore;
+  /** With `"sharing": "tabs"`: how long a call waits for a held tab, and when an idle session lets go. */
+  tabLocks?: Partial<TabLockPolicy>;
 }
 
 export interface Host {
@@ -125,11 +131,17 @@ export function mergeTextParts(result: ToolResult): ToolResult {
  * Adds what the tab governor did to a stock tool's result: parked tabs are marked in a tab list,
  * and closed or parked tabs are listed in a last section (under `turno.tabs` in JSON).
  */
-function withGovernor(result: ToolResult, governor: TabGovernor, json: boolean): ToolResult {
-  const notes = governor.takeNotes();
+function withGovernor(
+  result: ToolResult,
+  governor: TabGovernor,
+  json: boolean,
+  owner?: string,
+  view?: TabView,
+): ToolResult {
+  const notes = governor.takeNotes(owner);
   const first = result.content[0];
   if (!first || first.type !== "text") return result;
-  let text = governor.annotateTabs((first as { text: string }).text);
+  let text = governor.annotateTabs((first as { text: string }).text, view);
   if (notes.length) {
     if (json) {
       try {
@@ -206,6 +218,8 @@ interface Running {
   tuning: Tuning;
   /** The idle limit, held by every call in flight. */
   idle?: CallIdleTimer;
+  /** `"sharing": "tabs"`: each session's backend and its tab locks. */
+  sharing?: TabSharing;
 }
 
 class SessionBackend extends EventEmitter implements ServerBackend {
@@ -229,6 +243,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       redactor: Redactor;
       guard: VaultGuard;
       vaultStore?: SecretStore;
+      tabLocks: TabLockPolicy;
     },
     private readonly title: (clientInfo: ClientInfo) => string,
   ) {
@@ -294,8 +309,10 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       const { BrowserBackend } = upstream().tools;
       const isCurrent = () => this.current === promise;
       let governor: TabGovernor | undefined;
+      let sharing: TabSharing | undefined;
       const gone = () => {
         governor?.dispose();
+        sharing?.dispose();
         if (isCurrent()) {
           this.current = undefined;
           this.live = undefined;
@@ -304,7 +321,9 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       };
       const sessionConfig = configForSession(config, cliOptions, tuning);
       const idle = launched.idleTimer ? new CallIdleTimer(launched.idleTimer, () => launched.isOpen()) : undefined;
-      const backend = new BrowserBackend(sessionConfig, launched.context, input ? humanizeTools(stock, input) : stock, {
+      // Every backend of this browser (each session's too, with "sharing": "tabs") runs these tools.
+      const tools = input ? humanizeTools(stock, input) : stock;
+      const backend = new BrowserBackend(sessionConfig, launched.context, tools, {
         ...(idle ? { idleTimer: idle } : {}),
         dispose: async () => {
           gone();
@@ -325,12 +344,34 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         await launched.close();
         throw error;
       }
+      if (tuning.sharing === "tabs") {
+        const forViews = viewConfig(sessionConfig);
+        sharing = new TabSharing({
+          context: launched.context,
+          root: { backend, config: sessionConfig },
+          policy: this.host.tabLocks,
+          createView: async () => {
+            const config = viewConfig(forViews);
+            const view = new BrowserBackend(config, launched.context, tools, {});
+            await view.initialize(clientInfo);
+            return { backend: view, config };
+          },
+        });
+      }
+      const shared = sharing;
       governor = new TabGovernor(launched.context, tuning.tabs, {
         current: () => backendContext(backend)?.currentTab()?.page,
         tabs: () =>
           backendContext(backend)
             ?.tabs()
             .map((t) => t.page) ?? [],
+        ...(shared
+          ? {
+              protected: () => shared.protectedPages(),
+              owner: (page) => shared.owner(page),
+              adopt: (page) => shared.adopt(page),
+            }
+          : {}),
       });
       governor.start();
       backend.on("dynamictoolschange", () => this.emit("dynamictoolschange"));
@@ -342,7 +383,15 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         this.live = backend;
         this.launched = launched;
       }
-      return { backend, config: sessionConfig, launched, governor, tuning, ...(idle ? { idle } : {}) };
+      return {
+        backend,
+        config: sessionConfig,
+        launched,
+        governor,
+        tuning,
+        ...(idle ? { idle } : {}),
+        ...(sharing ? { sharing } : {}),
+      };
     })();
     promise.catch(() => {
       if (this.current === promise) this.current = undefined;
@@ -372,7 +421,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     session?: string,
   ): Promise<ToolResult> {
     const tool = this.host.turno.get(name);
-    if (!tool) return await this.callStock(name, args, signal);
+    if (!tool) return await this.callStock(name, args, signal, {}, session);
     const json = !!(args._meta as { json?: boolean } | undefined)?.json;
     const parsed = parseArguments(tool, args);
     if ("error" in parsed) return errorResult(parsed.error, json);
@@ -380,11 +429,32 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     let browserContext: LaunchedBrowser["context"] | undefined;
     let stock: StockAccess | undefined;
     let endCall: (() => void) | undefined;
+    let shared: { sharing: TabSharing; view: SessionView; key: string } | undefined;
     if (tool.browser !== false) {
       const running = await this.browser();
       endCall = running.idle?.begin();
       browserContext = running.launched.context;
-      stock = this.stockAccess(running, signal);
+      let view: SessionView = { backend: running.backend, config: running.config };
+      if (running.sharing) {
+        // The tool works in the session's own tab, locked like a stock call's.
+        const key = session ?? DIRECT_SESSION;
+        running.sharing.locks.begin(key, name);
+        try {
+          view = await running.sharing.view(key);
+          const refused = await running.sharing.before(key, name, {}, view, signal);
+          if (refused) {
+            running.sharing.locks.end(key);
+            endCall?.();
+            return errorResult(refused, json);
+          }
+        } catch (error) {
+          running.sharing.locks.end(key);
+          endCall?.();
+          throw error;
+        }
+        shared = { sharing: running.sharing, view, key };
+      }
+      stock = this.stockAccess(view, signal, session);
     }
     try {
       const context = {
@@ -409,6 +479,10 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     } catch (error) {
       return errorResult(String(error), json);
     } finally {
+      if (shared) {
+        shared.sharing.after(shared.key, shared.view);
+        shared.sharing.locks.end(shared.key);
+      }
       endCall?.();
     }
   }
@@ -424,10 +498,14 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     args: Record<string, unknown>,
     signal?: AbortSignal,
     options: { snapshot?: boolean } = {},
+    session?: string,
   ): Promise<ToolResult> {
-    const { backend, config, governor, tuning, idle } = await this.browser();
-    const endCall = idle?.begin();
+    const running = await this.browser();
+    const { governor, tuning, idle, sharing } = running;
     const json = !!(args._meta as { json?: boolean } | undefined)?.json;
+    if (sharing) return await this.callShared(running, sharing, session ?? DIRECT_SESSION, name, args, signal, options);
+    const endCall = idle?.begin();
+    const { backend, config } = running;
     const refused = this.refuseScript(name, backend);
     if (refused) return errorResult(refused, json);
     const snapshot = config.snapshot ?? {};
@@ -455,6 +533,76 @@ class SessionBackend extends EventEmitter implements ServerBackend {
   }
 
   /**
+   * A stock call with `"sharing": "tabs"`: the same steps as `callStock`, on the session's own
+   * backend, after its tab is locked (`sharing.ts`). `browser_close` closes only its tabs.
+   */
+  private async callShared(
+    running: Running,
+    sharing: TabSharing,
+    key: string,
+    name: string,
+    args: Record<string, unknown>,
+    signal: AbortSignal | undefined,
+    options: { snapshot?: boolean },
+  ): Promise<ToolResult> {
+    const { governor, tuning, idle } = running;
+    const json = !!(args._meta as { json?: boolean } | undefined)?.json;
+    // Counted first, so the session is active (and its backend kept) from the first await on.
+    sharing.locks.begin(key, name);
+    const endCall = idle?.begin();
+    governor.beginCall();
+    let view: SessionView | undefined;
+    let result: ToolResult;
+    let restore: (() => void) | undefined;
+    try {
+      view = await sharing.view(key);
+      const { backend, config } = view;
+      const refused = name === "browser_close" ? undefined : await sharing.before(key, name, args, view, signal);
+      if (refused) result = errorResult(refused, json);
+      else if (name === "browser_close") result = await sharing.close(key);
+      else {
+        const why = this.refuseScript(name, backend);
+        if (why) result = errorResult(why, json);
+        else {
+          const snapshot = config.snapshot ?? {};
+          const mode = snapshot.mode;
+          if (options.snapshot === false) {
+            config.snapshot = { ...snapshot, mode: "none" };
+            restore = () => {
+              config.snapshot = { ...snapshot, ...(mode === undefined ? {} : { mode }) };
+            };
+          }
+          const tabs = sharing.tabView(view);
+          await governor.prepare(name, args, tabs);
+          if (tuning.backgroundThrottling && name !== "browser_tabs")
+            await tabs
+              .current()
+              ?.bringToFront()
+              .catch(() => {});
+          result = await backend.callTool(name, args, signal);
+          if (result.isError) result = await explainFailure(tabs.current(), name, args, result, json);
+          // The tab the call left current is the session's before the cap counts its tabs.
+          sharing.after(key, view);
+          await governor.afterCall();
+        }
+      }
+    } finally {
+      if (view && name !== "browser_close") sharing.after(key, view);
+      sharing.locks.end(key);
+      endCall?.();
+      governor.endCall(view ? sharing.tabView(view) : undefined);
+      restore?.();
+    }
+    if (!view || name === "browser_close") return result;
+    const tabs = sharing.tabView(view);
+    const annotated = withGovernor(result, governor, json, key, tabs);
+    const first = annotated.content[0];
+    if (!first || first.type !== "text") return annotated;
+    const text = sharing.annotate((first as { text: string }).text, key, view);
+    return { ...annotated, content: [{ ...first, text }, ...annotated.content.slice(1)] };
+  }
+
+  /**
    * The script tools near the vault: `browser_evaluate` and `browser_run_code_unsafe`
    * are refused on a page browser_login filled, until it navigates; `browser_run_code_unsafe`
    * runs code in this process, which can read the secret store, so it is refused for an
@@ -473,18 +621,26 @@ class SessionBackend extends EventEmitter implements ServerBackend {
   }
 
   /** The stock tools of this session, for a turno tool that runs them (`browser_batch`). */
-  private stockAccess(running: Running, signal?: AbortSignal): StockAccess {
+  private stockAccess(view: SessionView, signal?: AbortSignal, session?: string): StockAccess {
     return {
       schemas: this.host.stockSchemas,
       formatError: (error) => upstream().utils.z.prettifyError(error),
-      call: (name, args, options) => this.callStock(name, args, signal, options),
+      call: (name, args, options) => this.callStock(name, args, signal, options, session),
       page: async () => {
-        const page = backendContext(running.backend)?.currentTab()?.page;
+        const page = backendContext(view.backend)?.currentTab()?.page;
         if (!page) return undefined;
         return { url: page.url(), title: await page.title().catch(() => "") };
       },
-      currentPage: () => backendContext(running.backend)?.currentTab()?.page,
+      currentPage: () => backendContext(view.backend)?.currentTab()?.page,
     };
+  }
+
+  /** mcpd said a client session ended: with `"sharing": "tabs"` its tabs are free at once. */
+  async endSession(session: string): Promise<void> {
+    const current = this.current;
+    if (!current) return;
+    const running = await current.catch(() => undefined);
+    await running?.sharing?.endSession(session);
   }
 
   async dispose(): Promise<void> {
@@ -592,6 +748,7 @@ export function createHost(options: HostOptions): Host {
     tuning: options.tuning ?? {},
     redactor,
     guard: new VaultGuard(),
+    tabLocks: { ...DEFAULT_TAB_LOCKS, ...options.tabLocks },
     ...(options.identity ? { identity: options.identity } : {}),
     ...(options.vaultStore ? { vaultStore: options.vaultStore } : {}),
   };
@@ -628,7 +785,10 @@ async function clientInfoOf(server: Server): Promise<ClientInfo> {
 
 /** An MCP server for one session of this host, on any transport. */
 function createServer(host: Host): Server {
-  const server = new Server(SERVER_INFO, { capabilities: { tools: { listChanged: true } } });
+  // The experimental capability asks mcpd to say when a client session ends (`session.ts`).
+  const server = new Server(SERVER_INFO, {
+    capabilities: { tools: { listChanged: true }, experimental: { [SESSION_CAPABILITY]: {} } },
+  });
   let backend: Promise<SessionBackend> | undefined;
   const session = () => {
     backend ??= (async () => {
@@ -657,6 +817,11 @@ function createServer(host: Host): Server {
       return { content: [{ type: "text", text: `### Error\n${host.redact(String(error))}` }], isError: true };
     }
   });
+  server.fallbackNotificationHandler = async (notification) => {
+    if (notification.method !== SESSION_ENDED_METHOD) return;
+    const session = sessionFromMeta({ [SESSION_META_KEY]: notification.params?.session });
+    if (session !== undefined) await (await backend?.catch(() => undefined))?.endSession(session);
+  };
   const previous = server.onclose;
   server.onclose = () => {
     previous?.();
