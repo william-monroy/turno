@@ -37,6 +37,7 @@ type ActSettings = NonNullable<IdentitySettings["act"]>;
 type CaptchaSettings = NonNullable<IdentitySettings["captcha"]>;
 type TabLockSettings = NonNullable<IdentitySettings["tabLocks"]>;
 type LiveSettings = NonNullable<IdentitySettings["live"]>;
+type ProxySettings = NonNullable<IdentitySettings["proxy"]>;
 export type SettingsPatch = Parameters<BrowserApi["writeIdentitySettings"]>[1];
 type DoctorCheck = Awaited<ReturnType<BrowserApi["runDoctor"]>>["checks"][number];
 
@@ -102,6 +103,12 @@ export const SETTINGS_FLAGS: FlagSpec = {
   live: { type: "string" },
   "live-wait": { type: "string" },
   "no-live": { type: "boolean" },
+  // Opt-in network and user agent settings (format 11), all off by default.
+  "user-agent": { type: "string" },
+  "proxy-server": { type: "string" },
+  "proxy-username": { type: "string" },
+  "proxy-password": { type: "string" },
+  "no-proxy": { type: "boolean" },
 };
 
 /** The identity.json key behind each tuning flag, so the package's messages name the flag. */
@@ -140,6 +147,10 @@ const KEY_FLAGS: readonly (readonly [string, string])[] = [
   ["captcha.timeout", "--captcha-timeout"],
   ["live.enabled", "--live"],
   ["live.wait", "--live-wait"],
+  ["userAgent", "--user-agent"],
+  ["proxy.server", "--proxy-server"],
+  ["proxy.username", "--proxy-username"],
+  ["proxy.password", "--proxy-password"],
 ];
 
 const TABS_MAX_PROBLEM = "--tabs-max must be a whole number from 0 (no cap) to 100";
@@ -232,7 +243,31 @@ export function settingsPatch(p: Parsed, current?: IdentitySettings): SettingsPa
   if (engine !== undefined) patch.engine = engine as SettingsPatch["engine"];
   const attach = value("attach");
   if (attach !== undefined) patch.attach = attach;
+  networkPatch(p, value, patch, current);
   return patch;
+}
+
+/** The format 11 keys: `userAgent` and `proxy`. The package checks the values. */
+function networkPatch(
+  p: Parsed,
+  value: (name: string) => string | null | undefined,
+  patch: SettingsPatch,
+  current?: IdentitySettings,
+): void {
+  const userAgent = value("user-agent");
+  if (userAgent !== undefined) patch.userAgent = userAgent as IdentitySettings["userAgent"] | null;
+  const parts = {
+    server: value("proxy-server"),
+    username: value("proxy-username"),
+    password: value("proxy-password"),
+  };
+  const given = Object.values(parts).some((v) => v !== undefined);
+  if (bool(p, "no-proxy")) {
+    if (given) fail("--no-proxy does not go with the other --proxy flags");
+    patch.proxy = null;
+  } else if (given) {
+    patch.proxy = mergeGroup<ProxySettings>(current?.proxy, parts);
+  }
 }
 
 /** The format 2 keys of the patch: tabs, backgroundThrottling, settle, block and cache. */
@@ -433,6 +468,12 @@ export function hasSettings(patch: SettingsPatch): boolean {
   return Object.keys(patch).length > 0;
 }
 
+/** A proxy for `show`: the server and where the credentials come from, never their value. */
+function describeProxy(p: ProxySettings): string {
+  const who = p.username ? `, signs in as ${p.username} with ${p.password}` : "";
+  return `${p.server}${who}`;
+}
+
 function describeHealth(h: HealthCheck): string {
   return [h.url, h.text ? `shows "${h.text}"` : "", h.selector ? `has ${h.selector}` : ""].filter(Boolean).join(" ");
 }
@@ -524,6 +565,10 @@ export function show(m: BrowserApi, id: string, args: string[], io: Io): number 
           .join(", ")}${s.muted(settings.sharing === "tabs" ? "" : ' (used with "sharing": "tabs")')}`,
       ]);
     if (settings.engine === "lightpanda") rows.push(["engine", "Lightpanda (read mode)"]);
+    if (settings.engine === "camoufox") rows.push(["engine", "Camoufox (its own Firefox profile)"]);
+    if (settings.userAgent === "coherent")
+      rows.push(["user agent", "the installed Chrome's own, checked at every launch (coherent)"]);
+    if (settings.proxy) rows.push(["proxy", describeProxy(settings.proxy)]);
     if (settings.attach !== undefined) rows.push(["engine", `attach to your Chrome (${settings.attach})`]);
     const recorded = describeRecord(settings.record);
     if (recorded) rows.push(["recording", recorded]);
@@ -568,7 +613,8 @@ export const SET_SYNOPSIS =
   "[--block-trackers true|false] [--block-types image,media,font] [--block-patterns <host|glob>,...] [--no-block] [--cache] [--cache-max-size <size>] [--no-cache] [--humanize off|light|full|adaptive] [--sharing session|tabs] [--tab-lock-wait <duration>] [--tab-lock-release <duration>] " +
   "[--engine chrome|lightpanda] [--attach auto|<dir>|<url>] [--record-flows true|false] [--record-traces true|false] [--record-screenshots true|false] [--record-max-size <size>] [--no-record] " +
   "[--act] [--act-sampling true|false] [--act-provider chat-completions] [--act-endpoint <url>] [--act-model <name>] [--act-key keychain:<item>] [--act-max-steps <n>] [--act-max-tokens <n>] [--act-timeout <duration>] [--no-act] " +
-  "[--captcha-provider task-api] [--captcha-endpoint <url>] [--captcha-key keychain:<item>] [--captcha-timeout <duration>] [--no-captcha] [--live true|false] [--live-wait <duration>] [--no-live] [--dry-run] [--json]";
+  "[--captcha-provider task-api] [--captcha-endpoint <url>] [--captcha-key keychain:<item>] [--captcha-timeout <duration>] [--no-captcha] [--live true|false] [--live-wait <duration>] [--no-live] " +
+  "[--user-agent coherent] [--proxy-server <url>] [--proxy-username <name|keychain:item>] [--proxy-password keychain:<item>] [--no-proxy] [--dry-run] [--json]";
 
 /** More help for `set`: what each tuning flag writes to identity.json. */
 export const SET_DETAILS = `Each flag writes one key of identity.json; an empty value (--settle "") removes it, and
@@ -603,9 +649,12 @@ Input:
                                   overshoot, reading pauses, wheel scrolling) or adaptive
                                   (light, full on a site after a challenge page there)
 
-Which engine runs this identity (both off by default):
+Which engine runs this identity (all off by default):
   --engine lightpanda             read mode: Lightpanda instead of Chrome, for reading pages;
                                   needs lightpanda on PATH (turno browser doctor says how)
+  --engine camoufox               Camoufox (a Firefox build) with its own profile; not
+                                  recommended for your own accounts; needs Camoufox and
+                                  playwright-core (turno browser doctor says how)
   --attach auto|<dir>|<url>       use the Chrome you have open instead of the identity's own:
                                   "auto" is your default Chrome profile, after you turn on
                                   chrome://inspect/#remote-debugging; Chrome asks you to allow
@@ -639,7 +688,20 @@ party you pick, and many sites' terms forbid them; the server lists their tools 
 The live view and take-over (off by default; turno browser live, pause, resume):
   --live <bool>                   serve a view of the agent's tab on 127.0.0.1 and let you pause
                                   the agent to take the controls (from the next server start)
-  --live-wait <duration>          how long a paused call waits for you, "5s" to "30m" (default 2m)`;
+  --live-wait <duration>          how long a paused call waits for you, "5s" to "30m" (default 2m)
+
+Network and user agent (not recommended, all off by default; for your own accounts and sites
+you may automate):
+  --user-agent coherent           the installed Chrome's own user agent and client hints, with
+                                  this identity's languages and time zone, checked at every
+                                  launch (a headless Chrome stops saying HeadlessChrome); turno
+                                  never takes a typed user agent
+  --proxy-server <url>            send this identity's traffic through a proxy: http://,
+                                  https://, socks4:// or socks5://host:port; its operator sees
+                                  where you go, and sites see its address
+  --proxy-username <name>         the proxy user name, or keychain:<item>
+  --proxy-password keychain:<item> the password, only from the secret store (turno secret set)
+  --no-proxy                      remove the proxy`;
 
 /** The flags of `set`, for completion. */
 export const SET_FLAG_NAMES = ["--dry-run", "--json", ...SETTINGS_FLAG_NAMES];
@@ -674,6 +736,19 @@ function optInNotes(id: string, patch: SettingsPatch): string[] {
   if (patch.captcha)
     notes.push(
       `captcha solving: the solver service sees the page address and the captcha, and solving a site's captchas by machine may break its terms; use it only for your own accounts. Every use goes to the reputation log; ${restart}. Undo with --no-captcha.`,
+    );
+  const own = "Meant for your own accounts and sites you may automate.";
+  if (typeof patch.userAgent === "string")
+    notes.push(
+      `userAgent coherent: Chrome's real version and platform are kept, so a site sees one coherent browser; a site may still notice automation by other means. ${own}`,
+    );
+  if (patch.proxy)
+    notes.push(
+      `proxy ${patch.proxy.server}: its operator sees where this identity goes, sites see the proxy's address instead of yours, and a sign-in from a new network can lock an account; many sites' terms forbid it. ${own}`,
+    );
+  if (patch.engine === "camoufox")
+    notes.push(
+      `engine camoufox: a Firefox build that reports values other than the computer's own is something sites look for, the Chrome profile's sign-ins do not carry over, and it needs Camoufox and playwright-core (turno browser doctor). ${own}`,
     );
   return notes;
 }

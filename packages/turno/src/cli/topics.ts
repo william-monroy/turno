@@ -50,6 +50,14 @@ const ENVIRONMENT: readonly { title: string; rows: readonly (readonly [string, s
         "TURNO_BROWSER_SESSION",
         "the session name of turno browser do (same as --session; default: default), to keep several apart",
       ],
+      [
+        "TURNO_CAMOUFOX_PATH",
+        "the Camoufox executable turno-browser's camoufox engine runs (default: the newest in Camoufox's cache)",
+      ],
+      [
+        "TURNO_PLAYWRIGHT_CORE",
+        "the playwright-core folder the camoufox engine runs on (default: the one next to turno-browser)",
+      ],
     ],
   },
   {
