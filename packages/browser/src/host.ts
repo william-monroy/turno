@@ -8,6 +8,7 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { Page } from "patchright-core";
 import type { SecretStore } from "turno-core/secrets";
 import { CallToolRequestSchema, type CallToolResult, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import type { Sampler } from "./act-model.js";
 import { explainFailure } from "./diagnose.js";
 import { type Engine, type EngineFlags, type IdentityRef, type LaunchedBrowser, createEngine } from "./engine.js";
 import { TabGovernor, type TabView } from "./governor.js";
@@ -32,7 +33,15 @@ import { SESSION_CAPABILITY, SESSION_ENDED_METHOD, SESSION_META_KEY, sessionFrom
 import { type SessionView, TabSharing, viewConfig } from "./sharing.js";
 import { DEFAULT_TAB_LOCKS, DIRECT_SESSION, type TabLockPolicy } from "./tab-locks.js";
 import { type RecordSettings, readIdentitySettings } from "./settings.js";
-import { type StockAccess, TURNO_TOOLS, type TurnoTool, checkTurnoTools, parseArguments } from "./tools.js";
+import {
+  type Providers,
+  type StockAccess,
+  TURNO_TOOLS,
+  type TurnoTool,
+  checkTurnoTools,
+  optInTools,
+  parseArguments,
+} from "./tools.js";
 import { type Tuning, type TuningFlags, resolveTuning } from "./tuning.js";
 import { vaultHasSites } from "./vault.js";
 import {
@@ -72,7 +81,10 @@ import {
  * - gives each browser its own copy of the config, so the identity's `settle` and a batch's
  *   snapshot-free steps change only that session;
  * - with `"sharing": "tabs"`, serves several agent sessions (mcpd's `_meta["io.turno/session"]`)
- *   in that one browser, each with its own backend, current tab and tab locks (`sharing.ts`).
+ *   in that one browser, each with its own backend, current tab and tab locks (`sharing.ts`);
+ * - lists the opt-in tools of the identity (natural language actions, captcha solving) only when
+ *   identity.json turns them on when the server starts, and hands those tools MCP sampling,
+ *   routed to the calling session, when the client offers it.
  *
  * stdio, the transport mcpd and every agent use, is served by turno with the MCP SDK.
  * `--port` keeps upstream's HTTP server (Host check, streamable HTTP and SSE) serving the
@@ -103,6 +115,8 @@ export interface HostOptions {
   tabLocks?: Partial<TabLockPolicy>;
   /** `--engine` and `--attach`; they win over identity.json. */
   engineFlags?: EngineFlags;
+  /** Stand-ins for the opt-in providers (tests inject fakes). */
+  providers?: Providers;
 }
 
 export interface Host {
@@ -257,6 +271,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       vaultStore?: SecretStore;
       tabLocks: TabLockPolicy;
       stockTypes: ReadonlyMap<string, string>;
+      providers?: Providers;
     },
     private readonly title: (clientInfo: ClientInfo) => string,
   ) {
@@ -482,9 +497,10 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     args: Record<string, unknown>,
     signal?: AbortSignal,
     session?: string,
+    sample?: Sampler,
   ): Promise<ToolResult> {
     // Every result and error of this server leaves through the redactor.
-    return this.host.redactor.result(await this.callAny(name, args, signal, session));
+    return this.host.redactor.result(await this.callAny(name, args, signal, session, sample));
   }
 
   private async callAny(
@@ -492,6 +508,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     args: Record<string, unknown>,
     signal?: AbortSignal,
     session?: string,
+    sample?: Sampler,
   ): Promise<ToolResult> {
     const tool = this.host.turno.get(name);
     if (!tool) return await this.callStock(name, args, signal, {}, session);
@@ -510,8 +527,10 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     let endCall: (() => void) | undefined;
     let shared: { sharing: TabSharing; view: SessionView; key: string } | undefined;
     let recording: Recording | undefined;
+    let engine: string | undefined;
     if (tool.browser !== false) {
       const running = await this.browser();
+      engine = running.launched.engine;
       endCall = running.idle?.begin();
       browserContext = running.launched.context;
       let view: SessionView = { backend: running.backend, config: running.config };
@@ -549,6 +568,9 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         ...(session ? { session } : {}),
         ...(recorder ? { recorder } : {}),
         ...(recording ? { recording } : {}),
+        ...(sample ? { sample } : {}),
+        ...(engine ? { engine } : {}),
+        ...(this.host.providers ? { providers: this.host.providers } : {}),
         ...(this.host.identity
           ? {
               vault: {
@@ -873,6 +895,21 @@ async function afterIdentityLaunch(
   }
 }
 
+/**
+ * identity.json's opt-in keys as the server starts. The tool list is fixed for the life of the
+ * server, so turning a feature on takes a restart; turning it off is honored at the next call,
+ * since each opt-in tool reads identity.json again. An invalid file lists nothing extra (the
+ * first launch reports the problem).
+ */
+function optInSettings(identity: IdentityRef | undefined): { act?: unknown; captcha?: unknown } | undefined {
+  if (!identity) return undefined;
+  try {
+    return readIdentitySettings(identity.id, identity.env);
+  } catch {
+    return undefined;
+  }
+}
+
 /** Builds the host for a resolved config: tool list, engine and session factory. */
 export function createHost(options: HostOptions): Host {
   const { tools } = upstream();
@@ -880,7 +917,7 @@ export function createHost(options: HostOptions): Host {
   const stock = tools.filteredTools(config);
   const stockSchemas = new Map(stock.map((t) => [t.schema.name, t.schema.inputSchema]));
   const stockTypes = new Map(stock.map((t) => [t.schema.name, t.schema.type]));
-  const turnoTools = options.turnoTools ?? TURNO_TOOLS;
+  const turnoTools = [...(options.turnoTools ?? TURNO_TOOLS), ...optInTools(optInSettings(options.identity))];
   checkTurnoTools(turnoTools, tools.browserTools);
   const turno = new Map(turnoTools.map((t) => [t.schema.name, t]));
   const engine = options.engine ?? createEngine(config, options.engineFlags);
@@ -906,6 +943,7 @@ export function createHost(options: HostOptions): Host {
     tabLocks: { ...DEFAULT_TAB_LOCKS, ...options.tabLocks },
     ...(options.identity ? { identity: options.identity } : {}),
     ...(options.vaultStore ? { vaultStore: options.vaultStore } : {}),
+    ...(options.providers ? { providers: options.providers } : {}),
   };
   return {
     config,
@@ -938,6 +976,35 @@ async function clientInfoOf(server: Server): Promise<ClientInfo> {
   return { cwd, clientName: server.getClientVersion()?.name ?? "Playwright MCP" };
 }
 
+/**
+ * MCP sampling for a tool call, when the client declared it. `relatedRequestId` in `_meta` is
+ * how mcpd routes a server's request back to the session whose call is in flight (several
+ * sessions share one server with `"sharing": "tabs"`).
+ */
+function samplerFor(server: Server, requestId: string | number): Sampler | undefined {
+  if (!server.getClientCapabilities()?.sampling) return undefined;
+  return async (request, signal) => {
+    const result = await server.createMessage(
+      {
+        ...request,
+        includeContext: "none",
+        temperature: 0,
+        _meta: { relatedRequestId: requestId },
+      },
+      { ...(signal ? { signal } : {}), timeout: 600_000 },
+    );
+    const content = result.content as { type: string; text?: string } | { type: string; text?: string }[];
+    const parts = Array.isArray(content) ? content : [content];
+    return {
+      text: parts
+        .filter((p) => p.type === "text")
+        .map((p) => p.text ?? "")
+        .join("\n"),
+      model: result.model,
+    };
+  };
+}
+
 /** An MCP server for one session of this host, on any transport. */
 function createServer(host: Host): Server {
   // The experimental capability asks mcpd to say when a client session ends (`session.ts`).
@@ -966,7 +1033,13 @@ function createServer(host: Host): Server {
     try {
       const b = await session();
       const args = (request.params.arguments ?? {}) as Record<string, unknown>;
-      const result = await b.callTool(request.params.name, args, extra.signal, sessionFromMeta(request.params._meta));
+      const result = await b.callTool(
+        request.params.name,
+        args,
+        extra.signal,
+        sessionFromMeta(request.params._meta),
+        samplerFor(server, extra.requestId),
+      );
       return mergeTextParts(result) as CallToolResult;
     } catch (error) {
       return { content: [{ type: "text", text: `### Error\n${host.redact(String(error))}` }], isError: true };

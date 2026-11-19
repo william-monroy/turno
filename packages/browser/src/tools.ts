@@ -1,5 +1,8 @@
 import type { BrowserContext, Page } from "patchright-core";
+import { actTool, extractTool, observeTool } from "./act.js";
+import type { ActModel, Sampler } from "./act-model.js";
 import { batchTool } from "./batch.js";
+import { type CaptchaSolver, solveCaptchaTool } from "./captcha.js";
 import { type VaultAccess, loginTool } from "./login-tool.js";
 import { type FlowRecorder, recordTool } from "./recorder.js";
 import { flowsTool, replayTool } from "./replay.js";
@@ -65,6 +68,20 @@ interface TurnoToolContext {
   recorder?: FlowRecorder;
   /** The browser's recording (traces, screenshots), when identity.json asks for one. */
   recording?: { pauseForSecret(page: Page | undefined): Promise<void> };
+  /** MCP sampling, routed to the calling session; set when the client offers it. */
+  sample?: Sampler;
+  /** The engine running the browser ("chrome", "lightpanda", "attach"), once it runs. */
+  engine?: string;
+  /** Providers that replace the configured ones (tests inject fakes). */
+  providers?: Providers;
+}
+
+/** Stand-ins for the opt-in providers: a model for natural language actions, a captcha solver. */
+export interface Providers {
+  model?: ActModel;
+  solver?: CaptchaSolver;
+  /** The fetch the provider adapters use. */
+  fetch?: typeof fetch;
 }
 
 export interface TurnoTool {
@@ -76,6 +93,23 @@ export interface TurnoTool {
 
 /** The tools turno adds to every session. */
 export const TURNO_TOOLS: readonly TurnoTool[] = [batchTool(), loginTool(), recordTool(), replayTool(), flowsTool()];
+
+/**
+ * The tools an identity lists only after the person turns their feature on in identity.json
+ * (format 8): natural language actions (`act`) and captcha solving (`captcha`). Off, they are
+ * not listed at all, so a default session's tool list stays as it was.
+ */
+export function optInTools(settings: { act?: unknown; captcha?: unknown } | undefined): TurnoTool[] {
+  return [
+    ...(settings?.act ? [actTool(), extractTool(), observeTool()] : []),
+    ...(settings?.captcha ? [solveCaptchaTool()] : []),
+  ];
+}
+
+/** Every opt-in tool, for the name checks (contract test). */
+export function allOptInTools(): TurnoTool[] {
+  return optInTools({ act: {}, captcha: {} });
+}
 
 /** The zod of the bundle, to build a turno tool's `inputSchema` with. */
 export function turnoZod(): Zod {
