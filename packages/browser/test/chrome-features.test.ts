@@ -64,14 +64,13 @@ describe.skipIf(reason !== undefined)(
       const server = createServer((req, res) => {
         const url = new URL(req.url ?? "/", "http://x");
         res.setHeader("content-type", "text/html; charset=utf-8");
+        const pages: Record<string, string> = {
+          "/set": `<title>Set</title><script>localStorage.setItem("x", "first");</script>`,
+          "/read": `<script>fetch("/seen?x=" + String(localStorage.getItem("x")));</script>`,
+          "/embed": `<title>Embed</title><iframe src="${url.searchParams.get("src")}"></iframe>`,
+        };
         if (url.pathname === "/seen") seen.push(url.searchParams.get("x") ?? "");
-        if (url.pathname === "/set")
-          return res.end(`<title>Set</title><script>localStorage.setItem("x", "first");</script>`);
-        if (url.pathname === "/read")
-          return res.end(`<script>fetch("/seen?x=" + String(localStorage.getItem("x")));</script>`);
-        if (url.pathname === "/embed")
-          return res.end(`<title>Embed</title><iframe src="${url.searchParams.get("src")}"></iframe>`);
-        res.end("");
+        res.end(pages[url.pathname] ?? "");
       });
       await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
       onTestFinished(() => new Promise<void>((r) => server.close(() => r())));
