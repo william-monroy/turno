@@ -162,8 +162,9 @@ per tool call:
 | `browser_type`, 11 characters | 10 ms | 2.0 s | 3.5 s |
 | `browser_click` on an element 1,500 px below the view | 50 ms | 0.4 s | 2.6 s |
 
-What it does not do: it does not solve captchas, change what the browser reports about itself or
-hide that a page is automated from a site that asks. No public study measures how much human-like
+What it does not do: it does not solve captchas (that is a separate opt-in, [Captcha
+solving](#captcha-solving)), change what the browser reports about itself or hide that a page is
+automated from a site that asks. No public study measures how much human-like
 input lowers the challenges a site shows, so treat it as a way to act at a human pace on your own
 accounts, not as a guarantee. The [acceptable use](#acceptable-use) rules apply the same.
 
@@ -276,6 +277,100 @@ With the other settings:
 - `humanize`: a replay runs each step as the stock tool call, so it moves and types like the
   agent's own calls on that identity.
 
+## Natural language actions
+
+Not recommended, and off until you turn it on per identity. `browser_act` carries out a short
+instruction on the current tab ("accept the cookie banner, then open the second result") with a
+model choosing one browser action at a time; `browser_extract` reads data off the page as JSON
+from an instruction; `browser_observe` proposes the calls that would do it, without running them.
+
+```sh
+turno identity set browser:school --act                     # your client's model, through MCP sampling
+turno identity set browser:school --act-provider chat-completions \
+  --act-endpoint https://models.example.com/v1 --act-model <model> --act-key keychain:act-model
+turno secret set act-model                                  # the key, asked with a hidden prompt
+turno identity set browser:school --no-act                  # off again
+```
+
+The model is yours to pick. With MCP sampling (`--act`), the agent's own client answers with a
+model it chooses, and turno holds no key; mcpd passes the request to the session that made the
+call. When the client does not offer sampling, or with `--act-sampling false`, turno calls the
+provider you name: any HTTP API in the chat completions shape, which hosted services and local
+model servers both speak (`http://` is accepted only on 127.0.0.1, localhost or [::1]). Its key
+is a `keychain:<item>` reference read from the secret store at each call, never a value in
+identity.json or in a tool argument, and it is hidden from every result like a vault value.
+
+Each call is bounded: at most `act.maxSteps` actions (10 by default, at most 30; a call can ask
+for fewer), `act.maxTokens` model tokens, prompts and replies together (50,000), and
+`act.timeout` (2 minutes). The tools are listed once the server starts with `act` set; turning
+it off takes effect at the next call.
+
+What the model gets and can do is fixed by turno, not by the model:
+
+- The instruction and an accessibility snapshot of the current tab. Vault values are hidden from
+  it, and so are the values of password, one-time code and card fields on the page. An
+  instruction that holds a hidden value is refused: sign-ins go through `browser_login`.
+- It answers with one call at a time from a short list: `browser_click`, `browser_type`,
+  `browser_fill_form`, `browser_select_option`, `browser_press_key`, `browser_hover`,
+  `browser_drag`, `browser_wait_for`, `browser_navigate_back`. It cannot navigate to a URL, open
+  or close tabs, run script, upload files or call turno's tools, so text on a page that tries to
+  steer it can at worst click and type on that page. A call that would type into a password or
+  one-time code field is refused.
+- The result lists every step, what the model said it was for, how it ended and the budget used.
+
+What it costs: every call sends the instruction and the page's content (what the snapshot shows,
+including the text of your signed-in pages) to the model's provider, and a model can misread a
+page and click the wrong thing. Use it on your own accounts, for steps you would check.
+
+With the other settings:
+
+- `"sharing": "tabs"`: it runs in the calling session's own tabs, under its tab locks.
+- Attach mode: it works in the agent's own tab of your Chrome, never in your tabs.
+- Read mode (`"engine": "lightpanda"`): `browser_extract` and `browser_observe` work; `browser_act`
+  can only use the tools read mode runs (no drag).
+- `humanize`: each action is the stock tool call, so it moves and types like the agent's own calls.
+- Recordings: a flow records the stock steps the model chose, never the instruction, the prompt or
+  the page it read, and a trace or screenshot covers those steps like any other.
+
+## Captcha solving
+
+Not recommended, and off until you turn it on per identity. `browser_solve_captcha` finds a
+captcha widget on the current tab (reCAPTCHA v2, hCaptcha or Turnstile), sends its kind, its
+public site key and the page address to a solver service you configure, and puts the token it
+returns into the page's response field (and calls the widget's callback when it names one). The
+agent then submits the form itself, before the token expires.
+
+```sh
+turno secret set captcha-solver                             # the service's account key, hidden prompt
+turno identity set browser:shop --captcha-provider task-api \
+  --captcha-endpoint https://solver.example.com --captcha-key keychain:captcha-solver
+turno identity set browser:shop --no-captcha                # off again
+```
+
+`task-api` is the `createTask` and `getTaskResult` protocol that many solver services share; the
+endpoint is the service's API address. The key is read from the secret store at each use and
+hidden from every result. A solve waits at most `captcha.timeout` (3 minutes).
+
+Say plainly what it means before you turn it on:
+
+- A third party sees the challenge and the page: the solver gets the page address and the
+  widget, and usually loads the page on its own machines (or has people answer it) to produce
+  the token.
+- Solving a site's captchas by machine may break its terms of service, and a site that notices
+  may suspend the account. It is meant for your own accounts, on sites where you accept that.
+- It only answers widgets that hand back a token. A full-page "checking your browser" page, a
+  "verify it's you" prompt or a block page is left to you in the window.
+
+Every attempt, solved or not, is a line in the identity's [reputation log](#reputation-log) with
+the host name, the widget kind and the provider (never the token or the key), and `turno browser
+reputation` shows a `solved` column once a solver answered.
+
+With the other settings: it works with `"sharing": "tabs"` (in the calling session's tab) and in
+attach mode (in the agent's own tab); read mode refuses it, since Lightpanda runs no widget, and
+`turno identity set` refuses the combination. It is not recorded in a flow: a replay that meets
+the captcha again stops at the next step, where the agent can call `browser_solve_captcha` and go
+on with `from`.
+
 ## Moving a session
 
 ```sh
@@ -299,7 +394,7 @@ When Chrome starts (at most every 30 minutes while it passes) turno checks it. I
 
 ## Reputation log
 
-Each captcha, "verify it's you" or block page the identity meets is one line in its state folder, with the site's host name only: no path, no page content.
+Each captcha, "verify it's you" or block page the identity meets is one line in its state folder, with the site's host name only: no path, no page content. With [captcha solving](#captcha-solving) on, each solve attempt is a line too.
 
 ```sh
 turno browser reputation school    # counts per site, and whether they go up or down
@@ -355,6 +450,7 @@ browser:
 | `browser_hover`, `browser_type`, `browser_press_key`, `browser_select_option`, `browser_fill_form` | `browser_handle_dialog`: Lightpanda closes dialogs by itself |
 | `browser_evaluate`, `browser_wait_for`, `browser_tabs`, `browser_close`, `browser_batch` | `browser_file_upload`, `browser_run_code_unsafe` |
 | `browser_network_requests`, `browser_network_request`, `browser_console_messages` | `browser_login`: read mode keeps no vault sign-ins |
+| `browser_act`, `browser_extract`, `browser_observe` (when [turned on](#natural-language-actions)) | `browser_solve_captcha`: no captcha widget runs |
 
 Checked with Lightpanda 1.1.0 (nightly) through Patchright. Lightpanda's CDP answers a few calls
 differently from Chrome's, so turno passes its traffic through a small relay that turns those
@@ -424,4 +520,4 @@ Each finding has its own page under [Troubleshooting](/docs/troubleshooting#turn
 
 ## Acceptable use
 
-Use it with your own accounts, on sites whose terms allow automated access by you, and at a human pace. Do not use it to get around access controls, paywalls, CAPTCHAs or rate limits, to scrape at scale, or to access accounts that are not yours. How you use the browser on third-party sites is between you and each site's terms.
+Use it with your own accounts, on sites whose terms allow automated access by you, and at a human pace. Do not use it to get around access controls, paywalls or rate limits, to scrape at scale, or to access accounts that are not yours. Captcha solving is off unless you turn it on, and then it is for your own accounts only, with the costs [above](#captcha-solving). How you use the browser on third-party sites is between you and each site's terms.

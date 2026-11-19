@@ -54,6 +54,10 @@ export const READ_MODE_TOOLS: ReadonlySet<string> = new Set([
   "browser_console_messages",
   "browser_close",
   "browser_batch",
+  // Natural language actions call only tools of this list, and read a snapshot.
+  "browser_act",
+  "browser_extract",
+  "browser_observe",
 ]);
 
 /** Why read mode refuses a tool, for the tools that need more than a read. */
@@ -68,6 +72,7 @@ const NOT_IN_READ_MODE: Readonly<Record<string, string>> = {
   browser_file_upload: "read mode does not upload files",
   browser_run_code_unsafe: "read mode runs only the reading tools",
   browser_login: "read mode keeps no vault sign-ins; it is meant for public pages",
+  browser_solve_captcha: "read mode runs no captcha widget to solve",
 };
 
 /** Why read mode refuses this tool, or undefined when it runs it. */

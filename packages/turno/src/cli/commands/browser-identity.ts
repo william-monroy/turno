@@ -31,6 +31,8 @@ type BlockSettings = NonNullable<IdentitySettings["block"]>;
 type CacheSettings = NonNullable<IdentitySettings["cache"]>;
 type HumanizeSettings = NonNullable<IdentitySettings["humanize"]>;
 type RecordSettings = NonNullable<IdentitySettings["record"]>;
+type ActSettings = NonNullable<IdentitySettings["act"]>;
+type CaptchaSettings = NonNullable<IdentitySettings["captcha"]>;
 export type SettingsPatch = Parameters<BrowserApi["writeIdentitySettings"]>[1];
 type DoctorCheck = Awaited<ReturnType<BrowserApi["runDoctor"]>>["checks"][number];
 
@@ -73,6 +75,22 @@ export const SETTINGS_FLAGS: FlagSpec = {
   "record-screenshots": { type: "string" },
   "record-max-size": { type: "string" },
   "no-record": { type: "boolean" },
+  // Natural language actions and captcha solving (format 8): off by default, opt-in only.
+  act: { type: "boolean" },
+  "act-sampling": { type: "string" },
+  "act-provider": { type: "string" },
+  "act-endpoint": { type: "string" },
+  "act-model": { type: "string" },
+  "act-key": { type: "string" },
+  "act-max-steps": { type: "string" },
+  "act-max-tokens": { type: "string" },
+  "act-timeout": { type: "string" },
+  "no-act": { type: "boolean" },
+  "captcha-provider": { type: "string" },
+  "captcha-endpoint": { type: "string" },
+  "captcha-key": { type: "string" },
+  "captcha-timeout": { type: "string" },
+  "no-captcha": { type: "boolean" },
 };
 
 /** The identity.json key behind each tuning flag, so the package's messages name the flag. */
@@ -95,6 +113,18 @@ const KEY_FLAGS: readonly (readonly [string, string])[] = [
   ["record.traces", "--record-traces"],
   ["record.screenshots", "--record-screenshots"],
   ["record.maxSize", "--record-max-size"],
+  ["act.sampling", "--act-sampling"],
+  ["act.provider", "--act-provider"],
+  ["act.endpoint", "--act-endpoint"],
+  ["act.model", "--act-model"],
+  ["act.key", "--act-key"],
+  ["act.maxSteps", "--act-max-steps"],
+  ["act.maxTokens", "--act-max-tokens"],
+  ["act.timeout", "--act-timeout"],
+  ["captcha.provider", "--captcha-provider"],
+  ["captcha.endpoint", "--captcha-endpoint"],
+  ["captcha.key", "--captcha-key"],
+  ["captcha.timeout", "--captcha-timeout"],
 ];
 
 const TABS_MAX_PROBLEM = "--tabs-max must be a whole number from 0 (no cap) to 100";
@@ -253,6 +283,73 @@ function tuningPatch(
   const sharing = value("sharing");
   if (sharing !== undefined) patch.sharing = sharing as IdentitySettings["sharing"] | null;
   recordPatch(p, value, patch, current);
+  actPatch(p, value, patch, current);
+  captchaPatch(p, value, patch, current);
+}
+
+/** A whole number flag value as a number; anything else goes to the package, which says why. */
+const wholeNumber = (v: string | null | undefined) => (typeof v === "string" && /^\d+$/.test(v) ? Number(v) : v);
+
+/** The format 8 `act` key: natural language actions, with MCP sampling or a provider. */
+function actPatch(
+  p: Parsed,
+  value: (name: string) => string | null | undefined,
+  patch: SettingsPatch,
+  current?: IdentitySettings,
+): void {
+  const sampling = value("act-sampling");
+  const parts = {
+    sampling: typeof sampling === "string" ? booleanValue("--act-sampling", sampling) : sampling,
+    provider: value("act-provider"),
+    endpoint: value("act-endpoint"),
+    model: value("act-model"),
+    key: value("act-key"),
+    maxSteps: wholeNumber(value("act-max-steps")),
+    maxTokens: wholeNumber(value("act-max-tokens")),
+    timeout: value("act-timeout"),
+  };
+  const given = Object.values(parts).some((v) => v !== undefined);
+  if (bool(p, "no-act")) {
+    if (given || bool(p, "act")) fail("--no-act does not go with the other --act flags");
+    patch.act = null;
+  } else if (given || bool(p, "act")) {
+    patch.act = mergeGroup<ActSettings>(current?.act, parts) ?? {};
+  }
+}
+
+/** The format 8 `captcha` key: a solver service and its key's secret store reference. */
+function captchaPatch(
+  p: Parsed,
+  value: (name: string) => string | null | undefined,
+  patch: SettingsPatch,
+  current?: IdentitySettings,
+): void {
+  const parts = {
+    provider: value("captcha-provider"),
+    endpoint: value("captcha-endpoint"),
+    key: value("captcha-key"),
+    timeout: value("captcha-timeout"),
+  };
+  const given = Object.values(parts).some((v) => v !== undefined);
+  if (bool(p, "no-captcha")) {
+    if (given) fail("--no-captcha does not go with the other --captcha flags");
+    patch.captcha = null;
+  } else if (given) {
+    patch.captcha = mergeGroup<CaptchaSettings>(current?.captcha, parts);
+  }
+}
+
+/** How an identity's natural language actions get a model, in a few words. */
+function describeAct(a: ActSettings | undefined): string | undefined {
+  if (!a) return undefined;
+  const provider = a.provider ? `${a.provider} ${a.model ?? ""} at ${a.endpoint ?? ""}`.replace(/\s+/g, " ") : "";
+  const how =
+    a.sampling === false
+      ? provider
+      : provider
+        ? `MCP sampling, else ${provider}`
+        : "MCP sampling (your client's model)";
+  return `on: ${how}`;
 }
 
 /** The format 7 `record` key: what turno-browser records for this identity. */
@@ -381,6 +478,9 @@ export function show(m: BrowserApi, id: string, args: string[], io: Io): number 
     if (settings.attach !== undefined) rows.push(["engine", `attach to your Chrome (${settings.attach})`]);
     const recorded = describeRecord(settings.record);
     if (recorded) rows.push(["recording", recorded]);
+    const act = describeAct(settings.act);
+    if (act) rows.push(["act", act]);
+    if (settings.captcha) rows.push(["captcha", `on: ${settings.captcha.provider} at ${settings.captcha.endpoint}`]);
     rows.push(["created", settings.created]);
     rows.push(["updated", settings.updated]);
   }
@@ -412,7 +512,9 @@ export const SET_SYNOPSIS =
   "[--timezone <zone>] [--locale <tag>] [--languages <tag,...>] [--region <CC>] [--health-url <url>] [--health-text <text>] [--health-selector <css>] [--no-health] " +
   "[--tabs-max <n>] [--tabs-popups close|keep] [--tabs-park <duration>] [--tabs-close <duration>] [--no-tabs] [--background-throttling true|false] [--settle <duration>] " +
   "[--block-trackers true|false] [--block-types image,media,font] [--block-patterns <host|glob>,...] [--no-block] [--cache] [--cache-max-size <size>] [--no-cache] [--humanize off|light|full|adaptive] [--sharing session|tabs] " +
-  "[--engine chrome|lightpanda] [--attach auto|<dir>|<url>] [--record-flows true|false] [--record-traces true|false] [--record-screenshots true|false] [--record-max-size <size>] [--no-record] [--dry-run] [--json]";
+  "[--engine chrome|lightpanda] [--attach auto|<dir>|<url>] [--record-flows true|false] [--record-traces true|false] [--record-screenshots true|false] [--record-max-size <size>] [--no-record] " +
+  "[--act] [--act-sampling true|false] [--act-provider chat-completions] [--act-endpoint <url>] [--act-model <name>] [--act-key keychain:<item>] [--act-max-steps <n>] [--act-max-tokens <n>] [--act-timeout <duration>] [--no-act] " +
+  "[--captcha-provider task-api] [--captcha-endpoint <url>] [--captcha-key keychain:<item>] [--captcha-timeout <duration>] [--no-captcha] [--dry-run] [--json]";
 
 /** More help for `set`: what each tuning flag writes to identity.json. */
 export const SET_DETAILS = `Each flag writes one key of identity.json; an empty value (--settle "") removes it, and
@@ -456,7 +558,25 @@ What turno-browser records for this identity (all off by default; turno browser 
   --record-traces <bool>          a Playwright trace of each browser session (turno browser traces)
   --record-screenshots <bool>     a screenshot after each action
   --record-max-size <size>        cap of the traces and screenshots, "10MB" to "10GB" (default 200MB)
-Vault sign-ins and passwords never reach a flow, a trace or a screenshot.`;
+Vault sign-ins and passwords never reach a flow, a trace or a screenshot.
+
+Not recommended, off by default, for your own accounts only (they send page content to a third
+party you pick, and many sites' terms forbid them; the server lists their tools from its next start):
+  --act                           natural language actions (browser_act, browser_extract,
+                                  browser_observe) with your client's model (MCP sampling)
+  --act-provider chat-completions a model API to use when the client has no sampling, with
+  --act-endpoint <url>            its base URL (https, or http on this machine),
+  --act-model <name>              the model name it expects and
+  --act-key keychain:<item>       its key in the secret store (turno secret set <item>)
+  --act-sampling <bool>           false: never ask the client, always use the provider
+  --act-max-steps <n>             most actions per call, 1 to 30 (default 10)
+  --act-max-tokens <n>            most model tokens per call (default 50000)
+  --act-timeout <duration>        longest call, "10s" to "10m" (default 2m)
+  --captcha-provider task-api     solve captcha widgets (browser_solve_captcha) through a solver
+  --captcha-endpoint <url>        service that speaks the createTask protocol, at this URL,
+  --captcha-key keychain:<item>   with its account key in the secret store
+  --captcha-timeout <duration>    longest wait for a solution (default 3m)
+  --no-act, --no-captcha          turn them off`;
 
 /** The flags of `set`, for completion. */
 export const SET_FLAG_NAMES = ["--dry-run", "--json", ...SETTINGS_FLAG_NAMES];
@@ -478,6 +598,21 @@ function rehearse(m: BrowserApi, id: string, patch: SettingsPatch, env: NodeJS.P
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+}
+
+/** What turning on natural language actions or captcha solving costs, said once at `set`. */
+function optInNotes(id: string, patch: SettingsPatch): string[] {
+  const notes: string[] = [];
+  const restart = `its tools are listed once browser-${id} starts again (a new agent session, or turno mcp daemon restart)`;
+  if (patch.act)
+    notes.push(
+      `natural language actions: each call sends the instruction and a snapshot of the page to the model (your client's, or the provider you set), with vault values and sensitive fields hidden; ${restart}. Undo with --no-act.`,
+    );
+  if (patch.captcha)
+    notes.push(
+      `captcha solving: the solver service sees the page address and the captcha, and solving a site's captchas by machine may break its terms; use it only for your own accounts. Every use goes to the reputation log; ${restart}. Undo with --no-captcha.`,
+    );
+  return notes;
 }
 
 /** What mcp.toml needs after `--sharing`: mcpd decides how many sessions reach the server. */
@@ -518,6 +653,7 @@ export function set(m: BrowserApi, id: string, args: string[], io: Io): number {
   io.out(`updated identity.json of "${id}"; the next Chrome start of browser-${id} uses it\n`);
   const code = show(m, id, [], io);
   if (patch.sharing !== undefined) io.out(`\n${sharingNote(id, settings.sharing)}`);
+  for (const note of optInNotes(id, patch)) io.out(style(io).note("warn", note));
   if (typeof patch.attach === "string") {
     const s = style(io);
     io.out(
@@ -646,15 +782,27 @@ export function reputation(m: BrowserApi, args: string[], io: Io, checkId: (id: 
       io.out(`  ${s.muted("no challenges recorded")}`);
       continue;
     }
-    const head = ["site", "total", "captcha", "verify", "block", "7d", "prev 7d", "trend", "last seen"].map((h) =>
-      s.muted(h),
-    );
+    // The solved column shows only once a captcha solver answered (identity.json `captcha`).
+    const solved = ident.sites.some((x) => x.solved > 0);
+    const head = [
+      "site",
+      "total",
+      "captcha",
+      "verify",
+      "block",
+      ...(solved ? ["solved"] : []),
+      "7d",
+      "prev 7d",
+      "trend",
+      "last seen",
+    ].map((h) => s.muted(h));
     const rows = ident.sites.map((x) => [
       x.site,
       String(x.total),
       String(x.captcha),
       String(x.verify),
       String(x.block),
+      ...(solved ? [String(x.solved)] : []),
       String(x.last7d),
       String(x.prev7d),
       TREND[x.trend],
@@ -662,7 +810,7 @@ export function reputation(m: BrowserApi, args: string[], io: Io, checkId: (id: 
     ]);
     const right = { align: "right" as const };
     for (const l of s.table([head, ...rows], {
-      columns: [{}, right, right, right, right, right, right, {}, { drop: 1 }],
+      columns: [{}, right, right, right, right, ...(solved ? [right] : []), right, right, {}, { drop: 1 }],
     }))
       io.out(l);
   }

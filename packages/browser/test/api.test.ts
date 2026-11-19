@@ -56,8 +56,9 @@ describe("the public API object", () => {
   // 1.4: the sharing key and manifestSnippet(id, { sharing }) (no new member).
   // 1.5: the engine and attach keys and the engine checks of runDoctor (no new member).
   // 1.6: the record key, saved flows, replay and recordings.
-  it("is version 1.6, frozen, with integer parts", () => {
-    expect(API_VERSION).toEqual({ major: 1, minor: 6 });
+  // 1.7: the act and captcha keys, and solved captchas in the reputation report.
+  it("is version 1.7, frozen, with integer parts", () => {
+    expect(API_VERSION).toEqual({ major: 1, minor: 7 });
     expect(Object.isFrozen(API_VERSION)).toBe(true);
     expect(Number.isInteger(API_VERSION.major) && Number.isInteger(API_VERSION.minor)).toBe(true);
   });

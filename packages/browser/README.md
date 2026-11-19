@@ -212,9 +212,9 @@ what each version added in [Releases](https://turno.wimo.dev/docs/releases).
 ## Acceptable use
 
 Use it with your own accounts, on sites whose terms allow automated access by you, and at a
-human pace. Do not use it to get around access controls, paywalls, CAPTCHAs or rate limits, to
-scrape at scale, or to access accounts that are not yours. You are responsible for how you use
-it. The software is provided "as is", without warranty (Apache License 2.0).
+human pace. Do not use it to get around access controls, paywalls or rate limits, to scrape at
+scale, or to access accounts that are not yours. Captcha solving is off unless you turn it on, and
+then it is for your own accounts only. You are responsible for how you use it. The software is provided "as is", without warranty (Apache License 2.0).
 
 ## License
 

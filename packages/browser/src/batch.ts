@@ -18,7 +18,7 @@ export const MAX_BATCH = 20;
 const RESULT_CHARS = 400;
 
 /** The sections of an upstream result text (`### Title` then the body). */
-function sections(text: string): Map<string, string> {
+export function sections(text: string): Map<string, string> {
   const out = new Map<string, string>();
   for (const part of text.split(/^### /m).slice(1)) {
     const nl = part.indexOf("\n");
@@ -28,7 +28,7 @@ function sections(text: string): Map<string, string> {
   return out;
 }
 
-function clip(text: string, max = RESULT_CHARS): string {
+export function clip(text: string, max = RESULT_CHARS): string {
   return text.length > max ? `${text.slice(0, max - 3)}...` : text;
 }
 
@@ -38,7 +38,7 @@ function label(tool: string, args: Record<string, unknown>): string {
   return what === undefined ? tool : `${tool} ${clip(String(what), 80)}`;
 }
 
-function textOf(result: ToolResult): string {
+export function textOf(result: ToolResult): string {
   return result.content
     .filter((c) => c.type === "text")
     .map((c) => (c as { text: string }).text)

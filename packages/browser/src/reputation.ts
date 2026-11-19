@@ -14,6 +14,13 @@ import { identityExists, listIdentities } from "./identities.js";
  * no query, no page content. A site's reputation is not a score a test page gives; it is how
  * often the site stops the identity, and whether that goes up or down. `turno browser
  * reputation` shows the counts and the trend of the last 7 days against the 7 before.
+ *
+ * With captcha solving on (identity.json `captcha`), each attempt of `browser_solve_captcha`
+ * is a line of its own, with the widget kind, the provider and whether it worked:
+ *
+ *     {"ts":"2026-11-19T16:00:00.000Z","site":"shop.example.com","kind":"solve","widget":"recaptcha","provider":"task-api","ok":true}
+ *
+ * An older turno-browser skips those lines when it reads the log.
  */
 
 export interface ChallengeEvent {
@@ -23,9 +30,21 @@ export interface ChallengeEvent {
   markers: string[];
 }
 
+/** One `browser_solve_captcha` attempt. Never the token, the key or the page's path. */
+export interface SolveEvent {
+  ts: string;
+  site: string;
+  kind: "solve";
+  widget: string;
+  provider: string;
+  ok: boolean;
+}
+
 export interface SiteSummary {
   site: string;
   total: number;
+  /** Captchas a solver answered (identity.json `captcha`); not counted in `total`. */
+  solved: number;
   captcha: number;
   verify: number;
   block: number;
@@ -56,9 +75,30 @@ export function recordChallenge(
   event: Omit<ChallengeEvent, "ts">,
   now: Date = new Date(),
 ): void {
+  appendLine(id, env, { ts: now.toISOString(), site: event.site, kind: event.kind, markers: event.markers });
+}
+
+/** Logs one captcha solving attempt. */
+export function recordSolve(
+  id: string,
+  env: NodeJS.ProcessEnv,
+  event: Omit<SolveEvent, "ts" | "kind">,
+  now: Date = new Date(),
+): void {
+  const line: SolveEvent = {
+    ts: now.toISOString(),
+    site: event.site,
+    kind: "solve",
+    widget: event.widget,
+    provider: event.provider,
+    ok: event.ok,
+  };
+  appendLine(id, env, line);
+}
+
+function appendLine(id: string, env: NodeJS.ProcessEnv, line: ChallengeEvent | SolveEvent): void {
   const file = reputationPath(id, env);
   mkdirSync(identityStateDir(id, env), { recursive: true, mode: 0o700 });
-  const line: ChallengeEvent = { ts: now.toISOString(), site: event.site, kind: event.kind, markers: event.markers };
   appendFileSync(file, `${JSON.stringify(line)}\n`, { mode: 0o600 });
   try {
     if (statSync(file).size > MAX_BYTES) {
@@ -82,20 +122,31 @@ function isEvent(v: unknown): v is ChallengeEvent {
   );
 }
 
-/** Every event of the identity's log, oldest first. Lines that do not parse are skipped. */
-export function readChallenges(id: string, env: NodeJS.ProcessEnv = process.env): ChallengeEvent[] {
+function isSolve(v: unknown): v is SolveEvent {
+  const e = v as Partial<SolveEvent> | null;
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    e.kind === "solve" &&
+    typeof e.ts === "string" &&
+    typeof e.site === "string" &&
+    typeof e.ok === "boolean"
+  );
+}
+
+function readLines<T>(id: string, env: NodeJS.ProcessEnv, keep: (v: unknown) => v is T): T[] {
   let text: string;
   try {
     text = readFileSync(reputationPath(id, env), "utf8");
   } catch {
     return [];
   }
-  const out: ChallengeEvent[] = [];
+  const out: T[] = [];
   for (const line of text.split("\n")) {
     if (!line.trim()) continue;
     try {
       const v = JSON.parse(line) as unknown;
-      if (isEvent(v)) out.push(v);
+      if (keep(v)) out.push(v);
     } catch {
       /* a torn or foreign line */
     }
@@ -103,27 +154,50 @@ export function readChallenges(id: string, env: NodeJS.ProcessEnv = process.env)
   return out;
 }
 
+/** Every challenge of the identity's log, oldest first. Lines that do not parse are skipped. */
+export function readChallenges(id: string, env: NodeJS.ProcessEnv = process.env): ChallengeEvent[] {
+  return readLines(id, env, isEvent);
+}
+
+/** Every captcha solving attempt of the identity's log, oldest first. */
+export function readSolves(id: string, env: NodeJS.ProcessEnv = process.env): SolveEvent[] {
+  return readLines(id, env, isSolve);
+}
+
 /** Counts per site, most recent first, with the trend of the last 7 days against the 7 before. */
-export function summarizeChallenges(events: readonly ChallengeEvent[], now: Date = new Date()): SiteSummary[] {
+export function summarizeChallenges(
+  events: readonly ChallengeEvent[],
+  now: Date = new Date(),
+  solves: readonly SolveEvent[] = [],
+): SiteSummary[] {
   const bySite = new Map<string, SiteSummary>();
   const t = now.getTime();
+  const empty = (site: string, ts: string): SiteSummary => ({
+    site,
+    total: 0,
+    solved: 0,
+    captcha: 0,
+    verify: 0,
+    block: 0,
+    last7d: 0,
+    prev7d: 0,
+    trend: "flat",
+    lastSeen: ts,
+  });
   for (const e of events) {
-    const s = bySite.get(e.site) ?? {
-      site: e.site,
-      total: 0,
-      captcha: 0,
-      verify: 0,
-      block: 0,
-      last7d: 0,
-      prev7d: 0,
-      trend: "flat",
-      lastSeen: e.ts,
-    };
+    const s = bySite.get(e.site) ?? empty(e.site, e.ts);
     s.total++;
     s[e.kind]++;
     const age = t - Date.parse(e.ts);
     if (age <= 7 * DAY) s.last7d++;
     else if (age <= 14 * DAY) s.prev7d++;
+    if (e.ts > s.lastSeen) s.lastSeen = e.ts;
+    bySite.set(e.site, s);
+  }
+  for (const e of solves) {
+    if (!e.ok) continue;
+    const s = bySite.get(e.site) ?? empty(e.site, e.ts);
+    s.solved++;
     if (e.ts > s.lastSeen) s.lastSeen = e.ts;
     bySite.set(e.site, s);
   }
@@ -142,7 +216,12 @@ export function reputationReport(
   return {
     identities: list.map((id) => {
       const events = readChallenges(id, env);
-      return { id, file: reputationPath(id, env), total: events.length, sites: summarizeChallenges(events, now) };
+      return {
+        id,
+        file: reputationPath(id, env),
+        total: events.length,
+        sites: summarizeChallenges(events, now, readSolves(id, env)),
+      };
     }),
   };
 }

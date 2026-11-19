@@ -82,9 +82,10 @@ interface ElementInfo {
   css: string;
 }
 
-const SECRET_AUTOCOMPLETE =
+export const SECRET_AUTOCOMPLETE =
   /(^|\s)(current-password|new-password|one-time-code|cc-number|cc-csc|cc-exp(-month|-year)?)(\s|$)/i;
-const SECRET_NAME = /pass(word|wd|code)?|pwd|otp|totp|2fa|mfa|(^|[^a-z])pin([^a-z]|$)|cvv|cvc|csc|secret|token|ssn/i;
+export const SECRET_NAME =
+  /pass(word|wd|code)?|pwd|otp|totp|2fa|mfa|(^|[^a-z])pin([^a-z]|$)|cvv|cvc|csc|secret|token|ssn/i;
 
 /** A field whose typed value must never be stored. */
 export function secretField(info: Pick<ElementInfo, "type" | "autocomplete" | "name" | "id">): boolean {

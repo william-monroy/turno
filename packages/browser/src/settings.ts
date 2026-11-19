@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { browserPaths as paths } from "turno-core/paths";
+import { type ActSettings, type CaptchaSettings, actProblems, captchaProblems } from "./opt-in-settings.js";
 import { parseAttachTarget } from "./engine-attach.js";
 import { IdentityError, assertIdentityId } from "./ids.js";
 import { HUMANIZE_LEVELS, type HumanizeSettings } from "./humanize.js";
@@ -41,6 +42,9 @@ import { parseDuration, parseSize } from "./units.js";
  *   `flows` (every session's actions as a flow, `recorder.ts`), `traces` (Playwright traces) and
  *   `screenshots` (one per action), the last two under the identity's state folder with a
  *   size cap (`maxSize`, default 200MB) and the oldest recordings removed first (`recordings.ts`).
+ * - `act`, `captcha` (format 8): natural language actions and captcha solving, both off by
+ *   default and both sending page content to a model or a solver the user picks
+ *   (`opt-in-settings.ts`). Keys are `keychain:` references, never values.
  *
  * A missing file means Chrome's own defaults, as before identity.json existed.
  */
@@ -52,7 +56,7 @@ import { parseDuration, parseSize } from "./units.js";
  * only when it uses one of them, so an older turno-browser keeps reading every other file and
  * refuses one it would misread with "update turno-browser".
  */
-export const IDENTITY_FORMAT_VERSION = 7;
+export const IDENTITY_FORMAT_VERSION = 8;
 
 /** The keys format 2 added. */
 const FORMAT_2_KEYS = ["tabs", "backgroundThrottling", "settle", "block", "cache"] as const;
@@ -71,6 +75,9 @@ const FORMAT_6_KEYS = ["engine", "attach"] as const;
 
 /** The keys format 7 added. */
 const FORMAT_7_KEYS = ["record"] as const;
+
+/** The keys format 8 added. */
+const FORMAT_8_KEYS = ["act", "captcha"] as const;
 
 /** What turno-browser records for an identity (`recorder.ts`, `recordings.ts`); all off by default. */
 export interface RecordSettings {
@@ -167,6 +174,10 @@ export interface IdentitySettings {
   /** Connect to a Chrome the user has open: `"auto"`, a user data dir, or a loopback endpoint. */
   attach?: string;
   record?: RecordSettings;
+  /** Natural language actions (`browser_act`, `browser_extract`, `browser_observe`); off by default. */
+  act?: ActSettings;
+  /** A captcha solver for `browser_solve_captcha`; off by default. */
+  captcha?: CaptchaSettings;
   /** ISO dates. */
   created: string;
   updated: string;
@@ -185,7 +196,8 @@ export type SettingsPatch = {
     | (typeof FORMAT_4_KEYS)[number]
     | (typeof FORMAT_5_KEYS)[number]
     | (typeof FORMAT_6_KEYS)[number]
-    | (typeof FORMAT_7_KEYS)[number]]?: IdentitySettings[K] | null;
+    | (typeof FORMAT_7_KEYS)[number]
+    | (typeof FORMAT_8_KEYS)[number]]?: IdentitySettings[K] | null;
 };
 
 const KEYS = new Set([
@@ -201,6 +213,7 @@ const KEYS = new Set([
   ...FORMAT_5_KEYS,
   ...FORMAT_6_KEYS,
   ...FORMAT_7_KEYS,
+  ...FORMAT_8_KEYS,
   "created",
   "updated",
 ]);
@@ -283,6 +296,8 @@ function browserProblems(v: Record<string, unknown>, out: string[]): void {
     out.push('sharing must be "session" (the default, one agent session at a time) or "tabs"');
   engineProblems(v, out);
   recordProblems(v, out);
+  actProblems(v.act, out);
+  captchaProblems(v.captcha, v, out);
   if (v.cache !== undefined) {
     const c = v.cache;
     if (!isObject(c)) out.push('cache must be an object, like {} or { "maxSize": "100MB" }');
@@ -507,9 +522,17 @@ export function writeIdentitySettings(
     if (value === null) delete next[key];
     else next[key] = value;
   }
-  const formats = [FORMAT_7_KEYS, FORMAT_6_KEYS, FORMAT_5_KEYS, FORMAT_4_KEYS, FORMAT_3_KEYS, FORMAT_2_KEYS];
+  const formats = [
+    FORMAT_8_KEYS,
+    FORMAT_7_KEYS,
+    FORMAT_6_KEYS,
+    FORMAT_5_KEYS,
+    FORMAT_4_KEYS,
+    FORMAT_3_KEYS,
+    FORMAT_2_KEYS,
+  ];
   const newest = formats.findIndex((keys) => keys.some((k) => next[k] !== undefined));
-  next.version = newest < 0 ? 1 : 7 - newest;
+  next.version = newest < 0 ? 1 : 8 - newest;
   if (typeof next.locale === "string") next.locale = canonicalLocale(next.locale) ?? next.locale;
   if (Array.isArray(next.languages)) next.languages = (next.languages as string[]).map((l) => canonicalLocale(l) ?? l);
   if (typeof next.region === "string" && /^[a-z]{2}$/i.test(next.region)) next.region = next.region.toUpperCase();

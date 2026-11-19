@@ -27,7 +27,13 @@ Usage:
       off|light|full|adaptive] [--sharing session|tabs] [--engine
       chrome|lightpanda] [--attach auto|<dir>|<url>] [--record-flows true|false]
       [--record-traces true|false] [--record-screenshots true|false]
-      [--record-max-size <size>] [--no-record] [--dry-run] [--json]
+      [--record-max-size <size>] [--no-record] [--act] [--act-sampling
+      true|false] [--act-provider chat-completions] [--act-endpoint <url>]
+      [--act-model <name>] [--act-key keychain:<item>] [--act-max-steps <n>]
+      [--act-max-tokens <n>] [--act-timeout <duration>] [--no-act]
+      [--captcha-provider task-api] [--captcha-endpoint <url>] [--captcha-key
+      keychain:<item>] [--captcha-timeout <duration>] [--no-captcha] [--dry-run]
+      [--json]
                                      change an identity's identity.json (an
                                      empty value removes a setting)
   turno browser doctor [--fix] [--no-launch] [--json]
@@ -156,7 +162,13 @@ Usage:
       off|light|full|adaptive] [--sharing session|tabs] [--engine
       chrome|lightpanda] [--attach auto|<dir>|<url>] [--record-flows true|false]
       [--record-traces true|false] [--record-screenshots true|false]
-      [--record-max-size <size>] [--no-record] [--dry-run] [--json]
+      [--record-max-size <size>] [--no-record] [--act] [--act-sampling
+      true|false] [--act-provider chat-completions] [--act-endpoint <url>]
+      [--act-model <name>] [--act-key keychain:<item>] [--act-max-steps <n>]
+      [--act-max-tokens <n>] [--act-timeout <duration>] [--no-act]
+      [--captcha-provider task-api] [--captcha-endpoint <url>] [--captcha-key
+      keychain:<item>] [--captcha-timeout <duration>] [--no-captcha] [--dry-run]
+      [--json]
     change an identity's identity.json (an empty value removes a setting)
 
 Each flag writes one key of identity.json; an empty value (--settle "") removes it, and
@@ -201,6 +213,24 @@ What turno-browser records for this identity (all off by default; turno browser 
   --record-screenshots <bool>     a screenshot after each action
   --record-max-size <size>        cap of the traces and screenshots, "10MB" to "10GB" (default 200MB)
 Vault sign-ins and passwords never reach a flow, a trace or a screenshot.
+
+Not recommended, off by default, for your own accounts only (they send page content to a third
+party you pick, and many sites' terms forbid them; the server lists their tools from its next start):
+  --act                           natural language actions (browser_act, browser_extract,
+                                  browser_observe) with your client's model (MCP sampling)
+  --act-provider chat-completions a model API to use when the client has no sampling, with
+  --act-endpoint <url>            its base URL (https, or http on this machine),
+  --act-model <name>              the model name it expects and
+  --act-key keychain:<item>       its key in the secret store (turno secret set <item>)
+  --act-sampling <bool>           false: never ask the client, always use the provider
+  --act-max-steps <n>             most actions per call, 1 to 30 (default 10)
+  --act-max-tokens <n>            most model tokens per call (default 50000)
+  --act-timeout <duration>        longest call, "10s" to "10m" (default 2m)
+  --captcha-provider task-api     solve captcha widgets (browser_solve_captcha) through a solver
+  --captcha-endpoint <url>        service that speaks the createTask protocol, at this URL,
+  --captcha-key keychain:<item>   with its account key in the secret store
+  --captcha-timeout <duration>    longest wait for a solution (default 3m)
+  --no-act, --no-captcha          turn them off
 
 Examples:
   $ turno browser set school --health-url https://mail.example.com/ --health-text Inbox

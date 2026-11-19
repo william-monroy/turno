@@ -150,7 +150,7 @@ describe("loadOptional", () => {
         globalRoot: () => root,
       }),
     ).rejects.toThrow(
-      "turno-browser is too old for this turno (it has no API_VERSION, this turno needs 1.6 or a later 1.x); update it: npm install --global turno-browser@latest",
+      "turno-browser is too old for this turno (it has no API_VERSION, this turno needs 1.7 or a later 1.x); update it: npm install --global turno-browser@latest",
     );
   });
 });
