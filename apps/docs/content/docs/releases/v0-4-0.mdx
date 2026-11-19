@@ -26,8 +26,8 @@ turno 0.4.0 is about the browser again. One browser identity can now **[serve se
 Until now an identity served one agent session at a time. With `"sharing": "tabs"` several sessions use the same signed-in browser, each with its own current tab and the tabs it holds. Another session's call on a held tab waits up to 10 seconds and then fails with a message that names the holder, `browser_close` closes only the calling session's tabs, and a session lets go of its tabs when it ends or after 5 minutes without a call.
 
 ```sh
-turno identity set browser:school --sharing tabs
-turno identity set browser:school \
+turno browser set school --sharing tabs
+turno browser set school \
   --tab-lock-wait 30s --tab-lock-release 10m
 ```
 
