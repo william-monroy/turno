@@ -24,6 +24,7 @@ export {
   type IdentitySettings,
   type RecordSettings,
   type SettingsPatch,
+  type TabLockSettings,
   checkIdentitySettings,
   identitySettingsPath,
   readIdentitySettings,
