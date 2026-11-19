@@ -189,6 +189,11 @@
   font: inherit;
   color: inherit;
 }
+/* A word of a command stays whole when it fits on a line: a flag never breaks at its dashes. */
+.t-cmd-word {
+  display: inline-block;
+  max-width: 100%;
+}
 .t-cmd-state {
   flex: none;
   font-size: 11px;

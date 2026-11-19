@@ -1,0 +1,482 @@
+/*
+ * The turno-browser page. The same look as the home page (paper, ink, hairlines, square
+ * corners; blue is turno), with the identity `school` in its own tone inside the pictures.
+ */
+
+/* The hero: the line on the left, the window on the right. */
+.hero {
+  border-bottom: 1px solid var(--line);
+  overflow: hidden;
+}
+.heroGrid {
+  display: grid;
+  gap: 40px;
+  padding-block: clamp(48px, 7vw, 104px);
+}
+@media (min-width: 1024px) {
+  .heroGrid {
+    grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
+    column-gap: clamp(40px, 5vw, 88px);
+    align-items: center;
+  }
+}
+.heroText {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+}
+.h1 {
+  font-size: clamp(40px, 5.4vw, 80px);
+}
+.hook {
+  max-width: 24em;
+  font-size: clamp(20px, 2vw, 28px);
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 24px;
+  margin-top: 6px;
+}
+.heroActions > button {
+  width: auto;
+  max-width: 100%;
+}
+.heroActions > button:first-child {
+  min-width: min(100%, 340px);
+}
+
+.link {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 5px;
+  white-space: nowrap;
+}
+.link:hover,
+.link:focus-visible {
+  text-decoration-color: var(--tone-keep);
+}
+
+/* Where to start: the three problems. */
+.start {
+  display: grid;
+  gap: 14px;
+  padding-block: clamp(28px, 3.5vw, 44px) clamp(8px, 1vw, 16px);
+}
+.pains {
+  display: grid;
+  margin-inline: -14px;
+  border-block: 1px solid var(--line);
+}
+.pain {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 14px;
+  font-size: 15px;
+  line-height: 1.35;
+}
+.pain + .pain {
+  border-top: 1px solid var(--line);
+}
+@media (min-width: 900px) {
+  .pains {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .pain + .pain {
+    border-top: 0;
+    border-left: 1px solid var(--line);
+  }
+}
+
+/* The sections under the chapters. */
+.section {
+  padding-block: clamp(56px, 8vw, 112px);
+}
+.h2 {
+  margin-top: 14px;
+  max-width: 16em;
+}
+.lead {
+  margin-block: 18px 22px;
+}
+
+/* The prompt for a coding agent: a second way to install, beside the command. */
+.prompt {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--tone-keep);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink);
+  cursor: pointer;
+}
+.promptMark {
+  color: var(--tone-keep);
+}
+.prompt:hover .promptMark,
+.prompt:focus-visible .promptMark {
+  color: inherit;
+}
+
+/* Four plain facts under the hero. */
+.factsWrap {
+  padding-bottom: clamp(28px, 4vw, 48px);
+}
+.facts {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px;
+}
+.fact + .fact {
+  border-top: 1px solid var(--line);
+}
+@media (min-width: 640px) {
+  .facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .fact + .fact {
+    border-top: 0;
+  }
+  .fact:nth-child(even) {
+    border-left: 1px solid var(--line);
+  }
+  .fact:nth-child(n + 3) {
+    border-top: 1px solid var(--line);
+  }
+}
+@media (min-width: 1100px) {
+  .facts {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .fact:nth-child(n + 3) {
+    border-top: 0;
+  }
+  .fact + .fact {
+    border-left: 1px solid var(--line);
+  }
+}
+.factTitle {
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+.factText {
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--dim);
+}
+
+/* The small tag on every feature: on from the start, or off until turned on. */
+.tag {
+  flex: none;
+  padding: 1px 7px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.tag[data-kind="on"] {
+  border: 1px solid var(--line);
+  color: var(--dim);
+}
+.tag[data-kind="opt"] {
+  border: 1px dashed var(--tone-keep);
+  color: var(--tone-keep);
+}
+
+.cardTitle {
+  font-size: clamp(19px, 1.6vw, 22px);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.cardText {
+  max-width: 36em;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--dim);
+  text-wrap: pretty;
+}
+.cardText code,
+.stepNote code {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  color: var(--ink);
+}
+.cardFoot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 10px;
+}
+.cardFoot > button {
+  font-size: 12px;
+}
+.tool {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink);
+}
+.tool > span {
+  color: var(--dim);
+}
+.itemHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* On from the start: six things in a quiet grid that shares its hairlines. */
+.included {
+  display: grid;
+  margin-top: clamp(28px, 4vw, 48px);
+  border: 1px solid var(--line);
+}
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: clamp(18px, 2vw, 26px);
+  border-top: 1px solid var(--line);
+  margin-top: -1px;
+}
+.itemTitle {
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+@media (min-width: 720px) {
+  .included {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .item {
+    border-left: 1px solid var(--line);
+    margin-left: -1px;
+  }
+}
+@media (min-width: 1100px) {
+  .included {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* The opt-in features: a picture each, in a grid where the first two are wider. */
+.optIns {
+  display: grid;
+  gap: 16px;
+  margin-top: clamp(28px, 4vw, 48px);
+}
+.optIn {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+.optIn:hover {
+  border-color: var(--dim);
+}
+.optInBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  padding: clamp(18px, 2vw, 24px);
+}
+@media (min-width: 720px) {
+  .optIns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1100px) {
+  .optIns {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .optIn {
+    grid-column: span 2;
+  }
+  /* The two a developer asks about first get half the row each. */
+  .optIn[data-id="live"],
+  .optIn[data-id="sharing"] {
+    grid-column: span 3;
+  }
+}
+
+/* Where it sits: the text beside a stack of four layers. */
+.split {
+  display: grid;
+  gap: 36px;
+}
+@media (min-width: 1024px) {
+  .split {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    column-gap: clamp(40px, 5vw, 88px);
+    align-items: center;
+  }
+}
+.layers {
+  display: grid;
+  border: 1px solid var(--line);
+  background: var(--card);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.layer {
+  display: grid;
+  gap: 8px 16px;
+  padding: 16px;
+}
+.layer + .layer {
+  border-top: 1px solid var(--line);
+}
+@media (min-width: 640px) {
+  .layer {
+    grid-template-columns: 132px minmax(0, 1fr);
+    align-items: baseline;
+  }
+  .beside {
+    grid-column: 2;
+  }
+}
+.layerName {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.layerItems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  white-space: nowrap;
+}
+.beside {
+  color: var(--dim);
+}
+/* turno-browser's own layer: the one the page is about. */
+.layer[data-own] {
+  padding-block: 22px;
+  background: var(--tone-keep-soft);
+  box-shadow: inset 3px 0 0 var(--tone-keep);
+}
+.layer[data-own] .layerName {
+  color: var(--tone-keep);
+}
+.layer[data-own] .chip {
+  border-color: color-mix(in oklab, var(--tone-keep) 45%, var(--line));
+}
+
+/* Two ways in. */
+.paths {
+  display: grid;
+  margin-top: clamp(28px, 4vw, 48px);
+  border: 1px solid var(--line);
+}
+.way {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: clamp(20px, 2.4vw, 32px);
+}
+.way + .way {
+  border-top: 1px solid var(--line);
+}
+@media (min-width: 860px) {
+  .paths {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .way + .way {
+    border-top: 0;
+    border-left: 1px solid var(--line);
+  }
+}
+.steps {
+  display: grid;
+  gap: 12px;
+  margin: 8px 0 6px;
+  padding: 0;
+  list-style: none;
+}
+.stepNote {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--dim);
+}
+
+/* Acceptable use: a plain paragraph, set apart. */
+.use {
+  padding-block: clamp(36px, 5vw, 64px);
+  background: var(--card);
+}
+.useGrid {
+  display: grid;
+  gap: 14px;
+}
+@media (min-width: 860px) {
+  .useGrid {
+    grid-template-columns: 200px minmax(0, 1fr);
+    column-gap: 40px;
+    align-items: baseline;
+  }
+}
+.useText {
+  max-width: 44em;
+  margin-bottom: 14px;
+  font-size: clamp(16px, 1.25vw, 18px);
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+/* The end: the install command once more. */
+.end {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.endTitle {
+  font-size: clamp(36px, 5vw, 72px);
+  max-width: 14em;
+}

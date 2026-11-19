@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
+import { type CSSProperties, Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 
 /** The accounts the page talks about, and turno itself: the part that stays when they change. */
 export type Tone = "work" | "personal" | "third" | "keep";
@@ -66,7 +66,15 @@ export function CopyCommand({ run, copyLabel, copiedLabel, prompt = "$" }: { run
       <span aria-hidden className="t-cmd-prompt">
         {prompt}
       </span>
-      <code className="t-cmd-text">{run}</code>
+      <code className="t-cmd-text">
+        {run.split(" ").map((word, index) => (
+          // The words of one fixed command: their order never changes.
+          <Fragment key={index}>
+            {index > 0 ? " " : null}
+            <span className="t-cmd-word">{word}</span>
+          </Fragment>
+        ))}
+      </code>
       <span className="t-cmd-state" aria-live="polite">
         {copied ? copiedLabel : copyLabel}
       </span>
