@@ -84,7 +84,9 @@ const EVENTS_PAGE = `<title>events</title>
 <script>
   const log = { moves: 0, trusted: true, downs: [], ups: [], movesBeforeDown: [], clicks: [], keys: [], wheels: 0, value: "" };
   const save = () => { log.value = document.getElementById("name").value; document.documentElement.dataset.log = JSON.stringify(log); };
-  addEventListener("pointermove", (e) => { log.moves++; log.trusted = log.trusted && e.isTrusted; save(); }, true);
+  // Chrome fires one pointermove per frame and folds the moves in between into it, so a busy
+  // renderer can turn a whole path into a single event: count the moves folded in too.
+  addEventListener("pointermove", (e) => { log.moves += e.getCoalescedEvents?.().length || 1; log.trusted = log.trusted && e.isTrusted; save(); }, true);
   addEventListener("mousedown", (e) => { log.downs.push(performance.now()); log.movesBeforeDown.push(log.moves); log.trusted = log.trusted && e.isTrusted; save(); }, true);
   addEventListener("mouseup", (e) => { log.ups.push(performance.now()); save(); }, true);
   addEventListener("click", (e) => {
