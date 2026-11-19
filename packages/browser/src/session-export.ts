@@ -139,7 +139,7 @@ export function profileOrigins(profileDir: string, cookies: { domain: string; se
       continue;
     }
     for (const m of text.matchAll(
-      /(?:META:|_)(https?:\/\/[a-z0-9.\-]+(?::\d{1,5})?|https?:\/\/\[[0-9a-f:]+\](?::\d{1,5})?)/gi,
+      /(?:META:|_)(https?:\/\/[a-z0-9.-]+(?::\d{1,5})?|https?:\/\/\[[0-9a-f:]+\](?::\d{1,5})?)/gi,
     ))
       add(originOf(m[1]!));
   }

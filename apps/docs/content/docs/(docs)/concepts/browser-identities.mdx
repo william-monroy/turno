@@ -435,7 +435,9 @@ nightly binary on Linux), and turno runs the `lightpanda` on your PATH, or the o
 `TURNO_LIGHTPANDA_PATH`. `turno browser doctor` shows the one it found and how to install it.
 
 turno starts `lightpanda serve` on a private Unix socket (no TCP port) with Lightpanda's
-telemetry off, and stops it when the session closes or after the idle limit. For an identity,
+telemetry off, and stops it when the session closes or after the idle limit. A Lightpanda left
+running by a server that was killed (SIGKILL gives it no chance to clean up) is stopped when the
+next read mode server for the same identity starts, as a Chrome left behind on a profile is. For an identity,
 Lightpanda keeps its own cookies in `lightpanda-cookies.json` in the identity's state folder: it
 never reads or writes the Chrome profile, so a site you signed into in Chrome is not signed in
 here, and read mode runs no health check, reputation log, blocking or cache.

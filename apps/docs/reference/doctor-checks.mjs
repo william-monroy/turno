@@ -457,7 +457,7 @@ export const DOCTOR_CHECKS = [
     source: BROWSER,
     match: "was left running by a server that is gone",
     title: "A Lightpanda was left running",
-    why: "A turno-browser-mcp in read mode was killed before it could stop the Lightpanda it started.",
+    why: "A turno-browser-mcp in read mode was killed before it could stop the Lightpanda it started. The next read mode server for the same identity (or, without an identity, the next one started with --engine lightpanda) stops it too.",
   },
   {
     id: "browser-smoke-launch-failed",

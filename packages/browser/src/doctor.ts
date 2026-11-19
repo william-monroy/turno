@@ -3,13 +3,14 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { browserPaths as paths } from "turno-core/paths";
-import { type ProcTable, parentIsInit, readProcTable, signalProcess } from "turno-core/process";
+import { type ProcTable, readProcTable, signalProcess } from "turno-core/process";
 import { readHealth } from "./health.js";
 import { identityDir, isValidIdentityId } from "./ids.js";
 import { defaultChromeUserDataDir, parseAttachTarget, resolveAttachEndpoint } from "./engine-attach.js";
 import {
   type LightpandaInfo,
   findLightpanda,
+  findOrphanLightpandas,
   lightpandaCookieJar,
   lightpandaInstallHint,
 } from "./engine-lightpanda.js";
@@ -340,13 +341,9 @@ function engineRows(id: string, settings: IdentitySettings, env: NodeJS.ProcessE
   }
 }
 
-/** A `lightpanda serve` that a turno-browser-mcp started (its socket is in a `turno-lightpanda-` folder) and that outlived it. */
+/** A `lightpanda serve` that a turno-browser-mcp started and that outlived it. */
 function strayLightpandas(table: ProcTable | undefined): number[] {
-  if (!table) return [];
-  return [...table.entries()]
-    .filter(([, p]) => /\/turno-lightpanda-[^/\s]+\/cdp\.sock(\s|$)/.test(p.command) && / serve /.test(p.command))
-    .filter(([, p]) => parentIsInit(p.ppid, table))
-    .map(([pid]) => pid);
+  return table ? findOrphanLightpandas("any", table).map((o) => o.pid) : [];
 }
 
 function engineChecks(opts: DoctorOptions, env: NodeJS.ProcessEnv, ids: string[]): DoctorCheck[] {
