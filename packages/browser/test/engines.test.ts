@@ -18,6 +18,7 @@ import {
   readModeRefusal,
 } from "../src/engine-lightpanda.js";
 import { IDENTITY_FORMAT_VERSION, checkIdentitySettings, writeIdentitySettings } from "../src/settings.js";
+import { TURNO_TOOLS, allOptInTools } from "../src/tools.js";
 import { upstream } from "../src/upstream.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
@@ -144,7 +145,8 @@ describe("Lightpanda discovery and read mode", () => {
 
   it("names only tools that exist upstream or in turno's registry", () => {
     const stock = new Set(upstream().tools.browserTools.map((t) => t.schema.name));
-    for (const tool of READ_MODE_TOOLS) expect(stock.has(tool) || tool === "browser_batch", tool).toBe(true);
+    const turno = new Set([...TURNO_TOOLS, ...allOptInTools()].map((t) => t.schema.name));
+    for (const tool of READ_MODE_TOOLS) expect(stock.has(tool) || turno.has(tool), tool).toBe(true);
   });
 });
 
