@@ -5,7 +5,7 @@ description: A browser your agents can sign in with and carry between machines, 
 
 <ReleaseHeader date="2026-11-18" packages={["turno-cli@0.3.0", "turno-browser@0.3.0", "turno-core@0.1.0", "turno-fonts@0.1.2"]} />
 
-turno 0.3.0 is mostly about the browser. `turno-browser` is now its own MCP server: it **[signs in to a site without showing the password to the model](/docs/concepts/browser-identities#credential-vault)**, **[moves a signed-in session to another machine](/docs/concepts/browser-identities#moving-a-session)**, **[keeps tabs under control](/docs/concepts/browser-identities#tabs)**, and **[tells the agent what blocks a click](/docs/concepts/browser-identities#actions)**. The CLI gets **[a stable output contract for scripts](/docs/reference/json-output)**, diagnostics you can paste into an issue, and a safe mode. turno also has a home now: [turno.wimo.dev](https://turno.wimo.dev).
+turno 0.3.0 is mostly about the browser. `turno-browser` is now its own MCP server: it **[signs in to a site without showing the password to the model](/docs/browser/vault)**, **[moves a signed-in session to another machine](/docs/browser/moving-a-session)**, **[keeps tabs under control](/docs/browser/tabs#tabs)**, and **[tells the agent what blocks a click](/docs/browser/actions#actions)**. The CLI gets **[a stable output contract for scripts](/docs/reference/json-output)**, diagnostics you can paste into an issue, and a safe mode. turno also has a home now: [turno.wimo.dev](https://turno.wimo.dev).
 
 ## Upgrade
 
@@ -21,7 +21,7 @@ turno 0.3.0 is mostly about the browser. `turno-browser` is now its own MCP serv
 
 ## Highlights
 
-<Highlight area="Browser" title="Sign in without showing the password" href="/docs/concepts/browser-identities#credential-vault" more="Credential vault">
+<Highlight area="Browser" title="Sign in without showing the password" href="/docs/browser/vault" more="Credential vault">
 
 Each browser identity can keep its credentials in the OS secret store, and the new `browser_login` tool fills the site's sign-in form with them. The model never sees the values: they are bound to the site's own origins, redacted from every later result, and script tools are locked on a page that holds them. Submitting stays the agent's click unless the identity opts in.
 
@@ -34,7 +34,7 @@ turno browser vault list school
 
 </Highlight>
 
-<Highlight area="Browser" title="Take a signed-in browser to another machine" href="/docs/concepts/browser-identities#moving-a-session" more="Moving a session">
+<Highlight area="Browser" title="Take a signed-in browser to another machine" href="/docs/browser/moving-a-session" more="Moving a session">
 
 The file holds the identity's cookies, localStorage and IndexedDB, encrypted with a passphrase (scrypt and AES-256-GCM). It expires after 7 days by default and never holds vault credentials. With `"keychain": "system"` in `identity.json`, Chrome also encrypts the cookies on disk with the OS keychain, so a copy of the folder does not carry the sessions.
 
@@ -47,7 +47,7 @@ turno browser import school.turno-session \
 
 </Highlight>
 
-<Highlight area="Browser" title="Tabs that clean up after themselves" href="/docs/concepts/browser-identities#tabs" more="Tabs">
+<Highlight area="Browser" title="Tabs that clean up after themselves" href="/docs/browser/tabs#tabs" more="Tabs">
 
 An agent that browses for an hour used to leave dozens of tabs behind. Now each session keeps at most 8 pages; past that the least recently used one closes, never the agent's current tab. Pop-unders that open while no tool call runs are closed. A tab unused for 5 minutes is parked on a blank page and stops using CPU; the next call that needs it loads it again, and after 15 minutes it closes. Every result says what was closed or parked.
 
@@ -58,13 +58,13 @@ turno browser set school \
 
 </Highlight>
 
-<Highlight area="Browser" title="Fewer round trips, and errors that say what is in the way" href="/docs/concepts/browser-identities#actions" more="Actions">
+<Highlight area="Browser" title="Fewer round trips, and errors that say what is in the way" href="/docs/browser/actions#actions" more="Actions">
 
 `browser_batch` runs up to 20 browser actions in one call: it checks every action first, stops at the first failure, and returns one line per action. A click that times out now says which element covers the target, or that the target is hidden, disabled, read-only or gone, and what to try next. `settle` in `identity.json` sets the wait after each action: in a local benchmark of 8 calls, `"100ms"` cut a form fill from about 1.8 s to 0.6 s.
 
 </Highlight>
 
-<Highlight area="Browser" title="Lighter pages" href="/docs/concepts/browser-identities#blocking-and-the-resource-cache" more="Blocking and the resource cache">
+<Highlight area="Browser" title="Lighter pages" href="/docs/browser/network#blocking-and-the-resource-cache" more="Blocking and the resource cache">
 
 Two opt-in settings per identity, both off by default: `block` drops trackers, images, media or fonts you name, and `cache` keeps images, fonts, stylesheets and scripts on disk for that identity only, following `Cache-Control` and never storing anything tied to a cookie or an `Authorization` header.
 
@@ -105,7 +105,7 @@ turno run work --no-gateway
 - **`turno browser reputation`**: shows the captchas and "verify it's you" pages each identity met, per site.
 - **`turno browser doctor`**: checks Chrome, a smoke launch, the desktop session and every identity, with a fix for each problem.
 - **Lifecycle**: Chrome closes after 15 minutes without a tool call and opens again on the next one, and a Chrome left behind by a killed session is closed on the next start.
-- **Settings by flag**: all of these settings can be changed with flags on `turno identity set` or `turno browser set`. [Browser identities](/docs/concepts/browser-identities).
+- **Settings by flag**: all of these settings can be changed with flags on `turno identity set` or `turno browser set`. [Browser identities](/docs/browser/identities).
 - **Its own MCP server**: `turno-browser` now hosts its MCP server itself instead of wrapping Playwright's program. The 25 tool names, their inputs and every flag are unchanged.
 
 ## Gateway
@@ -135,5 +135,5 @@ What can break a script or a habit when you upgrade from 0.2:
 ## Links
 
 - Full changelogs: [turno-cli](https://github.com/wimo-dev/turno/blob/main/packages/turno/CHANGELOG.md), [turno-browser](https://github.com/wimo-dev/turno/blob/main/packages/browser/CHANGELOG.md), [turno-core](https://github.com/wimo-dev/turno/blob/main/packages/core/CHANGELOG.md) and [turno-fonts](https://github.com/wimo-dev/turno/blob/main/packages/fonts/CHANGELOG.md).
-- Browser: [Browser identities](/docs/concepts/browser-identities) and [What turno stores and where](/docs/security#what-turno-stores).
+- Browser: [Browser identities](/docs/browser/identities) and [What turno stores and where](/docs/security#what-turno-stores).
 - Scripts: [Exit codes](/docs/reference/exit-codes) and [JSON output](/docs/reference/json-output).

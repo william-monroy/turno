@@ -1,869 +1,134 @@
 ---
-title: Browser identities
-description: A browser identity is one persistent Chrome profile that an agent drives, with settings that stay the same between sessions.
+title: "Browser identities"
+description: "Where each part of the old browser identities page lives now, in the turno-browser docs."
 ---
 
-This page explains what a browser identity is and what turno keeps the same about it from one session to the next. To set one up, follow [the guide](/docs/guides/signed-in-browser).
+A browser identity is one persistent Chrome profile that an agent drives. What this page used to hold now has its own area, [turno-browser](/docs/browser), one page per subject. Every heading below is a section of the old page, with a link to where it lives now, so links to this page keep working.
 
 ## One identity, one Chrome profile
 
-`turno-browser` drives the Google Chrome you have installed, headed, with a persistent user data folder per identity and no injected scripts. You sign into a site once by hand; the cookies stay in that identity's profile, and the agent works there afterwards.
-
-```sh
-turno identity add browser:school     # an identity and its mcp.toml entry
-turno identity login browser:school   # sign in by hand once; cookies persist
-turno identity list
-```
-
-Identities live under `~/.local/share/turno/browser/`. They hold live cookies of the sites you signed into: treat that folder as credentials.
+Now in [Identities and settings](/docs/browser/identities#one-identity-one-chrome-profile).
 
 ## Settings that do not change
 
-Each identity keeps an `identity.json` next to its profile with what should stay the same between sessions: time zone, languages, locale and region.
-
-```sh
-turno identity add browser:school --languages es-ES,es,en          # pinned to this time zone
-turno identity set browser:school --timezone Europe/Madrid
-turno identity show browser:school
-```
-
-They are applied at every Chrome start: languages go to Chrome's own `--accept-lang`, the locale to `--lang`, and the time zone is emulated only when it differs from the machine's. An identity without the file uses Chrome's defaults.
+Now in [Identities and settings](/docs/browser/identities#settings-that-do-not-change).
 
 ## One Chrome per identity
 
-While a server drives an identity's Chrome it holds a runtime lock. A second session on the same identity gets an error that names the process holding it and how to stop it, instead of Chrome's "Browser is already in use". That is also why an identity is declared as a `shared`, `exclusive` server ([Scopes](/docs/concepts/scopes#exclusive-shared-one-session-at-a-time)): one agent session uses it at a time, unless you turn on tab sharing.
+Now in [Identities and settings](/docs/browser/identities#one-chrome-per-identity).
 
 ## Several agents, one browser
 
-With `"sharing": "tabs"` several agent sessions use one identity's Chrome at once, each in its own tabs. It is off by default; turn it on per identity and let mcpd send every session to the server:
-
-```sh
-turno identity set browser:school --sharing tabs    # or the server's --sharing tabs
-```
-
-```toml title="~/.config/turno/mcp.toml"
-[server.browser-school]
-command = "turno-browser-mcp"
-args = ["--identity", "school"]
-scope = "shared"
-exclusive = false  # every agent session at once, each in its own tabs
-idle = "30m"
-```
-
-Then run `turno mcp sync`. `turno identity add browser:school --sharing tabs` prints that block.
-`turno browser doctor` warns about the opposite mistake: a server with `exclusive = false` for an
-identity that serves one session at a time, whose sessions would share one current tab.
-
-mcpd marks each call with the session it comes from, and turno-browser gives every session its own backend and current tab:
-
-| What | How |
-|---|---|
-| A session's first call | it works in a free tab, or a new one; never in a tab another session holds |
-| Its tabs | it holds every tab it works on, opens or selects, and the popups those tabs open |
-| Another session's tab | a call on it (`browser_tabs` select or close) waits up to 10 seconds, then fails with a message that names the session holding it and says to open a tab of its own |
-| Letting go | when mcpd says the session ended, when the tab closes, or after 5 minutes without a call from that session; a call in flight always keeps its tabs |
-| `browser_close` | closes only the calling session's tabs; the browser stays open for the others |
-| Tab list | `browser_tabs` lists every tab and marks the ones other sessions hold (`(in use by session 3f2a9c1b)`) |
-| Tab governor | the cap (`max`) counts each session's tabs apart, and no session's current tab is parked or closed |
-
-The 10 seconds and the 5 minutes are the defaults. Change them per identity (identity.json
-format 9; `"0"` makes a call fail at once, or frees a session's tabs between its calls):
-
-```sh
-turno identity set browser:school --tab-lock-wait 30s --tab-lock-release 10m
-```
-
-```json
-{ "sharing": "tabs", "tabLocks": { "wait": "30s", "release": "10m" } }
-```
-
-They only matter with `"sharing": "tabs"`. Read mode works with tab sharing, so they apply there
-too; attach mode does not go with tab sharing, so they never apply to it.
-
-Two sessions' calls run at the same time on their own tabs. Every session shares the identity's profile: the same cookies, storage and signed-in accounts. Tab sharing keeps agents from acting in each other's tabs; it does not separate accounts (use one identity per account for that). Tabs a session leaves behind stay open until the tab governor parks and closes them.
+Now in [Several agents, one browser](/docs/browser/sharing).
 
 ## Lifecycle
 
-| When | What happens |
-|---|---|
-| 15 minutes without a tool call | Chrome closes; it opens again with the same profile on the next call (`TURNO_BROWSER_IDLE` changes it, `"0"` keeps it open) |
-| The server sits idle for `idle` | mcpd stops the server, sooner under memory pressure |
-| mcpd stops the server | it closes the server's stdin and waits 5 seconds before SIGTERM, so Chrome closes and writes its profile on its own |
-| A server was killed and left Chrome open | that Chrome is closed the next time the identity starts |
-| The background server gets no request for 15 minutes | it closes Chrome and exits (`--background-idle` or `TURNO_BROWSER_BACKGROUND_IDLE` changes it, `"0"` keeps it running) |
+Now in [Tabs and lifecycle](/docs/browser/tabs#lifecycle).
 
 ## Tabs
 
-While the agent works, turno keeps the identity's Chrome from piling up pages:
-
-| What | Default | Why |
-|---|---|---|
-| At most `max` pages open | 8 | past it, the least recently used page closes (never the agent's current tab) |
-| Popups that open while no tool call runs | closed | pop-unders and ads; a window the agent's own click opened stays |
-| A page unused for `park` | 5 minutes | it goes to about:blank and stops running; it loads its page again when the agent uses it |
-| A page unused for `close` | 15 minutes | it closes |
-
-Change them in `identity.json` (format 2), with `turno identity set`, or with the server's flags,
-which win over the file:
-
-```json
-{
-  "version": 2,
-  "tabs": { "max": 4, "popups": "keep", "park": "2m", "close": "0" }
-}
-```
-
-```sh
-turno identity set browser:school --tabs-max 4 --tabs-popups keep --tabs-park 2m --tabs-close 0
-turno-browser-mcp --identity school --max-tabs 4 --popups keep --park-after 2m --close-after 0
-```
-
-An empty value removes one key (`--tabs-park ""`) and `--no-tabs` the whole group; `--dry-run
---json` shows the file `set` would write without writing it.
-
-`"0"` turns a stage off and `max: 0` removes the cap. What turno closed or parked is listed at
-the end of the next tool result. Tabs in the background run at full speed, as Playwright launches
-Chrome; `"backgroundThrottling": true` (`turno identity set browser:school
---background-throttling true`, or the server's `--background-throttling`) lets Chrome slow them down
-and brings the agent's tab to the front before each call. It suits a headless browser or a window
-left in view: a covered headed window stops rendering.
+Now in [Tabs and lifecycle](/docs/browser/tabs#tabs).
 
 ## Actions
 
-turno adds `browser_batch` to the browser tools: it runs several actions (`browser_type`,
-`browser_click`, `browser_select_option`, ...) in order in one call, stops at the first one that
-fails, and returns one line per action plus, when asked, one snapshot at the end. A form filled
-in one call costs the agent one round trip instead of one per field.
-
-When a click or a type fails because of the page, the error says why: the element that covers
-the target (a cookie banner, a dialog) with its buttons, or that the target is hidden or
-disabled, and the next step. A target in view that another element covers before the call, and
-still covers it 300 ms later, is named at once: the call does not run, instead of waiting out
-Playwright's 5 second action timeout. Playwright waits 500 ms after each action for the work it started;
-`"settle": "100ms"` in `identity.json` (`turno identity set browser:school --settle 100ms`)
-shortens that wait (Playwright's own `--timeout-settle` wins over it).
+Now in [Actions and the shell](/docs/browser/actions#actions).
 
 ## From the shell
 
-Coding agents that prefer shell commands to MCP tools, and people at a terminal, can drive an
-identity's browser with `turno browser do <id> <action>`. Each command is one tool call through
-mcpd to the identity's `turno-browser-mcp`, the server agents use, so it acts in the same browser
-under the same rules: the profile and its sign-ins, the tab locks or the one-session lease, the
-engine, humanize, recordings and the vault.
-
-```sh
-turno browser do school open https://mail.example.com/
-turno browser do school snapshot           # the page's tree, with refs like e12
-turno browser do school click e12
-turno browser do school type e5 'quarterly report' --submit
-turno browser do school read               # the visible text
-turno browser do school screenshot --out page.png
-turno browser do school end                # end the session; the browser keeps running
-```
-
-`turno browser do --help` lists every action: `open`, `back`, `snapshot`, `read`, `find`,
-`click`, `type`, `press`, `select`, `hover`, `wait`, `screenshot`, `tabs`, `login` (a vault
-sign-in), `call` (any tool of the server, such as `browser_batch`), `close`, `session` and `end`.
-The identity must be served by mcpd (its `[server.browser-<id>]` block in `mcp.toml`, which `turno
-browser add` prints). The command lives under `do` because the other `turno browser`
-subcommands take the identity after their own name (`turno browser show school`), so an identity
-named `show` could not be told from the subcommand. `turno browser school snapshot` works too,
-for an identity whose id is not a subcommand; scripts and agents should write `do`.
-
-Output is short and the same every time: `url:` and `title:` lines, then what the action
-returned (the snapshot for `snapshot`, the text for `read`, `file:` for a screenshot, `note:` for a
-dialog, a new tab or what the tab governor closed). The code Playwright ran and the snapshot file
-an action saves on the server are left out; `--snapshot` after an action prints a fresh snapshot.
-A failed action prints `error:` and upstream's message on stderr and exits 1; mcpd not running
-exits 5. `--json` prints one object (`schemaVersion`, `page`, `result`, `snapshot`, `error`, ...).
+Now in [Actions and the shell](/docs/browser/actions#from-the-shell).
 
 ### One session per agent or shell
 
-The commands one agent or one terminal shell runs are one session, as an agent's tool calls are,
-so they keep their tab between commands. turno keeps the mcpd session open between them and
-saves its id (under `~/.local/state/turno/browser-do/`, private to your user). The session
-belongs to the process that runs the commands: a coding agent (Claude Code and Codex start a
-short-lived shell for every command; turno looks past it to the agent, or takes the agent a turno
-launcher started from `TURNO_SESSION_PID`) or, in a terminal, your shell. It ends when that process
-exits, with `end` or `close`, or when mcpd restarts (the next command then opens a new tab).
-`--session <name>` or `TURNO_BROWSER_SESSION` keeps several sessions apart under one owner, for
-example two subagents each in its own tab; `session` shows which one a command would use.
-
-| The identity | What a CLI session does |
-|---|---|
-| `"sharing": "session"` (default) | it holds the identity's lease like an agent session: while it is open (until `end`, or 10 minutes without a command), an agent's call is refused with a message that names it, and the other way round |
-| `"sharing": "tabs"` | it gets its own tabs next to the agents' and holds them with the same locks; `tabs` marks the others' tabs in use |
-| attach mode | one session at a time, as above (attach does not go with tab sharing); it works in turno's own tab of your Chrome, and `close` closes only the tabs turno opened, never your browser. The first command may wait for Chrome's consent dialog (`--timeout`, default 120 seconds) |
-| read mode (Lightpanda) | every action works but `screenshot` and `login`: the server refuses those before anything runs, with the reason (Lightpanda lays out no page; read mode keeps no vault sign-ins) |
-| humanize | `click`, `type`, `hover`, `select` and `press` move and type like a person, with the latency of the level |
-| recordings | each CLI session is one session to the recorder: with `record.flows` its commands become one `auto-<time>` flow; traces and screenshots cover them like an agent's calls |
-| vault | `login <site>` fills a vault credential; the value never reaches the shell, its history or the output. Never `type` a password |
+Now in [Actions and the shell](/docs/browser/actions#one-session-per-agent-or-shell).
 
 ### Without turno: the background server
 
-`turno-browser do` runs the same actions without turno. With turno installed, `turno browser do`
-goes through mcpd as above; `turno-browser do`, the command of the turno-browser package, goes
-through the identity's background server instead, with the same actions, output, session rules
-(`session`, `end`, `--session`) and exit codes:
-
-```sh
-turno-browser do school open https://example.com   # starts the background server if needed
-turno-browser do school snapshot
-turno-browser do school end
-turno-browser background                           # which background servers run
-turno-browser background stop school               # stop one and its Chrome
-```
-
-The background server is `turno-browser-mcp --identity <id> --background`. The first `do` starts
-it, detached from the shell (`turno-browser background start <id>` starts it ahead), and it serves
-MCP over a Unix socket in `~/.local/state/turno/browser/identities/<id>/background/`, a folder only
-your user can enter (on a system without Unix sockets, 127.0.0.1 with a random token per server in
-a file only your user can read). Its `server.json` there names its pid, its output goes to
-`server.log`, and the sessions of `do` are saved under `do/` there. Each connection is one session
-with the identity's sharing rules: one session at a time with `"sharing": "session"` (another
-session's call gets an error that names the holder; the hold ends with the session, when its
-process exits, or after 5 minutes without a call), its own tabs with `"sharing": "tabs"`. It exits
-after 15 minutes without a request, or on `turno-browser background stop <id>`, closing Chrome
-first. `turno-browser doctor` lists a running background server under its identity.
-
-While the background server of an identity runs, it alone drives that identity's browser. A
-`turno-browser-mcp` that an agent or mcpd started for the same identity answers each call that
-needs the browser with an error naming the background server and the command that stops it, and
-starts no Chrome; the other way round, the background server does not start while another process
-has the identity's Chrome open, and says which one. Calls are never passed from one server to the
-other.
-
-To give an agent the identity without turno, `turno-browser setup <agent> --identity <id>` prints
-its MCP config (it writes nothing): a `claude mcp add` command for `claude-code`, a
-`[mcp_servers]` block for `codex`, an `mcpServers` entry for `cursor`, `copilot` and `gemini`, and
-the generic entry for `json`. `--json` prints it as one object for scripts. Secrets that
-identity.json names as `keychain:<item>` go in the secret store with `turno-browser secret set
-<item>` (the same items `turno secret set` stores). The [turno-browser reference](/docs/reference/turno-browser)
-has the help of every command.
+Now in [Actions and the shell](/docs/browser/actions#without-turno-the-background-server).
 
 ### The skill
 
-The turno plugin for Claude Code adds a short `browser-identity` skill that teaches an agent this
-loop (open, snapshot, act by ref, read, end). It tells the agent to read `turno browser do
---help` first, so its instructions always match the installed turno. See
-[Skills](/docs/concepts/skills).
+Now in [Actions and the shell](/docs/browser/actions#the-skill).
 
 ## Human-like input
 
-By default the browser tools use Playwright's own input: the pointer jumps to the exact center of
-the target in one move, the button goes down and up at once, and `browser_type` inserts the whole
-text without key events. A site that watches how the page is used can tell that apart from a
-person. `humanize` in `identity.json` changes how the same tools move and type, per identity; it is
-off until you turn it on:
-
-```sh
-turno identity set browser:school --humanize light   # or full, adaptive; --humanize "" turns it off
-turno-browser-mcp --identity school --humanize full  # the server's flag wins over identity.json
-```
-
-| Level | What changes |
-|---|---|
-| `off` (default) | Nothing: Playwright's input. |
-| `light` | The pointer travels a curve from where it last was on that page to a point inside the target (one arc, some 4 to 8% longer than the straight line), with small timing jitter; the button stays down for 40 to 90 ms; text up to 80 characters is typed key by key with per-key delays. |
-| `full` | `light`, plus a move time that follows the distance and the target's size, a slow-fast-slow speed, overshoot and correction on long moves, a short pause the first time a page is acted on, longer gaps between words, and an element out of view scrolled to in wheel notches. `browser_mouse_wheel` scrolls in notches too. |
-| `adaptive` | `light`, and `full` on a site where the identity met a captcha, "verify it's you" or block page (in the [reputation log](#reputation-log) of the last 30 days, or in this session). |
-
-It works through the stock tools (`browser_click`, `browser_hover`, `browser_type`,
-`browser_fill_form`, `browser_select_option`, `browser_drag`, `browser_press_key` and the
-coordinate tools) and `browser_batch`, without changing their arguments or results. A
-`browser_login` sign-in clicks into each field and types its value key by key too; the keys go to
-Chrome only, never to a result, a recording or a log. Every event
-still goes through Chrome's own input pipeline, and Playwright still checks that the target is
-visible, enabled and not covered. Longer text is pasted as before, and a field that is not text
-(a date, a color) is filled as before. `"seed"` in the group (`"humanize": { "level": "full",
-"seed": 42 }`) makes every path and delay repeat, for debugging; without it each session draws
-its own, while the pace (speed, typing rhythm) stays the same for the identity.
-
-It costs time on every action. Measured with Chrome 157 headless on macOS, the median of 8 runs
-per tool call:
-
-| Tool call | `off` | `light` | `full` |
-|---|---|---|---|
-| `browser_click`, 670 px away | 50 ms | 0.5 s | 1.1 s |
-| `browser_type`, 11 characters | 10 ms | 2.0 s | 3.5 s |
-| `browser_click` on an element 1,500 px below the view | 50 ms | 0.4 s | 2.6 s |
-
-What it does not do: it does not solve captchas (that is a separate opt-in, [Captcha
-solving](#captcha-solving)), change what the browser reports about itself or hide that a page is
-automated from a site that asks. No public study measures how much human-like
-input lowers the challenges a site shows, so treat it as a way to act at a human pace on your own
-accounts, not as a guarantee. The [acceptable use](#acceptable-use) rules apply the same.
+Now in [Actions and the shell](/docs/browser/actions#human-like-input).
 
 ## Blocking and the resource cache
 
-Both are off until `identity.json` asks for them, per identity:
-
-```json
-{
-  "version": 2,
-  "block": { "trackers": true, "types": ["image", "font"], "patterns": ["ads.example", "*/promo/*"] },
-  "cache": { "maxSize": "100MB" }
-}
-```
-
-```sh
-turno identity set browser:school --block-trackers true --block-types image,font \
-  --block-patterns 'ads.example,*/promo/*' --cache-max-size 100MB
-turno identity set browser:school --no-block --no-cache   # both off again
-```
-
-`trackers` blocks a short built-in list of ad and analytics hosts; `types` takes `image`, `media`
-and `font`; a pattern is a host name (with its subdomains) or a URL with `*`. The page itself is
-never blocked. The cache keeps images, fonts, stylesheets and scripts on disk for this identity
-only, as long as their `Cache-Control` allows, and never a response with `Set-Cookie` or a request
-with `Authorization`. Requests still go out through Chrome. Turn the cache on with blocking:
-blocking turns Chrome's own cache off.
+Now in [Network, user agent and proxy](/docs/browser/network#blocking-and-the-resource-cache).
 
 ## Credential vault
 
-An identity can keep a username, a password and a TOTP secret per site, only in the OS secret store (the macOS Keychain or the Linux Secret Service):
-
-```sh
-turno browser vault add school mail --url https://mail.example.com/login --username alice --totp
-turno browser vault list school
-```
-
-The password and the TOTP secret are asked with hidden prompts (or read from stdin). An agent then calls `browser_login` with the site name on that sign-in page: the tool fills the username, the password and the current one-time code without the agent seeing them, only on the origins given with `--url`, and hides the values from every later result. It does not submit the form unless you run `turno browser vault submit school auto`. See the threat model in [SECURITY.md](https://github.com/wimo-dev/turno/blob/main/SECURITY.md#the-credential-vault).
+Now in [Vault, sign-in and secrets](/docs/browser/vault).
 
 ## Flows: record and replay
 
-An agent can save what it did on a site as a flow and run it again later without working the page out:
-`browser_record` with `action: "start"` and a name, the actions, then `action: "stop"`. `browser_flows`
-lists the saved flows and `browser_replay` runs one. Flows are files per identity under
-`~/.local/share/turno/browser/flows/<id>/`.
-
-Each step keeps the element it acted on four ways (Playwright's own locator, role and accessible
-name, visible text, a CSS path), tried in that order on replay; the snapshot ref is kept for
-reading only, since refs change with every snapshot. When no locator finds exactly one visible
-element, the replay stops and reports the step, each locator and why it did not fit, the steps
-that did not run and a fresh snapshot: the agent does that step itself and calls `browser_replay`
-again with `from` set to the next step.
-
-Text typed into a field becomes a parameter, with what was typed as its default. A sensitive one
-keeps no value: a password field, a one-time code or card field, a field named like `password`,
-`otp`, `pin` or `token`, a vault value typed by hand, or any parameter the agent lists in
-`sensitive` when it stops. A vault sign-in is a `browser_login` step with the site name only.
-Replay needs the sensitive values again; a value written `keychain:<item>` is read from the secret
-store (`turno secret set <item>`), so the agent never sees it.
-
-```sh
-turno browser flows school                       # saved flows and their parameters
-turno browser flows school sign-in               # its steps
-turno browser replay school sign-in --param password=keychain:school-password
-```
-
-`turno browser replay` runs the flow on the identity's Chrome through `turno-browser-mcp`, the
-same way an agent's `browser_replay` does; a sensitive parameter is a `keychain:` reference or
-is typed at a hidden prompt, never a value on the command line.
+Now in [Flows, recordings and traces](/docs/browser/flows#flows-record-and-replay).
 
 ## Recordings and traces
 
-Off by default. Per identity:
-
-```sh
-turno browser record school --flows --traces --screenshots   # what to record, from the next Chrome start
-turno browser record school --off
-turno identity set browser:school --record-traces false --record-max-size 500MB
-```
-
-- `flows` saves every session's actions as a flow named `auto-<time>`; the newest 20 are kept.
-- `traces` records a Playwright trace (DOM snapshots, network, a screencast) of each browser session.
-- `screenshots` takes a JPEG after each action.
-
-Traces and screenshots go to `~/.local/state/turno/browser/identities/<id>/recordings/`, one
-folder per browser session, together at most `record.maxSize` (200MB by default; the oldest go
-first). `turno browser traces school` lists them and `turno browser traces school --open` shows the
-last trace in the trace viewer that patchright-core ships, served on 127.0.0.1 in your default
-browser. A trace is saved when turno closes the browser (idle limit, `browser_close`, end of the
-session) and before a sign-in; if the server is killed, the trace in progress is lost and the
-screenshots stay.
-
-A recording never holds a vault sign-in or a password. Before `browser_login` fills a form, or a
-value goes into a password field, or a replay types a sensitive parameter, the trace is stopped
-and saved; it starts again only after every page that holds the value has navigated away, so
-neither the filled form nor the request that sends it is traced, and no screenshot is taken of
-that page. Each saved trace is then searched for those values and deleted if it holds one. There
-is no video recording, because a video cannot leave a sign-in out. A trace still holds what the
-pages showed and their cookies: treat the folder like the profile itself.
-
-With the other settings:
-
-- `"sharing": "tabs"`: a flow recording belongs to the agent session that started it, and only
-  that session's actions go into it; `browser_replay` runs in that session's own tabs. A trace
-  covers the whole browser, so it holds every session's tabs.
-- Attach mode: flows work; traces and screenshots are refused, because they could show your own
-  tabs. turno says so before it connects, and `turno identity set` refuses the combination.
-- Read mode (`"engine": "lightpanda"`): flows work, but a replayed step that needs Chrome fails
-  like any such tool call; traces and screenshots are refused, since Lightpanda renders no page.
-- `humanize`: a replay runs each step as the stock tool call, so it moves and types like the
-  agent's own calls on that identity.
+Now in [Flows, recordings and traces](/docs/browser/flows#recordings-and-traces).
 
 ## Natural language actions
 
-Off until you turn it on per identity. `browser_act` carries out a short
-instruction on the current tab ("accept the cookie banner, then open the second result") with a
-model choosing one browser action at a time; `browser_extract` reads data off the page as JSON
-from an instruction; `browser_observe` proposes the calls that would do it, without running them.
-
-```sh
-turno identity set browser:school --act                     # your client's model, through MCP sampling
-turno identity set browser:school --act-provider chat-completions \
-  --act-endpoint https://models.example.com/v1 --act-model <model> --act-key keychain:act-model
-turno secret set act-model                                  # the key, asked with a hidden prompt
-turno identity set browser:school --no-act                  # off again
-```
-
-The model is yours to pick. With MCP sampling (`--act`), the agent's own client answers with a
-model it chooses, and turno holds no key; mcpd passes the request to the session that made the
-call. When the client does not offer sampling, or with `--act-sampling false`, turno calls the
-provider you name: any HTTP API in the chat completions shape, which hosted services and local
-model servers both speak (`http://` is accepted only on 127.0.0.1, localhost or [::1]). Its key
-is a `keychain:<item>` reference read from the secret store at each call, never a value in
-identity.json or in a tool argument, and it is hidden from every result like a vault value.
-
-Each call is bounded: at most `act.maxSteps` actions (10 by default, at most 30; a call can ask
-for fewer), `act.maxTokens` model tokens, prompts and replies together (50,000), and
-`act.timeout` (2 minutes). The tools are listed once the server starts with `act` set; turning
-it off takes effect at the next call.
-
-What the model gets and can do is fixed by turno, not by the model:
-
-- The instruction and an accessibility snapshot of the current tab. Vault values are hidden from
-  it, and so are the values of password, one-time code and card fields on the page. An
-  instruction that holds a hidden value is refused: sign-ins go through `browser_login`.
-- It answers with one call at a time from a short list: `browser_click`, `browser_type`,
-  `browser_fill_form`, `browser_select_option`, `browser_press_key`, `browser_hover`,
-  `browser_drag`, `browser_wait_for`, `browser_navigate_back`. It cannot navigate to a URL, open
-  or close tabs, run script, upload files or call turno's tools, so text on a page that tries to
-  steer it can at worst click and type on that page. A call that would type into a password or
-  one-time code field is refused.
-- The result lists every step, what the model said it was for, how it ended and the budget used.
-
-What it costs: every call sends the instruction and the page's content (what the snapshot shows,
-including the text of your signed-in pages) to the model's provider, and a model can misread a
-page and click the wrong thing. Use it on your own accounts, for steps you would check.
-
-With the other settings:
-
-- `"sharing": "tabs"`: it runs in the calling session's own tabs, under its tab locks.
-- Attach mode: it works in the agent's own tab of your Chrome, never in your tabs.
-- Read mode (`"engine": "lightpanda"`): `browser_extract` and `browser_observe` work; `browser_act`
-  can only use the tools read mode runs (no drag).
-- [Camoufox](#camoufox): it works, through the same stock tools.
-- [A proxy](#a-proxy): the proxy's user name and password are hidden from the prompt like vault
-  values.
-- `humanize`: each action is the stock tool call, so it moves and types like the agent's own calls.
-- Recordings: a flow records the stock steps the model chose, never the instruction, the prompt or
-  the page it read, and a trace or screenshot covers those steps like any other.
+Now in [Natural language actions and captcha solving](/docs/browser/natural-language-and-captchas#natural-language-actions).
 
 ## Captcha solving
 
-Off until you turn it on per identity. `browser_solve_captcha` finds a
-captcha widget on the current tab (reCAPTCHA v2, hCaptcha or Turnstile), sends its kind, its
-public site key and the page address to a solver service you configure, and puts the token it
-returns into the page's response field (and calls the widget's callback when it names one). The
-agent then submits the form itself, before the token expires.
-
-```sh
-turno secret set captcha-solver                             # the service's account key, hidden prompt
-turno identity set browser:shop --captcha-provider task-api \
-  --captcha-endpoint https://solver.example.com --captcha-key keychain:captcha-solver
-turno identity set browser:shop --no-captcha                # off again
-```
-
-`task-api` is the `createTask` and `getTaskResult` protocol that many solver services share; the
-endpoint is the service's API address. The key is read from the secret store at each use and
-hidden from every result. A solve waits at most `captcha.timeout` (3 minutes).
-
-Say plainly what it means before you turn it on:
-
-- A third party sees the challenge and the page: the solver gets the page address and the
-  widget, and usually loads the page on its own machines (or has people answer it) to produce
-  the token.
-- Solving a site's captchas by machine may break its terms of service, and a site that notices
-  may suspend the account. It is meant for your own accounts, on sites where you accept that.
-- It only answers widgets that hand back a token. A full-page "checking your browser" page, a
-  "verify it's you" prompt or a block page is left to you in the window.
-
-Every attempt, solved or not, is a line in the identity's [reputation log](#reputation-log) with
-the host name, the widget kind and the provider (never the token or the key), and `turno browser
-reputation` shows a `solved` column once a solver answered.
-
-With the other settings: it works with `"sharing": "tabs"` (in the calling session's tab) and in
-attach mode (in the agent's own tab); read mode refuses it, since Lightpanda runs no widget, and
-`turno identity set` refuses the combination. Camoufox refuses it too: the token is set from
-Patchright's isolated script world and the widget's callback runs in the page's own, and Camoufox
-runs on stock Playwright. It is not recorded in a flow: a replay that meets
-the captcha again stops at the next step, where the agent can call `browser_solve_captcha` and go
-on with `from`.
+Now in [Natural language actions and captcha solving](/docs/browser/natural-language-and-captchas#captcha-solving).
 
 ## Live view and take-over
 
-Off by default. Watch what the agent does in an identity's browser, and take the controls when it
-needs you (a captcha, a confirmation, a page it does not understand):
-
-```sh
-turno browser set school --live true     # from the next turno-browser-mcp for the identity
-turno browser live school                # status, and opens the view in your default browser
-turno browser pause school               # the agent's next call waits for you
-turno browser resume school              # it goes on, and is told what changed
-```
-
-`turno-browser-mcp --identity school --live` turns it on for one server, and `--live-wait 5m`
-changes how long a paused call waits (identity.json `"live": { "enabled": true, "wait": "2m" }`;
-from `"5s"` to `"30m"`, 2 minutes by default).
-
-The view is a page with the agent's tab as a picture (a screencast over CDP, sent only while a view
-is open), a list of tabs with "Follow the agent" (the tab of the latest call) as the default, and
-Pause and Resume buttons. While the agent is paused, your clicks, keys and scrolls on the picture go
-to that tab. In a headed Chrome you can also use the window itself: `turno browser pause` brings the
-agent's tab to the front.
-
-What a pause does:
-
-- A call that is running finishes. The next call of the agent (every session of the identity)
-  waits, up to the live wait; then it fails with a message that says you still have the browser,
-  and the next call waits again. A `browser_batch`, `browser_replay` or `browser_act` in progress
-  stops at its next step. The natural language and captcha tools (`browser_act`, `browser_extract`,
-  `browser_observe`, `browser_solve_captcha`) wait like any other call; tools that do not touch the
-  browser (`browser_flows`) are not held.
-- While you have the browser, the idle limit does not close it, the tab governor parks and closes
-  nothing (a popup you open stays), and a trace (if `record.traces` is on) is saved, so what you do
-  is not in it.
-- On resume each waiting call starts with a note: how long the pause lasted and what changed (the
-  current tab's URL and title, tabs opened and closed, your input in the view). When nothing
-  changed the call runs. When something changed, a call that only reads (a snapshot, the tab list,
-  `browser_extract`, `browser_observe`) runs; any other call does not, because the refs of the
-  agent's last snapshot may point elsewhere, and the agent gets an error that says so, with a fresh
-  snapshot.
-
-How it is protected:
-
-- The view is served on 127.0.0.1 only, on a random port. It answers only a browser that holds the
-  server's cookie: a random token made at start, never written to disk or logged.
-  `turno browser live` gets a link from the server whose code works once, within two minutes,
-  opens it, and never prints it. Requests must name the server by its loopback address (no DNS
-  rebinding), and the buttons only work from the view's own page.
-- `turno browser live`, `pause` and `resume` talk to the server through a Unix socket in a private
-  folder (mode 700). `~/.local/state/turno/browser/identities/<id>/live.json` says where it is, and
-  holds no secret.
-- A page that holds a vault value or a password is never shown: before `browser_login` fills a
-  form (at once, or key by key with `humanize`), a value goes into a password field, or a replay types a sensitive parameter, the view stops
-  sending that page and says it is hidden, until the page navigates. Your input is not sent to a
-  hidden page either. With the live view on, the script tools are refused on such a page, as they
-  are while recording.
-- Your input in the view is not logged, traced or recorded in a flow; a flow being recorded does
-  not have what you did, and the resume note says so.
-
-With the other settings:
-
-- Attach mode: you already see the agent's tabs in your own Chrome, and a view would stream your
-  own tabs, so the view is off and `turno browser live` says so. Pause and resume work; act in your
-  Chrome, then resume.
-- Read mode (`"engine": "lightpanda"`): Lightpanda renders no pixels, so there is no view. Pause
-  and resume work.
-- [Camoufox](#camoufox): the view is a Chrome DevTools Protocol screencast, which Firefox does not
-  have, so there is no view. Pause and resume work; with a headed Camoufox, act in its window.
-- [A proxy](#a-proxy): the view's tab list hides the proxy's user name and password like vault
-  values. The proxy signs in inside the browser, so no page holds them to show.
-- `"sharing": "tabs"`: a pause holds every session. The view lists every tab with the session that
-  holds it and follows the tab of the latest call from any session; pick a tab to stay on it. Each
-  held call's note is about its own session's current tab.
-- `humanize`: the view shows the humanized pointer moves, but not the sign-in form `browser_login`
-  types key by key (the page is hidden first); your own input from the view is sent as is, and is
-  never humanized.
-- `turno browser do`: each command is a call of a session like an agent's, so a pause holds it
-  too. It prints the pause note as `note:` lines, and a command that the pause kept from running
-  fails with exit code 1.
-- Natural language actions and captcha solving: held like any call; a `browser_act` run that the
-  pause meets stops before its next step and says which steps ran.
-- Recordings: see above; screenshots are taken only after the agent's actions, never of yours.
+Now in [Live view and take-over](/docs/browser/live-view).
 
 ## Moving a session
 
-```sh
-turno browser export school --out school.session --expires 2d
-turno browser import school.session --as school-laptop
-```
-
-The export holds the identity's cookies, localStorage and IndexedDB, encrypted with a passphrase you type (asked twice, or the first line of stdin), and is refused after its expiry (7 days by default, at most 90). It never holds vault credentials. Importing into an identity that exists replaces its session, so turno asks first (or needs `--yes`).
-
-By default Chrome encrypts an identity's cookies with a fixed key that is the same on every machine, so the profile folder is as sensitive as the sessions in it. `"keychain": "system"` in identity.json makes Chrome use the macOS Keychain or the Linux Secret Service instead. Changing it signs the identity out (its cookies were encrypted with the other key): export first and import after.
+Now in [Moving a session](/docs/browser/moving-a-session).
 
 ## Session health
 
-An optional health check names a page and what it shows only when signed in:
-
-```sh
-turno identity set browser:school --health-url https://mail.example.com/ --health-text Inbox
-```
-
-When Chrome starts (at most every 30 minutes while it passes) turno checks it. If the proof is missing, the identity is `NEEDS_AUTH`: tool calls fail with a message that asks you to run `turno browser login <id>`.
+Now in [Identities and settings](/docs/browser/identities#session-health).
 
 ## Reputation log
 
-Each captcha, "verify it's you" or block page the identity meets is one line in its state folder, with the site's host name only: no path, no page content. With [captcha solving](#captcha-solving) on, each solve attempt is a line too.
-
-```sh
-turno browser reputation school    # counts per site, and whether they go up or down
-```
+Now in [Identities and settings](/docs/browser/identities#reputation-log).
 
 ## Network and user agent
 
-Two settings change how an identity's browser reaches sites. Both are off by default and set per
-identity in `identity.json` (format 11). The default, your own Chrome on your own connection, is
-already one coherent browser. These settings are for your own accounts and for sites you may
-automate, and the choice is yours. Each one has a cost to weigh:
-
-- a browser whose parts disagree (a user agent from one Chrome, client hints from another, a time
-  zone that does not match the address) stands out more than one that changes nothing;
-- many sites' terms forbid proxies or automated access, and a sign-in from a new network can lock
-  an account until you confirm it is you;
-- a proxy's operator sees which sites the identity visits, and the full content of plain `http://`
-  pages.
-
-```sh
-turno identity set browser:school --user-agent coherent
-turno identity set browser:school --proxy-server http://proxy.example.com:8080 \
-  --proxy-username alice --proxy-password keychain:school-proxy
-turno secret set school-proxy        # the password, typed into the secret store
-turno identity set browser:school --no-proxy --user-agent ""   # both off again
-```
+Now in [Network, user agent and proxy](/docs/browser/network#network-and-user-agent).
 
 ### A coherent user agent
 
-`"userAgent": "coherent"` takes no value of yours: turno builds the user agent from the Chrome you
-have installed and never takes a typed string. A typed user agent says one thing while the client
-hints, `navigator.platform`, WebGL, the fonts and the TLS handshake still say what the browser
-really is, which is the inconsistency the setting is there to avoid. The Chrome version and the
-platform are never configurable for the same reason: measured with Chrome 157, a page's dedicated
-workers keep the real `navigator.platform` whatever the override, and a popup's first request
-carries the real client hints platform.
-
-What it does:
-
-- **Headed** (the default): nothing changes, since a headed Chrome already presents itself as it
-  is. The launch check below still runs.
-- **Headless**: a headless Chrome says `HeadlessChrome` in its user agent while its client hints say
-  `Google Chrome`. turno gives it the user agent a headed Chrome of the same version and OS sends
-  (Chrome's `--user-agent` switch, which every request, popup and worker carries), and, since that
-  switch alone blanks the client hints' full version list, architecture and platform version,
-  gives each page those values back as this same Chrome reports them. They are read once per
-  Chrome version by a short headless launch on a throwaway profile and kept in the state folder.
-  Workers take them from their page, and a tab a tool opens has them before it loads. A popup a
-  page opens gets them as soon as it exists, which can be after its first document loaded.
-- **Languages and time zone** come from the identity (`--languages`, `--timezone`) or from the
-  computer, as without the setting.
-- **The launch check**: before the agent gets the browser, turno loads a page of its own (answered
-  inside Chrome, so nothing goes out) and compares what it reads: no `HeadlessChrome`, brands and
-  full version list that name the Chrome that runs, the high entropy values this Chrome reports
-  (on Linux Chrome reports an empty platform version, so turno does too), one platform in the user
-  agent, the client hints and `navigator.platform`, the request's headers equal to what the page reads, the
-  languages and time zone you asked for, and dates formatted in the first language. Any
-  contradiction stops the launch with what disagreed. On macOS Chrome takes the date and number
-  format from the system language, not from flags, so languages that start with another language
-  are refused there: start them with the system's, or change the macOS language.
-
-`pnpm bench:fingerprint --configs default,user-agent-coherent,user-agent-coherent-tz` shows the
-result: the headless token gone, and the headers, a worker, the client hints and the Intl locale
-agreeing with the page.
+Now in [Network, user agent and proxy](/docs/browser/network#a-coherent-user-agent).
 
 ### A proxy
 
-`proxy.server` is an `http://`, `https://`, `socks4://` or `socks5://` URL with a host and port
-only. The credentials never go in the URL or in `identity.json`: `proxy.password` is always a
-`keychain:<item>` reference to the secret store (`turno secret set <item>`), and `proxy.username`
-is a name or a reference too. Chrome cannot sign in to a SOCKS proxy, so a SOCKS proxy takes no
-credentials. turno reads them when the browser starts and hides the user name, the password and
-their `Basic` encoding from every tool result; a missing item stops the start, so no request goes
-out without the proxy. `turno browser doctor` checks that the item exists without reading it.
-
-All of the identity's traffic goes through the proxy, `turno browser login` included, so a site
-sees one network for both. WebRTC is limited to the proxy too, so a page cannot learn your own
-address that way. Sites see the proxy's address, and its operator sees where you go.
+Now in [Network, user agent and proxy](/docs/browser/network#a-proxy).
 
 ### With the other settings
 
-| | `userAgent` | `proxy` |
-|---|---|---|
-| Attach mode | refused: it is your own Chrome, and turno does not change it | refused, for the same reason |
-| Read mode | refused: Lightpanda presents its own user agent | refused: not checked with a proxy |
-| Camoufox | refused: Firefox sends no client hints, and Camoufox presents its own values | works (WebRTC limited the same way) |
-| Tab sharing, humanize | work | work |
-| Natural language actions, live view, `turno browser do` | work | work; the act model's prompt and the view's tab list hide the credentials like vault values |
-| Recordings | work | flows and screenshots work; `record.traces` is refused with a proxy password, since a trace keeps the browser's launch options, password included |
-| A server flag of its own (`--user-agent`, `--device`, `--proxy-server`) | refused: keep one | refused: keep one |
-
-Each refusal comes when you set the key, or, for a server flag that clashes with the file, at
-the first tool call, before any browser opens.
+Now in [Network, user agent and proxy](/docs/browser/network#with-the-other-settings).
 
 ## Engines
 
-An identity runs on the Chrome turno launches on its own profile. Three other engines are there
-when you ask for one, per identity in `identity.json` (format 6, format 11 for Camoufox) or per
-server with a flag, which wins over the file:
-
-| Engine | Set it | What it is for |
-|---|---|---|
-| Chrome (default) | nothing, or `--engine chrome` | everything: the identity's own profile, headed |
-| Read mode | `--engine lightpanda` | reading pages fast and with little memory, on Lightpanda |
-| Attach | `--attach auto` | working in the Chrome you already have open and signed in |
-| Camoufox | `--engine camoufox` | a Firefox build, on its own profile |
-
-```sh
-turno browser set school --engine lightpanda     # read mode for this identity
-turno browser set school --attach auto           # attach to your own Chrome
-turno browser set school --engine "" --attach "" # back to the default
-turno-browser-mcp --engine lightpanda            # read mode for one server, no identity
-```
-
-With [several agents in one browser](#several-agents-one-browser) and
-[human-like input](#human-like-input): read mode works with `"sharing": "tabs"`, and attach mode
-with `humanize`. The other two pairs are refused with the reason, in `identity.json` and from
-server flags: attach mode with `"sharing": "tabs"` (in your own Chrome turno keeps one agent's
-tabs apart from yours, not several sessions apart from each other), and read mode with
-`humanize` (Lightpanda lays out no page, so there is no pointer path or scroll to play).
-Camoufox works with both, and with recordings.
+Now in [Engines](/docs/browser/engines).
 
 ### Read mode (Lightpanda)
 
-[Lightpanda](https://github.com/lightpanda-io/browser) is a headless browser built for
-automation: it runs scripts and builds the page, but does not lay it out or draw it. turno never
-downloads it. Install it yourself (`brew install lightpanda-io/browser/lightpanda` on macOS, the
-nightly binary on Linux), and turno runs the `lightpanda` on your PATH, or the one at
-`TURNO_LIGHTPANDA_PATH`. `turno browser doctor` shows the one it found and how to install it.
-
-turno starts `lightpanda serve` on a private Unix socket (no TCP port) with Lightpanda's
-telemetry off, and stops it when the session closes or after the idle limit. A Lightpanda left
-running by a server that was killed (SIGKILL gives it no chance to clean up) is stopped when the
-next read mode server for the same identity starts, as a Chrome left behind on a profile is. For an identity,
-Lightpanda keeps its own cookies in `lightpanda-cookies.json` in the identity's state folder: it
-never reads or writes the Chrome profile, so a site you signed into in Chrome is not signed in
-here, and read mode runs no health check, reputation log, blocking or cache.
-
-These tools run in read mode; the others are refused with the reason before they reach the
-browser:
-
-| Runs | Refused, and why |
-|---|---|
-| `browser_navigate`, `browser_navigate_back`, `browser_snapshot` (without what is inside an iframe), `browser_find` | `browser_take_screenshot`: no layout, so a screenshot shows only the text |
-| `browser_click` (a link with `target="_blank"` opens nothing) | `browser_resize`, `browser_emulate_media`, `browser_drag`, `browser_drop`: no layout |
-| `browser_hover`, `browser_type`, `browser_press_key`, `browser_select_option`, `browser_fill_form` | `browser_handle_dialog`: Lightpanda closes dialogs by itself |
-| `browser_evaluate`, `browser_wait_for`, `browser_tabs`, `browser_close`, `browser_batch` | `browser_file_upload`, `browser_run_code_unsafe` |
-| `browser_network_requests`, `browser_network_request`, `browser_console_messages` | `browser_login`: read mode keeps no vault sign-ins |
-| `browser_act`, `browser_extract`, `browser_observe` (when [turned on](#natural-language-actions)) | `browser_solve_captcha`: no captcha widget runs |
-
-Checked with Lightpanda 1.1.0 (nightly) through Patchright. Lightpanda's CDP answers a few calls
-differently from Chrome's, so turno passes its traffic through a small relay that turns those
-answers into ones Patchright handles.
-
-Measured on one machine (an Apple M3 with 16 GB, macOS 26.5, Chrome 157, Lightpanda 1.1.0
-nightly; median of five runs): three local pages from a fixture server (an article, a list of
-2,000 links, a page that builds 500 rows with a script), each opened and snapshotted five times
-through the MCP server, headless Chrome against Lightpanda:
-
-| | Chrome (headless) | Lightpanda |
-|---|---|---|
-| Memory after the three pages (browser processes, RSS) | 913 MB | 64 MB |
-| Peak memory | 958 MB | 93 MB |
-| First call, browser start included | 1,329 ms | 307 ms |
-| Article: open and snapshot | 206 ms | 106 ms |
-| 2,000 links: open and snapshot | 707 ms | 420 ms |
-| 500 script-built rows: open and snapshot | 311 ms | 311 ms |
-
-The memory numbers held steady from run to run. The times did not: the machine was busy during
-the runs and single runs varied by a factor of two or more, so read them as a rough ratio, not a
-promise. Your numbers will differ.
-
-Use read mode for public pages you only need to read. It is not a way to visit sites that block
-automation: Lightpanda sends `Lightpanda/1.0` as its user agent, and `browser_login` is
-refused there.
+Now in [Engines](/docs/browser/engines#read-mode-lightpanda).
 
 ### Camoufox
 
-[Camoufox](https://camoufox.com) is a Firefox build that sets what the browser reports (screen,
-fonts, WebGL and the like) inside the browser itself. turno can run an identity on it, off by
-default. Two things to weigh before you turn it on: a Firefox whose reported values differ from
-the computer's is something sites look for, and Camoufox is a third party's build of Firefox
-that you install and keep up to date yourself.
-
-turno never downloads it. Two things must be installed, and `turno browser doctor` checks both
-and prints how to install them:
-
-- Camoufox: `pip install -U camoufox && camoufox fetch`. turno runs the newest build in the
-  installer's cache folder, or the executable at `TURNO_CAMOUFOX_PATH`.
-- Stock Playwright of the same minor version as the Patchright turno-browser uses
-  (`npm install -g playwright-core@<version>`, or its folder at `TURNO_PLAYWRIGHT_CORE`):
-  Patchright drives Chromium only, and Firefox speaks Playwright's own protocol.
-
-For an identity, Camoufox keeps its own Firefox profile in the identity's state folder
-(`camoufox-profile`): the Chrome profile and its sign-ins do not carry over, and
-`turno browser login` (which opens the Chrome profile) is refused; sign in from an agent session,
-with `browser_login` and the vault. The identity's runtime lock holds while it runs. turno passes
-it no generated values: it presents what its build reports for this computer, with the identity's
-languages and time zone, and its `proxy` when set. `userAgent` and `"keychain": "system"` are
-refused with it, and so is attach mode.
-
-Every stock tool runs except `browser_run_code_unsafe`, which runs code written for Patchright's
-API; it is refused with the reason. With the opt-in features:
-
-- [Natural language actions](#natural-language-actions) and `browser_login` work, and so does
-  [`turno browser do`](#from-the-shell), which calls the same server.
-- [Captcha solving](#captcha-solving) is refused, in `identity.json` and, with `--engine camoufox`,
-  when `browser_solve_captcha` is called: it relies on Patchright's script worlds.
-- The [live view](#live-view-and-take-over) shows no picture, since it is a Chrome screencast;
-  pause and resume work.
-
-That was checked with Playwright's own Firefox build in Camoufox's place (an official Camoufox
-build was not available to test), along with a proxy, humanize, tab sharing, recordings,
-natural language actions, `browser_login` and the live view's pause. The health check, reputation log, blocking and cache run the
-same code as with Chrome and were not checked on Firefox separately.
+Now in [Engines](/docs/browser/engines#camoufox).
 
 ### Attach to your Chrome
 
-Attach mode connects to the Chrome you already have open instead of launching one, so the agent
-works in your real, signed-in browser. It is off until you set it, and it is a big grant: the
-agent can see and act on every window and every signed-in site of that Chrome profile.
-
-Since Chrome 136, `--remote-debugging-port` is ignored on Chrome's default profile, so the way in
-is Chrome's own switch: open `chrome://inspect/#remote-debugging` (Chrome 144 or newer) and turn
-remote debugging on. Chrome then asks you to allow each new connection, and turno waits up to 60
-seconds for your answer. That dialog is the consent step; turno cannot answer it for you.
-
-`--attach` takes `auto` (your default Chrome profile), the absolute path of a Chrome user data
-folder (Chrome Beta or Canary, or a Chrome you started with `--remote-debugging-port` and its own
-`--user-data-dir`), or a loopback endpoint (`http://127.0.0.1:9222`). It never connects to
-another machine.
-
-turno never closes your browser or a tab it did not open:
-
-- it opens a tab of its own when it connects and works there, so its first navigation never
-  replaces one of your pages; the agent can still list and select your tabs;
-- a tab that opens during one of its tool calls is the agent's; tabs that were open before, or
-  that you open between calls, are yours;
-- `browser_close`, the end of the session and the idle limit close the agent's tabs and
-  disconnect; Chrome keeps running (after the idle limit, the next call connects again, and Chrome
-  may ask again);
-- the tab governor counts, parks and closes only the agent's tabs, and closes no popup;
-- there is no runtime lock and no orphan sweep for that Chrome: those act on the identity's own
-  profile, which attach mode does not use; the identity's health check, reputation log, blocking
-  and cache do not apply either;
-- `browser_run_code_unsafe` is refused: it would run arbitrary code against your whole browser.
+Now in [Engines](/docs/browser/engines#attach-to-your-chrome).
 
 ## Doctor
 
-```sh
-turno browser doctor          # Chrome and its version, a test launch, Lightpanda, Camoufox, and each identity's settings, engine, lock, sign-in and proxy credentials
-turno browser doctor --fix    # clears stale locks, a Chrome left running with no server, and a stray Lightpanda
-```
-
-Each finding has its own page under [Troubleshooting](/docs/troubleshooting#turno-browser-doctor).
+Now in [Identities and settings](/docs/browser/identities#doctor).
 
 ## Acceptable use
 
-Use it with your own accounts, on sites whose terms allow automated access by you, and at a human pace. The same goes for the [network and user agent settings](#network-and-user-agent) and Camoufox: they are for your own accounts and sites you may automate. Do not use it to get around access controls, paywalls or rate limits, to scrape at scale, or to access accounts that are not yours. Captcha solving is off unless you turn it on, and then it is for your own accounts only, with the costs [above](#captcha-solving). How you use the browser on third-party sites is between you and each site's terms.
+Now in [Natural language actions and captcha solving](/docs/browser/natural-language-and-captchas#acceptable-use).

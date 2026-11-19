@@ -1,11 +1,11 @@
 ---
-title: Browser tools compared
-description: How turno-browser compares with Playwright MCP, chrome-devtools-mcp, browser-use, Stagehand, Steel, Browserbase and agent-browser, and when each one is the better choice.
+title: "Browser tools compared"
+description: "How turno-browser compares with Playwright MCP, chrome-devtools-mcp, browser-use, Stagehand, Steel, Browserbase and agent-browser, and when each one is the better choice."
 ---
 
 This page helps you pick a browser tool for an agent. turno-browser is the layer above the browser driver: identities, a credential vault, sessions you can move, several agents in one browser, record and replay, a live view, and limits on what Chrome keeps in memory. It runs the Playwright MCP tools on your own Chrome, so it sits next to the tools below rather than replacing Playwright.
 
-Every claim about another project comes from its own docs or repository, checked on 2026-11-19 and listed under [Sources](#sources). Projects change quickly: check their docs before you decide. Facts about turno-browser come from [Browser identities](/docs/concepts/browser-identities), [the guide](/docs/guides/signed-in-browser), [Security](/docs/security) and [Benchmarks](/docs/benchmarks).
+Every claim about another project comes from its own docs or repository, checked on 2026-11-19 and listed under [Sources](#sources). Projects change quickly: check their docs before you decide. Facts about turno-browser come from [Browser identities](/docs/browser/identities), [the guide](/docs/guides/signed-in-browser), [Security](/docs/security) and [Benchmarks](/docs/benchmarks).
 
 ## At a glance
 
@@ -61,7 +61,7 @@ Every claim about another project comes from its own docs or repository, checked
 
 | | |
 |---|---|
-| **turno-browser** | Chrome closes after 15 minutes without a tool call and opens again on the next one. A tab governor caps open pages (8 by default) and parks and closes unused ones. Read mode on Lightpanda measured 64 MB against 913 MB for headless Chrome on the same pages ([measurement](/docs/concepts/browser-identities#read-mode-lightpanda)). |
+| **turno-browser** | Chrome closes after 15 minutes without a tool call and opens again on the next one. A tab governor caps open pages (8 by default) and parks and closes unused ones. Read mode on Lightpanda measured 64 MB against 913 MB for headless Chrome on the same pages ([measurement](/docs/browser/engines#read-mode-lightpanda)). |
 | Playwright MCP | `--idle-timeout` closes the browser after an hour without a call when headless; a headed browser stays open unless you set it. |
 | chrome-devtools-mcp | It starts the browser only when a tool needs one. |
 | agent-browser | The daemon closes a headless browser after an hour without commands (headed browsers are exempt), and it can run on Lightpanda. |

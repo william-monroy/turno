@@ -1,0 +1,61 @@
+---
+title: "Identities and settings"
+description: "A browser identity is one persistent Chrome profile that an agent drives, with settings that stay the same between sessions."
+---
+
+This page explains what a browser identity is, what stays the same about it from one session to the next, and how to check that it is healthy. To set one up, follow [Get started](/docs/browser/get-started).
+
+## One identity, one Chrome profile
+
+`turno-browser` drives the Google Chrome you have installed, headed, with a persistent user data folder per identity. You sign into a site once by hand; the cookies stay in that identity's profile, and the agent works there afterwards.
+
+```sh
+turno identity add browser:school     # an identity and its mcp.toml entry
+turno identity login browser:school   # sign in by hand once; cookies persist
+turno identity list
+```
+
+Identities live under `~/.local/share/turno/browser/`. They hold live cookies of the sites you signed into: treat that folder as credentials.
+
+## Settings that do not change
+
+Each identity keeps an `identity.json` next to its profile with what should stay the same between sessions: time zone, languages, locale and region.
+
+```sh
+turno identity add browser:school --languages es-ES,es,en          # pinned to this time zone
+turno identity set browser:school --timezone Europe/Madrid
+turno identity show browser:school
+```
+
+They are applied at every Chrome start: languages go to Chrome's own `--accept-lang`, the locale to `--lang`, and the time zone is emulated only when it differs from the machine's. An identity without the file uses Chrome's defaults.
+
+## One Chrome per identity
+
+While a server drives an identity's Chrome it holds a runtime lock. A second session on the same identity gets an error that names the process holding it and how to stop it, instead of Chrome's "Browser is already in use". That is also why an identity is declared as a `shared`, `exclusive` server ([Scopes](/docs/concepts/scopes#exclusive-shared-one-session-at-a-time)): one agent session uses it at a time, unless you turn on tab sharing.
+
+## Session health
+
+An optional health check names a page and what it shows only when signed in:
+
+```sh
+turno identity set browser:school --health-url https://mail.example.com/ --health-text Inbox
+```
+
+When Chrome starts (at most every 30 minutes while it passes) turno checks it. If the proof is missing, the identity is `NEEDS_AUTH`: tool calls fail with a message that asks you to run `turno browser login <id>`.
+
+## Reputation log
+
+Each captcha, "verify it's you" or block page the identity meets is one line in its state folder, with the site's host name only: no path, no page content. With [captcha solving](/docs/browser/natural-language-and-captchas#captcha-solving) on, each solve attempt is a line too.
+
+```sh
+turno browser reputation school    # counts per site, and whether they go up or down
+```
+
+## Doctor
+
+```sh
+turno browser doctor          # Chrome and its version, a test launch, Lightpanda, Camoufox, and each identity's settings, engine, lock, sign-in and proxy credentials
+turno browser doctor --fix    # clears stale locks, a Chrome left running with no server, and a stray Lightpanda
+```
+
+Each finding has its own page under [Troubleshooting](/docs/troubleshooting#turno-browser-doctor).

@@ -68,7 +68,7 @@ Two cases need no copy. To look at an artifact, `turno open <profile> <url>` ope
 
 ## browser-identity
 
-This one moves nothing between accounts: it teaches the agent to work in a [browser identity](/docs/concepts/browser-identities#from-the-shell) with shell commands instead of MCP tools. Claude Code loads it when you ask for web work with an identity ("check the grades as school"). It is short on purpose and tells the agent to read `turno browser do --help` first, so what it does always matches the turno you have installed. Its rules: one session per agent (subagents name their own with `--session`), `end` when done, `login <site>` for anything secret instead of typing it, and on an error the agent reads the message and tells you the command it names rather than changing your setup.
+This one moves nothing between accounts: it teaches the agent to work in a [browser identity](/docs/browser/actions#from-the-shell) with shell commands instead of MCP tools. Claude Code loads it when you ask for web work with an identity ("check the grades as school"). It is short on purpose and tells the agent to read `turno browser do --help` first, so what it does always matches the turno you have installed. Its rules: one session per agent (subagents name their own with `--session`), `end` when done, `login <site>` for anything secret instead of typing it, and on an error the agent reads the message and tells you the command it names rather than changing your setup.
 
 ## What the moves rely on
 

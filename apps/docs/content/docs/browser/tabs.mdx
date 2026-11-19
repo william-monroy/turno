@@ -1,0 +1,52 @@
+---
+title: "Tabs and lifecycle"
+description: "How turno-browser keeps an identity's Chrome from piling up pages, and when Chrome itself closes and opens again."
+---
+
+A browser an agent leaves open for hours should not eat the machine. This page lists what closes, when, and how to change each limit.
+
+## Lifecycle
+
+| When | What happens |
+|---|---|
+| 15 minutes without a tool call | Chrome closes; it opens again with the same profile on the next call (`TURNO_BROWSER_IDLE` changes it, `"0"` keeps it open) |
+| The server sits idle for `idle` | mcpd stops the server, sooner under memory pressure |
+| mcpd stops the server | it closes the server's stdin and waits 5 seconds before SIGTERM, so Chrome closes and writes its profile on its own |
+| A server was killed and left Chrome open | that Chrome is closed the next time the identity starts |
+| The background server gets no request for 15 minutes | it closes Chrome and exits (`--background-idle` or `TURNO_BROWSER_BACKGROUND_IDLE` changes it, `"0"` keeps it running) |
+
+## Tabs
+
+While the agent works, turno keeps the identity's Chrome from piling up pages:
+
+| What | Default | Why |
+|---|---|---|
+| At most `max` pages open | 8 | past it, the least recently used page closes (never the agent's current tab) |
+| Popups that open while no tool call runs | closed | pop-unders and ads; a window the agent's own click opened stays |
+| A page unused for `park` | 5 minutes | it goes to about:blank and stops running; it loads its page again when the agent uses it |
+| A page unused for `close` | 15 minutes | it closes |
+
+Change them in `identity.json` (format 2), with `turno identity set`, or with the server's flags,
+which win over the file:
+
+```json
+{
+  "version": 2,
+  "tabs": { "max": 4, "popups": "keep", "park": "2m", "close": "0" }
+}
+```
+
+```sh
+turno identity set browser:school --tabs-max 4 --tabs-popups keep --tabs-park 2m --tabs-close 0
+turno-browser-mcp --identity school --max-tabs 4 --popups keep --park-after 2m --close-after 0
+```
+
+An empty value removes one key (`--tabs-park ""`) and `--no-tabs` the whole group; `--dry-run
+--json` shows the file `set` would write without writing it.
+
+`"0"` turns a stage off and `max: 0` removes the cap. What turno closed or parked is listed at
+the end of the next tool result. Tabs in the background run at full speed, as Playwright launches
+Chrome; `"backgroundThrottling": true` (`turno identity set browser:school
+--background-throttling true`, or the server's `--background-throttling`) lets Chrome slow them down
+and brings the agent's tab to the front before each call. It suits a headless browser or a window
+left in view: a covered headed window stops rendering.

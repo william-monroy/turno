@@ -1,0 +1,25 @@
+{
+  "title": "turno-browser",
+  "description": "A browser your agents use with your accounts",
+  "root": true,
+  "pages": [
+    "index",
+    "get-started",
+    "---Identities and sessions---",
+    "identities",
+    "sharing",
+    "tabs",
+    "vault",
+    "moving-a-session",
+    "---Actions---",
+    "actions",
+    "flows",
+    "live-view",
+    "---Reach---",
+    "network",
+    "engines",
+    "natural-language-and-captchas",
+    "---More---",
+    "alternatives"
+  ]
+}

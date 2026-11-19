@@ -350,7 +350,7 @@ turno identity login browser:school  # sign in by hand once; cookies persist
 ```
 
 `turno-browser` is its own MCP server. It drives the installed Google Chrome, headed, with a
-persistent profile per identity and no injected scripts; each identity keeps its time zone,
+persistent profile per identity; each identity keeps its time zone,
 languages and locale fixed (`turno browser show|set <id>`).
 
 - **It cleans up after itself.** At most 8 tabs per session's browser, an unused tab is parked
@@ -371,7 +371,7 @@ languages and locale fixed (`turno browser show|set <id>`).
 - **Health you can read.** `turno browser doctor [--fix]` checks Chrome and every identity, and
   `turno browser reputation` shows how often each site challenged it.
 
-More in [Browser identities](https://turno.wimo.dev/docs/concepts/browser-identities) and
+More in [Browser identities](https://turno.wimo.dev/docs/browser/identities) and
 [`turno browser`](https://turno.wimo.dev/docs/reference/cli/browser).
 
 **Acceptable use.** Use it with your own accounts, on sites whose terms allow automated access

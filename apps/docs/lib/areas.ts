@@ -3,22 +3,23 @@ import type { ReactNode } from "react";
 import { localePath } from "@/lib/layout.shared";
 
 /**
- * The docs have four areas, each a root folder in content/docs with its own sidebar:
- * `(docs)` (a folder group, so its pages keep their URLs), `reference`, `troubleshooting` and
- * `releases`.
+ * The docs have five areas, each a root folder in content/docs with its own sidebar:
+ * `(docs)` (a folder group, so its pages keep their URLs), `browser` (turno-browser's own docs),
+ * `reference`, `troubleshooting` and `releases`.
  */
-export type AreaId = "docs" | "reference" | "troubleshooting" | "releases";
+export type AreaId = "docs" | "browser" | "reference" | "troubleshooting" | "releases";
 
 const AREAS: { id: AreaId; path: string }[] = [
   { id: "docs", path: "/docs" },
+  { id: "browser", path: "/docs/browser" },
   { id: "reference", path: "/docs/reference" },
   { id: "troubleshooting", path: "/docs/troubleshooting" },
   { id: "releases", path: "/docs/releases" },
 ];
 
 const NAMES: Record<string, Record<AreaId, string>> = {
-  en: { docs: "Docs", reference: "Reference", troubleshooting: "Troubleshooting", releases: "Releases" },
-  es: { docs: "Documentación", reference: "Referencia", troubleshooting: "Solución de problemas", releases: "Versiones" },
+  en: { docs: "Docs", browser: "turno-browser", reference: "Reference", troubleshooting: "Troubleshooting", releases: "Releases" },
+  es: { docs: "Documentación", browser: "turno-browser", reference: "Referencia", troubleshooting: "Solución de problemas", releases: "Versiones" },
 };
 
 export interface AreaLink {

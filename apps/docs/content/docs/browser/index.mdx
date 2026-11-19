@@ -1,0 +1,57 @@
+---
+title: "turno-browser"
+description: "A browser your agents use with your accounts. It stays light on your machine, and the model never sees your passwords."
+---
+
+turno-browser is an MCP server that lets a coding agent drive the Google Chrome installed on your machine, with one persistent profile per identity. You sign in to a site once, by hand, and the agent works in that same signed-in browser afterwards.
+
+It is its own package and works without turno. With turno, the gateway runs one browser server for every session of every agent.
+
+```sh
+npm install --global turno-browser
+turno-browser add school      # a new identity, and how to connect an agent to it
+turno-browser login school    # sign in by hand once; cookies persist
+```
+
+[Get started](/docs/browser/get-started) goes through those steps and gives the identity to your agent.
+
+## What it does
+
+| The problem | What turno-browser does | Read |
+|---|---|---|
+| Your agent opens a browser that is not signed in | each identity is a real Chrome profile that keeps its cookies | [Identities and settings](/docs/browser/identities) |
+| A browser left open eats the machine | pages are capped, parked and closed, and Chrome closes when no agent calls it | [Tabs and lifecycle](/docs/browser/tabs) |
+| Passwords should not pass through a model | a vault in the system keychain fills a sign-in form, and the agent never sees the values | [Vault, sign-in and secrets](/docs/browser/vault) |
+
+## On from the start
+
+| | |
+|---|---|
+| [Actions and the shell](/docs/browser/actions) | `browser_batch`, errors that say what is in the way, and `turno-browser do` from a terminal |
+| [Flows](/docs/browser/flows) | an agent saves what it did on a site and runs it again |
+| [Moving a session](/docs/browser/moving-a-session) | a signed-in session in one encrypted file, for another machine |
+| [Session health, reputation and doctor](/docs/browser/identities#session-health) | a signed-out identity says so, and each site's challenges are counted |
+
+## Off until you turn it on
+
+Each of these is a setting of an identity. Whether to turn one on is your call; each page says what it does and what it costs.
+
+| | |
+|---|---|
+| [Several agents, one browser](/docs/browser/sharing) | several sessions in one identity's Chrome, each in its own tabs |
+| [Live view and take-over](/docs/browser/live-view) | watch the agent's tab, pause it and act yourself |
+| [Recordings and traces](/docs/browser/flows#recordings-and-traces) | every session as a flow, a trace and screenshots |
+| [Human-like input](/docs/browser/actions#human-like-input) | the pointer moves along a curve and text is typed key by key |
+| [Blocking and the resource cache](/docs/browser/network#blocking-and-the-resource-cache) | block trackers and resource types, and cache static files on disk |
+| [A coherent user agent and a proxy](/docs/browser/network#network-and-user-agent) | how an identity's browser reaches sites |
+| [Engines](/docs/browser/engines) | read mode on Lightpanda, attach to your own Chrome, or Camoufox |
+| [Natural language actions](/docs/browser/natural-language-and-captchas#natural-language-actions) | `browser_act`, `browser_extract` and `browser_observe`, on a model you pick |
+| [Captcha solving](/docs/browser/natural-language-and-captchas#captcha-solving) | `browser_solve_captcha`, through a solver service you configure |
+
+## Reference and help
+
+- Every command, with the help it prints: [turno-browser reference](/docs/reference/turno-browser).
+- With turno: the guide [Let an agent use my signed-in browser](/docs/guides/signed-in-browser) and [turno browser](/docs/reference/cli/browser).
+- When something fails: [Troubleshooting](/docs/troubleshooting).
+- How it compares with other tools: [Browser tools compared](/docs/browser/alternatives).
+- What it is for: [Acceptable use](/docs/browser/natural-language-and-captchas#acceptable-use).

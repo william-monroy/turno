@@ -127,7 +127,7 @@ Configurations are data in `bench/browser/lib/configs.mjs`: server flags, `ident
 | `tabs-4` | at most 4 open pages |
 | `humanize-light`, `humanize-full` | human-like input levels (needs a turno-browser that has them) |
 | `lightpanda` | read mode on Lightpanda (needs `lightpanda` on PATH or `TURNO_LIGHTPANDA_PATH`; tools read mode refuses count as failed tasks) |
-| `camoufox` | Camoufox as the engine (needs Camoufox and a matching `playwright-core`, see [Camoufox](/docs/concepts/browser-identities#camoufox)) |
+| `camoufox` | Camoufox as the engine (needs Camoufox and a matching `playwright-core`, see [Camoufox](/docs/browser/engines#camoufox)) |
 | `user-agent-coherent`, `user-agent-coherent-tz` | `"userAgent": "coherent"`, the second with a time zone other than the computer's; both expect the headless token gone and the consistency checks to pass |
 
 A configuration the server does not accept (an unknown `identity.json` key, engine or flag, or a Lightpanda or Camoufox that is not installed) is reported as unsupported instead of failing. More go in a JSON file passed with `--config-file`, for example a before and after of an update, or Chrome Beta:
