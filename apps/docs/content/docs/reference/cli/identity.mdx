@@ -26,7 +26,7 @@ Usage:
       <duration>] [--block-trackers true|false] [--block-types image,media,font]
       [--block-patterns <host|glob>,...] [--no-block] [--cache]
       [--cache-max-size <size>] [--no-cache] [--humanize
-      off|light|full|adaptive] [--dry-run] [--json]
+      off|light|full|adaptive] [--sharing session|tabs] [--dry-run] [--json]
                                 change a browser identity's identity.json:
                                 place, languages, health check, tabs, blocking,
                                 cache
@@ -55,6 +55,7 @@ Examples:
   $ turno identity set browser:school --settle 500ms --dry-run --json
   $ turno identity set browser:school --humanize adaptive
   $ turno identity set browser:school --no-block --no-cache
+  $ turno identity set browser:school --sharing tabs
   $ turno identity prefer ~/code/acme linear=linear:work
   $ turno identity remove linear:work --dry-run
   $ turno identity log --verify
@@ -111,7 +112,7 @@ Usage:
       <duration>] [--block-trackers true|false] [--block-types image,media,font]
       [--block-patterns <host|glob>,...] [--no-block] [--cache]
       [--cache-max-size <size>] [--no-cache] [--humanize
-      off|light|full|adaptive] [--dry-run] [--json]
+      off|light|full|adaptive] [--sharing session|tabs] [--dry-run] [--json]
     change a browser identity's identity.json: place, languages, health check,
     tabs, blocking, cache
 
@@ -131,6 +132,9 @@ How the host runs this identity's Chrome (read at every Chrome start):
   --block-patterns <list>         block host names (and subdomains) or URL globs with *
   --cache                         keep images, fonts, styles and scripts on disk (100MB)
   --cache-max-size <size>         the cache's size, "1MB" to "10GB"; turns the cache on
+  --sharing session|tabs          "tabs": every agent session at once, each in its own locked
+                                  tabs (default "session": one at a time); mcp.toml then needs
+                                  exclusive = false for the identity's server
 
 Blocking without the cache turns Chrome's own HTTP cache off: use them together.
 
@@ -147,6 +151,7 @@ Examples:
   $ turno identity set browser:school --settle 500ms --dry-run --json
   $ turno identity set browser:school --humanize adaptive
   $ turno identity set browser:school --no-block --no-cache
+  $ turno identity set browser:school --sharing tabs
 ```
 
 ### turno identity remove
