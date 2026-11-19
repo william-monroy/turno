@@ -53,6 +53,18 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   const pageSection = () => `### Page\n- Page URL: ${page.url}\n- Page Title: Page of ${session.slice(0, 8)}`;
   const ran = "### Ran Playwright code\n```js\nawait page.something();\n```";
   const snapLink = "### Snapshot\n- [Snapshot](.playwright-mcp/page.yml)";
+  // The live view: the user paused the browser while this call waited (turno-browser's note).
+  const paused = (lines) =>
+    `### Paused by the user\nThe user paused this browser (the live view) for 12s and has resumed it.\nWhile you waited:\n${lines}`;
+  if (process.env.FAKE_PAUSED_RAN === name)
+    return text(
+      `${paused("- Title: \"A\" -> \"B\"")}\nYour ${name} call ran after the resume; its result follows.\n\n${ran}\n${pageSection()}\n${snapLink}`,
+    );
+  if (process.env.FAKE_PAUSED_NOT_RUN === name)
+    return text(
+      `### Error\n${name} was not run: the user changed the browser while you waited (below).\n\n${paused("- Current tab: about:blank -> http://127.0.0.1:9/b")}\nYour ${name} call was not run: the browser changed while you waited, so the refs of your last snapshot may point elsewhere. A fresh snapshot follows; decide the next step from it.\n\n${pageSection()}\n${snapLink}`,
+      true,
+    );
   if (process.env.FAKE_REFUSE === name)
     return text(`### Error\n${name} is refused in read mode: Lightpanda does not lay pages out`, true);
   switch (name) {

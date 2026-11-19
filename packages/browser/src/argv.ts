@@ -5,6 +5,8 @@ import { browserPaths as paths } from "turno-core/paths";
 import { HUMANIZE_LEVELS, type HumanizeLevel } from "./humanize.js";
 import { assertIdentityId, identityDir } from "./identities.js";
 import type { EngineFlags } from "./engine.js";
+import type { LiveFlags } from "./live.js";
+import { MAX_LIVE_WAIT_MS, MIN_LIVE_WAIT_MS } from "./settings.js";
 import { parseAttachTarget } from "./engine-attach.js";
 import type { TuningFlags } from "./tuning.js";
 import { parseDuration } from "./units.js";
@@ -28,7 +30,7 @@ import { parseDuration } from "./units.js";
  *
  * The tab governor, background throttling, humanize and sharing flags (`TUNING_FLAGS`) are turno's: they are
  * taken out here and win over identity.json. So are `--engine <chrome|lightpanda>` and `--attach <target>` (`engine.ts`); with either and
- * no identity there is no Chrome profile to create.
+ * no identity there is no Chrome profile to create. So are `--live` and `--live-wait <duration>` (`live.ts`), which need an identity.
  *
  * An identity holds saved logins, so serving it over HTTP (`--port`, `--host`) lets any local
  * process drive a signed-in browser without the stdio pipe or mcpd's token. That needs
@@ -49,6 +51,8 @@ export interface BuiltArgv {
   tuning?: TuningFlags;
   /** `--engine` and `--attach`, when given. */
   engineFlags?: EngineFlags;
+  /** `--live` and `--live-wait`, when given. */
+  live?: LiveFlags;
 }
 
 /** The keys of the Playwright MCP config file that turno sets (pinned by the contract test). */
@@ -225,6 +229,31 @@ export function extractEngine(args: string[]): { engineFlags?: EngineFlags; rest
   return out.engine !== undefined || out.attach !== undefined ? { engineFlags: out, rest } : { rest };
 }
 
+/** Removes `--live` and `--live-wait <duration>` from args and returns their values, checked. */
+function extractLive(args: string[]): { live?: LiveFlags; rest: string[] } {
+  const rest: string[] = [];
+  const out: LiveFlags = {};
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    if (a === "--live") {
+      out.live = true;
+      continue;
+    }
+    if (a.startsWith("--live=")) throw new Error("--live takes no value");
+    const wait = valueAt(args, i, "--live-wait");
+    if (!wait) {
+      rest.push(a);
+      continue;
+    }
+    const ms = parseDuration(wait.value);
+    if (ms === undefined || ms < MIN_LIVE_WAIT_MS || ms > MAX_LIVE_WAIT_MS)
+      throw new Error(`--live-wait must be a duration from "5s" to "30m", like "2m", not "${wait.value}"`);
+    out.waitMs = ms;
+    i += wait.used - 1;
+  }
+  return out.live !== undefined || out.waitMs !== undefined ? { live: out, rest } : { rest };
+}
+
 /** Removes `--identity <id>` / `--identity=<id>` from args and returns the id. */
 export function extractIdentity(args: string[]): { identity?: string; rest: string[] } {
   const rest: string[] = [];
@@ -254,12 +283,20 @@ export function buildArgv(rawArgs: string[], options: BuildOptions = {}): BuiltA
   const env = options.env ?? process.env;
   const { identity, rest: afterIdentity } = extractIdentity(rawArgs);
   const { tuning, rest: afterTuning } = extractTuning(afterIdentity);
-  const { engineFlags, rest } = extractEngine(afterTuning);
+  const { engineFlags, rest: afterEngine } = extractEngine(afterTuning);
+  const { live, rest } = extractLive(afterEngine);
+  // The live view's control socket and live.json belong to the identity's state folder.
+  if (live && identity === undefined) throw new Error("--live and --live-wait apply only with --identity");
   const allowHttp = rest.includes(ALLOW_HTTP_IDENTITY);
   const args = rest.filter((a) => a !== ALLOW_HTTP_IDENTITY);
   guardHttp(args, identity, allowHttp);
   const external = hasAny(args, EXTERNAL_BROWSER);
-  const out: BuiltArgv = { args, ...(tuning ? { tuning } : {}), ...(engineFlags ? { engineFlags } : {}) };
+  const out: BuiltArgv = {
+    args,
+    ...(tuning ? { tuning } : {}),
+    ...(engineFlags ? { engineFlags } : {}),
+    ...(live ? { live } : {}),
+  };
   const otherEngine = engineFlags?.engine === "lightpanda" || engineFlags?.attach !== undefined;
   if (otherEngine) {
     const clash = ["--isolated", "--user-data-dir", ...EXTERNAL_BROWSER].find((f) => hasFlag(args, f));

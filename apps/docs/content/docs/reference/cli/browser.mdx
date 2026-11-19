@@ -7,15 +7,15 @@ description: "Developer tool: compare browser engines (needs turno-browser)"
 
 ```text title="turno browser --help"
 Usage:
-  turno browser identities [--json]  list browser identities and whether they
-                                     are in use
+  turno browser identities [--json]   list browser identities and whether they
+                                      are in use
   turno browser add <id> [--timezone <zone>] [--locale <tag>] [--languages
       <tag,...>] [--region <CC>] [--health-url <url> --health-text <text>]
       [--dry-run]
-                                     create an identity (pinned to this time
-                                     zone) and print its mcp.toml block
-  turno browser show <id> [--json]   an identity's settings, session health and
-                                     who holds it
+                                      create an identity (pinned to this time
+                                      zone) and print its mcp.toml block
+  turno browser show <id> [--json]    an identity's settings, session health and
+                                      who holds it
   turno browser set <id> [--timezone <zone>] [--locale <tag>] [--languages
       <tag,...>] [--region <CC>] [--health-url <url>] [--health-text <text>]
       [--health-selector <css>] [--no-health] [--tabs-max <n>] [--tabs-popups
@@ -33,57 +33,66 @@ Usage:
       keychain:<item>] [--act-max-steps <n>] [--act-max-tokens <n>]
       [--act-timeout <duration>] [--no-act] [--captcha-provider task-api]
       [--captcha-endpoint <url>] [--captcha-key keychain:<item>]
-      [--captcha-timeout <duration>] [--no-captcha] [--dry-run] [--json]
-                                     change an identity's identity.json (an
-                                     empty value removes a setting)
+      [--captcha-timeout <duration>] [--no-captcha] [--live true|false]
+      [--live-wait <duration>] [--no-live] [--dry-run] [--json]
+                                      change an identity's identity.json (an
+                                      empty value removes a setting)
   turno browser doctor [--fix] [--no-launch] [--json]
-                                     check Chrome, a test launch and every
-                                     identity (settings, lock, sign-in), with
-                                     fixes
+                                      check Chrome, a test launch and every
+                                      identity (settings, lock, sign-in), with
+                                      fixes
   turno browser reputation [<id>] [--json]
-                                     challenges each identity met per site
-                                     (captcha, verify it's you, block) and their
-                                     trend
+                                      challenges each identity met per site
+                                      (captcha, verify it's you, block) and
+                                      their trend
   turno browser vault add|list|remove|submit <id> ...
-                                     credentials browser_login fills without
-                                     showing them to the agent
+                                      credentials browser_login fills without
+                                      showing them to the agent
   turno browser record <id> [--flows] [--traces] [--screenshots] [--max-size
       <size>] [--off] [--dry-run] [--json]
-                                     what an identity records (flows, traces,
-                                     screenshots); turn it on or off
+                                      what an identity records (flows, traces,
+                                      screenshots); turn it on or off
   turno browser flows <id> [<flow>] [--remove] [--dry-run] [--json]
-                                     an identity's saved flows; name one to see
-                                     its steps, --remove to delete it
+                                      an identity's saved flows; name one to see
+                                      its steps, --remove to delete it
   turno browser replay <id> <flow> [--param <name=value>]... [--from <step>]
       [--headless] [--json]
-                                     run a saved flow on the identity's Chrome,
-                                     without an agent
+                                      run a saved flow on the identity's Chrome,
+                                      without an agent
   turno browser traces <id> [<recording>] [--open] [--segment <n>] [--json]
-                                     an identity's recordings (traces,
-                                     screenshots); --open shows a trace in the
-                                     viewer
+                                      an identity's recordings (traces,
+                                      screenshots); --open shows a trace in the
+                                      viewer
+  turno browser live <id> [--no-open] [--json]
+                                      watch the agent in an identity's browser
+                                      and take the controls (opens the live
+                                      view)
+  turno browser pause <id> [--json]   pause the agent in an identity's browser:
+                                      its next call waits until you resume
+  turno browser resume <id> [--json]  give the browser back to the agent; each
+                                      waiting call is told what changed
   turno browser export <id> --out <file> [--expires 7d] [--force]
-                                     write an identity's cookies and site
-                                     storage to a file encrypted with a
-                                     passphrase
+                                      write an identity's cookies and site
+                                      storage to a file encrypted with a
+                                      passphrase
   turno browser import <file> [--as <id>] [--yes] [--dry-run]
-                                     replace an identity's session with an
-                                     export (asks first), or create it
+                                      replace an identity's session with an
+                                      export (asks first), or create it
   turno browser remove <id> [--dry-run]
-                                     delete an identity, its saved logins and
-                                     its vault
+                                      delete an identity, its saved logins and
+                                      its vault
   turno browser login <id> [--url <url>]
-                                     open the identity's Chrome to sign in by
-                                     hand once
+                                      open the identity's Chrome to sign in by
+                                      hand once
   turno browser do <id> <action> [args] [--session <name>] [--json]
-                                     one action on an identity's browser from
-                                     the shell: open, snapshot, click, type,
-                                     read...
+                                      one action on an identity's browser from
+                                      the shell: open, snapshot, click, type,
+                                      read...
   turno browser bench [--engine <name>]... [--url <url>]... [--only-urls]
       [--yes] [--json]
-                                     check how each browser engine loads
-                                     reference test pages and your URLs (asks
-                                     first)
+                                      check how each browser engine loads
+                                      reference test pages and your URLs (asks
+                                      first)
 
 A developer diagnostic for browser engine compatibility. It needs the separate
 turno-browser package (npm install --global turno-browser).
@@ -110,6 +119,10 @@ Examples:
   $ turno browser flows school
   $ turno browser replay school submit-timesheet --param password=keychain:school-password
   $ turno browser traces school --open
+  $ turno browser set school --live true
+  $ turno browser live school
+  $ turno browser pause school
+  $ turno browser resume school
   $ turno browser export school --out school.session --expires 2d
   $ turno browser import school.session --as school-laptop
   $ turno browser remove school --dry-run
@@ -178,7 +191,8 @@ Usage:
       keychain:<item>] [--act-max-steps <n>] [--act-max-tokens <n>]
       [--act-timeout <duration>] [--no-act] [--captcha-provider task-api]
       [--captcha-endpoint <url>] [--captcha-key keychain:<item>]
-      [--captcha-timeout <duration>] [--no-captcha] [--dry-run] [--json]
+      [--captcha-timeout <duration>] [--no-captcha] [--live true|false]
+      [--live-wait <duration>] [--no-live] [--dry-run] [--json]
     change an identity's identity.json (an empty value removes a setting)
 
 Each flag writes one key of identity.json; an empty value (--settle "") removes it, and
@@ -246,12 +260,18 @@ party you pick, and many sites' terms forbid them; the server lists their tools 
   --captcha-timeout <duration>    longest wait for a solution (default 3m)
   --no-act, --no-captcha          turn them off
 
+The live view and take-over (off by default; turno browser live, pause, resume):
+  --live <bool>                   serve a view of the agent's tab on 127.0.0.1 and let you pause
+                                  the agent to take the controls (from the next server start)
+  --live-wait <duration>          how long a paused call waits for you, "5s" to "30m" (default 2m)
+
 Examples:
   $ turno browser set school --health-url https://mail.example.com/ --health-text Inbox
   $ turno browser set school --tabs-max 5 --tabs-popups keep --settle 250ms
   $ turno browser set school --block-trackers true --cache --json
   $ turno browser set school --humanize light
   $ turno browser set school --sharing tabs
+  $ turno browser set school --live true
 ```
 
 ### turno browser doctor
@@ -375,6 +395,58 @@ vault sign-in or the idle limit ends one): --segment picks one, the last by defa
 
 Examples:
   $ turno browser traces school --open
+```
+
+### turno browser live
+
+```text
+Usage:
+  turno browser live <id> [--no-open] [--json]
+    watch the agent in an identity's browser and take the controls (opens the
+    live view)
+
+Shows what the agent is doing (paused or not, its tabs) and opens the live view in your
+default browser: the agent's tab as a picture, Pause and Resume buttons, and while the agent is
+paused, your clicks, keys and scrolls go to the page. The view is served on 127.0.0.1 only; the
+link it opens works once. Off by default: turn it on with turno browser set <id> --live true
+(it starts with the next turno-browser-mcp for the identity).
+
+Read mode (Lightpanda) has no pixels and attach mode is your own Chrome, which you already see:
+there the view is off, and pause and resume still work. A page that holds a vault or password
+value is never shown until it navigates.
+
+Examples:
+  $ turno browser live school
+```
+
+### turno browser pause
+
+```text
+Usage:
+  turno browser pause <id> [--json]  pause the agent in an identity's browser:
+                                     its next call waits until you resume
+
+A call that is running finishes; the next one waits up to the identity's live wait (2m by
+default), then fails and tells the agent you still have the browser. A batch or replay stops at its
+next step. In a headed Chrome the agent's tab comes to the front. Needs the live view on.
+
+Examples:
+  $ turno browser pause school
+```
+
+### turno browser resume
+
+```text
+Usage:
+  turno browser resume <id> [--json]  give the browser back to the agent; each
+                                      waiting call is told what changed
+
+The waiting calls go on. Each starts with a note: how long the pause lasted and what changed
+(the current tab's URL and title, tabs opened and closed, your input in the view). When something
+changed, a call that does more than read does not run, and the agent gets a fresh snapshot instead.
+
+Examples:
+  $ turno browser resume school
 ```
 
 ### turno browser export

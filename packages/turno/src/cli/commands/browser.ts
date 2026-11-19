@@ -17,6 +17,7 @@ import {
 } from "./browser-do.js";
 import * as flowCmd from "./browser-flows.js";
 import * as ident from "./browser-identity.js";
+import * as liveCmd from "./browser-live.js";
 import * as session from "./browser-session.js";
 import { vaultCommand } from "./browser-vault.js";
 
@@ -35,7 +36,7 @@ export type { BrowserApi };
  * The API version this turno was built against. Typed by the package's own constant, so a
  * change of its API_VERSION in the workspace fails the typecheck until this line follows.
  */
-export const BROWSER_API: typeof API_VERSION = { major: 1, minor: 8 };
+export const BROWSER_API: typeof API_VERSION = { major: 1, minor: 9 };
 
 /** What the package exports that the loader looks at. */
 interface BrowserPackage {
@@ -76,6 +77,8 @@ export interface BrowserDeps {
   interactive(io: Io): boolean;
   /** Ask a yes/no question; true only for an explicit yes. */
   confirm(question: string, io: Io): Promise<boolean>;
+  /** Opens a link in the default browser (`turno browser live`); tests inject a fake. */
+  openUrl?: liveCmd.OpenUrl;
 }
 
 async function askOnTerminal(question: string): Promise<boolean> {
@@ -303,12 +306,18 @@ export async function dispatch(
         return await flowCmd.traces(mod, rest, io);
       case "record":
         return flowCmd.record(mod, rest, io);
+      case "live":
+        return await liveCmd.live(mod, rest, io, deps.openUrl);
+      case "pause":
+        return await liveCmd.pause(mod, rest, io);
+      case "resume":
+        return await liveCmd.resume(mod, rest, io);
       default:
         return fail(`unknown browser command "${sub}"`);
     }
   } catch (err) {
     const name = (err as Error).name;
-    if (name === "IdentityError" || name === "VaultError" || name === "SealError" || name === "FlowError")
+    if (["IdentityError", "VaultError", "SealError", "FlowError", "LiveError"].includes(name))
       return fail((err as Error).message);
     throw err;
   }
@@ -447,6 +456,42 @@ vault sign-in or the idle limit ends one): --segment picks one, the last by defa
       json: flowCmd.TRACES_JSON,
       run: withModule("traces"),
     },
+    live: {
+      summary: "watch the agent in an identity's browser and take the controls (opens the live view)",
+      synopsis: "<id> [--no-open] [--json]",
+      details: `Shows what the agent is doing (paused or not, its tabs) and opens the live view in your
+default browser: the agent's tab as a picture, Pause and Resume buttons, and while the agent is
+paused, your clicks, keys and scrolls go to the page. The view is served on 127.0.0.1 only; the
+link it opens works once. Off by default: turn it on with turno browser set <id> --live true
+(it starts with the next turno-browser-mcp for the identity).
+
+Read mode (Lightpanda) has no pixels and attach mode is your own Chrome, which you already see:
+there the view is off, and pause and resume still work. A page that holds a vault or password
+value is never shown until it navigates.`,
+      flags: ["--no-open", "--json"],
+      json: liveCmd.LIVE_JSON,
+      run: withModule("live"),
+    },
+    pause: {
+      summary: "pause the agent in an identity's browser: its next call waits until you resume",
+      synopsis: "<id> [--json]",
+      details: `A call that is running finishes; the next one waits up to the identity's live wait (2m by
+default), then fails and tells the agent you still have the browser. A batch or replay stops at its
+next step. In a headed Chrome the agent's tab comes to the front. Needs the live view on.`,
+      flags: ["--json"],
+      json: liveCmd.LIVE_JSON,
+      run: withModule("pause"),
+    },
+    resume: {
+      summary: "give the browser back to the agent; each waiting call is told what changed",
+      synopsis: "<id> [--json]",
+      details: `The waiting calls go on. Each starts with a note: how long the pause lasted and what changed
+(the current tab's URL and title, tabs opened and closed, your input in the view). When something
+changed, a call that does more than read does not run, and the agent gets a fresh snapshot instead.`,
+      flags: ["--json"],
+      json: liveCmd.LIVE_JSON,
+      run: withModule("resume"),
+    },
     export: {
       summary: "write an identity's cookies and site storage to a file encrypted with a passphrase",
       synopsis: "<id> --out <file> [--expires 7d] [--force]",
@@ -508,6 +553,10 @@ vault sign-in or the idle limit ends one): --segment picks one, the last by defa
       "turno browser flows school",
       "turno browser replay school submit-timesheet --param password=keychain:school-password",
       "turno browser traces school --open",
+      "turno browser set school --live true",
+      "turno browser live school",
+      "turno browser pause school",
+      "turno browser resume school",
       "turno browser export school --out school.session --expires 2d",
       "turno browser import school.session --as school-laptop",
       "turno browser remove school --dry-run",

@@ -61,6 +61,12 @@ Engines (these flags win over the identity's identity.json; both are off by defa
                            data dir, or a loopback endpoint. The agent sees every window of
                            that profile; turno closes only the tabs it opened
 
+Live view (wins over the identity's identity.json; off by default):
+  --live                   serve a view of the agent's tab on 127.0.0.1 (turno browser live
+                           <id> opens it) and let you pause the agent to take the controls
+  --live-wait <duration>   how long a call waits while you have the agent paused (default 2m,
+                           "5s" to "30m"); then it fails and tells the agent you still have it
+
 Examples:
   turno-browser-mcp --identity work
   turno-browser-mcp --identity work --max-tabs 4 --park-after 2m
@@ -68,6 +74,7 @@ Examples:
   turno-browser-mcp --headless --popups keep
   turno-browser-mcp --engine lightpanda
   turno-browser-mcp --attach auto
+  turno-browser-mcp --identity work --live
 
 Every other flag is a Playwright MCP flag:
 `;
@@ -131,4 +138,5 @@ await runHost(built.args, {
   ...(built.identity !== undefined ? { identity: { id: built.identity, env: process.env } } : {}),
   ...(built.tuning ? { tuning: built.tuning } : {}),
   ...(built.engineFlags ? { engineFlags: built.engineFlags } : {}),
+  ...(built.live ? { live: built.live } : {}),
 });

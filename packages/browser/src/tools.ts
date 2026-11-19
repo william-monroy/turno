@@ -46,6 +46,11 @@ export interface StockAccess {
   page(): Promise<{ url: string; title: string } | undefined>;
   /** The current tab itself (`browser_login` fills it). */
   currentPage(): Page | undefined;
+  /**
+   * Why the session's browser calls are held right now (the user paused the agent in the live
+   * view), or undefined. A tool that runs several steps stops before its next one.
+   */
+  held?(): string | undefined;
 }
 
 interface TurnoToolContext {

@@ -36,6 +36,7 @@ type RecordSettings = NonNullable<IdentitySettings["record"]>;
 type ActSettings = NonNullable<IdentitySettings["act"]>;
 type CaptchaSettings = NonNullable<IdentitySettings["captcha"]>;
 type TabLockSettings = NonNullable<IdentitySettings["tabLocks"]>;
+type LiveSettings = NonNullable<IdentitySettings["live"]>;
 export type SettingsPatch = Parameters<BrowserApi["writeIdentitySettings"]>[1];
 type DoctorCheck = Awaited<ReturnType<BrowserApi["runDoctor"]>>["checks"][number];
 
@@ -97,6 +98,10 @@ export const SETTINGS_FLAGS: FlagSpec = {
   "captcha-key": { type: "string" },
   "captcha-timeout": { type: "string" },
   "no-captcha": { type: "boolean" },
+  // The live view and take-over (format 10).
+  live: { type: "string" },
+  "live-wait": { type: "string" },
+  "no-live": { type: "boolean" },
 };
 
 /** The identity.json key behind each tuning flag, so the package's messages name the flag. */
@@ -133,6 +138,8 @@ const KEY_FLAGS: readonly (readonly [string, string])[] = [
   ["captcha.endpoint", "--captcha-endpoint"],
   ["captcha.key", "--captcha-key"],
   ["captcha.timeout", "--captcha-timeout"],
+  ["live.enabled", "--live"],
+  ["live.wait", "--live-wait"],
 ];
 
 const TABS_MAX_PROBLEM = "--tabs-max must be a whole number from 0 (no cap) to 100";
@@ -296,6 +303,7 @@ function tuningPatch(
   recordPatch(p, value, patch, current);
   actPatch(p, value, patch, current);
   captchaPatch(p, value, patch, current);
+  livePatch(p, value, patch, current);
 }
 
 /** A whole number flag value as a number; anything else goes to the package, which says why. */
@@ -361,6 +369,26 @@ function describeAct(a: ActSettings | undefined): string | undefined {
         ? `MCP sampling, else ${provider}`
         : "MCP sampling (your client's model)";
   return `on: ${how}`;
+}
+
+/** The format 10 `live` key: the live view and take-over. */
+function livePatch(
+  p: Parsed,
+  value: (name: string) => string | null | undefined,
+  patch: SettingsPatch,
+  current?: IdentitySettings,
+): void {
+  const enabled = value("live");
+  const wait = value("live-wait");
+  if (bool(p, "no-live")) {
+    if (enabled !== undefined || wait !== undefined) fail("--no-live does not go with --live or --live-wait");
+    patch.live = null;
+  } else if (enabled !== undefined || wait !== undefined) {
+    patch.live = mergeGroup<LiveSettings>(current?.live, {
+      enabled: typeof enabled === "string" ? booleanValue("--live", enabled) : enabled,
+      wait,
+    });
+  }
 }
 
 /** The format 7 `record` key: what turno-browser records for this identity. */
@@ -502,6 +530,11 @@ export function show(m: BrowserApi, id: string, args: string[], io: Io): number 
     const act = describeAct(settings.act);
     if (act) rows.push(["act", act]);
     if (settings.captcha) rows.push(["captcha", `on: ${settings.captcha.provider} at ${settings.captcha.endpoint}`]);
+    if (settings.live?.enabled)
+      rows.push([
+        "live view",
+        `on (turno browser live ${id}); a paused call waits up to ${settings.live.wait ?? "2m"}`,
+      ]);
     rows.push(["created", settings.created]);
     rows.push(["updated", settings.updated]);
   }
@@ -535,7 +568,7 @@ export const SET_SYNOPSIS =
   "[--block-trackers true|false] [--block-types image,media,font] [--block-patterns <host|glob>,...] [--no-block] [--cache] [--cache-max-size <size>] [--no-cache] [--humanize off|light|full|adaptive] [--sharing session|tabs] [--tab-lock-wait <duration>] [--tab-lock-release <duration>] " +
   "[--engine chrome|lightpanda] [--attach auto|<dir>|<url>] [--record-flows true|false] [--record-traces true|false] [--record-screenshots true|false] [--record-max-size <size>] [--no-record] " +
   "[--act] [--act-sampling true|false] [--act-provider chat-completions] [--act-endpoint <url>] [--act-model <name>] [--act-key keychain:<item>] [--act-max-steps <n>] [--act-max-tokens <n>] [--act-timeout <duration>] [--no-act] " +
-  "[--captcha-provider task-api] [--captcha-endpoint <url>] [--captcha-key keychain:<item>] [--captcha-timeout <duration>] [--no-captcha] [--dry-run] [--json]";
+  "[--captcha-provider task-api] [--captcha-endpoint <url>] [--captcha-key keychain:<item>] [--captcha-timeout <duration>] [--no-captcha] [--live true|false] [--live-wait <duration>] [--no-live] [--dry-run] [--json]";
 
 /** More help for `set`: what each tuning flag writes to identity.json. */
 export const SET_DETAILS = `Each flag writes one key of identity.json; an empty value (--settle "") removes it, and
@@ -601,7 +634,12 @@ party you pick, and many sites' terms forbid them; the server lists their tools 
   --captcha-endpoint <url>        service that speaks the createTask protocol, at this URL,
   --captcha-key keychain:<item>   with its account key in the secret store
   --captcha-timeout <duration>    longest wait for a solution (default 3m)
-  --no-act, --no-captcha          turn them off`;
+  --no-act, --no-captcha          turn them off
+
+The live view and take-over (off by default; turno browser live, pause, resume):
+  --live <bool>                   serve a view of the agent's tab on 127.0.0.1 and let you pause
+                                  the agent to take the controls (from the next server start)
+  --live-wait <duration>          how long a paused call waits for you, "5s" to "30m" (default 2m)`;
 
 /** The flags of `set`, for completion. */
 export const SET_FLAG_NAMES = ["--dry-run", "--json", ...SETTINGS_FLAG_NAMES];

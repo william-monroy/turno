@@ -452,6 +452,17 @@ export class Recording {
     await this.stopTrace("before a secret was filled");
   }
 
+  /**
+   * The user takes over the browser (the live view's pause): the trace is saved, so what the
+   * user does is not in it, and starts again at the agent's next call.
+   */
+  async pauseForUser(): Promise<void> {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = undefined;
+    await this.flushing;
+    await this.stopTrace("when the user took over");
+  }
+
   /** After an action: one line in the index and, when asked, a screenshot. */
   async afterStep(step: {
     tool: string;

@@ -283,6 +283,21 @@ describe("reading and checking", () => {
     expect(writeIdentitySettings("rec", { record: { flows: true }, engine: "lightpanda" }, sb.env).version).toBe(7);
     expect(writeIdentitySettings("rec", { record: null, engine: null }, sb.env).version).toBe(1);
   });
+
+  it("checks live (format 10) and writes format 10 only while it is set; it goes with every engine", () => {
+    expect(() =>
+      writeIdentitySettings("view", { live: { enabled: "yes", wait: "1h", port: 1 } as never }, sb.env),
+    ).toThrow(
+      /live\.enabled must be true or false; live\.wait must be a duration from "5s" to "30m".*; unknown key "live\.port"/,
+    );
+    expect(() => writeIdentitySettings("view", { live: { wait: "2s" } }, sb.env)).toThrow(/live\.wait must be/);
+    const on = writeIdentitySettings("view", { live: { enabled: true, wait: "90s" } }, sb.env);
+    expect(on.version).toBe(10);
+    expect(readIdentitySettings("view", sb.env)?.live).toEqual({ enabled: true, wait: "90s" });
+    expect(writeIdentitySettings("view", { engine: "lightpanda" }, sb.env).version).toBe(10);
+    expect(writeIdentitySettings("view", { engine: null, attach: "auto" }, sb.env).version).toBe(10);
+    expect(writeIdentitySettings("view", { live: null, attach: null }, sb.env).version).toBe(1);
+  });
 });
 
 describe("tabLocks (format 9)", () => {

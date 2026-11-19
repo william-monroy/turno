@@ -48,6 +48,9 @@ import { parseDuration, parseSize } from "./units.js";
  * - `tabLocks` (format 9): with `"sharing": "tabs"`, how long a call waits for a tab another
  *   session holds (`wait`, default 10s) and how long a session without calls keeps its tabs
  *   (`release`, default 5m) (`tab-locks.ts`). No effect with `"sharing": "session"`.
+ * - `live` (format 10): the live view and take-over (`live.ts`), off by default: `enabled` serves
+ *   a view of the agent's tab on 127.0.0.1 and lets the user pause the agent; `wait` is how long
+ *   a paused call waits for the user to resume before it fails (default 2m).
  *
  * A missing file means Chrome's own defaults, as before identity.json existed.
  */
@@ -59,7 +62,7 @@ import { parseDuration, parseSize } from "./units.js";
  * only when it uses one of them, so an older turno-browser keeps reading every other file and
  * refuses one it would misread with "update turno-browser".
  */
-export const IDENTITY_FORMAT_VERSION = 9;
+export const IDENTITY_FORMAT_VERSION = 10;
 
 /** The keys format 2 added. */
 const FORMAT_2_KEYS = ["tabs", "backgroundThrottling", "settle", "block", "cache"] as const;
@@ -95,6 +98,21 @@ export interface TabLockSettings {
   wait?: string;
   release?: string;
 }
+
+/** The keys format 10 added. */
+const FORMAT_10_KEYS = ["live"] as const;
+
+/** The live view and take-over (`live.ts`); off by default. */
+export interface LiveSettings {
+  /** Serve the live view and let the user pause the agent. */
+  enabled?: boolean;
+  /** How long a paused call waits for the user, like `"2m"` (from `"5s"` to `"30m"`). */
+  wait?: string;
+}
+
+/** Bounds of `live.wait`. */
+export const MIN_LIVE_WAIT_MS = 5_000;
+export const MAX_LIVE_WAIT_MS = 30 * 60_000;
 
 /** What turno-browser records for an identity (`recorder.ts`, `recordings.ts`); all off by default. */
 export interface RecordSettings {
@@ -197,6 +215,8 @@ export interface IdentitySettings {
   captcha?: CaptchaSettings;
   /** With `"sharing": "tabs"`: how long a call waits for a held tab, and when an idle session lets go. */
   tabLocks?: TabLockSettings;
+  /** The live view and take-over: `enabled` and `wait`; off by default. */
+  live?: LiveSettings;
   /** ISO dates. */
   created: string;
   updated: string;
@@ -217,7 +237,8 @@ export type SettingsPatch = {
     | (typeof FORMAT_6_KEYS)[number]
     | (typeof FORMAT_7_KEYS)[number]
     | (typeof FORMAT_8_KEYS)[number]
-    | (typeof FORMAT_9_KEYS)[number]]?: IdentitySettings[K] | null;
+    | (typeof FORMAT_9_KEYS)[number]
+    | (typeof FORMAT_10_KEYS)[number]]?: IdentitySettings[K] | null;
 };
 
 const KEYS = new Set([
@@ -235,6 +256,7 @@ const KEYS = new Set([
   ...FORMAT_7_KEYS,
   ...FORMAT_8_KEYS,
   ...FORMAT_9_KEYS,
+  ...FORMAT_10_KEYS,
   "created",
   "updated",
 ]);
@@ -320,6 +342,7 @@ function browserProblems(v: Record<string, unknown>, out: string[]): void {
   actProblems(v.act, out);
   captchaProblems(v.captcha, v, out);
   tabLockProblems(v.tabLocks, out);
+  liveProblems(v.live, out);
   if (v.cache !== undefined) {
     const c = v.cache;
     if (!isObject(c)) out.push('cache must be an object, like {} or { "maxSize": "100MB" }');
@@ -403,6 +426,22 @@ function recordProblems(v: Record<string, unknown>, out: string[]): void {
   unknownKeys(r, ["flows", "traces", "screenshots", "maxSize"], "record", out);
   const clash = recordEngineClash(v.attach !== undefined ? "attach" : String(v.engine ?? "chrome"), r);
   if (clash) out.push(clash);
+}
+
+/** Problems with the format 8 `live` key. */
+function liveProblems(l: unknown, out: string[]): void {
+  if (l === undefined) return;
+  if (!isObject(l)) {
+    out.push('live must be an object, like { "enabled": true }');
+    return;
+  }
+  if (l.enabled !== undefined && typeof l.enabled !== "boolean") out.push("live.enabled must be true or false");
+  if (l.wait !== undefined) {
+    const ms = typeof l.wait === "string" ? parseDuration(l.wait) : undefined;
+    if (ms === undefined || ms < MIN_LIVE_WAIT_MS || ms > MAX_LIVE_WAIT_MS)
+      out.push('live.wait must be a duration from "5s" to "30m", like "2m"');
+  }
+  unknownKeys(l, ["enabled", "wait"], "live", out);
 }
 
 /**
@@ -565,6 +604,7 @@ export function writeIdentitySettings(
     else next[key] = value;
   }
   const formats = [
+    FORMAT_10_KEYS,
     FORMAT_9_KEYS,
     FORMAT_8_KEYS,
     FORMAT_7_KEYS,
@@ -575,7 +615,7 @@ export function writeIdentitySettings(
     FORMAT_2_KEYS,
   ];
   const newest = formats.findIndex((keys) => keys.some((k) => next[k] !== undefined));
-  next.version = newest < 0 ? 1 : 9 - newest;
+  next.version = newest < 0 ? 1 : IDENTITY_FORMAT_VERSION - newest;
   if (typeof next.locale === "string") next.locale = canonicalLocale(next.locale) ?? next.locale;
   if (Array.isArray(next.languages)) next.languages = (next.languages as string[]).map((l) => canonicalLocale(l) ?? l);
   if (typeof next.region === "string" && /^[a-z]{2}$/i.test(next.region)) next.region = next.region.toUpperCase();

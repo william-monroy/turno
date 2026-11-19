@@ -10,7 +10,14 @@ import type { SecretStore } from "turno-core/secrets";
 import { CallToolRequestSchema, type CallToolResult, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { Sampler } from "./act-model.js";
 import { coveredBeforeCall, explainFailure } from "./diagnose.js";
-import { type Engine, type EngineFlags, type IdentityRef, type LaunchedBrowser, createEngine } from "./engine.js";
+import {
+  type Engine,
+  type EngineFlags,
+  type IdentityRef,
+  type LaunchedBrowser,
+  createEngine,
+  engineChoice,
+} from "./engine.js";
 import { TabGovernor, type TabView } from "./governor.js";
 import {
   type HealthContext,
@@ -24,6 +31,8 @@ import {
 import { HumanInput, adaptiveSites, humanizeTools } from "./human-input.js";
 import { identityStateDir } from "./ids.js";
 import { idleMs } from "./idle-timer.js";
+import { type LiveFlags, describeChanges, resolveLive, resumeNote, timeoutMessage, viewRefusal } from "./live.js";
+import { LiveServer } from "./live-server.js";
 import { FlowRecorder, type PendingStep, secretValues } from "./recorder.js";
 import { Recording, tracesTmpDir } from "./recordings.js";
 import { Redactor, SCRIPT_TOOLS, VaultGuard } from "./redact.js";
@@ -32,7 +41,7 @@ import { installResources } from "./resources.js";
 import { SESSION_CAPABILITY, SESSION_ENDED_METHOD, SESSION_META_KEY, sessionFromMeta } from "./session.js";
 import { type SessionView, TabSharing, viewConfig } from "./sharing.js";
 import { DEFAULT_TAB_LOCKS, DIRECT_SESSION, type TabLockPolicy } from "./tab-locks.js";
-import { type RecordSettings, readIdentitySettings } from "./settings.js";
+import { type IdentitySettings, type RecordSettings, readIdentitySettings } from "./settings.js";
 import {
   type Providers,
   type StockAccess,
@@ -84,7 +93,9 @@ import {
  *   in that one browser, each with its own backend, current tab and tab locks (`sharing.ts`);
  * - lists the opt-in tools of the identity (natural language actions, captcha solving) only when
  *   identity.json turns them on when the server starts, and hands those tools MCP sampling,
- *   routed to the calling session, when the client offers it.
+ *   routed to the calling session, when the client offers it;
+ * - with the live view on (identity.json `live`, `--live`), holds every browser call while the
+ *   user has paused the agent, and tells the held call what changed (`live.ts`, `live-server.ts`).
  *
  * stdio, the transport mcpd and every agent use, is served by turno with the MCP SDK.
  * `--port` keeps upstream's HTTP server (Host check, streamable HTTP and SSE) serving the
@@ -117,6 +128,8 @@ export interface HostOptions {
   engineFlags?: EngineFlags;
   /** Stand-ins for the opt-in providers (tests inject fakes). */
   providers?: Providers;
+  /** `--live` and `--live-wait`; they win over identity.json `live`. */
+  live?: LiveFlags;
 }
 
 export interface Host {
@@ -126,6 +139,8 @@ export interface Host {
   factory: ServerBackendFactory;
   /** Hides vault values in a text this server is about to send. */
   redact(text: string): string;
+  /** The live view server, when the live view is on for the identity served. */
+  live?: LiveServer;
 }
 
 /** Upstream joins the text parts of a result into one (`mergeTextParts`). */
@@ -173,6 +188,31 @@ function withGovernor(
     } else text += `\n### Tab governor\n${notes.map((n) => `- ${n}`).join("\n")}`;
   }
   return { ...result, content: [{ ...first, text }, ...result.content.slice(1)] };
+}
+
+/** What a step of a batch, a replay or an act run meets once the user pauses the agent. */
+const PAUSED_STEP = "The user paused the browser";
+
+/** A held call's result with the resume note first (under `turno.live` in JSON). */
+function withNote(result: ToolResult, note: string, json: boolean): ToolResult {
+  const first = result.content[0];
+  if (!first || first.type !== "text") return { ...result, content: [{ type: "text", text: note }, ...result.content] };
+  const text = (first as { text: string }).text;
+  if (json) {
+    try {
+      const payload = JSON.parse(text) as Record<string, unknown>;
+      const turno = (payload.turno ?? {}) as Record<string, unknown>;
+      const out = JSON.stringify({ ...payload, turno: { ...turno, live: note } }, null, 2);
+      return { ...result, content: [{ ...first, text: out }, ...result.content.slice(1)] };
+    } catch {
+      /* not JSON after all: put the note first */
+    }
+  }
+  return { ...result, content: [{ ...first, text: `${note}\n\n${text}` }, ...result.content.slice(1)] };
+}
+
+function errorResultOf(text: string): ToolResult {
+  return { content: [{ type: "text", text }], isError: true };
 }
 
 function errorResult(message: string, json: boolean): ToolResult {
@@ -275,6 +315,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       tabLocks: Partial<TabLockPolicy>;
       stockTypes: ReadonlyMap<string, string>;
       providers?: Providers;
+      live?: LiveServer;
     },
     private readonly title: (clientInfo: ClientInfo) => string,
   ) {
@@ -372,7 +413,9 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       let governor: TabGovernor | undefined;
       let sharing: TabSharing | undefined;
       let recording: Recording | undefined;
+      let unbindLive: (() => void) | undefined;
       const gone = () => {
+        unbindLive?.();
         governor?.dispose();
         sharing?.dispose();
         if (isCurrent()) {
@@ -463,6 +506,29 @@ class SessionBackend extends EventEmitter implements ServerBackend {
           throw error;
         }
       }
+      if (this.host.live) {
+        const tabs = governor;
+        let endIdle: (() => void) | undefined;
+        unbindLive = this.host.live.bind({
+          context: launched.context,
+          engine: launched.engine,
+          userBrowser: launched.userBrowser === true,
+          ...(shared ? { owner: (page) => shared.owner(page) } : {}),
+          urlOf: (page) => tabs.parkedUrl(page) ?? page.url(),
+          // While the user has the browser, the idle limit does not close it, the tab governor
+          // parks and closes nothing (a popup the user opens stays), and no trace records it.
+          onPause: async () => {
+            tabs.beginCall();
+            endIdle = idle?.begin();
+            await recording?.pauseForUser();
+          },
+          onResume: () => {
+            endIdle?.();
+            endIdle = undefined;
+            tabs.endCall();
+          },
+        });
+      }
       backend.on("dynamictoolschange", () => this.emit("dynamictoolschange"));
       backend.once("disconnected", () => {
         recording?.abandon();
@@ -504,7 +570,97 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     sample?: Sampler,
   ): Promise<ToolResult> {
     // Every result and error of this server leaves through the redactor.
-    return this.host.redactor.result(await this.callAny(name, args, signal, session, sample));
+    return this.host.redactor.result(await this.callLive(name, args, signal, session, sample));
+  }
+
+  /** True when a call needs the browser, so a pause holds it. */
+  private touchesBrowser(name: string): boolean {
+    const tool = this.host.turno.get(name);
+    return tool ? tool.browser !== false : true;
+  }
+
+  /**
+   * A call through the live view's pause gate (`live.ts`): it runs at once unless the user
+   * paused the agent; then it waits, and on resume it runs, or returns an error with a fresh
+   * snapshot when the browser changed and the call does more than read.
+   */
+  private async callLive(
+    name: string,
+    args: Record<string, unknown>,
+    signal: AbortSignal | undefined,
+    session: string | undefined,
+    sample?: Sampler,
+  ): Promise<ToolResult> {
+    const live = this.host.live;
+    if (!live || !this.touchesBrowser(name)) return await this.callAny(name, args, signal, session, sample);
+    const json = !!(args._meta as { json?: boolean } | undefined)?.json;
+    const key = session ?? DIRECT_SESSION;
+    const outcome = await live.gate.wait(live.waitMs, signal);
+    if (outcome.kind === "timeout")
+      return errorResult(
+        timeoutMessage(this.host.identity?.id ?? "", name, outcome.pausedMs, outcome.by, live.waitMs),
+        json,
+      );
+    if (outcome.kind === "aborted") return errorResult(`${name} was cancelled while the user had the browser`, json);
+    const end = live.begin();
+    try {
+      if (outcome.kind === "open") {
+        const result = await this.callAny(name, args, signal, session, sample);
+        if (!live.paused) return result;
+        return withNote(
+          result,
+          "### Paused by the user\nThe user paused this browser while this call ran. Your next call waits until they resume.",
+          json,
+        );
+      }
+      const beforePage = live.lastPage(key);
+      const afterPage = beforePage ? await this.currentPageOf(key) : undefined;
+      const after = await live.tabStates();
+      const { changed, lines } = describeChanges(
+        outcome.before,
+        after,
+        beforePage ? live.idOf(beforePage) : undefined,
+        afterPage ? live.idOf(afterPage) : undefined,
+        outcome.inputs,
+      );
+      const note = {
+        pausedMs: outcome.pausedMs,
+        by: outcome.by,
+        lines,
+        tool: name,
+        recordingFlow: this.recorderFor(session)?.recording !== undefined,
+      };
+      if (!changed || this.readsOnly(name)) {
+        const result = await this.callAny(name, args, signal, session, sample);
+        return withNote(result, resumeNote({ ...note, ran: true }), json);
+      }
+      // A call that was not run is an error, so a client that reads only the outcome (a script,
+      // turno browser do) does not take it for done.
+      const notRun = `### Error\n${name} was not run: the user changed the browser while you waited (below).`;
+      if (!this.launched?.isOpen()) {
+        const text = `${notRun}\n\n${resumeNote({ ...note, ran: false, noBrowser: true })}`;
+        return errorResultOf(json ? JSON.stringify({ isError: true, error: text }, null, 2) : text);
+      }
+      const snapshot = await this.callAny("browser_snapshot", {}, signal, session);
+      const noted = withNote(snapshot, resumeNote({ ...note, ran: false }), json);
+      return { ...(json ? noted : withNote(noted, notRun, false)), isError: true };
+    } finally {
+      end();
+    }
+  }
+
+  /** True for a call that changes nothing on the page (a snapshot, the tab list, `browser_extract`). */
+  private readsOnly(name: string): boolean {
+    return (this.host.stockTypes.get(name) ?? this.host.turno.get(name)?.schema.type) === "readOnly";
+  }
+
+  /** The tab a session's backend calls current now, without starting anything. */
+  private async currentPageOf(key: string): Promise<Page | undefined> {
+    const running = await this.current?.catch(() => undefined);
+    if (!running || !running.launched.isOpen()) return undefined;
+    if (!running.sharing) return backendContext(running.backend)?.currentTab()?.page;
+    const view = await running.sharing.view(key).catch(() => undefined);
+    return view ? running.sharing.tabView(view).current() : undefined;
   }
 
   private async callAny(
@@ -563,6 +719,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       recording = running.recording;
     }
     const recorder = this.recorderFor(session);
+    const secretHook = this.secretHook(recording);
     try {
       await recording?.beforeCall();
       const context = {
@@ -573,7 +730,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         ...(signal ? { signal } : {}),
         ...(session ? { session } : {}),
         ...(recorder ? { recorder } : {}),
-        ...(recording ? { recording } : {}),
+        ...(secretHook ? { recording: { pauseForSecret: secretHook } } : {}),
         ...(sample ? { sample } : {}),
         ...(engine ? { engine } : {}),
         ...(this.host.providers ? { providers: this.host.providers } : {}),
@@ -584,13 +741,14 @@ class SessionBackend extends EventEmitter implements ServerBackend {
                 redactor: this.host.redactor,
                 guard: this.host.guard,
                 ...(this.host.vaultStore ? { store: this.host.vaultStore } : {}),
-                ...(recording ? { beforeFill: (page: Page) => recording.pauseForSecret(page) } : {}),
+                ...(secretHook ? { beforeFill: (page: Page) => secretHook(page) } : {}),
                 ...(input ? { input } : {}),
               },
             }
           : {}),
       };
       const result = await tool.handle(context, parsed.params);
+      if (stock) this.host.live?.follow(session ?? DIRECT_SESSION, stock.currentPage());
       if (name === "browser_login") {
         if (!result.isError) recorder?.record("browser_login", { site: parsed.params.site });
         await recording?.afterStep({ tool: name, ok: !result.isError, screenshot: false });
@@ -652,6 +810,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       result =
         (launched.engine === "lightpanda" ? undefined : await coveredBeforeCall(page, name, args, json)) ??
         (await backend.callTool(name, args, signal));
+      this.host.live?.follow(session ?? DIRECT_SESSION, backendContext(backend)?.currentTab()?.page);
       if (result.isError)
         result = await explainFailure(backendContext(backend)?.currentTab()?.page, name, args, result, json);
       await this.afterStock(running, session, name, args, pending, result, backendContext(backend)?.currentTab()?.page);
@@ -719,6 +878,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
               ? undefined
               : await coveredBeforeCall(tabs.current(), name, args, json)) ??
             (await backend.callTool(name, args, signal));
+          this.host.live?.follow(key, tabs.current());
           if (result.isError) result = await explainFailure(tabs.current(), name, args, result, json);
           await this.afterStock(running, key, name, args, pending, result, tabs.current());
           // The tab the call left current is the session's before the cap counts its tabs.
@@ -758,14 +918,33 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     await recording?.beforeCall();
     const recorder = this.recorderFor(session);
     const pending = recorder?.active ? await recorder.capture(name, args, page).catch(() => undefined) : undefined;
-    if (recording && page && (name === "browser_type" || name === "browser_fill_form")) {
+    const secretHook = this.secretHook(recording);
+    if (secretHook && page && (name === "browser_type" || name === "browser_fill_form")) {
       const secrets = await secretValues(page, name, args);
       if (secrets.length) {
         for (const v of secrets) this.host.redactor.add(v, "sensitive value");
-        await recording.pauseForSecret(page);
+        await secretHook(page);
       }
     }
     return pending;
+  }
+
+  /**
+   * What runs before a secret goes into a page (a vault fill, a password typed, a sensitive
+   * parameter of a replay), when something could show it: the page is held by the vault guard,
+   * the live view stops showing it, and a recording saves its trace. Undefined when neither a
+   * recording nor the live view is on.
+   */
+  private secretHook(recording: Recording | undefined): ((page: Page | undefined) => Promise<void>) | undefined {
+    const live = this.host.live;
+    if (!recording && !live) return undefined;
+    return async (page) => {
+      if (page) {
+        this.host.guard.mark(page);
+        live?.hide(page);
+      }
+      await recording?.pauseForSecret(page);
+    };
   }
 
   /** After a stock call: keep the flow step when it worked, and the recording's screenshot. */
@@ -803,7 +982,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       return `${name} is refused for browser identity "${identity.id}" because it has vault credentials: it runs code in the server process, which can read the secret store. Use the other browser tools, or an identity without a vault.`;
     }
     if (this.host.guard.holds(backendContext(backend)?.currentTab()?.page)) {
-      return `${name} is refused on this page: it holds values browser_login filled from the vault (or a password typed while recording). Submit the form or navigate away first.`;
+      return `${name} is refused on this page: it holds values browser_login filled from the vault (or a password typed while recording or with the live view on). Submit the form or navigate away first.`;
     }
     return undefined;
   }
@@ -813,7 +992,17 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     return {
       schemas: this.host.stockSchemas,
       formatError: (error) => upstream().utils.z.prettifyError(error),
-      call: (name, args, options) => this.callStock(name, args, signal, options, session),
+      // A batch, a replay or an act run stops at its next step once the user pauses the agent.
+      call: (name, args, options) =>
+        this.host.live?.paused
+          ? Promise.resolve(
+              errorResult(
+                `${PAUSED_STEP}: this step and the ones after it were not run. Your next call waits until they resume.`,
+                !!(args._meta as { json?: boolean } | undefined)?.json,
+              ),
+            )
+          : this.callStock(name, args, signal, options, session),
+      held: () => (this.host.live?.paused ? PAUSED_STEP : undefined),
       page: async () => {
         const page = backendContext(view.backend)?.currentTab()?.page;
         if (!page) return undefined;
@@ -945,6 +1134,8 @@ export function createHost(options: HostOptions): Host {
     return count > 1 ? `${clientInfo.clientName} (${count})` : clientInfo.clientName;
   };
   const redactor = new Redactor();
+  const guard = new VaultGuard();
+  const live = options.identity ? liveServerFor(options, options.identity, redactor, guard) : undefined;
   const shared = {
     config,
     cliOptions,
@@ -955,14 +1146,16 @@ export function createHost(options: HostOptions): Host {
     engine,
     tuning: options.tuning ?? {},
     redactor,
-    guard: new VaultGuard(),
+    guard,
     tabLocks: options.tabLocks ?? {},
+    ...(live ? { live } : {}),
     ...(options.identity ? { identity: options.identity } : {}),
     ...(options.vaultStore ? { vaultStore: options.vaultStore } : {}),
     ...(options.providers ? { providers: options.providers } : {}),
   };
   return {
     config,
+    ...(live ? { live } : {}),
     redact: (text) => redactor.text(text),
     listTools: () => schemas.map(toMcpTool),
     factory: {
@@ -973,6 +1166,47 @@ export function createHost(options: HostOptions): Host {
       create: async () => new SessionBackend(shared, title),
     },
   };
+}
+
+/**
+ * The live view server of an identity, when `--live` or identity.json `live.enabled` turns it
+ * on; it starts listening at once, so a pause works before the browser starts.
+ */
+function liveServerFor(
+  options: HostOptions,
+  identity: IdentityRef,
+  redactor: Redactor,
+  guard: VaultGuard,
+): LiveServer | undefined {
+  const settings = (): IdentitySettings | undefined => {
+    try {
+      return readIdentitySettings(identity.id, identity.env);
+    } catch {
+      return undefined; // the first launch reports a bad identity.json
+    }
+  };
+  const policy = resolveLive(settings()?.live, options.live);
+  if (!policy.enabled) return undefined;
+  const log = (line: string) => process.stderr.write(`turno-browser-mcp: ${line}\n`);
+  const server = new LiveServer({
+    identity,
+    policy,
+    guard,
+    redactor,
+    headless: options.config.browser.launchOptions?.headless === true,
+    // Before a launch, the engine identity.json and the flags would pick.
+    viewRefusal: (engine) => {
+      if (engine) return viewRefusal(engine);
+      try {
+        return viewRefusal(engineChoice(options.engineFlags ?? {}, settings()).kind);
+      } catch {
+        return undefined;
+      }
+    },
+    log,
+  });
+  server.start().catch((error) => log(`the live view did not start: ${(error as Error).message}`));
+  return server;
 }
 
 /** The workspace roots the client offers, as upstream reads them (first root, or cwd). */
@@ -1091,10 +1325,10 @@ export async function serve(host: Host, transport?: Transport): Promise<Server |
  */
 export async function runHost(
   args: string[],
-  options: { identity?: IdentityRef; tuning?: TuningFlags; engineFlags?: EngineFlags } = {},
+  options: { identity?: IdentityRef; tuning?: TuningFlags; engineFlags?: EngineFlags; live?: LiveFlags } = {},
 ): Promise<void> {
   const { utils, core, version } = upstream();
-  const { identity, tuning, engineFlags } = options;
+  const { identity, tuning, engineFlags, live } = options;
   const Command = utils.program.constructor;
   const program = new Command().version(`Version ${version}`).name("Playwright MCP");
   upstream().tools.decorateMCPCommand(program);
@@ -1114,6 +1348,7 @@ export async function runHost(
         ...(identity ? { identity } : {}),
         ...(tuning ? { tuning } : {}),
         ...(engineFlags ? { engineFlags } : {}),
+        ...(live ? { live } : {}),
       }),
     );
   });

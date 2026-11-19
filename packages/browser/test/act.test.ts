@@ -208,6 +208,30 @@ describe("browser_act", () => {
     expect(r.text).toContain("Stopped: the time limit (10 s) was reached.");
   });
 
+  it("stops at its next step once the user pauses the agent in the live view", async () => {
+    const { stock, calls } = fakeStock();
+    let paused = false;
+    stock.held = () => (paused ? "The user paused the browser" : undefined);
+    const { model } = scripted([
+      () => {
+        paused = true; // the user pauses while the model thinks about the second step
+        return step("browser_click", { target: "e3", element: "Go" });
+      },
+      DONE,
+    ]);
+    const r = await run(actTool(), ctx(stock, model), { instruction: "press Go" });
+    expect(r.isError).toBe(true);
+    expect(calls.map((c) => c.name)).toEqual(["browser_snapshot"]);
+    expect(r.text).toContain("1. browser_click e3 (Go): not run");
+    expect(r.text).toContain("Stopped: The user paused the browser; this step and the ones after it were not run.");
+
+    const held = fakeStock();
+    held.stock.held = () => "The user paused the browser";
+    const first = await run(actTool(), ctx(held.stock, scripted([DONE]).model), { instruction: "press Go" });
+    expect(held.calls).toEqual([]);
+    expect(first.text).toContain("Stopped: The user paused the browser; no further step was run.");
+  });
+
   it("is refused while identity.json does not turn it on", async () => {
     writeIdentitySettings("work", { act: null, region: "MX" }, sb.env);
     const { model, requests } = scripted([DONE]);
