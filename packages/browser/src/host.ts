@@ -8,7 +8,7 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { SecretStore } from "turno-core/secrets";
 import { CallToolRequestSchema, type CallToolResult, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { explainFailure } from "./diagnose.js";
-import { type Engine, type IdentityRef, type LaunchedBrowser, createUpstreamEngine, selectEngine } from "./engine.js";
+import { type Engine, type EngineFlags, type IdentityRef, type LaunchedBrowser, createEngine } from "./engine.js";
 import { TabGovernor, type TabView } from "./governor.js";
 import {
   type HealthContext,
@@ -97,6 +97,8 @@ export interface HostOptions {
   vaultStore?: SecretStore;
   /** With `"sharing": "tabs"`: how long a call waits for a held tab, and when an idle session lets go. */
   tabLocks?: Partial<TabLockPolicy>;
+  /** `--engine` and `--attach`; they win over identity.json. */
+  engineFlags?: EngineFlags;
 }
 
 export interface Host {
@@ -298,7 +300,10 @@ class SessionBackend extends EventEmitter implements ServerBackend {
           : new HumanInput(tuning.humanize, {
               ...(identity ? { persona: identity.id, challenged: adaptiveSites(identity.id, identity.env) } : {}),
             });
-      if (identity) {
+      // Read mode and attach mode never use the identity's Chrome profile, so the profile's
+      // health check, challenge log and resource rules do not apply to them.
+      const profile = launched.engine !== "lightpanda" && launched.engine !== "attach";
+      if (identity && profile) {
         try {
           await afterIdentityLaunch(identity, launched, (event) => input?.noteChallenge(event.site));
         } catch (error) {
@@ -334,7 +339,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         await backend.initialize(clientInfo);
         // After upstream's own routes (--allowed-origins, --blocked-origins), so this one runs
         // first and hands every request it does not block or serve on to them.
-        if (identity)
+        if (identity && profile)
           await installResources(
             launched.context,
             tuning.resources,
@@ -372,8 +377,21 @@ class SessionBackend extends EventEmitter implements ServerBackend {
               adopt: (page) => shared.adopt(page),
             }
           : {}),
+        ...(launched.userBrowser ? { ownedOnly: true, onOwn: (page) => launched.own?.(page) } : {}),
       });
       governor.start();
+      if (launched.userBrowser) {
+        // The user's browser: the agent starts in a tab of its own, so its first navigation
+        // never replaces one of the user's pages (upstream would pick the first open tab).
+        try {
+          const tab = await backendContext(backend)?.newTab();
+          if (tab) governor.own(tab.page);
+        } catch (error) {
+          governor.dispose();
+          await launched.close();
+          throw error;
+        }
+      }
       backend.on("dynamictoolschange", () => this.emit("dynamictoolschange"));
       backend.once("disconnected", () => {
         gone();
@@ -423,6 +441,12 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     const tool = this.host.turno.get(name);
     if (!tool) return await this.callStock(name, args, signal, {}, session);
     const json = !!(args._meta as { json?: boolean } | undefined)?.json;
+    // A batch is refused up front when one of its steps would be, before the browser launches.
+    const steps = name === "browser_batch" && Array.isArray(args.actions) ? (args.actions as { tool?: unknown }[]) : [];
+    for (const tool of [name, ...steps.map((s) => s?.tool).filter((t): t is string => typeof t === "string")]) {
+      const refusal = this.host.engine.refuse?.(tool, this.host.identity);
+      if (refusal) return errorResult(refusal, json);
+    }
     const parsed = parseArguments(tool, args);
     if ("error" in parsed) return errorResult(parsed.error, json);
     const clientInfo = this.info();
@@ -500,8 +524,10 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     options: { snapshot?: boolean } = {},
     session?: string,
   ): Promise<ToolResult> {
+    const refusal = this.host.engine.refuse?.(name, this.host.identity);
+    if (refusal) return errorResult(refusal, !!(args._meta as { json?: boolean } | undefined)?.json);
     const running = await this.browser();
-    const { governor, tuning, idle, sharing } = running;
+    const { governor, tuning, idle, sharing, launched } = running;
     const json = !!(args._meta as { json?: boolean } | undefined)?.json;
     if (sharing) return await this.callShared(running, sharing, session ?? DIRECT_SESSION, name, args, signal, options);
     const endCall = idle?.begin();
@@ -515,7 +541,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     let result: ToolResult;
     try {
       await governor.prepare(name, args);
-      if (tuning.backgroundThrottling && name !== "browser_tabs")
+      if (tuning.backgroundThrottling && !launched.userBrowser && name !== "browser_tabs")
         await backendContext(backend)
           ?.currentTab()
           ?.page.bringToFront()
@@ -729,7 +755,7 @@ export function createHost(options: HostOptions): Host {
   const turnoTools = options.turnoTools ?? TURNO_TOOLS;
   checkTurnoTools(turnoTools, tools.browserTools);
   const turno = new Map(turnoTools.map((t) => [t.schema.name, t]));
-  const engine = options.engine ?? selectEngine(config, createUpstreamEngine());
+  const engine = options.engine ?? createEngine(config, options.engineFlags);
   const schemas = [...stock.map((t) => t.schema), ...turnoTools.map((t) => t.schema)];
   const sessionsByName = new Map<string, number>();
   const title = (clientInfo: ClientInfo) => {
@@ -847,10 +873,10 @@ export async function serve(host: Host, transport?: Transport): Promise<Server |
  */
 export async function runHost(
   args: string[],
-  options: { identity?: IdentityRef; tuning?: TuningFlags } = {},
+  options: { identity?: IdentityRef; tuning?: TuningFlags; engineFlags?: EngineFlags } = {},
 ): Promise<void> {
   const { utils, core, version } = upstream();
-  const { identity, tuning } = options;
+  const { identity, tuning, engineFlags } = options;
   const Command = utils.program.constructor;
   const program = new Command().version(`Version ${version}`).name("Playwright MCP");
   upstream().tools.decorateMCPCommand(program);
@@ -864,7 +890,13 @@ export async function runHost(
     if ((options.caps as string[] | undefined)?.includes("tracing")) (options.caps as string[]).push("devtools");
     const config = await upstream().tools.resolveCLIConfigForMCP(options);
     await serve(
-      createHost({ config, cliOptions: options, ...(identity ? { identity } : {}), ...(tuning ? { tuning } : {}) }),
+      createHost({
+        config,
+        cliOptions: options,
+        ...(identity ? { identity } : {}),
+        ...(tuning ? { tuning } : {}),
+        ...(engineFlags ? { engineFlags } : {}),
+      }),
     );
   });
   try {

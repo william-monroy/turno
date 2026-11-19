@@ -44,8 +44,9 @@ const MEMBERS = [
 describe("the public API object", () => {
   // 1.3: writeIdentitySettings accepts the humanize key (no new member).
   // 1.4: the sharing key and manifestSnippet(id, { sharing }) (no new member).
-  it("is version 1.4, frozen, with integer parts", () => {
-    expect(API_VERSION).toEqual({ major: 1, minor: 4 });
+  // 1.5: the engine and attach keys and the engine checks of runDoctor (no new member).
+  it("is version 1.5, frozen, with integer parts", () => {
+    expect(API_VERSION).toEqual({ major: 1, minor: 5 });
     expect(Object.isFrozen(API_VERSION)).toBe(true);
     expect(Number.isInteger(API_VERSION.major) && Number.isInteger(API_VERSION.minor)).toBe(true);
   });

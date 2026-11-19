@@ -5,13 +5,20 @@
  * the code under test ignored its sandbox, and the run fails with the list of paths.
  *
  * Variables of a live session (TURNO_*, CLAUDE*, CODEX_*, CURSOR_*, ANTHROPIC_*) are cleared too,
- * except the switches that select tests (TURNO_SKIP_E2E, TURNO_E2E_NETWORK, TURNO_SKIP_CHROME).
+ * except the switches that select tests (TURNO_SKIP_E2E, TURNO_E2E_NETWORK, TURNO_SKIP_CHROME,
+ * TURNO_SKIP_LIGHTPANDA) and TURNO_LIGHTPANDA_PATH, which points the read mode tests at a Lightpanda.
  */
 import { chmodSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const KEEP = new Set(["TURNO_SKIP_E2E", "TURNO_E2E_NETWORK", "TURNO_SKIP_CHROME"]);
+const KEEP = new Set([
+  "TURNO_SKIP_E2E",
+  "TURNO_E2E_NETWORK",
+  "TURNO_SKIP_CHROME",
+  "TURNO_SKIP_LIGHTPANDA",
+  "TURNO_LIGHTPANDA_PATH",
+]);
 const LIVE = /^(TURNO_|CLAUDE|CODEX_|CURSOR_|ANTHROPIC_|XDG_)/;
 
 /** Paths written under the guard HOME, relative to it. */

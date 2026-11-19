@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { browserPaths as paths } from "turno-core/paths";
+import { parseAttachTarget } from "./engine-attach.js";
 import { IdentityError, assertIdentityId } from "./ids.js";
 import { HUMANIZE_LEVELS, type HumanizeSettings } from "./humanize.js";
 import { parseDuration, parseSize } from "./units.js";
@@ -33,6 +34,9 @@ import { parseDuration, parseSize } from "./units.js";
  * - `sharing` (format 5): `"session"` (the default) serves one agent session at a time;
  *   `"tabs"` lets several sessions use the browser at once, each in its own locked tabs
  *   (`sharing.ts`; mcp.toml then runs the server with `exclusive = false`).
+ * - `engine`, `attach` (format 6): which engine runs the identity (`engine.ts`). `engine:
+ *   "lightpanda"` is read mode; `attach` connects to a Chrome the user already has open
+ *   (`"auto"`, a user data dir, or a loopback endpoint). Both off by default.
  *
  * A missing file means Chrome's own defaults, as before identity.json existed.
  */
@@ -44,7 +48,7 @@ import { parseDuration, parseSize } from "./units.js";
  * only when it uses one of them, so an older turno-browser keeps reading every other file and
  * refuses one it would misread with "update turno-browser".
  */
-export const IDENTITY_FORMAT_VERSION = 5;
+export const IDENTITY_FORMAT_VERSION = 6;
 
 /** The keys format 2 added. */
 const FORMAT_2_KEYS = ["tabs", "backgroundThrottling", "settle", "block", "cache"] as const;
@@ -57,6 +61,9 @@ const FORMAT_4_KEYS = ["humanize"] as const;
 
 /** The keys format 5 added. */
 const FORMAT_5_KEYS = ["sharing"] as const;
+
+/** The keys format 6 added. */
+const FORMAT_6_KEYS = ["engine", "attach"] as const;
 
 /** How many agent sessions use the identity's browser at once (`sharing.ts`). */
 type SharingSetting = "session" | "tabs";
@@ -132,6 +139,10 @@ export interface IdentitySettings {
   humanize?: HumanizeSettings;
   /** `"tabs"`: several agent sessions at once, each in its own locked tabs; default `"session"`. */
   sharing?: SharingSetting;
+  /** `"lightpanda"`: read mode on Lightpanda; default `"chrome"`. */
+  engine?: "chrome" | "lightpanda";
+  /** Connect to a Chrome the user has open: `"auto"`, a user data dir, or a loopback endpoint. */
+  attach?: string;
   /** ISO dates. */
   created: string;
   updated: string;
@@ -148,7 +159,8 @@ export type SettingsPatch = {
     | (typeof FORMAT_2_KEYS)[number]
     | (typeof FORMAT_3_KEYS)[number]
     | (typeof FORMAT_4_KEYS)[number]
-    | (typeof FORMAT_5_KEYS)[number]]?: IdentitySettings[K] | null;
+    | (typeof FORMAT_5_KEYS)[number]
+    | (typeof FORMAT_6_KEYS)[number]]?: IdentitySettings[K] | null;
 };
 
 const KEYS = new Set([
@@ -162,6 +174,7 @@ const KEYS = new Set([
   ...FORMAT_3_KEYS,
   ...FORMAT_4_KEYS,
   ...FORMAT_5_KEYS,
+  ...FORMAT_6_KEYS,
   "created",
   "updated",
 ]);
@@ -242,6 +255,7 @@ function browserProblems(v: Record<string, unknown>, out: string[]): void {
   humanizeProblems(v.humanize, out);
   if (v.sharing !== undefined && v.sharing !== "session" && v.sharing !== "tabs")
     out.push('sharing must be "session" (the default, one agent session at a time) or "tabs"');
+  engineProblems(v, out);
   if (v.cache !== undefined) {
     const c = v.cache;
     if (!isObject(c)) out.push('cache must be an object, like {} or { "maxSize": "100MB" }');
@@ -270,6 +284,21 @@ function humanizeProblems(h: unknown, out: string[]): void {
   )
     out.push("humanize.seed must be a whole number from 0 to 4294967295");
   unknownKeys(h, ["level", "seed"], "humanize", out);
+}
+
+/** Problems with the format 6 keys. */
+function engineProblems(v: Record<string, unknown>, out: string[]): void {
+  if (v.engine !== undefined && v.engine !== "chrome" && v.engine !== "lightpanda")
+    out.push('engine must be "chrome" (the default) or "lightpanda" (read mode)');
+  if (v.attach !== undefined) {
+    const target = typeof v.attach === "string" ? parseAttachTarget(v.attach) : { error: "attach must be a string" };
+    if ("error" in target) out.push(target.error);
+    else if (v.engine === "lightpanda") out.push('attach does not go with engine "lightpanda": pick one');
+    else if (v.sharing === "tabs") out.push('attach does not go with sharing "tabs": pick one');
+  }
+  const level = isObject(v.humanize) ? v.humanize.level : undefined;
+  if (v.engine === "lightpanda" && level !== undefined && level !== "off")
+    out.push('humanize does not go with engine "lightpanda": read mode lays out no page to move a pointer over');
 }
 
 export function identitySettingsPath(id: string, env: NodeJS.ProcessEnv = process.env): string {
@@ -412,15 +441,17 @@ export function writeIdentitySettings(
     if (value === null) delete next[key];
     else next[key] = value;
   }
-  next.version = FORMAT_5_KEYS.some((k) => next[k] !== undefined)
-    ? 5
-    : FORMAT_4_KEYS.some((k) => next[k] !== undefined)
-      ? 4
-      : FORMAT_3_KEYS.some((k) => next[k] !== undefined)
-        ? 3
-        : FORMAT_2_KEYS.some((k) => next[k] !== undefined)
-          ? 2
-          : 1;
+  next.version = FORMAT_6_KEYS.some((k) => next[k] !== undefined)
+    ? 6
+    : FORMAT_5_KEYS.some((k) => next[k] !== undefined)
+      ? 5
+      : FORMAT_4_KEYS.some((k) => next[k] !== undefined)
+        ? 4
+        : FORMAT_3_KEYS.some((k) => next[k] !== undefined)
+          ? 3
+          : FORMAT_2_KEYS.some((k) => next[k] !== undefined)
+            ? 2
+            : 1;
   if (typeof next.locale === "string") next.locale = canonicalLocale(next.locale) ?? next.locale;
   if (Array.isArray(next.languages)) next.languages = (next.languages as string[]).map((l) => canonicalLocale(l) ?? l);
   if (typeof next.region === "string" && /^[a-z]{2}$/i.test(next.region)) next.region = next.region.toUpperCase();

@@ -47,11 +47,24 @@ Input (wins over the identity's identity.json):
                            full adds overshoot, reading pauses and wheel scrolling; adaptive is
                            light, and full on a site that showed a challenge page
 
+Engines (these flags win over the identity's identity.json; both are off by default):
+  --engine lightpanda      read mode: Lightpanda instead of Chrome, for reading pages
+                           (navigate, snapshot, find, click a link, evaluate); other tools are
+                           refused. Needs lightpanda on PATH or TURNO_LIGHTPANDA_PATH
+  --engine chrome          the default; turns off an identity's read or attach mode
+  --attach <target>        connect to a Chrome you already have open instead of launching
+                           one: "auto" (your default Chrome profile, after you turn on remote
+                           debugging at chrome://inspect/#remote-debugging), a Chrome user
+                           data dir, or a loopback endpoint. The agent sees every window of
+                           that profile; turno closes only the tabs it opened
+
 Examples:
   turno-browser-mcp --identity work
   turno-browser-mcp --identity work --max-tabs 4 --park-after 2m
   turno-browser-mcp --identity work --humanize light
   turno-browser-mcp --headless --popups keep
+  turno-browser-mcp --engine lightpanda
+  turno-browser-mcp --attach auto
 
 Every other flag is a Playwright MCP flag:
 `;
@@ -93,4 +106,5 @@ if (built.userDataDir && !help) {
 await runHost(built.args, {
   ...(built.identity !== undefined ? { identity: { id: built.identity, env: process.env } } : {}),
   ...(built.tuning ? { tuning: built.tuning } : {}),
+  ...(built.engineFlags ? { engineFlags: built.engineFlags } : {}),
 });

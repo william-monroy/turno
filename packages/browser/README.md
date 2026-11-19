@@ -34,6 +34,7 @@ with it; turno works without it. The whole story is at [turno.wimo.dev](https://
 | [Tab limits](#a-browser-that-cleans-up) | at most 8 tabs, parked after 5 minutes unused, closed after 15 |
 | [`browser_batch`](#faster-actions) | up to 20 actions in one call, and errors that say what is in the way |
 | [Blocking and cache](#lighter-pages) | opt-in: block trackers, images, media or fonts; cache static resources on disk |
+| [Engines](https://turno.wimo.dev/docs/concepts/browser-identities#engines) | opt-in: read mode on Lightpanda for reading pages with little memory, or attach to the Chrome you have open |
 | [Health and reputation](#know-when-something-is-wrong) | a signed-out identity says so, and each site's challenges are counted |
 | [`turno browser doctor`](#know-when-something-is-wrong) | checks Chrome and every identity, with a fix for each problem |
 

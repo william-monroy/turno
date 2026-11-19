@@ -23,6 +23,11 @@ import type { TabPolicy } from "./tuning.js";
  * pages apart (`owner`) and closes only that session's least recently used page, no session's
  * current tab is parked or closed (`protected`), and each note goes to the session whose page it
  * is about.
+ *
+ * With `ownedOnly` (attach mode, the user's own Chrome) it governs only the agent's pages:
+ * the ones handed to `own` and the ones that open during a tool call or in the moments after
+ * one. Pages that were open before, or that open between calls, are the user's: never counted,
+ * parked or closed, and no popup is closed.
  */
 
 /** A popup that opens this long after a tool call ended still counts as the call's. */
@@ -54,6 +59,10 @@ export interface GovernorOptions extends TabView {
   now?: () => number;
   /** Sweep for unused pages on a timer (the default); tests call `sweep()` themselves. */
   timer?: boolean;
+  /** Govern only the agent's pages (see the class comment). */
+  ownedOnly?: boolean;
+  /** Told about each page counted as the agent's, with `ownedOnly`. */
+  onOwn?(page: Page): void;
 }
 
 /** A URL short enough for one line of a tool result. */
@@ -95,7 +104,7 @@ export class TabGovernor {
   }
 
   start(): void {
-    for (const page of this.context.pages()) this.track(page);
+    if (!this.options.ownedOnly) for (const page of this.context.pages()) this.track(page);
     this.context.on("page", this.onPage);
     const stages = [this.policy.parkMs, this.policy.closeMs].filter((ms) => ms > 0);
     if (stages.length && this.options.timer !== false) {
@@ -138,7 +147,16 @@ export class TabGovernor {
     this.calls = Math.max(0, this.calls - 1);
     this.lastCallEnd = this.now();
     const current = view.current();
-    if (current && !current.isClosed()) this.track(current).lastUsed = this.now();
+    if (!current || current.isClosed()) return;
+    // A tab of the user's that the agent selected stays the user's.
+    if (this.options.ownedOnly && !this.pages.has(current)) return;
+    this.track(current).lastUsed = this.now();
+  }
+
+  /** Counts a page as the agent's (attach mode: the tab the host opens at connect). */
+  own(page: Page): void {
+    this.track(page);
+    this.options.onOwn?.(page);
   }
 
   /** What the governor did since the last call, one line each, for the next tool result of `owner`. */
@@ -242,9 +260,11 @@ export class TabGovernor {
 
   /** A page Chrome just opened. */
   private async adopt(page: Page): Promise<void> {
-    this.track(page);
-    // Whether a call asked for it is decided when the page opens, not after the hook ran.
     const asked = this.calls > 0 || this.now() - this.lastCallEnd < POPUP_GRACE_MS;
+    if (this.options.ownedOnly) {
+      if (!asked) return;
+      this.own(page);
+    } else this.track(page);
     if (this.options.adopt) await this.options.adopt(page);
     if (this.policy.popups === "close" && !asked) {
       const opener = await page.opener().catch(() => null);
