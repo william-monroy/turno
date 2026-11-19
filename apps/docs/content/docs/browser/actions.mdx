@@ -15,58 +15,57 @@ the target (a cookie banner, a dialog) with its buttons, or that the target is h
 disabled, and the next step. A target in view that another element covers before the call, and
 still covers it 300 ms later, is named at once: the call does not run, instead of waiting out
 Playwright's 5 second action timeout. Playwright waits 500 ms after each action for the work it started;
-`"settle": "100ms"` in `identity.json` (`turno identity set browser:school --settle 100ms`)
+`"settle": "100ms"` in `identity.json` (`turno-browser set school --settle 100ms`)
 shortens that wait (Playwright's own `--timeout-settle` wins over it).
 
 ## From the shell
 
 Coding agents that prefer shell commands to MCP tools, and people at a terminal, can drive an
-identity's browser with `turno browser do <id> <action>`. Each command is one tool call through
-mcpd to the identity's `turno-browser-mcp`, the server agents use, so it acts in the same browser
-under the same rules: the profile and its sign-ins, the tab locks or the one-session lease, the
+identity's browser with `turno-browser do <id> <action>`. Each command is one tool call to the
+identity's `turno-browser-mcp`, the server agents use: the identity's
+[background server](#the-background-server), or mcpd [with turno](#with-turno-through-mcpd). So it
+acts in the same browser under the same rules: the profile and its sign-ins, the tab locks or the one-session lease, the
 engine, humanize, recordings and the vault.
 
 ```sh
-turno browser do school open https://mail.example.com/
-turno browser do school snapshot           # the page's tree, with refs like e12
-turno browser do school click e12
-turno browser do school type e5 'quarterly report' --submit
-turno browser do school read               # the visible text
-turno browser do school screenshot --out page.png
-turno browser do school end                # end the session; the browser keeps running
+turno-browser do school open https://mail.example.com/
+turno-browser do school snapshot           # the page's tree, with refs like e12
+turno-browser do school click e12
+turno-browser do school type e5 'quarterly report' --submit
+turno-browser do school read               # the visible text
+turno-browser do school screenshot --out page.png
+turno-browser do school end                # end the session; the browser keeps running
 ```
 
-`turno browser do --help` lists every action: `open`, `back`, `snapshot`, `read`, `find`,
+`turno-browser do --help` lists every action: `open`, `back`, `snapshot`, `read`, `find`,
 `click`, `type`, `press`, `select`, `hover`, `wait`, `screenshot`, `tabs`, `login` (a vault
 sign-in), `call` (any tool of the server, such as `browser_batch`), `close`, `session` and `end`.
-The identity must be served by mcpd (its `[server.browser-<id>]` block in `mcp.toml`, which `turno
-browser add` prints). The command lives under `do` because the other `turno browser`
-subcommands take the identity after their own name (`turno browser show school`), so an identity
-named `show` could not be told from the subcommand. `turno browser school snapshot` works too,
+The command lives under `do` because the other `turno-browser` subcommands take the identity after their own name (`turno-browser show school`), so an identity
+named `show` could not be told from the subcommand. `turno-browser school snapshot` works too,
 for an identity whose id is not a subcommand; scripts and agents should write `do`.
 
 Output is short and the same every time: `url:` and `title:` lines, then what the action
 returned (the snapshot for `snapshot`, the text for `read`, `file:` for a screenshot, `note:` for a
 dialog, a new tab or what the tab governor closed). The code Playwright ran and the snapshot file
 an action saves on the server are left out; `--snapshot` after an action prints a fresh snapshot.
-A failed action prints `error:` and upstream's message on stderr and exits 1; mcpd not running
-exits 5. `--json` prints one object (`schemaVersion`, `page`, `result`, `snapshot`, `error`, ...).
+A failed action prints `error:` and upstream's message on stderr and exits 1. `--json` prints one object (`schemaVersion`, `page`, `result`, `snapshot`, `error`, ...).
 
 ### One session per agent or shell
 
 The commands one agent or one terminal shell runs are one session, as an agent's tool calls are,
-so they keep their tab between commands. turno keeps the mcpd session open between them and
-saves its id (under `~/.local/state/turno/browser-do/`, private to your user). The session
+so they keep their tab between commands. The session stays open between them and its id is
+saved in a folder private to your user (`do/` in the background server's folder, or
+`~/.local/state/turno/browser-do/` with turno). The session
 belongs to the process that runs the commands: a coding agent (Claude Code and Codex start a
 short-lived shell for every command; turno looks past it to the agent, or takes the agent a turno
 launcher started from `TURNO_SESSION_PID`) or, in a terminal, your shell. It ends when that process
-exits, with `end` or `close`, or when mcpd restarts (the next command then opens a new tab).
+exits, with `end` or `close`, or when the server restarts (the next command then opens a new tab).
 `--session <name>` or `TURNO_BROWSER_SESSION` keeps several sessions apart under one owner, for
 example two subagents each in its own tab; `session` shows which one a command would use.
 
 | The identity | What a CLI session does |
 |---|---|
-| `"sharing": "session"` (default) | it holds the identity's lease like an agent session: while it is open (until `end`, or 10 minutes without a command), an agent's call is refused with a message that names it, and the other way round |
+| `"sharing": "session"` (default) | it holds the identity's lease like an agent session: while it is open (until `end`, or after 5 minutes without a command on the background server, 10 through mcpd), an agent's call is refused with a message that names it, and the other way round |
 | `"sharing": "tabs"` | it gets its own tabs next to the agents' and holds them with the same locks; `tabs` marks the others' tabs in use |
 | attach mode | one session at a time, as above (attach does not go with tab sharing); it works in turno's own tab of your Chrome, and `close` closes only the tabs turno opened, never your browser. The first command may wait for Chrome's consent dialog (`--timeout`, default 120 seconds) |
 | read mode (Lightpanda) | every action works but `screenshot` and `login`: the server refuses those before anything runs, with the reason (Lightpanda lays out no page; read mode keeps no vault sign-ins) |
@@ -74,12 +73,9 @@ example two subagents each in its own tab; `session` shows which one a command w
 | recordings | each CLI session is one session to the recorder: with `record.flows` its commands become one `auto-<time>` flow; traces and screenshots cover them like an agent's calls |
 | vault | `login <site>` fills a vault credential; the value never reaches the shell, its history or the output. Never `type` a password |
 
-### Without turno: the background server
+### The background server
 
-`turno-browser do` runs the same actions without turno. With turno installed, `turno browser do`
-goes through mcpd as above; `turno-browser do`, the command of the turno-browser package, goes
-through the identity's background server instead, with the same actions, output, session rules
-(`session`, `end`, `--session`) and exit codes:
+Without turno, `turno-browser do` reaches the identity through its background server:
 
 ```sh
 turno-browser do school open https://example.com   # starts the background server if needed
@@ -116,6 +112,14 @@ identity.json names as `keychain:<item>` go in the secret store with `turno-brow
 <item>` (the same items `turno secret set` stores). The [turno-browser reference](/docs/reference/turno-browser)
 has the help of every command.
 
+### With turno: through mcpd
+
+With turno installed, `turno browser do <id> <action>` runs the same actions through mcpd instead
+of a background server, with the same output, session rules (`session`, `end`, `--session`) and
+exit codes. The identity must be served by mcpd: its `[server.browser-<id>]` block in `mcp.toml`,
+which `turno browser add` prints. When mcpd is not running, the command exits 5. Every other
+`turno-browser <command>` on these pages also runs as `turno browser <command>`.
+
 ### The skill
 
 The turno plugin for Claude Code adds a short `browser-identity` skill that teaches an agent this
@@ -132,7 +136,7 @@ person. `humanize` in `identity.json` changes how the same tools move and type, 
 off until you turn it on:
 
 ```sh
-turno identity set browser:school --humanize light   # or full, adaptive; --humanize "" turns it off
+turno-browser set school --humanize light   # or full, adaptive; --humanize "" turns it off
 turno-browser-mcp --identity school --humanize full  # the server's flag wins over identity.json
 ```
 

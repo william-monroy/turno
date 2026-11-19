@@ -13,11 +13,11 @@ model choosing one browser action at a time; `browser_extract` reads data off th
 from an instruction; `browser_observe` proposes the calls that would do it, without running them.
 
 ```sh
-turno identity set browser:school --act                     # your client's model, through MCP sampling
-turno identity set browser:school --act-provider chat-completions \
+turno-browser set school --act                     # your client's model, through MCP sampling
+turno-browser set school --act-provider chat-completions \
   --act-endpoint https://models.example.com/v1 --act-model <model> --act-key keychain:act-model
-turno secret set act-model                                  # the key, asked with a hidden prompt
-turno identity set browser:school --no-act                  # off again
+turno-browser secret set act-model                                  # the key, asked with a hidden prompt
+turno-browser set school --no-act                  # off again
 ```
 
 The model is yours to pick. With MCP sampling (`--act`), the agent's own client answers with a
@@ -72,10 +72,10 @@ returns into the page's response field (and calls the widget's callback when it 
 agent then submits the form itself, before the token expires.
 
 ```sh
-turno secret set captcha-solver                             # the service's account key, hidden prompt
-turno identity set browser:shop --captcha-provider task-api \
+turno-browser secret set captcha-solver                             # the service's account key, hidden prompt
+turno-browser set shop --captcha-provider task-api \
   --captcha-endpoint https://solver.example.com --captcha-key keychain:captcha-solver
-turno identity set browser:shop --no-captcha                # off again
+turno-browser set shop --no-captcha                # off again
 ```
 
 `task-api` is the `createTask` and `getTaskResult` protocol that many solver services share; the
@@ -93,12 +93,12 @@ Say plainly what it means before you turn it on:
   "verify it's you" prompt or a block page is left to you in the window.
 
 Every attempt, solved or not, is a line in the identity's [reputation log](/docs/browser/identities#reputation-log) with
-the host name, the widget kind and the provider (never the token or the key), and `turno browser
+the host name, the widget kind and the provider (never the token or the key), and `turno-browser
 reputation` shows a `solved` column once a solver answered.
 
 With the other settings: it works with `"sharing": "tabs"` (in the calling session's tab) and in
 attach mode (in the agent's own tab); read mode refuses it, since Lightpanda runs no widget, and
-`turno identity set` refuses the combination. Camoufox refuses it too: the token is set from
+`turno-browser set` refuses the combination. Camoufox refuses it too: the token is set from
 Patchright's isolated script world and the widget's callback runs in the page's own, and Camoufox
 runs on stock Playwright. It is not recorded in a flow: a replay that meets
 the captcha again stops at the next step, where the agent can call `browser_solve_captcha` and go

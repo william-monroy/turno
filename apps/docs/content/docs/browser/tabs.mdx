@@ -26,7 +26,7 @@ While the agent works, turno keeps the identity's Chrome from piling up pages:
 | A page unused for `park` | 5 minutes | it goes to about:blank and stops running; it loads its page again when the agent uses it |
 | A page unused for `close` | 15 minutes | it closes |
 
-Change them in `identity.json` (format 2), with `turno identity set`, or with the server's flags,
+Change them in `identity.json` (format 2), with `turno-browser set`, or with the server's flags,
 which win over the file:
 
 ```json
@@ -37,7 +37,7 @@ which win over the file:
 ```
 
 ```sh
-turno identity set browser:school --tabs-max 4 --tabs-popups keep --tabs-park 2m --tabs-close 0
+turno-browser set school --tabs-max 4 --tabs-popups keep --tabs-park 2m --tabs-close 0
 turno-browser-mcp --identity school --max-tabs 4 --popups keep --park-after 2m --close-after 0
 ```
 
@@ -46,7 +46,7 @@ An empty value removes one key (`--tabs-park ""`) and `--no-tabs` the whole grou
 
 `"0"` turns a stage off and `max: 0` removes the cap. What turno closed or parked is listed at
 the end of the next tool result. Tabs in the background run at full speed, as Playwright launches
-Chrome; `"backgroundThrottling": true` (`turno identity set browser:school
+Chrome; `"backgroundThrottling": true` (`turno-browser set school
 --background-throttling true`, or the server's `--background-throttling`) lets Chrome slow them down
 and brings the agent's tab to the front before each call. It suits a headless browser or a window
 left in view: a covered headed window stops rendering.

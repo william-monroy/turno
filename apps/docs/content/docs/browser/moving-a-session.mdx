@@ -4,8 +4,8 @@ description: "Take an identity's signed-in session to another machine in one enc
 ---
 
 ```sh
-turno browser export school --out school.session --expires 2d
-turno browser import school.session --as school-laptop
+turno-browser export school --out school.session --expires 2d
+turno-browser import school.session --as school-laptop
 ```
 
 The export holds the identity's cookies, localStorage and IndexedDB, encrypted with a passphrase you type (asked twice, or the first line of stdin), and is refused after its expiry (7 days by default, at most 90). It never holds vault credentials. Importing into an identity that exists replaces its session, so turno asks first (or needs `--yes`).
