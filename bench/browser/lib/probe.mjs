@@ -48,7 +48,7 @@ const PROBE_SCRIPT = String.raw`
     timer = setTimeout(flush, 150);
   }
   function flush() {
-    post('/report/' + encodeURIComponent(run), { method: 'POST', body: stringify(report), keepalive: true }).catch(() => {});
+    post('/report/' + encodeURIComponent(run), { method: 'POST', body: stringify(report) }).catch(() => {});
   }
 
   const t = (e) => Math.round(e.timeStamp * 10) / 10;
