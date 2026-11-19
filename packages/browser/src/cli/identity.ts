@@ -1,32 +1,38 @@
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, join } from "node:path";
-import { type Manifest, loadManifest } from "../../core/manifest.js";
-import { tildify } from "../../core/paths.js";
-import { type FlagSpec, JSON_FLAG, type Parsed, bool, parseFlags, str } from "../args.js";
-import { Exit } from "../exit.js";
-import { type Io, fail } from "../io.js";
-import { emit, jsonOutput } from "../output.js";
-import { style } from "../style.js";
-import type { ServedIdentity } from "turno-browser";
-import type { BrowserApi } from "./browser.js";
+import { dirname, join } from "node:path";
+import {
+  Exit,
+  type FlagSpec,
+  type Io,
+  JSON_FLAG,
+  type Parsed,
+  bool,
+  emit,
+  fail,
+  jsonOutput,
+  parseFlags,
+  str,
+  style,
+} from "turno-core/cli";
+import { tildify } from "turno-core/paths";
+import type { BrowserFunctions } from "../api.js";
+import type { CliNames, Ctx } from "./context.js";
 
-/** `turno browser show --json` and `turno identity show browser:<id> --json`. */
+/** `show --json` (`turno identity show browser:<id> --json` in turno). */
 export const SHOW_JSON = jsonOutput(["id", "dir", "settingsFile", "settings", "problems", "inUse", "holder", "health"]);
-/** `turno browser set --json` and `turno identity set browser:<id> --json`: what changed, or would. */
+/** `set --json`: what changed, or would. */
 export const SET_JSON = jsonOutput(["id", "settingsFile", "dryRun", "changes", "settings"]);
-/** `turno browser doctor --json`: the shape of `turno doctor --json`. */
+/** `doctor --json`: the shape of `turno doctor --json`. */
 export const DOCTOR_JSON = jsonOutput(["ok", "counts", "checks", "fixed"]);
-/** `turno browser reputation --json`: one element per identity. */
+/** `reputation --json`: one element per identity. */
 export const REPUTATION_JSON = jsonOutput(["id", "file", "total", "sites"]);
 
 /**
- * The identity module of turno-browser in the CLI: identity.json (`show`, `set`, the
- * settings flags of `add`), `turno browser doctor` and `turno browser reputation`. The types
- * come from the package itself (`import type`); `loadBrowser` refuses a package whose
- * API_VERSION does not fit, so every function used here is there.
+ * identity.json in the CLI (`show`, `set`, the settings flags of `add`), `doctor` and
+ * `reputation`. The functions come through `Ctx.api`, so tests can pass fakes.
  */
-type IdentitySettings = NonNullable<ReturnType<BrowserApi["checkIdentitySettings"]>["settings"]>;
+type IdentitySettings = NonNullable<ReturnType<BrowserFunctions["checkIdentitySettings"]>["settings"]>;
 type HealthCheck = NonNullable<IdentitySettings["health"]>;
 type TabSettings = NonNullable<IdentitySettings["tabs"]>;
 type BlockSettings = NonNullable<IdentitySettings["block"]>;
@@ -38,8 +44,8 @@ type CaptchaSettings = NonNullable<IdentitySettings["captcha"]>;
 type TabLockSettings = NonNullable<IdentitySettings["tabLocks"]>;
 type LiveSettings = NonNullable<IdentitySettings["live"]>;
 type ProxySettings = NonNullable<IdentitySettings["proxy"]>;
-export type SettingsPatch = Parameters<BrowserApi["writeIdentitySettings"]>[1];
-type DoctorCheck = Awaited<ReturnType<BrowserApi["runDoctor"]>>["checks"][number];
+type SettingsPatch = Parameters<BrowserFunctions["writeIdentitySettings"]>[1];
+type DoctorCheck = Awaited<ReturnType<BrowserFunctions["runDoctor"]>>["checks"][number];
 
 /** Flags that write identity.json, shared by `add` and `set`. An empty value removes the key. */
 export const SETTINGS_FLAGS: FlagSpec = {
@@ -502,9 +508,10 @@ const HUMANIZE_TEXT: Readonly<Record<string, string>> = {
   adaptive: "light, full on sites that showed a challenge (adaptive)",
 };
 
-export function show(m: BrowserApi, id: string, args: string[], io: Io): number {
+export function show(c: Ctx, id: string, args: string[], io: Io): number {
+  const m = c.api;
   const p = parseFlags(args, JSON_FLAG, 1);
-  if (!m.identityExists(id, io.env)) return fail(`identity "${id}" does not exist (turno identity add browser:${id})`);
+  if (!m.identityExists(id, io.env)) return fail(`identity "${id}" does not exist (${c.names.identity("add", id)})`);
   const { path, settings, problems } = m.checkIdentitySettings(id, io.env);
   const holder = m.inUseBy(id, io.env);
   const health = m.readHealth(id, io.env);
@@ -578,7 +585,7 @@ export function show(m: BrowserApi, id: string, args: string[], io: Io): number 
     if (settings.live?.enabled)
       rows.push([
         "live view",
-        `on (turno browser live ${id}); a paused call waits up to ${settings.live.wait ?? "2m"}`,
+        `on (${c.names.browser} live ${id}); a paused call waits up to ${settings.live.wait ?? "2m"}`,
       ]);
     rows.push(["created", settings.created]);
     rows.push(["updated", settings.updated]);
@@ -600,7 +607,7 @@ export function show(m: BrowserApi, id: string, args: string[], io: Io): number 
   const width = Math.max(...rows.map(([k]) => k.length));
   for (const [k, v] of rows) io.out(s.kv(k, v, width));
   for (const problem of problems) io.out(s.note("err", `identity.json ${problem}`));
-  if (health?.status === "needs_auth") io.out(s.note("info", `sign in again: turno browser login ${id}`));
+  if (health?.status === "needs_auth") io.out(s.note("info", `sign in again: ${c.names.browser} login ${id}`));
   return Exit.ok;
 }
 
@@ -616,8 +623,10 @@ export const SET_SYNOPSIS =
   "[--captcha-provider task-api] [--captcha-endpoint <url>] [--captcha-key keychain:<item>] [--captcha-timeout <duration>] [--no-captcha] [--live true|false] [--live-wait <duration>] [--no-live] " +
   "[--user-agent coherent] [--proxy-server <url>] [--proxy-username <name|keychain:item>] [--proxy-password keychain:<item>] [--no-proxy] [--dry-run] [--json]";
 
-/** More help for `set`: what each tuning flag writes to identity.json. */
-export const SET_DETAILS = `Each flag writes one key of identity.json; an empty value (--settle "") removes it, and
+/** More help for `set`: what each tuning flag writes to identity.json, with the host's command names. */
+export function setDetails(n: CliNames): string {
+  const b = n.browser;
+  return `Each flag writes one key of identity.json; an empty value (--settle "") removes it, and
 --no-health, --no-tabs, --no-block and --no-cache remove a whole group. A flag of a group
 changes only its part: the rest of that group stays.
 
@@ -651,19 +660,19 @@ Input:
 
 Which engine runs this identity (all off by default):
   --engine lightpanda             read mode: Lightpanda instead of Chrome, for reading pages;
-                                  needs lightpanda on PATH (turno browser doctor says how)
+                                  needs lightpanda on PATH (${b} doctor says how)
   --engine camoufox               Camoufox (a Firefox build) with its own profile; not
                                   recommended for your own accounts; needs Camoufox and
-                                  playwright-core (turno browser doctor says how); no captcha
+                                  playwright-core (${b} doctor says how); no captcha
                                   solving, and no picture in the live view
   --attach auto|<dir>|<url>       use the Chrome you have open instead of the identity's own:
                                   "auto" is your default Chrome profile, after you turn on
                                   chrome://inspect/#remote-debugging; Chrome asks you to allow
                                   each connection, and the agent then sees all its windows
 
-What turno-browser records for this identity (all off by default; turno browser record):
+What turno-browser records for this identity (all off by default; ${b} record):
   --record-flows <bool>           keep every session's actions as a flow (auto-<time>, newest 20)
-  --record-traces <bool>          a Playwright trace of each browser session (turno browser traces)
+  --record-traces <bool>          a Playwright trace of each browser session (${b} traces)
   --record-screenshots <bool>     a screenshot after each action
   --record-max-size <size>        cap of the traces and screenshots, "10MB" to "10GB" (default 200MB)
 Vault sign-ins and passwords never reach a flow, a trace or a screenshot.
@@ -675,7 +684,7 @@ party you pick, and many sites' terms forbid them; the server lists their tools 
   --act-provider chat-completions a model API to use when the client has no sampling, with
   --act-endpoint <url>            its base URL (https, or http on this machine),
   --act-model <name>              the model name it expects and
-  --act-key keychain:<item>       its key in the secret store (turno secret set <item>)
+  --act-key keychain:<item>       its key in the secret store (${n.secretSet("<item>")})
   --act-sampling <bool>           false: never ask the client, always use the provider
   --act-max-steps <n>             most actions per call, 1 to 30 (default 10)
   --act-max-tokens <n>            most model tokens per call (default 50000)
@@ -686,7 +695,7 @@ party you pick, and many sites' terms forbid them; the server lists their tools 
   --captcha-timeout <duration>    longest wait for a solution (default 3m)
   --no-act, --no-captcha          turn them off
 
-The live view and take-over (off by default; turno browser live, pause, resume):
+The live view and take-over (off by default; ${b} live, pause, resume):
   --live <bool>                   serve a view of the agent's tab on 127.0.0.1 and let you pause
                                   the agent to take the controls (from the next server start)
   --live-wait <duration>          how long a paused call waits for you, "5s" to "30m" (default 2m)
@@ -701,8 +710,9 @@ you may automate):
                                   https://, socks4:// or socks5://host:port; its operator sees
                                   where you go, and sites see its address
   --proxy-username <name>         the proxy user name, or keychain:<item>
-  --proxy-password keychain:<item> the password, only from the secret store (turno secret set)
+  --proxy-password keychain:<item> the password, only from the secret store (${n.secretStore ?? n.secretSet("<item>")})
   --no-proxy                      remove the proxy`;
+}
 
 /** The flags of `set`, for completion. */
 export const SET_FLAG_NAMES = ["--dry-run", "--json", ...SETTINGS_FLAG_NAMES];
@@ -712,7 +722,7 @@ export const SET_FLAG_NAMES = ["--dry-run", "--json", ...SETTINGS_FLAG_NAMES];
  * folder and the patch written there, so `--dry-run` refuses exactly what the write would and
  * shows the file it would leave, without touching the real one.
  */
-function rehearse(m: BrowserApi, id: string, patch: SettingsPatch, env: NodeJS.ProcessEnv): IdentitySettings {
+function rehearse(m: BrowserFunctions, id: string, patch: SettingsPatch, env: NodeJS.ProcessEnv): IdentitySettings {
   const dir = mkdtempSync(join(env.TMPDIR || tmpdir(), "turno-identity-"));
   try {
     const copy = { ...env, TURNO_DATA_DIR: dir };
@@ -727,9 +737,9 @@ function rehearse(m: BrowserApi, id: string, patch: SettingsPatch, env: NodeJS.P
 }
 
 /** What turning on natural language actions or captcha solving costs, said once at `set`. */
-function optInNotes(id: string, patch: SettingsPatch): string[] {
+function optInNotes(c: Ctx, id: string, patch: SettingsPatch): string[] {
   const notes: string[] = [];
-  const restart = `its tools are listed once browser-${id} starts again (a new agent session, or turno mcp daemon restart)`;
+  const restart = `its tools are listed once browser-${id} starts again (${c.host.restart})`;
   if (patch.act)
     notes.push(
       `natural language actions: each call sends the instruction and a snapshot of the page to the model (your client's, or the provider you set), with vault values and sensitive fields hidden; ${restart}. Undo with --no-act.`,
@@ -749,21 +759,15 @@ function optInNotes(id: string, patch: SettingsPatch): string[] {
     );
   if (patch.engine === "camoufox")
     notes.push(
-      `engine camoufox: a Firefox build that reports values other than the computer's own is something sites look for, the Chrome profile's sign-ins do not carry over, and it needs Camoufox and playwright-core (turno browser doctor). ${own}`,
+      `engine camoufox: a Firefox build that reports values other than the computer's own is something sites look for, the Chrome profile's sign-ins do not carry over, and it needs Camoufox and playwright-core (${c.names.browser} doctor). ${own}`,
     );
   return notes;
 }
 
-/** What mcp.toml needs after `--sharing`: mcpd decides how many sessions reach the server. */
-function sharingNote(id: string, sharing: IdentitySettings["sharing"]): string {
-  return sharing === "tabs"
-    ? `In mcp.toml, set exclusive = false for [server.browser-${id}] (and drop lease), then run \`turno mcp sync\`: mcpd then lets every session in, and each gets its own tabs.`
-    : `In mcp.toml, set exclusive = true for [server.browser-${id}], then run \`turno mcp sync\`: one agent session at a time.`;
-}
-
-export function set(m: BrowserApi, id: string, args: string[], io: Io): number {
+export function set(c: Ctx, id: string, args: string[], io: Io): number {
+  const m = c.api;
   const p = parseFlags(args, SET_FLAGS, 1);
-  if (!m.identityExists(id, io.env)) return fail(`identity "${id}" does not exist (turno identity add browser:${id})`);
+  if (!m.identityExists(id, io.env)) return fail(`identity "${id}" does not exist (${c.names.identity("add", id)})`);
   const patch = settingsPatch(p, m.checkIdentitySettings(id, io.env).settings);
   if (!hasSettings(patch))
     return fail(`nothing to set: pass ${SETTINGS_FLAG_NAMES.join(", ")} (an empty value removes one)`);
@@ -790,9 +794,10 @@ export function set(m: BrowserApi, id: string, args: string[], io: Io): number {
     return Exit.ok;
   }
   io.out(`updated identity.json of "${id}"; the next Chrome start of browser-${id} uses it\n`);
-  const code = show(m, id, [], io);
-  if (patch.sharing !== undefined) io.out(`\n${sharingNote(id, settings.sharing)}`);
-  for (const note of optInNotes(id, patch)) io.out(style(io).note("warn", note));
+  const code = show(c, id, [], io);
+  const sharing = patch.sharing !== undefined ? c.host.sharingNote?.(id, settings.sharing) : undefined;
+  if (sharing) io.out(`\n${sharing}`);
+  for (const note of optInNotes(c, id, patch)) io.out(style(io).note("warn", note));
   if (typeof patch.attach === "string") {
     const s = style(io);
     io.out(
@@ -816,53 +821,15 @@ const SECTIONS: [string, (area: string) => boolean][] = [
   ["Identities", (a) => a === "identities" || a.startsWith("identity ")],
 ];
 
-/** The value of `--flag v` or `--flag=v` in a server's args. */
-function flagValue(args: string[], flag: string): string | undefined {
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === flag) return args[i + 1];
-    if (args[i]!.startsWith(`${flag}=`)) return args[i]!.slice(flag.length + 1);
-  }
-  return undefined;
-}
-
-/**
- * The mcp.toml servers that run turno-browser-mcp for an identity, for the doctor's check of
- * `exclusive` against the identity's `sharing`. An unreadable mcp.toml gives none (`turno doctor`
- * reports it).
- */
-export function servedIdentities(env: NodeJS.ProcessEnv): ServedIdentity[] {
-  let manifest: Manifest;
-  try {
-    manifest = loadManifest(env);
-  } catch {
-    return [];
-  }
-  const out: ServedIdentity[] = [];
-  for (const [name, server] of Object.entries(manifest.servers)) {
-    if (server.kind !== "stdio") continue;
-    const runs = [server.command, ...server.args].some((a) => basename(a) === "turno-browser-mcp");
-    const identity = flagValue(server.args, "--identity");
-    if (!runs || !identity) continue;
-    const sharing = flagValue(server.args, "--sharing");
-    out.push({
-      name,
-      identity: identity.replace(/^browser:/, ""),
-      exclusive: server.exclusive,
-      scope: server.scope,
-      ...(sharing ? { sharing } : {}),
-    });
-  }
-  return out;
-}
-
-export async function doctor(m: BrowserApi, args: string[], io: Io): Promise<number> {
+export async function doctor(c: Ctx, args: string[], io: Io): Promise<number> {
+  const m = c.api;
   const p = parseFlags(args, DOCTOR_FLAGS, 0);
   const json = bool(p, "json");
   const report = await m.runDoctor({
     env: io.env,
     fix: bool(p, "fix"),
     launch: !bool(p, "no-launch"),
-    servers: servedIdentities(io.env),
+    servers: c.host.servers?.(io.env) ?? [],
   });
   const failed = report.checks.some((c) => c.level === "fail");
   const exit = failed ? Exit.failure : Exit.ok;
@@ -929,7 +896,8 @@ export async function doctor(m: BrowserApi, args: string[], io: Io): Promise<num
   return exit;
 }
 
-export function reputation(m: BrowserApi, args: string[], io: Io, checkId: (id: string) => string): number {
+export function reputation(c: Ctx, args: string[], io: Io, checkId: (id: string) => string): number {
+  const m = c.api;
   const p = parseFlags(args, JSON_FLAG, 1);
   const id = p.positionals[0] === undefined ? undefined : checkId(p.positionals[0].replace(/^browser:/, ""));
   let report: ReturnType<typeof m.reputationReport>;
@@ -954,7 +922,7 @@ export function reputation(m: BrowserApi, args: string[], io: Io, checkId: (id: 
   }
   const s = style(io);
   if (!report.identities.length) {
-    io.out("No browser identities yet. Create one with `turno identity add browser:<id>`.");
+    io.out(`No browser identities yet. Create one with \`${c.names.identity("add", "<id>")}\`.`);
     return Exit.ok;
   }
   const TREND = { up: s.warn("up"), down: s.ok("down"), flat: s.muted("flat") };

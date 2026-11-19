@@ -59,6 +59,8 @@ const MEMBERS = [
   "openBackgroundSession",
   "startBackground",
   "stopBackground",
+  // 1.12: the identity commands themselves.
+  "cli",
 ];
 
 describe("the public API object", () => {
@@ -71,8 +73,9 @@ describe("the public API object", () => {
   // 1.9: the live key and the live view of a running server.
   // 1.10: the userAgent and proxy keys and the camoufox engine (no new member).
   // 1.11: the background server of an identity.
-  it("is version 1.11, frozen, with integer parts", () => {
-    expect(API_VERSION).toEqual({ major: 1, minor: 11 });
+  // 1.12: cli, the identity commands that turno-cli runs with its own host.
+  it("is version 1.12, frozen, with integer parts", () => {
+    expect(API_VERSION).toEqual({ major: 1, minor: 12 });
     expect(Object.isFrozen(API_VERSION)).toBe(true);
     expect(Number.isInteger(API_VERSION.major) && Number.isInteger(API_VERSION.minor)).toBe(true);
   });

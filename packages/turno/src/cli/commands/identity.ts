@@ -3,23 +3,22 @@ import { loadRegistry } from "../../accounts/registry.js";
 import { tildify } from "../../core/paths.js";
 import { DRY_RUN, JSON_FLAG, bool, flagsOf, parseFlags, str } from "../args.js";
 import { emit, jsonOutput } from "../output.js";
-import { group } from "../group.js";
+import { type Sub, group } from "../group.js";
 import { launcherExists } from "../../accounts/delegate.js";
 import { loadConfig } from "../../core/config.js";
-import { type Io, fail } from "../io.js";
+import { type Command, type Io, fail } from "../io.js";
 import { profileColor, style } from "../style.js";
 import * as accounts from "./accounts.js";
 import { policyLine } from "./accounts.js";
-import { type BrowserDeps, type BrowserApi, NOT_INSTALLED, defaultDeps, dispatch } from "./browser.js";
 import {
-  SETTINGS_FLAGS,
-  SETTINGS_FLAG_NAMES,
-  SET_DETAILS,
-  SET_FLAG_NAMES,
-  SET_JSON,
-  SET_SYNOPSIS,
-  SHOW_JSON,
-} from "./browser-identity.js";
+  type BrowserApi,
+  type BrowserDeps,
+  NOT_INSTALLED,
+  browserCli,
+  defaultDeps,
+  dispatch,
+  preload,
+} from "./browser.js";
 
 /**
  * Who acts on an outside service for a session: a service account (`linear:work`, run by a
@@ -133,12 +132,6 @@ function bareId(args: string[]): string[] {
 
 async function add(args: string[], io: Io): Promise<number> {
   if (!firstId(args)?.startsWith(BROWSER)) return accounts.add(args, io);
-  const p = parseFlags(args, { ...DRY_RUN, ...SETTINGS_FLAGS }, 1);
-  const id = p.positionals[0]!.slice(BROWSER.length);
-  if (bool(p, "dry-run")) {
-    io.out(`(dry run) would create browser identity "${id}"`);
-    return 0;
-  }
   return dispatch(await browserModule(io), "add", bareId(args), io, deps);
 }
 
@@ -188,98 +181,112 @@ export function setBrowserDeps(next: BrowserDeps): BrowserDeps {
   return prev;
 }
 
-export const command = group(
-  "identity",
-  "who acts on outside services: service accounts (linear:work) and browser identities (browser:school)",
-  {
-    list: {
-      summary: "service accounts, browser identities and folder preferences",
-      synopsis: "[--json]",
-      flags: ["--json"],
-      json: LIST_JSON,
-      run: list,
+/**
+ * The `identity` command. The browser parts of its help (the settings flags of `add` and `set`,
+ * set's details, the JSON of `show` and `set`) come from turno-browser when it is installed.
+ */
+export function identityCommand(browser?: Record<string, Sub>): Command {
+  const setSynopsis = browser?.set?.synopsis?.replace(/^<id> /, "") ?? "[flags] [--dry-run] [--json]";
+  return group(
+    "identity",
+    "who acts on outside services: service accounts (linear:work) and browser identities (browser:school)",
+    {
+      list: {
+        summary: "service accounts, browser identities and folder preferences",
+        synopsis: "[--json]",
+        flags: ["--json"],
+        json: LIST_JSON,
+        run: list,
+      },
+      add: {
+        summary: "add a service account, or create a browser identity (browser:<id>)",
+        synopsis:
+          "<service:label> --profile <p> --tools <pattern>[,...] [--read-tools <pattern>[,...]] [--confirm always|writes|never] | browser:<id> [--timezone <zone>] [--languages <tag,...>] [--health-url <url> --health-text <text>]  [--dry-run]",
+        args: ["any"],
+        flags: [
+          "--profile",
+          "--tools",
+          "--read-tools",
+          "--confirm",
+          "--service",
+          "--description",
+          ...(browser?.add?.flags ?? ["--dry-run"]),
+        ],
+        run: add,
+      },
+      show: {
+        summary: "a browser identity's settings, session health and who holds it",
+        synopsis: "browser:<id> [--json]",
+        args: ["identity"],
+        flags: ["--json"],
+        ...(browser?.show?.json ? { json: browser.show.json } : {}),
+        run: (a, io) => browserOnly("show", a, io),
+      },
+      set: {
+        summary: "change a browser identity's identity.json: place, languages, health check, tabs, blocking, cache",
+        synopsis: `browser:<id> ${setSynopsis}`,
+        details: browser?.set?.details ?? `The settings flags come with turno-browser (${NOT_INSTALLED}).`,
+        args: ["identity"],
+        flags: browser?.set?.flags ?? ["--dry-run", "--json"],
+        ...(browser?.set?.json ? { json: browser.set.json } : {}),
+        run: (a, io) => browserOnly("set", a, io),
+      },
+      remove: {
+        summary: "remove a service account, or delete a browser identity and its logins",
+        synopsis: "<id> [--dry-run]",
+        args: ["identity"],
+        flags: ["--dry-run"],
+        run: remove,
+      },
+      login: {
+        summary: "open a browser identity's Chrome to sign in by hand once",
+        synopsis: "browser:<id> [--url <url>]",
+        args: ["identity"],
+        flags: ["--url"],
+        run: login,
+      },
+      prefer: {
+        summary: "pick the account of a service for a folder (empty account removes it)",
+        synopsis: "<dir> <service>=<account> [--dry-run]",
+        args: ["dir"],
+        flags: ["--dry-run"],
+        run: async (a, io) => accounts.prefer(a, io),
+      },
+      log: {
+        summary: "recent calls to the accounts bridge; --verify checks the log's hash chain",
+        synopsis: "[-n N] [--verify] [--json]",
+        flags: flagsOf(accounts.LOG_SPEC),
+        json: accounts.LOG_JSON,
+        run: async (a, io) => accounts.log(a, io),
+      },
     },
-    add: {
-      summary: "add a service account, or create a browser identity (browser:<id>)",
-      synopsis:
-        "<service:label> --profile <p> --tools <pattern>[,...] [--read-tools <pattern>[,...]] [--confirm always|writes|never] | browser:<id> [--timezone <zone>] [--languages <tag,...>] [--health-url <url> --health-text <text>]  [--dry-run]",
-      args: ["any"],
-      flags: [
-        "--profile",
-        "--tools",
-        "--read-tools",
-        "--confirm",
-        "--service",
-        "--description",
-        "--dry-run",
-        ...SETTINGS_FLAG_NAMES,
+    {
+      fallback: "list",
+      examples: [
+        "turno identity list",
+        "turno identity add linear:work --profile work --tools 'mcp__linear__*'",
+        "turno identity add browser:school",
+        "turno identity login browser:school",
+        "turno identity show browser:school",
+        "turno identity set browser:school --timezone Europe/Madrid --languages es-ES,es,en",
+        "turno identity set browser:school --tabs-max 5 --tabs-park 10m --background-throttling true",
+        "turno identity set browser:school --block-trackers true --block-types image,font --cache-max-size 200MB",
+        "turno identity set browser:school --settle 500ms --dry-run --json",
+        "turno identity set browser:school --humanize adaptive",
+        "turno identity set browser:school --no-block --no-cache",
+        "turno identity set browser:school --sharing tabs",
+        "turno identity prefer ~/code/acme linear=linear:work",
+        "turno identity remove linear:work --dry-run",
+        "turno identity log --verify",
       ],
-      run: add,
     },
-    show: {
-      summary: "a browser identity's settings, session health and who holds it",
-      synopsis: "browser:<id> [--json]",
-      args: ["identity"],
-      flags: ["--json"],
-      json: SHOW_JSON,
-      run: (a, io) => browserOnly("show", a, io),
-    },
-    set: {
-      summary: "change a browser identity's identity.json: place, languages, health check, tabs, blocking, cache",
-      synopsis: `browser:<id> ${SET_SYNOPSIS}`,
-      details: SET_DETAILS,
-      args: ["identity"],
-      flags: SET_FLAG_NAMES,
-      json: SET_JSON,
-      run: (a, io) => browserOnly("set", a, io),
-    },
-    remove: {
-      summary: "remove a service account, or delete a browser identity and its logins",
-      synopsis: "<id> [--dry-run]",
-      args: ["identity"],
-      flags: ["--dry-run"],
-      run: remove,
-    },
-    login: {
-      summary: "open a browser identity's Chrome to sign in by hand once",
-      synopsis: "browser:<id> [--url <url>]",
-      args: ["identity"],
-      flags: ["--url"],
-      run: login,
-    },
-    prefer: {
-      summary: "pick the account of a service for a folder (empty account removes it)",
-      synopsis: "<dir> <service>=<account> [--dry-run]",
-      args: ["dir"],
-      flags: ["--dry-run"],
-      run: async (a, io) => accounts.prefer(a, io),
-    },
-    log: {
-      summary: "recent calls to the accounts bridge; --verify checks the log's hash chain",
-      synopsis: "[-n N] [--verify] [--json]",
-      flags: flagsOf(accounts.LOG_SPEC),
-      json: accounts.LOG_JSON,
-      run: async (a, io) => accounts.log(a, io),
-    },
-  },
-  {
-    fallback: "list",
-    examples: [
-      "turno identity list",
-      "turno identity add linear:work --profile work --tools 'mcp__linear__*'",
-      "turno identity add browser:school",
-      "turno identity login browser:school",
-      "turno identity show browser:school",
-      "turno identity set browser:school --timezone Europe/Madrid --languages es-ES,es,en",
-      "turno identity set browser:school --tabs-max 5 --tabs-park 10m --background-throttling true",
-      "turno identity set browser:school --block-trackers true --block-types image,font --cache-max-size 200MB",
-      "turno identity set browser:school --settle 500ms --dry-run --json",
-      "turno identity set browser:school --humanize adaptive",
-      "turno identity set browser:school --no-block --no-cache",
-      "turno identity set browser:school --sharing tabs",
-      "turno identity prefer ~/code/acme linear=linear:work",
-      "turno identity remove linear:work --dry-run",
-      "turno identity log --verify",
-    ],
-  },
-);
+  );
+}
+
+export const command = identityCommand();
+
+/** The command as the registry loads it: with the help of the installed turno-browser. */
+export async function loadCommand(): Promise<Command> {
+  const mod = await preload();
+  return identityCommand(mod ? browserCli(mod).subs : undefined);
+}

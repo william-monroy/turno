@@ -1,4 +1,4 @@
-import { isAbsolute, join, normalize } from "node:path";
+import { join } from "node:path";
 import { browserPaths, turnoRoots } from "turno-core/paths";
 
 // The roots, private folders and PATH lookup are shared with turno-browser.
@@ -10,6 +10,7 @@ export {
   isPrivatePath,
   privateRoots,
   resetPrivateDirCache,
+  tildify,
   writePrivateFile,
 } from "turno-core/paths";
 
@@ -83,14 +84,6 @@ export function paths(env: NodeJS.ProcessEnv): Paths {
 /** Config dir of a profile: ~/.claude-<name>. */
 export function profileDir(name: string, env: NodeJS.ProcessEnv): string {
   return join(paths(env).home, `.claude-${name}`);
-}
-
-/** Replace the home prefix with ~ for display. */
-export function tildify(p: string, env: NodeJS.ProcessEnv): string {
-  // HOME may come with a trailing slash or doubled slashes (HOME=/Users/a/): compare normalized.
-  const home = normalize(paths(env).home).replace(/(.)\/+$/, "$1");
-  const q = isAbsolute(p) ? normalize(p) : p;
-  return q === home ? "~" : home !== "/" && q.startsWith(`${home}/`) ? `~${q.slice(home.length)}` : p;
 }
 
 /** Expand a leading ~ to the home directory. */

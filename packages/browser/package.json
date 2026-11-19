@@ -27,6 +27,7 @@
     "./package.json": "./package.json"
   },
   "bin": {
+    "turno-browser": "dist/cli/main.js",
     "turno-browser-mcp": "dist/bin/mcp.js"
   },
   "files": [
@@ -39,7 +40,7 @@
     "CHANGELOG.md"
   ],
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/bin/mcp.js",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/bin/mcp.js dist/cli/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "prepack": "pnpm run build && node ../../scripts/shrinkwrap.mjs . && cp ../../LICENSE ../../NOTICE ."

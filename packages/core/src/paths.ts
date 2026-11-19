@@ -11,7 +11,7 @@ import {
   writeSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { delimiter, dirname, isAbsolute, join, relative, sep } from "node:path";
+import { delimiter, dirname, isAbsolute, join, normalize, relative, sep } from "node:path";
 
 /**
  * turno's own roots, derived from HOME and the XDG variables so tests can run against a
@@ -37,6 +37,14 @@ export function turnoRoots(env: NodeJS.ProcessEnv = process.env): TurnoRoots {
     state: env.TURNO_STATE_DIR || join(env.XDG_STATE_HOME || join(home, ".local", "state"), "turno"),
     data: env.TURNO_DATA_DIR || join(env.XDG_DATA_HOME || join(home, ".local", "share"), "turno"),
   };
+}
+
+/** Replace the home prefix with ~ for display. */
+export function tildify(p: string, env: NodeJS.ProcessEnv): string {
+  // HOME may come with a trailing slash or doubled slashes (HOME=/Users/a/): compare normalized.
+  const home = normalize(turnoRoots(env).home).replace(/(.)\/+$/, "$1");
+  const q = isAbsolute(p) ? normalize(p) : p;
+  return q === home ? "~" : home !== "/" && q.startsWith(`${home}/`) ? `~${q.slice(home.length)}` : p;
 }
 
 /** Where turno-browser keeps its files. */

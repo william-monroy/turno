@@ -1,11 +1,12 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { BrowserApi, BrowserDeps } from "../src/cli/commands/browser.js";
-import { exportSession, importSession, parseExpiry } from "../src/cli/commands/browser-session.js";
-import type { VaultInput } from "../src/cli/commands/browser-vault.js";
-import { fakeIo } from "./helpers/cli.js";
-import { type Sandbox, sandbox } from "./helpers/sandbox.js";
+import type { BrowserFunctions as BrowserApi } from "../../src/api.js";
+import type { CliDeps, VaultInput } from "../../src/cli/context.js";
+import * as session from "../../src/cli/session.js";
+import { parseExpiry } from "../../src/cli/session.js";
+import { type Sandbox, sandbox } from "../helpers/sandbox.js";
+import { ctx, fakeIo } from "./helpers.js";
 
 let sb: Sandbox;
 beforeEach(() => {
@@ -62,14 +63,19 @@ function input(over: Partial<VaultInput> = {}): VaultInput {
   };
 }
 
-const deps = (answer: boolean, interactive = true): BrowserDeps => ({
-  load: async () => undefined,
+type Asks = Pick<CliDeps, "interactive" | "confirm">;
+const deps = (answer: boolean, interactive = true): Asks => ({
   interactive: () => interactive,
   confirm: async () => answer,
 });
+type IoOf = Parameters<typeof session.exportSession>[2];
+const exportSession = (m: BrowserApi, args: string[], io: IoOf, inp: VaultInput) =>
+  session.exportSession(ctx(m, { input: inp }), args, io);
+const importSession = (m: BrowserApi, args: string[], io: IoOf, d: Asks, inp: VaultInput) =>
+  session.importSession(ctx(m, { ...d, input: inp }), args, io);
 const run = (p: Promise<number>) => p.then(String, (e: Error) => e.message);
 
-describe("turno browser export", () => {
+describe("export", () => {
   it("writes the sealed file with mode 600, refuses to overwrite without --force, never prints the passphrase", async () => {
     const calls: Calls = { exported: [], imported: [] };
     const out = join(sb.home, "work.session");
@@ -107,14 +113,14 @@ describe("turno browser export", () => {
     const m = fakeModule({ exported: [], imported: [] });
     expect(await run(exportSession(m, ["work"], fakeIo(sb.env), input()))).toMatch(/--out/);
     expect(await run(exportSession(m, ["nobody", "--out", "x"], fakeIo(sb.env), input()))).toMatch(/does not exist/);
-    expect(await run(exportSession(m, [], fakeIo(sb.env), input()))).toMatch(/usage: turno browser export/);
+    expect(await run(exportSession(m, [], fakeIo(sb.env), input()))).toMatch(/usage: turno-browser export/);
     expect(() => parseExpiry("91d")).toThrow(/up to 90d/);
     expect(() => parseExpiry("5m")).toThrow(/like 7d or 12h/);
     expect(parseExpiry("12h")).toBe(12 * 3600_000);
   });
 });
 
-describe("turno browser import", () => {
+describe("import", () => {
   const file = () => {
     const f = join(sb.home, "in.session");
     writeFileSync(f, '{"format":"turno-browser-session"}');

@@ -1,11 +1,11 @@
+import { api as browserPackage } from "turno-browser";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  BENCH_PROMPT,
   type BrowserDeps,
   type BrowserApi,
   NOT_INSTALLED,
   browserCommand,
-  command as browser,
+  loadCommand,
 } from "../src/cli/commands/browser.js";
 import { command as identity, setBrowserDeps } from "../src/cli/commands/identity.js";
 import { fakeIo } from "./helpers/cli.js";
@@ -50,6 +50,8 @@ function fakeModule(calls: Calls): BrowserApi {
       return { version: 1, results: [] };
     },
     formatBenchTable: () => "TABLE",
+    // The commands themselves are turno-browser's; they call the fakes above.
+    cli: browserPackage.cli,
   };
   return fake as unknown as BrowserApi;
 }
@@ -85,6 +87,7 @@ describe("turno browser", () => {
   });
 
   it("keeps detection and evasion wording out of its help", async () => {
+    const browser = await loadCommand();
     const io = fakeIo(sb.env);
     await browser.run(["--help"], io);
     const text = `${browser.summary}\n${browser.usage}\n${io.lines.join("\n")}`;
@@ -136,8 +139,7 @@ describe("turno browser", () => {
     const { cmd, calls, asked } = setup({ interactive: () => true }, false);
     const io = fakeIo(sb.env);
     expect(await cmd.run(["bench", "--json"], io)).toBe(1);
-    expect(asked).toEqual([BENCH_PROMPT]);
-    expect(BENCH_PROMPT).toBe("This opens Chrome and visits third-party test pages. Continue? [y/N] ");
+    expect(asked).toEqual(["This opens Chrome and visits third-party test pages. Continue? [y/N] "]);
     expect(calls.bench).toHaveLength(0);
     expect(io.errors.join("\n")).toMatch(/Cancelled/);
   });

@@ -60,9 +60,10 @@ export const COMMANDS: Record<string, Loader> = {
   session: () => import("./commands/session.js"),
   open: () => import("./commands/open.js"),
   mcp: () => import("./commands/mcp.js"),
-  identity: () => import("./commands/identity.js"),
+  // Described by turno-browser when it is installed (the browser flags in help and completion).
+  identity: async () => ({ command: await (await import("./commands/identity.js")).loadCommand() }),
   secret: () => import("./commands/secret.js"),
-  browser: () => import("./commands/browser.js"),
+  browser: async () => ({ command: await (await import("./commands/browser.js")).loadCommand() }),
   ui: () => import("./commands/ui.js"),
   status: () => import("./commands/status.js"),
   doctor: () => import("./commands/doctor.js"),

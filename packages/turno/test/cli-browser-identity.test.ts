@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { api as browserPackage } from "turno-browser";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   BROWSER_API,
@@ -7,9 +8,9 @@ import {
   type BrowserDeps,
   browserCommand,
   loadBrowser,
+  servedIdentities,
 } from "../src/cli/commands/browser.js";
-import { servedIdentities } from "../src/cli/commands/browser-identity.js";
-import { command as identity, setBrowserDeps } from "../src/cli/commands/identity.js";
+import { command as identity, loadCommand, setBrowserDeps } from "../src/cli/commands/identity.js";
 import { parseManifest } from "../src/core/manifest.js";
 import { fakeIo } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -329,8 +330,9 @@ describe("turno identity add/show/set for browser identities", () => {
     });
     expect(JSON.parse(readFileSync(settingsFile("school"), "utf8")).settle).toBe("500ms");
 
+    // The fields come from turno-browser, which the registry loads with the command.
     const fields = fakeIo(sb.env);
-    expect(await identity.run(["set", "browser:school", "--json=fields"], fields)).toBe(0);
+    expect(await (await loadCommand()).run(["set", "browser:school", "--json=fields"], fields)).toBe(0);
     expect(fields.lines.join("\n")).toMatch(/changes/);
   });
 
@@ -340,14 +342,14 @@ describe("turno identity add/show/set for browser identities", () => {
     const newer = { ...pkg, API_VERSION: { major: pkg.API_VERSION.major + 1, minor: 0 } };
     prev = setBrowserDeps(deps(() => loadBrowser({ importer: async () => old })));
     await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(
-      "turno-browser is too old for this turno (it has no API_VERSION, this turno needs 1.11 or a later 1.x); update it: npm install --global turno-browser@latest",
+      "turno-browser is too old for this turno (it has no API_VERSION, this turno needs 1.12 or a later 1.x); update it: npm install --global turno-browser@latest",
     );
-    // 1.10 has no background server.
+    // 1.11 has no `cli`: the commands were turno-cli's own.
     setBrowserDeps(
-      deps(() => loadBrowser({ importer: async () => ({ ...pkg, API_VERSION: { major: 1, minor: 10 } }) })),
+      deps(() => loadBrowser({ importer: async () => ({ ...pkg, API_VERSION: { major: 1, minor: 11 } }) })),
     );
     await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(
-      /its API is 1\.10, this turno needs 1\.11 or a later 1\.x/,
+      /its API is 1\.11, this turno needs 1\.12 or a later 1\.x/,
     );
     setBrowserDeps(deps(() => loadBrowser({ importer: async () => newer })));
     await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(
@@ -388,6 +390,7 @@ describe("turno browser doctor", () => {
         seen.push(o);
         return { checks: checks.map((c) => ({ ...c })), fixed: [] };
       },
+      cli: browserPackage.cli,
     } as unknown as BrowserApi;
   }
 

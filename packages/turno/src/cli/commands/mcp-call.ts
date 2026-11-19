@@ -8,9 +8,9 @@ import { loadConfig } from "../../core/config.js";
 import { loadManifest, servesProfile } from "../../core/manifest.js";
 import { resolveProfile } from "../../core/resolve.js";
 import { packageInfo } from "../../core/version.js";
-import { type FlagSpec, JSON_FLAG, bool, parseFlags, str } from "../args.js";
+import { type FlagSpec, JSON_FLAG, bool, callArguments, parseFlags, str } from "../args.js";
 import { Exit } from "../exit.js";
-import { CliError, type Io, UsageError, fail } from "../io.js";
+import { CliError, type Io, fail } from "../io.js";
 import { emit, jsonOutput } from "../output.js";
 import { duration, style } from "../style.js";
 
@@ -35,40 +35,6 @@ export const CALL_JSON = jsonOutput([
   "tools",
   "ms",
 ]);
-
-/**
- * The tool arguments: `--args` (a JSON object), then each `--arg key=value` (a string) or
- * `--arg key:=json` (any JSON value) on top of it, as httpie writes them.
- */
-export function callArguments(json: string | undefined, pairs: readonly string[]): Record<string, unknown> {
-  let out: Record<string, unknown> = {};
-  if (json !== undefined) {
-    let v: unknown;
-    try {
-      v = JSON.parse(json);
-    } catch (err) {
-      throw new UsageError(`--args is not JSON: ${(err as Error).message}`);
-    }
-    if (typeof v !== "object" || v === null || Array.isArray(v))
-      throw new UsageError('--args must be a JSON object, like \'{"query": "x"}\'');
-    out = { ...(v as Record<string, unknown>) };
-  }
-  for (const pair of pairs) {
-    const m = /^([^=:]+)(:?=)([\s\S]*)$/.exec(pair);
-    if (!m) throw new UsageError(`--arg ${pair}: use key=value (a string) or key:=json (a number, true, a list...)`);
-    const [, key, op, raw] = m as unknown as [string, string, string, string];
-    if (op === "=") {
-      out[key] = raw;
-      continue;
-    }
-    try {
-      out[key] = JSON.parse(raw);
-    } catch (err) {
-      throw new UsageError(`--arg ${key}:= needs JSON: ${(err as Error).message}`);
-    }
-  }
-  return out;
-}
 
 /** The profile a session in `cwd` would use: --profile, else the folder's Claude Code profile, else the hub's. */
 export function callerProfile(given: string | undefined, env: NodeJS.ProcessEnv, cwd: string): string {
