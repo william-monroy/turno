@@ -13,6 +13,7 @@ describe("resolveTuning", () => {
       resources: {},
       humanize: { level: "off" },
       sharing: "session",
+      tabLocks: {},
     });
     expect(DEFAULT_TABS).toEqual({ max: 8, popups: "close", parkMs: 300_000, closeMs: 900_000 });
   });
@@ -25,6 +26,7 @@ describe("resolveTuning", () => {
       resources: {},
       humanize: { level: "off" },
       sharing: "session",
+      tabLocks: {},
     });
     expect(
       resolveTuning(settings, { maxTabs: 0, popups: "keep", closeAfterMs: 60_000, backgroundThrottling: false }),
@@ -34,6 +36,7 @@ describe("resolveTuning", () => {
       resources: {},
       humanize: { level: "off" },
       sharing: "session",
+      tabLocks: {},
     });
   });
 
@@ -46,6 +49,16 @@ describe("resolveTuning", () => {
       resolveTuning({ ...base, version: 4, humanize: { level: "full", seed: 7 } }, { humanize: "off" }).humanize,
     ).toEqual({ level: "off", seed: 7 });
     expect(resolveTuning(undefined, { humanize: "adaptive" }).humanize).toEqual({ level: "adaptive" });
+  });
+
+  it("takes the tab lock wait and idle release from identity.json, the defaults staying when unset", () => {
+    expect(resolveTuning({ ...base, version: 9, tabLocks: { wait: "30s", release: "0" } }).tabLocks).toEqual({
+      waitMs: 30_000,
+      releaseMs: 0,
+    });
+    expect(resolveTuning({ ...base, version: 9, tabLocks: { release: "10m" } }).tabLocks).toEqual({
+      releaseMs: 600_000,
+    });
   });
 
   it("serves one session at a time unless identity.json or --sharing asks for tabs, the flag winning", () => {

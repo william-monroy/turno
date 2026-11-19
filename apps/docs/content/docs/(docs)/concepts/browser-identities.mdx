@@ -66,6 +66,20 @@ mcpd marks each call with the session it comes from, and turno-browser gives eve
 | Tab list | `browser_tabs` lists every tab and marks the ones other sessions hold (`(in use by session 3f2a9c1b)`) |
 | Tab governor | the cap (`max`) counts each session's tabs apart, and no session's current tab is parked or closed |
 
+The 10 seconds and the 5 minutes are the defaults. Change them per identity (identity.json
+format 9; `"0"` makes a call fail at once, or frees a session's tabs between its calls):
+
+```sh
+turno identity set browser:school --tab-lock-wait 30s --tab-lock-release 10m
+```
+
+```json
+{ "sharing": "tabs", "tabLocks": { "wait": "30s", "release": "10m" } }
+```
+
+They only matter with `"sharing": "tabs"`. Read mode works with tab sharing, so they apply there
+too; attach mode does not go with tab sharing, so they never apply to it.
+
 Two sessions' calls run at the same time on their own tabs. Every session shares the identity's profile: the same cookies, storage and signed-in accounts. Tab sharing keeps agents from acting in each other's tabs; it does not separate accounts (use one identity per account for that). Tabs a session leaves behind stay open until the tab governor parks and closes them.
 
 ## Lifecycle

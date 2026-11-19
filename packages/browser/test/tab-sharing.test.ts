@@ -4,7 +4,9 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createHost, serve } from "../src/host.js";
+import { addIdentity } from "../src/identities.js";
 import { SESSION_CAPABILITY, SESSION_ENDED_METHOD, SESSION_META_KEY } from "../src/session.js";
+import { writeIdentitySettings } from "../src/settings.js";
 import { upstream } from "../src/upstream.js";
 import { chromeUnavailable, stopSandboxProcesses } from "./helpers/chrome.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -79,7 +81,11 @@ afterEach(async () => {
   sb.cleanup();
 });
 
-async function start(tabLocks = { waitMs: 400, releaseMs: 60_000 }, maxTabs?: number): Promise<Client> {
+async function start(
+  tabLocks: { waitMs?: number; releaseMs?: number } | null = { waitMs: 400, releaseMs: 60_000 },
+  maxTabs?: number,
+  identity?: string,
+): Promise<Client> {
   const config = await upstream().tools.resolveCLIConfigForMCP(
     { browser: "chrome", userDataDir: join(sb.home, "profile"), headless: true, outputDir: join(sb.home, "output") },
     {},
@@ -90,7 +96,8 @@ async function start(tabLocks = { waitMs: 400, releaseMs: 60_000 }, maxTabs?: nu
       config,
       cliOptions: {},
       tuning: { sharing: "tabs", ...(maxTabs !== undefined ? { maxTabs } : {}) },
-      tabLocks,
+      ...(tabLocks ? { tabLocks } : {}),
+      ...(identity ? { identity: { id: identity, env: process.env } } : {}),
     }),
     serverSide,
   );
@@ -173,6 +180,20 @@ describe.skipIf(reason !== undefined)(reason ? `tab sharing (skipped: ${reason})
     const taken = await ok(client, B, "browser_tabs", { action: "select", index: 0 });
     expect(taken).toMatch(/- 0: \(current\) \[a\]/);
     expect(await ok(client, B, "browser_snapshot")).toContain('heading "Page a"');
+  }, 60_000);
+
+  it("takes the lock wait and the idle release from the identity's identity.json", async () => {
+    addIdentity("locks", process.env);
+    writeIdentitySettings("locks", { sharing: "tabs", tabLocks: { wait: "300ms", release: "2m" } }, process.env);
+    const client = await start(null, undefined, "locks");
+    await ok(client, A, "browser_navigate", { url: `${web.url}/a` });
+    await ok(client, B, "browser_navigate", { url: `${web.url}/b` });
+    const t0 = Date.now();
+    const refused = await as(client, B, "browser_tabs", { action: "select", index: 0 });
+    expect(refused.isError).toBe(true);
+    expect(refused.text).toContain("waited 0.3 seconds for it");
+    expect(refused.text).toContain("after 120 seconds without a call");
+    expect(Date.now() - t0).toBeLessThan(5_000);
   }, 60_000);
 
   it("gives a popup to the session whose page opened it", async () => {

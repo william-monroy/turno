@@ -283,6 +283,25 @@ describe("turno identity add/show/set for browser identities", () => {
     expect(JSON.parse(readFileSync(settingsFile("team"), "utf8")).sharing).toBeUndefined();
   });
 
+  it("sets the tab lock wait and idle release, names the flag in an error, and removes one with an empty value", async () => {
+    prev = setBrowserDeps(deps(real));
+    await identity.run(["add", "browser:team", "--sharing", "tabs"], fakeIo(sb.env));
+    const set = fakeIo(sb.env);
+    expect(
+      await identity.run(["set", "browser:team", "--tab-lock-wait", "30s", "--tab-lock-release", "10m"], set),
+    ).toBe(0);
+    expect(set.lines.join("\n")).toMatch(/tab locks +wait 30s, release after 10m/);
+    expect(JSON.parse(readFileSync(settingsFile("team"), "utf8"))).toMatchObject({
+      version: 9,
+      tabLocks: { wait: "30s", release: "10m" },
+    });
+    await expect(identity.run(["set", "browser:team", "--tab-lock-wait", "1h"], fakeIo(sb.env))).rejects.toThrow(
+      /--tab-lock-wait must be a duration from "0" \(fail at once\) to "10m"/,
+    );
+    expect(await identity.run(["set", "browser:team", "--tab-lock-wait", ""], fakeIo(sb.env))).toBe(0);
+    expect(JSON.parse(readFileSync(settingsFile("team"), "utf8")).tabLocks).toEqual({ release: "10m" });
+  });
+
   it("reports what set changed with --json, and what it would change with --dry-run --json", async () => {
     prev = setBrowserDeps(deps(real));
     await identity.run(["add", "browser:school"], fakeIo(sb.env));

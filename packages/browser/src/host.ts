@@ -269,7 +269,8 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       redactor: Redactor;
       guard: VaultGuard;
       vaultStore?: SecretStore;
-      tabLocks: TabLockPolicy;
+      /** Wins over identity.json `tabLocks` (tests); the defaults fill the rest. */
+      tabLocks: Partial<TabLockPolicy>;
       stockTypes: ReadonlyMap<string, string>;
       providers?: Providers;
     },
@@ -422,7 +423,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         sharing = new TabSharing({
           context: launched.context,
           root: { backend, config: sessionConfig },
-          policy: this.host.tabLocks,
+          policy: { ...DEFAULT_TAB_LOCKS, ...tuning.tabLocks, ...this.host.tabLocks },
           createView: async () => {
             const config = viewConfig(forViews);
             const view = new BrowserBackend(config, launched.context, tools, {});
@@ -942,7 +943,7 @@ export function createHost(options: HostOptions): Host {
     tuning: options.tuning ?? {},
     redactor,
     guard: new VaultGuard(),
-    tabLocks: { ...DEFAULT_TAB_LOCKS, ...options.tabLocks },
+    tabLocks: options.tabLocks ?? {},
     ...(options.identity ? { identity: options.identity } : {}),
     ...(options.vaultStore ? { vaultStore: options.vaultStore } : {}),
     ...(options.providers ? { providers: options.providers } : {}),

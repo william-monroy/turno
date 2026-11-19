@@ -285,6 +285,20 @@ describe("reading and checking", () => {
   });
 });
 
+describe("tabLocks (format 9)", () => {
+  it("checks the wait and the release, writes format 9 only while it is set", () => {
+    expect(() =>
+      writeIdentitySettings("locks", { tabLocks: { wait: "11m", release: "soon", hold: "1s" } as never }, sb.env),
+    ).toThrow(
+      /tabLocks\.wait must be a duration from "0" \(fail at once\) to "10m".*; tabLocks\.release must be a duration from "0" \(free between calls\) to "24h".*; unknown key "tabLocks\.hold"/,
+    );
+    const on = writeIdentitySettings("locks", { sharing: "tabs", tabLocks: { wait: "30s", release: "0" } }, sb.env);
+    expect(on.version).toBe(9);
+    expect(readIdentitySettings("locks", sb.env)?.tabLocks).toEqual({ wait: "30s", release: "0" });
+    expect(writeIdentitySettings("locks", { tabLocks: null }, sb.env).version).toBe(5);
+  });
+});
+
 describe("addIdentity and removeIdentity", () => {
   it("pins a new identity to the system time zone and the settings given", () => {
     addIdentity("fresh", sb.env, { languages: ["en-GB", "en"] });

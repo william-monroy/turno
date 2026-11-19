@@ -21,7 +21,7 @@ const SOLVER = { provider: "task-api" as const, endpoint: "https://solver.exampl
 
 describe("the act and captcha keys", () => {
   it("are format 8, written only while one of them is set", () => {
-    expect(IDENTITY_FORMAT_VERSION).toBe(8);
+    expect(IDENTITY_FORMAT_VERSION).toBeGreaterThanOrEqual(8);
     expect(writeIdentitySettings("a", { act: {} }, sb.env).version).toBe(8);
     expect(readIdentitySettings("a", sb.env)?.act).toEqual({});
     expect(writeIdentitySettings("a", { act: null, captcha: SOLVER }, sb.env).version).toBe(8);

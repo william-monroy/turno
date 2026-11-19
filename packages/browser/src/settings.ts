@@ -45,6 +45,9 @@ import { parseDuration, parseSize } from "./units.js";
  * - `act`, `captcha` (format 8): natural language actions and captcha solving, both off by
  *   default and both sending page content to a model or a solver the user picks
  *   (`opt-in-settings.ts`). Keys are `keychain:` references, never values.
+ * - `tabLocks` (format 9): with `"sharing": "tabs"`, how long a call waits for a tab another
+ *   session holds (`wait`, default 10s) and how long a session without calls keeps its tabs
+ *   (`release`, default 5m) (`tab-locks.ts`). No effect with `"sharing": "session"`.
  *
  * A missing file means Chrome's own defaults, as before identity.json existed.
  */
@@ -56,7 +59,7 @@ import { parseDuration, parseSize } from "./units.js";
  * only when it uses one of them, so an older turno-browser keeps reading every other file and
  * refuses one it would misread with "update turno-browser".
  */
-export const IDENTITY_FORMAT_VERSION = 8;
+export const IDENTITY_FORMAT_VERSION = 9;
 
 /** The keys format 2 added. */
 const FORMAT_2_KEYS = ["tabs", "backgroundThrottling", "settle", "block", "cache"] as const;
@@ -78,6 +81,20 @@ const FORMAT_7_KEYS = ["record"] as const;
 
 /** The keys format 8 added. */
 const FORMAT_8_KEYS = ["act", "captcha"] as const;
+
+/** The keys format 9 added. */
+const FORMAT_9_KEYS = ["tabLocks"] as const;
+
+/** Longest `tabLocks.wait`: a call that waits longer for a tab is better off opening its own. */
+const MAX_TAB_LOCK_WAIT_MS = 10 * 60_000;
+/** Longest `tabLocks.release`. */
+const MAX_TAB_LOCK_RELEASE_MS = 24 * 3_600_000;
+
+/** With `"sharing": "tabs"`: the lock wait and the idle release, as durations. */
+export interface TabLockSettings {
+  wait?: string;
+  release?: string;
+}
 
 /** What turno-browser records for an identity (`recorder.ts`, `recordings.ts`); all off by default. */
 export interface RecordSettings {
@@ -178,6 +195,8 @@ export interface IdentitySettings {
   act?: ActSettings;
   /** A captcha solver for `browser_solve_captcha`; off by default. */
   captcha?: CaptchaSettings;
+  /** With `"sharing": "tabs"`: how long a call waits for a held tab, and when an idle session lets go. */
+  tabLocks?: TabLockSettings;
   /** ISO dates. */
   created: string;
   updated: string;
@@ -197,7 +216,8 @@ export type SettingsPatch = {
     | (typeof FORMAT_5_KEYS)[number]
     | (typeof FORMAT_6_KEYS)[number]
     | (typeof FORMAT_7_KEYS)[number]
-    | (typeof FORMAT_8_KEYS)[number]]?: IdentitySettings[K] | null;
+    | (typeof FORMAT_8_KEYS)[number]
+    | (typeof FORMAT_9_KEYS)[number]]?: IdentitySettings[K] | null;
 };
 
 const KEYS = new Set([
@@ -214,6 +234,7 @@ const KEYS = new Set([
   ...FORMAT_6_KEYS,
   ...FORMAT_7_KEYS,
   ...FORMAT_8_KEYS,
+  ...FORMAT_9_KEYS,
   "created",
   "updated",
 ]);
@@ -298,6 +319,7 @@ function browserProblems(v: Record<string, unknown>, out: string[]): void {
   recordProblems(v, out);
   actProblems(v.act, out);
   captchaProblems(v.captcha, v, out);
+  tabLockProblems(v.tabLocks, out);
   if (v.cache !== undefined) {
     const c = v.cache;
     if (!isObject(c)) out.push('cache must be an object, like {} or { "maxSize": "100MB" }');
@@ -310,6 +332,26 @@ function browserProblems(v: Record<string, unknown>, out: string[]): void {
       unknownKeys(c, ["maxSize"], "cache", out);
     }
   }
+}
+
+function tabLockProblems(t: unknown, out: string[]): void {
+  if (t === undefined) return;
+  if (!isObject(t)) {
+    out.push('tabLocks must be an object, like { "wait": "30s", "release": "10m" }');
+    return;
+  }
+  const ms = (v: unknown) => (typeof v === "string" ? parseDuration(v) : undefined);
+  if (t.wait !== undefined) {
+    const wait = ms(t.wait);
+    if (wait === undefined || wait > MAX_TAB_LOCK_WAIT_MS)
+      out.push('tabLocks.wait must be a duration from "0" (fail at once) to "10m", like "30s"');
+  }
+  if (t.release !== undefined) {
+    const release = ms(t.release);
+    if (release === undefined || release > MAX_TAB_LOCK_RELEASE_MS)
+      out.push('tabLocks.release must be a duration from "0" (free between calls) to "24h", like "10m"');
+  }
+  unknownKeys(t, ["wait", "release"], "tabLocks", out);
 }
 
 function humanizeProblems(h: unknown, out: string[]): void {
@@ -523,6 +565,7 @@ export function writeIdentitySettings(
     else next[key] = value;
   }
   const formats = [
+    FORMAT_9_KEYS,
     FORMAT_8_KEYS,
     FORMAT_7_KEYS,
     FORMAT_6_KEYS,
@@ -532,7 +575,7 @@ export function writeIdentitySettings(
     FORMAT_2_KEYS,
   ];
   const newest = formats.findIndex((keys) => keys.some((k) => next[k] !== undefined));
-  next.version = newest < 0 ? 1 : 8 - newest;
+  next.version = newest < 0 ? 1 : 9 - newest;
   if (typeof next.locale === "string") next.locale = canonicalLocale(next.locale) ?? next.locale;
   if (Array.isArray(next.languages)) next.languages = (next.languages as string[]).map((l) => canonicalLocale(l) ?? l);
   if (typeof next.region === "string" && /^[a-z]{2}$/i.test(next.region)) next.region = next.region.toUpperCase();
