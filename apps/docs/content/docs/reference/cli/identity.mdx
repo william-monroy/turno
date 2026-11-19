@@ -25,7 +25,8 @@ Usage:
       <duration>] [--no-tabs] [--background-throttling true|false] [--settle
       <duration>] [--block-trackers true|false] [--block-types image,media,font]
       [--block-patterns <host|glob>,...] [--no-block] [--cache]
-      [--cache-max-size <size>] [--no-cache] [--dry-run] [--json]
+      [--cache-max-size <size>] [--no-cache] [--humanize
+      off|light|full|adaptive] [--dry-run] [--json]
                                 change a browser identity's identity.json:
                                 place, languages, health check, tabs, blocking,
                                 cache
@@ -52,6 +53,7 @@ Examples:
   $ turno identity set browser:school --tabs-max 5 --tabs-park 10m --background-throttling true
   $ turno identity set browser:school --block-trackers true --block-types image,font --cache-max-size 200MB
   $ turno identity set browser:school --settle 500ms --dry-run --json
+  $ turno identity set browser:school --humanize adaptive
   $ turno identity set browser:school --no-block --no-cache
   $ turno identity prefer ~/code/acme linear=linear:work
   $ turno identity remove linear:work --dry-run
@@ -108,7 +110,8 @@ Usage:
       <duration>] [--no-tabs] [--background-throttling true|false] [--settle
       <duration>] [--block-trackers true|false] [--block-types image,media,font]
       [--block-patterns <host|glob>,...] [--no-block] [--cache]
-      [--cache-max-size <size>] [--no-cache] [--dry-run] [--json]
+      [--cache-max-size <size>] [--no-cache] [--humanize
+      off|light|full|adaptive] [--dry-run] [--json]
     change a browser identity's identity.json: place, languages, health check,
     tabs, blocking, cache
 
@@ -131,11 +134,18 @@ How the host runs this identity's Chrome (read at every Chrome start):
 
 Blocking without the cache turns Chrome's own HTTP cache off: use them together.
 
+Input:
+  --humanize <level>              off (default), light (the pointer travels a curve to a point
+                                  inside the target, keys typed with human delays), full (plus
+                                  overshoot, reading pauses, wheel scrolling) or adaptive
+                                  (light, full on a site after a challenge page there)
+
 Examples:
   $ turno identity set browser:school --timezone Europe/Madrid --languages es-ES,es,en
   $ turno identity set browser:school --tabs-max 5 --tabs-park 10m --background-throttling true
   $ turno identity set browser:school --block-trackers true --block-types image,font --cache-max-size 200MB
   $ turno identity set browser:school --settle 500ms --dry-run --json
+  $ turno identity set browser:school --humanize adaptive
   $ turno identity set browser:school --no-block --no-cache
 ```
 

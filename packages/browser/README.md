@@ -140,6 +140,15 @@ turno identity set browser:school --tabs-max 4 --tabs-popups keep --tabs-park 2m
 - **A shorter wait.** Playwright waits 500 ms after each action; `"settle": "100ms"` in
   `identity.json` (`turno identity set browser:school --settle 100ms`) shortens it.
 
+## Human-like input
+
+Off by default. `turno identity set browser:school --humanize light` (or `full`, `adaptive`; the
+server's `--humanize` wins) makes the stock tools move the pointer along a curve to a point inside
+the target, hold the button for tens of milliseconds and type short text key by key; `full` adds
+overshoot, reading pauses and wheel scrolling, and `adaptive` uses `full` only on sites that showed
+a challenge page. Schemas and results stay the same; each click costs about 0.5 s (`light`) to
+1 s (`full`). See [Human-like input](https://turno.wimo.dev/docs/concepts/browser-identities#human-like-input).
+
 ## Lighter pages
 
 Both are off until an identity asks for them:

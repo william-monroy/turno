@@ -91,6 +91,49 @@ disabled, and the next step. Playwright waits 500 ms after each action for the w
 `"settle": "100ms"` in `identity.json` (`turno identity set browser:school --settle 100ms`)
 shortens that wait (Playwright's own `--timeout-settle` wins over it).
 
+## Human-like input
+
+By default the browser tools use Playwright's own input: the pointer jumps to the exact center of
+the target in one move, the button goes down and up at once, and `browser_type` inserts the whole
+text without key events. A site that watches how the page is used can tell that apart from a
+person. `humanize` in `identity.json` changes how the same tools move and type, per identity; it is
+off until you turn it on:
+
+```sh
+turno identity set browser:school --humanize light   # or full, adaptive; --humanize "" turns it off
+turno-browser-mcp --identity school --humanize full  # the server's flag wins over identity.json
+```
+
+| Level | What changes |
+|---|---|
+| `off` (default) | Nothing: Playwright's input. |
+| `light` | The pointer travels a curve from where it last was on that page to a point inside the target, with small timing jitter; the button stays down for 40 to 90 ms; text up to 80 characters is typed key by key with per-key delays. |
+| `full` | `light`, plus a move time that follows the distance and the target's size, a slow-fast-slow speed, overshoot and correction on long moves, a short pause the first time a page is acted on, longer gaps between words, and an element out of view scrolled to in wheel notches. `browser_mouse_wheel` scrolls in notches too. |
+| `adaptive` | `light`, and `full` on a site where the identity met a captcha, "verify it's you" or block page (in the [reputation log](#reputation-log) of the last 30 days, or in this session). |
+
+It works through the stock tools (`browser_click`, `browser_hover`, `browser_type`,
+`browser_fill_form`, `browser_select_option`, `browser_drag`, `browser_press_key` and the
+coordinate tools) and `browser_batch`, without changing their arguments or results. Every event
+still goes through Chrome's own input pipeline, and Playwright still checks that the target is
+visible, enabled and not covered. Longer text is pasted as before, and a field that is not text
+(a date, a color) is filled as before. `"seed"` in the group (`"humanize": { "level": "full",
+"seed": 42 }`) makes every path and delay repeat, for debugging; without it each session draws
+its own, while the pace (speed, typing rhythm) stays the same for the identity.
+
+It costs time on every action. Measured with Chrome 157 headless on macOS, the median of 8 runs
+per tool call:
+
+| Tool call | `off` | `light` | `full` |
+|---|---|---|---|
+| `browser_click`, 670 px away | 50 ms | 0.5 s | 1.1 s |
+| `browser_type`, 11 characters | 10 ms | 2.0 s | 3.5 s |
+| `browser_click` on an element 1,500 px below the view | 50 ms | 0.4 s | 2.6 s |
+
+What it does not do: it does not solve captchas, change what the browser reports about itself or
+hide that a page is automated from a site that asks. No public study measures how much human-like
+input lowers the challenges a site shows, so treat it as a way to act at a human pace on your own
+accounts, not as a guarantee. The [acceptable use](#acceptable-use) rules apply the same.
+
 ## Blocking and the resource cache
 
 Both are off until `identity.json` asks for them, per identity:

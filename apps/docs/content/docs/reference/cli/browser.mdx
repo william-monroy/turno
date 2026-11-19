@@ -23,7 +23,8 @@ Usage:
       [--background-throttling true|false] [--settle <duration>]
       [--block-trackers true|false] [--block-types image,media,font]
       [--block-patterns <host|glob>,...] [--no-block] [--cache]
-      [--cache-max-size <size>] [--no-cache] [--dry-run] [--json]
+      [--cache-max-size <size>] [--no-cache] [--humanize
+      off|light|full|adaptive] [--dry-run] [--json]
                                      change an identity's identity.json (an
                                      empty value removes a setting)
   turno browser doctor [--fix] [--no-launch] [--json]
@@ -69,6 +70,7 @@ Examples:
   $ turno browser set school --health-url https://mail.example.com/ --health-text Inbox
   $ turno browser set school --tabs-max 5 --tabs-popups keep --settle 250ms
   $ turno browser set school --block-trackers true --cache --json
+  $ turno browser set school --humanize light
   $ turno browser login school --url https://example.com
   $ turno browser doctor --fix
   $ turno browser reputation school --json
@@ -127,7 +129,8 @@ Usage:
       [--background-throttling true|false] [--settle <duration>]
       [--block-trackers true|false] [--block-types image,media,font]
       [--block-patterns <host|glob>,...] [--no-block] [--cache]
-      [--cache-max-size <size>] [--no-cache] [--dry-run] [--json]
+      [--cache-max-size <size>] [--no-cache] [--humanize
+      off|light|full|adaptive] [--dry-run] [--json]
     change an identity's identity.json (an empty value removes a setting)
 
 Each flag writes one key of identity.json; an empty value (--settle "") removes it, and
@@ -149,10 +152,17 @@ How the host runs this identity's Chrome (read at every Chrome start):
 
 Blocking without the cache turns Chrome's own HTTP cache off: use them together.
 
+Input:
+  --humanize <level>              off (default), light (the pointer travels a curve to a point
+                                  inside the target, keys typed with human delays), full (plus
+                                  overshoot, reading pauses, wheel scrolling) or adaptive
+                                  (light, full on a site after a challenge page there)
+
 Examples:
   $ turno browser set school --health-url https://mail.example.com/ --health-text Inbox
   $ turno browser set school --tabs-max 5 --tabs-popups keep --settle 250ms
   $ turno browser set school --block-trackers true --cache --json
+  $ turno browser set school --humanize light
 ```
 
 ### turno browser doctor
