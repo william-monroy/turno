@@ -9,5 +9,8 @@ export default defineConfig({
     testTimeout: 30_000,
     hookTimeout: 30_000,
     pool: "forks",
+    // Most files here start a real Chrome. On a CI runner (3 cores on macOS) one Chrome per core
+    // starves them all and turns action timeouts into failures, so CI runs two files at a time.
+    maxWorkers: process.env.CI ? 2 : undefined,
   },
 });

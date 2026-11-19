@@ -391,12 +391,12 @@ describe.skipIf(reason !== undefined)(
       });
       // Focus emulation keeps it visible, so Chrome never throttles its timers: the page must never
       // have seen itself hidden, which is the condition Chrome throttles on. The tick rate does not
-      // tell the two apart on a loaded CI runner (its CPU starves the timer chain down to a few
-      // ticks a second, and a throttled tab gets 1 to 10), so it is only checked to show the timer
-      // chain kept running in each of the seconds the tab spent in the background.
+      // tell the two apart on a loaded CI runner (its CPU can starve the timer chain for a whole
+      // second, and a throttled tab gets 1 to 10 ticks a second), so it is only checked to show the
+      // timer chain kept running while the tab was in the background.
       expect(state).not.toContain("hidden");
       const seconds = (/seconds\\":\\"([\d,]+)/.exec(state)?.[1] ?? "").split(",").map(Number);
-      expect(seconds.slice(-4, -1).every((n) => n > 0)).toBe(true);
+      expect(seconds.slice(-4, -1).reduce((a, n) => a + n, 0)).toBeGreaterThan(0);
     }, 60_000);
 
     it("with --background-throttling, slows a tab in the background and still acts at once on the current tab", async () => {
@@ -419,7 +419,9 @@ describe.skipIf(reason !== undefined)(
       await call(client, "browser_click", { target: "a", element: "Open B link" });
       const t0 = Date.now();
       await call(client, "browser_click", { target: "button", element: "Press button" });
-      expect(Date.now() - t0).toBeLessThan(4_000);
+      // A click that waited for that frame would hang until a timeout and fail; the bound is loose
+      // so a loaded CI runner, which can take a few seconds for any click, does not fail it.
+      expect(Date.now() - t0).toBeLessThan(15_000);
       expect(await call(client, "browser_evaluate", { function: "() => document.title" })).toContain('"clicked"');
     }, 60_000);
   },

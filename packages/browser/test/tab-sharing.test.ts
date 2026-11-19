@@ -29,6 +29,9 @@ const B = "bbbbbbbb-2222-4222-8222-222222222222";
 
 let sb: Sandbox;
 let web: { url: string; server: Server };
+// Set when /b is requested while /slow is still waiting for it: the two navigations ran at once.
+let overlapped = false;
+let releaseSlow: (() => void) | undefined;
 const clients: Client[] = [];
 const saved: Record<string, string | undefined> = {};
 const ENV_KEYS = ["HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"] as const;
@@ -41,14 +44,27 @@ beforeAll(async () => {
       path === "/opener"
         ? `<title>opener</title><a href="/popup" target="_blank">Open popup</a>`
         : `<title>${name}</title><h1>Page ${name}</h1>`;
-    // A slow page, so two navigations overlap.
-    setTimeout(
-      () => {
-        res.setHeader("content-type", "text/html");
-        res.end(body);
-      },
-      path === "/slow" ? 1_500 : 0,
-    );
+    const send = () => {
+      res.setHeader("content-type", "text/html");
+      res.end(body);
+    };
+    if (path === "/slow") {
+      // /slow answers once /b is requested, which only happens if the two navigations run at
+      // once; if they ran one after the other, it gives up after 20 seconds and overlapped stays
+      // false. No wall-clock bound, so a slow CI runner cannot fail it.
+      const timer = setTimeout(send, 20_000);
+      releaseSlow = () => {
+        clearTimeout(timer);
+        releaseSlow = undefined;
+        send();
+      };
+      return;
+    }
+    if (path === "/b" && releaseSlow) {
+      overlapped = true;
+      releaseSlow();
+    }
+    send();
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as { port: number };
@@ -138,14 +154,14 @@ describe.skipIf(reason !== undefined)(reason ? `tab sharing (skipped: ${reason})
     const client = await start();
     // The first call opens the browser; then both sessions navigate at the same time.
     await ok(client, A, "browser_navigate", { url: `${web.url}/a` });
-    const started = Date.now();
+    overlapped = false;
     const [slow, fast] = await Promise.all([
       ok(client, A, "browser_navigate", { url: `${web.url}/slow` }),
       ok(client, B, "browser_navigate", { url: `${web.url}/b` }),
     ]);
     expect(slow).toContain(`Page URL: ${web.url}/slow`);
     expect(fast).toContain(`Page URL: ${web.url}/b`);
-    expect(Date.now() - started).toBeLessThan(10_000);
+    expect(overlapped).toBe(true);
 
     const snapA = await ok(client, A, "browser_snapshot");
     const snapB = await ok(client, B, "browser_snapshot");
@@ -193,7 +209,8 @@ describe.skipIf(reason !== undefined)(reason ? `tab sharing (skipped: ${reason})
     expect(refused.isError).toBe(true);
     expect(refused.text).toContain("waited 0.3 seconds for it");
     expect(refused.text).toContain("after 120 seconds without a call");
-    expect(Date.now() - t0).toBeLessThan(5_000);
+    // Well under the default 10 second wait, so it shows the identity's 0.3 seconds were used.
+    expect(Date.now() - t0).toBeLessThan(9_000);
   }, 60_000);
 
   it("gives a popup to the session whose page opened it", async () => {
