@@ -389,14 +389,14 @@ describe.skipIf(reason !== undefined)(
       const state = await call(client, "browser_evaluate", {
         function: "() => JSON.stringify(document.documentElement.dataset)",
       });
-      // Focus emulation keeps it visible, so Chrome never throttles its timers. The rate is read
-      // from two whole seconds it spent in the background (the two before the last one),
-      // not from the second after it was selected again, which runs at foreground speed either
-      // way: about 200 ticks a second locally, and far fewer on a loaded CI runner, whose CPU
-      // starves the timer chain; throttled, Chrome wakes a hidden tab's timers once a second.
+      // Focus emulation keeps it visible, so Chrome never throttles its timers: the page must never
+      // have seen itself hidden, which is the condition Chrome throttles on. The tick rate does not
+      // tell the two apart on a loaded CI runner (its CPU starves the timer chain down to a few
+      // ticks a second, and a throttled tab gets 1 to 10), so it is only checked to show the timer
+      // chain kept running in each of the seconds the tab spent in the background.
       expect(state).not.toContain("hidden");
       const seconds = (/seconds\\":\\"([\d,]+)/.exec(state)?.[1] ?? "").split(",").map(Number);
-      expect(Math.min(...seconds.slice(-3, -1))).toBeGreaterThan(3);
+      expect(seconds.slice(-4, -1).every((n) => n > 0)).toBe(true);
     }, 60_000);
 
     it("with --background-throttling, slows a tab in the background and still acts at once on the current tab", async () => {
