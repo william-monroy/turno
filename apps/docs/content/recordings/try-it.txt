@@ -3,7 +3,7 @@ turno demo  a throwaway HOME at /private/tmp/turno-demo-Xk3f9a
 
 Set up ─────────────────────────────────────────────────────────────────────────
   profiles   work  for ~/code/acme,  personal  for every other folder (Claude Code)
-  gateway   ● mcpd on 127.0.0.1:52222 with docs and issues, synced into both profiles
+  gateway   ● mcpd on 127.0.0.1:53316 with docs and issues, synced into both profiles
   status    the line Claude Code draws for each profile:
 
  ◉ work · Max  │ ⧗ ▰▰▰▱▱▱▱▱ 38%  ↺ 1h59m │ ▦ ▰▱▱▱▱▱▱▱ 12%  ↺ 3d23h │ ◔ [##--------] 23%  46k/200k
@@ -25,7 +25,7 @@ Nothing here reads or changes your own HOME, and nothing signs in.
 
 Opening a shell in the demo HOME. Type exit to end the demo; it then stops mcpd and removes everything.
 turno demo ~ % turno
-turno 0.2.0  ~ →  personal
+turno 0.3.0  ~ →  personal
 
 Here ───────────────────────────────────────────────────────────────────────────
   claude   personal   folder without a rule
@@ -36,7 +36,7 @@ Profiles ───────────────────────�
    work       -          -       you@work.example · max
 
 Machine ────────────────────────────────────────────────────────────────────────
-  gateway   ● running on port 52222
+  gateway   ● running on port 53316
   sessions  0 live sessions
   look      turno status line · font missing (turno ui install) · unicode icons here
 
