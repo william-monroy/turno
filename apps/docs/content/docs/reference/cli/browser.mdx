@@ -75,6 +75,10 @@ Usage:
   turno browser login <id> [--url <url>]
                                      open the identity's Chrome to sign in by
                                      hand once
+  turno browser do <id> <action> [args] [--session <name>] [--json]
+                                     one action on an identity's browser from
+                                     the shell: open, snapshot, click, type,
+                                     read...
   turno browser bench [--engine <name>]... [--url <url>]... [--only-urls]
       [--yes] [--json]
                                      check how each browser engine loads
@@ -86,6 +90,8 @@ turno-browser package (npm install --global turno-browser).
 Identities are persistent Chrome profiles served by turno-browser-mcp, one session at a time
 through mcpd; turno identity manages them too (browser:<id>). Ids use lowercase letters,
 digits, "-" and "_", for example "school".
+turno browser do <id> <action> runs one action (open, snapshot, click, type, read...) on an
+identity's browser through mcpd, for coding agents that prefer shell commands (do --help).
 
 Examples:
   $ turno browser identities
@@ -108,6 +114,10 @@ Examples:
   $ turno browser import school.session --as school-laptop
   $ turno browser remove school --dry-run
   $ turno browser bench --only-urls --url https://example.com --yes
+  $ turno browser do school open https://example.com
+  $ turno browser do school snapshot
+  $ turno browser do school click e12
+  $ turno browser do school end
 ```
 
 ## Subcommands
@@ -410,6 +420,85 @@ Usage:
 
 Examples:
   $ turno browser login school --url https://example.com
+```
+
+### turno browser do
+
+```text
+Usage:
+  turno browser do <id> <action> [args] [--session <name>] [--json]
+
+Runs one action on the identity's browser through mcpd and turno-browser-mcp, the server
+agents use, so the identity's rules apply as they do to an agent's tool call. The identity must
+be served by mcpd (its [server.browser-<id>] block in mcp.toml, which turno browser add prints).
+
+Actions:
+  open <url>                              go to a URL in the session's tab
+  back                                    go back in the tab's history
+  snapshot [<ref>] [--depth <n>]          the page's accessibility tree with
+                                          refs (e12) to act on; <ref> limits it
+                                          to one element
+  read [<ref>] [--max-chars <n>]          the visible text of the page or one
+                                          element (first 20000 characters;
+                                          --max-chars 0 for all)
+  find <text>                             elements whose text matches, with
+                                          their refs
+  click <ref> [--double] [--right]        click an element
+  type <ref> <text|-> [--submit] [--slowly]
+                                          fill a field (- reads the text from
+                                          stdin); --submit presses Enter after
+  press <key>                             press a key (Enter, Escape, ArrowDown,
+                                          Control+a)
+  select <ref> <value>...                 choose options of a select element
+  hover <ref>                             move the pointer over an element
+  wait [--text <t>] [--gone <t>] [--seconds <n>]
+                                          wait for text to appear or go, or for
+                                          some seconds
+  screenshot [--out <file.png>] [--full]  save a PNG of the tab (default: a file
+                                          in the temporary folder) and print its
+                                          path
+  tabs [new [<url>] | select <n> | close <n>]
+                                          the browser's tabs (others' marked in
+                                          use), or open, pick or close one
+  login <site>                            sign in with a vault credential (turno
+                                          browser vault); the value never
+                                          reaches the shell
+  call <tool> [--args <json>] [--arg key=value]...
+                                          any tool of the identity's server, in
+                                          this session (browser_batch,
+                                          browser_fill_form...)
+  close                                   close the session's tabs (the whole
+                                          browser when it serves one session)
+                                          and end the session
+  session                                 which session these commands use, who
+                                          owns it and how it ends
+  end                                     end the session now: its tabs stay
+                                          open and free, the browser keeps
+                                          running
+
+Refs (e12) come from the last snapshot; take a new one after the page changes.
+
+Session: the commands one agent or one terminal shell runs are one session, so they keep their
+tab and their place in the tab locks ("sharing": "tabs") or hold the identity's one-session lease
+("sharing": "session"). The session belongs to the process that runs the commands: the coding
+agent (each of its shell commands passes through a short-lived shell) or your terminal's shell.
+It ends when that process exits, with 'end' or 'close', or when mcpd restarts. --session <name>
+(or TURNO_BROWSER_SESSION) keeps several sessions apart under one owner, for example two
+subagents each in its own tab.
+
+Output: url: and title: lines, then what the action returned; errors go to stderr with exit 1.
+--snapshot after an action prints the snapshot too; --json prints one object.
+--timeout <seconds> (default 120) bounds one action; attach mode can wait for Chrome's consent
+dialog. --profile picks the profile whose token and tool filter apply (default: this folder's).
+
+Examples:
+  $ turno browser do school open https://example.com
+  $ turno browser do school snapshot
+  $ turno browser do school click e12
+  $ turno browser do school type e5 'alice@example.com' --submit
+  $ turno browser do school read
+  $ turno browser do school screenshot --out page.png
+  $ turno browser do school end
 ```
 
 ### turno browser bench

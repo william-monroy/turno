@@ -406,7 +406,8 @@ Details: [docs/ui.md](docs/ui.md).
 ### Claude Code plugin
 
 `plugins/turno` adds session handoff and fork skills, a `copy-artifact` skill that copies a
-claude.ai artifact (with its files and assets) from one profile's account to another, and a hook
+claude.ai artifact (with its files and assets) from one profile's account to another, a
+`browser-identity` skill that drives a browser identity with `turno browser do`, and a hook
 that records when a profile reaches its usage limit, so `turno status` can show it:
 
 ```
