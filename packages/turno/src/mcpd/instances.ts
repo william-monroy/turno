@@ -8,6 +8,7 @@ import type { Manifest, ServerDef, StdioServer } from "../core/manifest.js";
 import { effectiveLaunch, variantKey } from "../core/manifest.js";
 import { type DescriptionCache, type ServerDescription, fingerprint } from "./cache.js";
 import { ErrorCode, type Id, rpcError, type Outcome } from "./jsonrpc.js";
+import { SESSION_CAPABILITY, SESSION_ENDED, sessionIdOf } from "./middleware.js";
 import { LoginRequiredError } from "./oauth.js";
 import { type PressureLevel, type PressureProbe, effectiveIdle } from "./pressure.js";
 import { type ClientPort, Upstream } from "./upstream.js";
@@ -193,6 +194,13 @@ export function descriptionFingerprint(server: ServerDef, variant: string): stri
   });
 }
 
+/** A server that declared `SESSION_CAPABILITY` hears that a session it served ended. */
+function tellSessionEnded(inst: Instance, session: string): void {
+  const experimental = inst.upstream.init?.capabilities.experimental;
+  if (typeof experimental !== "object" || experimental === null || !(SESSION_CAPABILITY in experimental)) return;
+  inst.upstream.notify(SESSION_ENDED, { session });
+}
+
 /**
  * Fingerprint of the whole definition (launch, scope, cwd, exclusive, idle, lease, timeouts),
  * except who gets it and which tools they see: tool filters apply per request, so a
@@ -263,10 +271,11 @@ export class InstanceManager {
   /** A client session ended: cancel its calls, drop it from every instance and release its leases. */
   detach(client: ClientHandle): void {
     this.clients.delete(client);
+    const session = sessionIdOf(client);
     for (const inst of this.instances.values()) {
       const cancelled = inst.upstream.forgetClient(client);
       if (cancelled) this.opts.log?.(`cancelled ${cancelled} call(s) of a closed session on ${inst.upstream.label}`);
-      inst.clients.delete(client);
+      if (inst.clients.delete(client) && session) tellSessionEnded(inst, session);
       for (const [uri, subs] of inst.subscriptions) {
         if (subs.delete(client) && subs.size === 0) {
           inst.subscriptions.delete(uri);

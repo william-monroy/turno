@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
-import type { SESSION_META_KEY } from "turno-browser";
+import type {
+  SESSION_CAPABILITY as BROWSER_SESSION_CAPABILITY,
+  SESSION_ENDED_METHOD,
+  SESSION_META_KEY,
+} from "turno-browser";
 import { type Manifest, type ToolFilter, filtersTools, toolAllowed, toolFilterFor } from "../core/manifest.js";
 import type { CallEvent } from "./calllog.js";
 import type { ClientContext, ClientHandle, InstanceManager } from "./instances.js";
@@ -28,6 +32,22 @@ import { ErrorCode, type Id, type Outcome, rpcError } from "./jsonrpc.js";
  * import, erased at build): if the two ever differ, the typecheck fails.
  */
 export const SESSION_META: typeof SESSION_META_KEY = "io.turno/session";
+
+/**
+ * A server that declares this experimental capability in `initialize` hears, with
+ * `SESSION_ENDED`, when a client session that made a call to it ends (`InstanceManager.detach`).
+ * turno-browser uses it to free that session's tabs at once (`"sharing": "tabs"`).
+ */
+export const SESSION_CAPABILITY: typeof BROWSER_SESSION_CAPABILITY = "io.turno/sessions";
+export const SESSION_ENDED: typeof SESSION_ENDED_METHOD = "notifications/io.turno/session_ended";
+
+/** The session id of each client handle, made on its first call. */
+const sessionIds = new WeakMap<ClientHandle, string>();
+
+/** The id the `session` stage gave this client, or undefined when it made no call. */
+export function sessionIdOf(client: ClientHandle): string | undefined {
+  return sessionIds.get(client);
+}
 
 /** One tools/call on its way through the pipeline. A stage may replace `params` for the stages after it. */
 export interface ToolCall {
@@ -119,14 +139,13 @@ function callLogStage(sink: () => ((event: CallEvent) => void) | undefined): Cal
  * against mcpd. A value the client sent under the same key is replaced.
  */
 function sessionStage(): CallStage {
-  const ids = new WeakMap<ClientHandle, string>();
   return {
     name: "session",
     run(call, next) {
-      let id = ids.get(call.client);
+      let id = sessionIds.get(call.client);
       if (!id) {
         id = randomUUID();
-        ids.set(call.client, id);
+        sessionIds.set(call.client, id);
       }
       const meta =
         typeof call.params._meta === "object" && call.params._meta !== null

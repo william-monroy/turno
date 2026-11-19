@@ -650,6 +650,34 @@ describe("the call middleware on both protocol paths", () => {
     // The protocol fields of 2026-07-28 stay in mcpd; only turno's key reaches the server.
     expect(Object.keys(m1 ?? {})).toEqual([SESSION_META]);
   });
+
+  it("tells a server that declared the session capability when a session it served ends, and no other server", async () => {
+    const sessions = fixtureToml("fx").replace(
+      'FIXTURE_ACCOUNT = "plain"',
+      'FIXTURE_ACCOUNT = "plain", FIXTURE_SESSIONS = "1"',
+    );
+    await boot(`${sessions}${fixtureToml("plain")}`);
+    const a = await connectLegacy("fx");
+    const b = await connectLegacy("fx");
+    const idOf = async (c: Client) =>
+      metaOf(
+        ((await c.callTool({ name: "meta", arguments: {} })) as { content: { text: string }[] }).content[0]!.text,
+      )?.[SESSION_META];
+    const idA = await idOf(a);
+    await idOf(b);
+    // A session with no call has no id, so nothing is said when it goes.
+    const end = (c: Client) => (c.transport as StreamableHTTPClientTransport).terminateSession();
+    await end(await connectLegacy("fx"));
+    await end(a);
+    await waitFor(() => events().some((e) => e.startsWith("session_ended")), "session_ended");
+    expect(events().filter((e) => e.startsWith("session_ended"))).toEqual([`session_ended ${idA}`]);
+
+    const p = await connectLegacy("plain");
+    await idOf(p);
+    await end(p);
+    await sleep(200);
+    expect(events().filter((e) => e.startsWith("session_ended"))).toHaveLength(1);
+  });
 });
 
 describe("2026-07-28 helpers", () => {
