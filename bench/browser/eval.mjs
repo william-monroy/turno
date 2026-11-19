@@ -81,8 +81,11 @@ if (values.list) {
 
 const rounds = Number(values.rounds ?? (values.smoke ? 1 : 3));
 if (!Number.isInteger(rounds) || rounds < 1 || rounds > 100) fail("--rounds must be a whole number from 1 to 100");
-if (configs.length === 2 && configs[0].name === configs[1].name && configs[0].bin === configs[1].bin)
+if (configs.length === 2 && configs[0].name === configs[1].name) {
+  // An A/A run: the differences show this machine's noise. B gets its own label in the report.
+  configs[1] = { ...configs[1], name: `${configs[1].name}-b` };
   log("eval: A and B are the same configuration; the differences show the noise of this machine");
+}
 
 async function runOne({ task, config, round }) {
   const base = { task: task.id, config: config.name, round };
@@ -112,7 +115,9 @@ async function runOne({ task, config, round }) {
       failure = String(err?.message ?? err);
     }
     const wallMs = Math.round(performance.now() - t0);
-    const check = failure ? { ok: false, detail: failure } : await task.check(ctx);
+    const check = failure
+      ? { ok: false, detail: failure }
+      : await task.check(ctx).catch((err) => ({ ok: false, detail: String(err?.message ?? err) }));
     const peakMiB = await sampler.stop();
     return {
       ...base,

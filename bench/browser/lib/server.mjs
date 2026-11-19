@@ -237,7 +237,8 @@ export async function startServer(config, { headed = false } = {}) {
       stopped = true;
       await client.close().catch(() => undefined);
       // The server closes Chrome on its way out; give it a moment, then make sure.
-      for (let i = 0; i < 30 && runProcesses(await ps(), -1, home).length; i++) {
+      const deadline = Date.now() + 3000;
+      while (Date.now() < deadline && runProcesses(await ps(), -1, home).length) {
         await new Promise((r) => setTimeout(r, 100));
       }
       await killHomeProcesses(home);
