@@ -340,14 +340,14 @@ describe("turno identity add/show/set for browser identities", () => {
     const newer = { ...pkg, API_VERSION: { major: pkg.API_VERSION.major + 1, minor: 0 } };
     prev = setBrowserDeps(deps(() => loadBrowser({ importer: async () => old })));
     await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(
-      "turno-browser is too old for this turno (it has no API_VERSION, this turno needs 1.10 or a later 1.x); update it: npm install --global turno-browser@latest",
+      "turno-browser is too old for this turno (it has no API_VERSION, this turno needs 1.11 or a later 1.x); update it: npm install --global turno-browser@latest",
     );
-    // 1.9 has no userAgent or proxy key.
+    // 1.10 has no background server.
     setBrowserDeps(
-      deps(() => loadBrowser({ importer: async () => ({ ...pkg, API_VERSION: { major: 1, minor: 9 } }) })),
+      deps(() => loadBrowser({ importer: async () => ({ ...pkg, API_VERSION: { major: 1, minor: 10 } }) })),
     );
     await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(
-      /its API is 1\.9, this turno needs 1\.10 or a later 1\.x/,
+      /its API is 1\.10, this turno needs 1\.11 or a later 1\.x/,
     );
     setBrowserDeps(deps(() => loadBrowser({ importer: async () => newer })));
     await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(

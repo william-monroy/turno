@@ -82,6 +82,19 @@ export {
 } from "./detectors.js";
 export { type LoginOptions, loginIdentity } from "./login.js";
 export { LiveError, liveLink, livePause, liveResume, liveStatus } from "./live-client.js";
+export {
+  BackgroundError,
+  type BackgroundSession,
+  type BackgroundState,
+  type CallOptions,
+  type OpenSessionOptions,
+  type StartBackgroundOptions,
+  type StartedBackground,
+  backgroundStatus,
+  openBackgroundSession,
+  startBackground,
+  stopBackground,
+} from "./client.js";
 export type { LiveStatus } from "./live-server.js";
 export { type TotpParams, TotpError, parseTotpSecret, totp } from "./totp.js";
 export { SealError } from "./sealed.js";

@@ -9,6 +9,7 @@ import type { Page } from "patchright-core";
 import type { SecretStore } from "turno-core/secrets";
 import { CallToolRequestSchema, type CallToolResult, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { Sampler } from "./act-model.js";
+import { refuseWhileBackground } from "./background-state.js";
 import { coveredBeforeCall, explainFailure } from "./diagnose.js";
 import {
   type Engine,
@@ -363,7 +364,11 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     const clientInfo = this.info();
     const { config, cliOptions, stock, engine, identity } = this.host;
     const promise = (async (): Promise<Running> => {
-      if (identity) refuseWhileNeedsAuth(identity);
+      if (identity) {
+        // While the identity's background server runs, it alone launches its browser.
+        refuseWhileBackground(identity);
+        refuseWhileNeedsAuth(identity);
+      }
       const settings = identity ? readIdentitySettings(identity.id, identity.env) : undefined;
       const tuning = resolveTuning(settings, this.host.tuning);
       this.recordSettings = settings?.record;
@@ -1258,28 +1263,44 @@ function samplerFor(server: Server, requestId: string | number): Sampler | undef
   };
 }
 
-/** An MCP server for one session of this host, on any transport. */
-function createServer(host: Host): Server {
+/** The one session backend that every connection of a shared host uses (`shareHost`). */
+interface SharedBackend {
+  /** The backend, created on the first use, with the first connection's client info. */
+  get(server: Server): Promise<SessionBackend>;
+  /** The backend when it exists, without creating it. */
+  peek(): Promise<SessionBackend> | undefined;
+  /** The servers connected now, told when the page's tools change. */
+  servers: Set<Server>;
+}
+
+/**
+ * An MCP server for one connection of this host, on any transport: with its own session
+ * backend (stdio, one browser per connection), or on the backend of a shared host.
+ */
+function createServer(host: Host, shared?: SharedBackend): Server {
   // The experimental capability asks mcpd to say when a client session ends (`session.ts`).
   const server = new Server(SERVER_INFO, {
     capabilities: { tools: { listChanged: true }, experimental: { [SESSION_CAPABILITY]: {} } },
   });
-  let backend: Promise<SessionBackend> | undefined;
-  const session = () => {
-    backend ??= (async () => {
+  let own: Promise<SessionBackend> | undefined;
+  const session = (): Promise<SessionBackend> => {
+    if (shared) return shared.get(server);
+    own ??= (async () => {
       const clientInfo = await clientInfoOf(server);
       const b = (await host.factory.create(clientInfo)) as SessionBackend;
       await b.initialize(clientInfo);
       b.on("dynamictoolschange", () => void server.sendToolListChanged().catch(() => {}));
       return b;
     })();
-    backend.catch(() => {
-      backend = undefined;
+    own.catch(() => {
+      own = undefined;
     });
-    return backend;
+    return own;
   };
+  const existing = () => (shared ? shared.peek() : own);
+  shared?.servers.add(server);
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    const live = await backend?.catch(() => undefined);
+    const live = await existing()?.catch(() => undefined);
     return { tools: [...host.listTools(), ...(live?.dynamicTools() ?? [])] as ToolSchemaJson[] as never };
   });
   server.setRequestHandler(CallToolRequestSchema, async (request, extra): Promise<CallToolResult> => {
@@ -1299,16 +1320,73 @@ function createServer(host: Host): Server {
     }
   });
   server.fallbackNotificationHandler = async (notification) => {
-    if (notification.method !== SESSION_ENDED_METHOD) return;
+    // On a shared host the sessions are the connections, which the host ends itself.
+    if (shared || notification.method !== SESSION_ENDED_METHOD) return;
     const session = sessionFromMeta({ [SESSION_META_KEY]: notification.params?.session });
-    if (session !== undefined) await (await backend?.catch(() => undefined))?.endSession(session);
+    if (session !== undefined) await (await own?.catch(() => undefined))?.endSession(session);
   };
   const previous = server.onclose;
   server.onclose = () => {
     previous?.();
-    void backend?.then((b) => b.dispose()).catch(() => {});
+    if (shared) shared.servers.delete(server);
+    else void own?.then((b) => b.dispose()).catch(() => {});
   };
   return server;
+}
+
+/**
+ * One browser for many connections: the background server's host. Each connection gets its own
+ * MCP server, and every one of them calls the same session backend, so the connections share the
+ * identity's one Chrome the way mcpd's client sessions share one stdio server. The caller puts
+ * each connection's client session in the `_meta` of its calls (`SESSION_META_KEY`), which keys
+ * the tabs of `"sharing": "tabs"`, and ends it with `endSession`.
+ */
+export interface SharedHost {
+  /** Serves one connection on `transport`. Closing it leaves the browser open. */
+  connect(transport: Transport): Promise<Server>;
+  /** A client session ended: with `"sharing": "tabs"` its tabs are free at once. */
+  endSession(session: string): Promise<void>;
+  /** Closes the browser. */
+  dispose(): Promise<void>;
+}
+
+export function shareHost(host: Host): SharedHost {
+  let backend: Promise<SessionBackend> | undefined;
+  const servers = new Set<Server>();
+  const shared: SharedBackend = {
+    servers,
+    peek: () => backend,
+    get(server) {
+      backend ??= (async () => {
+        const clientInfo = await clientInfoOf(server);
+        const b = (await host.factory.create(clientInfo)) as SessionBackend;
+        await b.initialize(clientInfo);
+        b.on("dynamictoolschange", () => {
+          for (const s of servers) void s.sendToolListChanged().catch(() => {});
+        });
+        return b;
+      })();
+      backend.catch(() => {
+        backend = undefined;
+      });
+      return backend;
+    },
+  };
+  return {
+    async connect(transport) {
+      const server = createServer(host, shared);
+      await server.connect(transport);
+      return server;
+    },
+    async endSession(session) {
+      await (await backend?.catch(() => undefined))?.endSession(session);
+    },
+    async dispose() {
+      const b = await backend?.catch(() => undefined);
+      backend = undefined;
+      await b?.dispose();
+    },
+  };
 }
 
 /** Serves the host: stdio by turno, `--port` by upstream's HTTP server. */
@@ -1328,15 +1406,26 @@ export async function serve(host: Host, transport?: Transport): Promise<Server |
  */
 export async function runHost(
   args: string[],
-  options: { identity?: IdentityRef; tuning?: TuningFlags; engineFlags?: EngineFlags; live?: LiveFlags } = {},
+  options: {
+    identity?: IdentityRef;
+    tuning?: TuningFlags;
+    engineFlags?: EngineFlags;
+    live?: LiveFlags;
+    /**
+     * Serves the host instead of stdio or `--port` (`--background`). Such a server has no client
+     * on stdin, so upstream's watchdog, which exits when stdin closes, is not installed.
+     */
+    serve?: (host: Host) => Promise<void>;
+  } = {},
 ): Promise<void> {
   const { utils, core, version } = upstream();
   const { identity, tuning, engineFlags, live } = options;
+  const serveWith = options.serve;
   const Command = utils.program.constructor;
   const program = new Command().version(`Version ${version}`).name("Playwright MCP");
   upstream().tools.decorateMCPCommand(program);
   program.action(async (options) => {
-    upstream().tools.setupExitWatchdog();
+    if (!serveWith) upstream().tools.setupExitWatchdog();
     if (options.vision) {
       console.error("The --vision option is deprecated, use --caps=vision instead");
       options.caps ??= [];
@@ -1344,16 +1433,16 @@ export async function runHost(
     }
     if ((options.caps as string[] | undefined)?.includes("tracing")) (options.caps as string[]).push("devtools");
     const config = await upstream().tools.resolveCLIConfigForMCP(options);
-    await serve(
-      createHost({
-        config,
-        cliOptions: options,
-        ...(identity ? { identity } : {}),
-        ...(tuning ? { tuning } : {}),
-        ...(engineFlags ? { engineFlags } : {}),
-        ...(live ? { live } : {}),
-      }),
-    );
+    const host = createHost({
+      config,
+      cliOptions: options,
+      ...(identity ? { identity } : {}),
+      ...(tuning ? { tuning } : {}),
+      ...(engineFlags ? { engineFlags } : {}),
+      ...(live ? { live } : {}),
+    });
+    if (serveWith) await serveWith(host);
+    else await serve(host);
   });
   try {
     await program.parseAsync(args, { from: "user" });

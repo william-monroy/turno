@@ -2,6 +2,7 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { type BuiltArgv, buildArgv } from "../argv.js";
+import { type BackgroundFlags, extractBackground, serveBackground, sharingOf } from "../background.js";
 import { engineChoice } from "../engine.js";
 import { lightpandaCookieJar, sweepOrphanLightpandas } from "../engine-lightpanda.js";
 import { runHost } from "../host.js";
@@ -16,7 +17,8 @@ import { readIdentitySettings } from "../settings.js";
  * Chrome an earlier run left behind on the same profile, and a deadline on shutdown. With
  * `--identity`, the identity module: identity.json applied at launch,
  * a runtime lock while Chrome runs, the session health check and the reputation log.
- * Speaks MCP over stdio; `--port` with `--identity` needs `--allow-http-identity`.
+ * Speaks MCP over stdio; `--port` with `--identity` needs `--allow-http-identity`; `--background`
+ * serves the identity to the shell from a private socket (`background.ts`).
  */
 
 const HELP = `turno-browser-mcp: a browser MCP server that drives your installed Chrome, with one
@@ -70,6 +72,20 @@ Live view (wins over the identity's identity.json; off by default):
   --live-wait <duration>   how long a call waits while you have the agent paused (default 2m,
                            "5s" to "30m"); then it fails and tells the agent you still have it
 
+Background server (for shell use without turno; the turno-browser client starts it):
+  --background             serve the identity over MCP streamable HTTP on a Unix socket in a
+                           folder only you can enter (<state>/browser/identities/<id>/background),
+                           or on 127.0.0.1 with a per-server token in a file only you can read
+                           where a socket cannot be used. Writes server.json there while it runs.
+                           Needs --identity; --port and --host do not apply
+  --background-idle <duration>
+                           exit after this long without a request (default 15m; "0" never);
+                           also TURNO_BROWSER_BACKGROUND_IDLE. Chrome closes first
+  While the background server of an identity runs, it alone drives the identity's browser: a
+  stdio server of that identity (an agent's, or mcpd's) answers each call that needs the browser
+  with an error that names the background server, and the background server does not start while
+  another process has the identity's Chrome open. Stop it with kill <pid> (SIGTERM).
+
 Examples:
   turno-browser-mcp --identity work
   turno-browser-mcp --identity work --max-tabs 4 --park-after 2m
@@ -78,6 +94,7 @@ Examples:
   turno-browser-mcp --engine lightpanda
   turno-browser-mcp --attach auto
   turno-browser-mcp --identity work --live
+  turno-browser-mcp --identity work --background --background-idle 30m
 
 Every other flag is a Playwright MCP flag:
 `;
@@ -86,8 +103,12 @@ const help = process.argv.includes("--help") || process.argv.includes("-h");
 if (help) process.stdout.write(`${HELP}\n`);
 
 let built: BuiltArgv;
+let background: BackgroundFlags;
 try {
-  built = buildArgv(process.argv.slice(2));
+  background = extractBackground(process.argv.slice(2));
+  built = buildArgv(background.rest);
+  if (background.background && built.identity === undefined)
+    throw new Error("--background needs --identity <id>: it serves one identity's browser");
 } catch (err) {
   process.stderr.write(`turno-browser-mcp: ${(err as Error).message}\n`);
   process.exit(2);
@@ -113,7 +134,7 @@ if (built.userDataDir && !help) {
       `turno-browser-mcp: a Chrome an earlier run left open on this profile (pid ${swept.pid}) did not stop\n`,
     );
   }
-  installShutdownGuard(built.userDataDir);
+  installShutdownGuard(built.userDataDir, { stdin: !background.background });
 }
 
 if (!help && readMode(built)) {
@@ -137,9 +158,26 @@ function readMode(argv: BuiltArgv): boolean {
   }
 }
 
+const identity = built.identity !== undefined ? { id: built.identity, env: process.env } : undefined;
 await runHost(built.args, {
-  ...(built.identity !== undefined ? { identity: { id: built.identity, env: process.env } } : {}),
+  ...(identity ? { identity } : {}),
   ...(built.tuning ? { tuning: built.tuning } : {}),
   ...(built.engineFlags ? { engineFlags: built.engineFlags } : {}),
   ...(built.live ? { live: built.live } : {}),
+  ...(background.background && identity
+    ? {
+        serve: async (host) => {
+          try {
+            await serveBackground(host, {
+              identity,
+              idleMs: background.idleMs,
+              sharing: sharingOf(built.tuning?.sharing, () => readIdentitySettings(identity.id, identity.env)?.sharing),
+            });
+          } catch (err) {
+            process.stderr.write(`turno-browser-mcp: ${(err as Error).message}\n`);
+            process.exit(1);
+          }
+        },
+      }
+    : {}),
 });

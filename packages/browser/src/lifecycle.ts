@@ -181,6 +181,8 @@ export interface ShutdownOptions {
   graceMs?: number;
   /** Time Chrome gets after SIGTERM before this process exits and its group gets SIGKILL. */
   termMs?: number;
+  /** False for a server without an MCP client on stdin (`--background`): its stdin closing means nothing. */
+  stdin?: boolean;
 }
 
 /**
@@ -208,7 +210,7 @@ export function installShutdownGuard(userDataDir: string, opts: ShutdownOptions 
       setTimeout(() => process.exit(0), termMs).unref();
     }, graceMs).unref();
   };
-  process.stdin.once("close", begin);
+  if (opts.stdin !== false) process.stdin.once("close", begin);
   process.on("SIGTERM", begin);
   process.on("SIGINT", begin);
   process.on("SIGHUP", () => {

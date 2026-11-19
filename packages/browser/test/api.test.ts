@@ -54,6 +54,11 @@ const MEMBERS = [
   "livePause",
   "liveResume",
   "liveStatus",
+  // 1.11: the background server of an identity.
+  "backgroundStatus",
+  "openBackgroundSession",
+  "startBackground",
+  "stopBackground",
 ];
 
 describe("the public API object", () => {
@@ -65,8 +70,9 @@ describe("the public API object", () => {
   // 1.8: the tabLocks key and runDoctor({ servers }) (no new member).
   // 1.9: the live key and the live view of a running server.
   // 1.10: the userAgent and proxy keys and the camoufox engine (no new member).
-  it("is version 1.10, frozen, with integer parts", () => {
-    expect(API_VERSION).toEqual({ major: 1, minor: 10 });
+  // 1.11: the background server of an identity.
+  it("is version 1.11, frozen, with integer parts", () => {
+    expect(API_VERSION).toEqual({ major: 1, minor: 11 });
     expect(Object.isFrozen(API_VERSION)).toBe(true);
     expect(Number.isInteger(API_VERSION.major) && Number.isInteger(API_VERSION.minor)).toBe(true);
   });
