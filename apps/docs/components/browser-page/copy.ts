@@ -63,8 +63,8 @@ export const PRINTS = {
 
 /** What the reader pastes into a coding agent so it sets turno-browser up for them. */
 const PROMPT = {
-  en: "Set up turno-browser for me. Run `npm install --global turno-browser`. Ask me what to call the identity, then run `turno-browser add <name>` and tell me to run `turno-browser login <name>` myself, because I sign in by hand. When I am done, run `turno-browser setup <agent> --identity <name>` with your own agent name (for example claude-code) and add the config it prints. The docs are at https://turno.wimo.dev/llms.txt.",
-  es: "Configura turno-browser por mí. Corre `npm install --global turno-browser`. Pregúntame cómo llamar a la identidad, luego corre `turno-browser add <nombre>` y dime que corra yo mismo `turno-browser login <nombre>`, porque inicio sesión a mano. Cuando termine, corre `turno-browser setup <agente> --identity <nombre>` con el nombre de tu agente (por ejemplo claude-code) y agrega la configuración que imprime. La documentación está en https://turno.wimo.dev/llms.txt.",
+  en: "Set up turno-browser for me. Run `npm install --global turno-browser`. Ask me what to call the identity, then run `turno-browser add <name>` and tell me to run `turno-browser login <name>` myself, because I sign in by hand. When I am done, run `turno-browser setup <agent> --identity <name>` with your own agent name (for example claude-code) and run the command it prints. The docs are at https://turno.wimo.dev/llms.txt.",
+  es: "Configura turno-browser por mí. Corre `npm install --global turno-browser`. Pregúntame cómo llamar a la identidad, luego corre `turno-browser add <nombre>` y dime que corra yo mismo `turno-browser login <nombre>`, porque inicio sesión a mano. Cuando termine, corre `turno-browser setup <agente> --identity <nombre>` con el nombre de tu agente (por ejemplo claude-code) y corre el comando que imprime. La documentación está en https://turno.wimo.dev/llms.txt.",
 } as const;
 
 export const CHAPTER_IDS = ["identities", "tabs", "vault"] as const;
@@ -453,7 +453,7 @@ const en: BrowserCopy = {
       commands: [
         { run: CMD.install, note: "The package and its command." },
         { run: CMD.add, note: "Your first identity." },
-        { run: CMD.setup, note: "Prints the config for Claude Code. It does the same for Codex, Cursor and the others." },
+        { run: CMD.setup, note: "Prints the one command that gives Claude Code the identity. It does the same for Codex, Cursor, Copilot and Gemini." },
       ],
     },
     withTurno: {
@@ -752,7 +752,7 @@ const es: BrowserCopy = {
       commands: [
         { run: CMD.install, note: "El paquete y su comando." },
         { run: CMD.add, note: "Tu primera identidad." },
-        { run: CMD.setup, note: "Imprime la configuración para Claude Code. Hace lo mismo para Codex, Cursor y los demás." },
+        { run: CMD.setup, note: "Imprime el comando que le da la identidad a Claude Code. Hace lo mismo para Codex, Cursor, Copilot y Gemini." },
       ],
     },
     withTurno: {
