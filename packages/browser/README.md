@@ -33,8 +33,8 @@ The docs are at [turno.wimo.dev/docs/browser](https://turno.wimo.dev/docs/browse
 A driver moves the browser. turno-browser is the layer above it: it decides which browser that
 is, whose session it carries, how long it stays open and what the model gets to see. It serves
 the Playwright MCP tools and flags (`browser_navigate`, `browser_click`, `browser_snapshot` and
-the rest) on your own Chrome, headed, with no injected scripts, so it works next to tools like
-browser-use, Stagehand and Browserbase. [Browser tools compared](https://turno.wimo.dev/docs/browser/alternatives)
+the rest) on your own Chrome, headed by default. It sits next to tools like browser-use,
+Stagehand and Browserbase; [Browser tools compared](https://turno.wimo.dev/docs/browser/alternatives)
 says when each one is the better choice.
 
 ## What you get

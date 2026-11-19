@@ -5,7 +5,7 @@ description: Give an agent a Chrome profile you signed into by hand, with turno-
 
 This guide gives an agent a browser that is already signed in where you need it: you sign into a site once by hand, and the agent works in that same browser afterwards.
 
-`turno-browser` is an MCP server that drives your installed Google Chrome, headed, with one persistent profile per identity and no injected scripts. It serves the Playwright MCP tools. It is a separate package: turno works without it.
+`turno-browser` is an MCP server that drives your installed Google Chrome, headed, with one persistent profile per identity. It serves the Playwright MCP tools. It is a separate package: turno works without it.
 
 <Callout title="Acceptable use" type="warn">
 Use it with your own accounts, on sites whose terms allow automated access by you, and at a human pace. Do not use it to get around access controls, paywalls or rate limits, to scrape at scale, or to access accounts that are not yours. Captcha solving is off unless you turn it on, and then it is for your own accounts only ([what it costs](/docs/browser/natural-language-and-captchas#captcha-solving)). You are responsible for how you use it.
