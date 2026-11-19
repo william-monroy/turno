@@ -19,6 +19,11 @@ import { type Sandbox, sandbox } from "./helpers/sandbox.js";
  * Record and replay against a real Google Chrome, through the server dist/ that the global
  * setup builds once, with a fake `security`/`secret-tool` on the sandbox PATH (never a real
  * Keychain) and a throwaway profile. Secret values are compared, never printed.
+ *
+ * Each test starts Chrome once or twice (the first also replays from the command line's path,
+ * a second server and Chrome) and takes 5 to 9 seconds alone. Next to the other Chrome suites
+ * of a full run it takes several times that, so the tests get the 120 s the other real-Chrome
+ * suites have instead of the 30 s default.
  */
 
 const pkg = fileURLToPath(new URL("..", import.meta.url));
@@ -229,7 +234,7 @@ describe.skipIf(reason !== undefined)(
       expect(cli.ok, cli.text).toBe(true);
       expect(leaks(cli.text, [PASSWORD_2])).toBe(0);
       expect(new URLSearchParams(web.posted[2]).get("password") === PASSWORD_2).toBe(true);
-    });
+    }, 120_000);
 
     it("keeps vault values and passwords out of traces, screenshots and flows of an identity that records", async () => {
       const web = await site();
@@ -287,7 +292,7 @@ describe.skipIf(reason !== undefined)(
       expect(steps.find((s) => s.tool === "browser_login")?.args).toEqual({ site: "local" });
       expect(readFlow("rec", auto!.name, sb.env).params.find((p) => p.sensitive)).toBeDefined();
       await client.close();
-    });
+    }, 120_000);
 
     it('with "sharing": "tabs", records only the session that started, and replays in its tabs', async () => {
       const web = await site();
@@ -327,6 +332,6 @@ describe.skipIf(reason !== undefined)(
       expect(after).toContain(`${web.url}/login`);
       expect(after).toMatch(/textbox "Email"[^\n]*: bob@example\.com/);
       await client.close();
-    });
+    }, 120_000);
   },
 );
