@@ -50,7 +50,8 @@ turno-browser setup json --identity school
 Without turno, `turno-browser do` starts a background server for the identity on its first action. It listens on a private socket only your user can open, keeps the session and its tab between commands, and exits after 15 minutes without a request. An agent's server for the same identity is refused with a message that says how to stop the background one, so there is never a second Chrome on one profile.
 
 ```sh
-turno-browser do school open https://mail.example.com/
+turno-browser do school open \
+  https://mail.example.com/
 turno-browser do school snapshot
 turno-browser background status school
 turno-browser background stop school
