@@ -63,6 +63,9 @@ export const SETTINGS_FLAGS: FlagSpec = {
   humanize: { type: "string" },
   // How many agent sessions use the identity's browser at once (format 5).
   sharing: { type: "string" },
+  // Which engine runs the identity (format 6): read mode on Lightpanda, or attach mode.
+  engine: { type: "string" },
+  attach: { type: "string" },
 };
 
 /** The identity.json key behind each tuning flag, so the package's messages name the flag. */
@@ -79,6 +82,8 @@ const KEY_FLAGS: readonly (readonly [string, string])[] = [
   ["cache.maxSize", "--cache-max-size"],
   ["humanize.level", "--humanize"],
   ["sharing", "--sharing"],
+  ["engine", "--engine"],
+  ["attach", "--attach"],
 ];
 
 const TABS_MAX_PROBLEM = "--tabs-max must be a whole number from 0 (no cap) to 100";
@@ -167,6 +172,10 @@ export function settingsPatch(p: Parsed, current?: IdentitySettings): SettingsPa
     patch.health = health;
   }
   tuningPatch(p, value, patch, current);
+  const engine = value("engine");
+  if (engine !== undefined) patch.engine = engine as SettingsPatch["engine"];
+  const attach = value("attach");
+  if (attach !== undefined) patch.attach = attach;
   return patch;
 }
 
@@ -318,6 +327,8 @@ export function show(m: BrowserApi, id: string, args: string[], io: Io): number 
         `${HUMANIZE_TEXT[settings.humanize.level] ?? settings.humanize.level}${settings.humanize.seed === undefined ? "" : s.muted(` (seed ${settings.humanize.seed})`)}`,
       ]);
     if (settings.sharing === "tabs") rows.push(["sharing", "every agent session at once, each in its own tabs"]);
+    if (settings.engine === "lightpanda") rows.push(["engine", "Lightpanda (read mode)"]);
+    if (settings.attach !== undefined) rows.push(["engine", `attach to your Chrome (${settings.attach})`]);
     rows.push(["created", settings.created]);
     rows.push(["updated", settings.updated]);
   }
@@ -348,7 +359,8 @@ const SET_FLAGS: FlagSpec = { ...SETTINGS_FLAGS, "dry-run": { type: "boolean" },
 export const SET_SYNOPSIS =
   "[--timezone <zone>] [--locale <tag>] [--languages <tag,...>] [--region <CC>] [--health-url <url>] [--health-text <text>] [--health-selector <css>] [--no-health] " +
   "[--tabs-max <n>] [--tabs-popups close|keep] [--tabs-park <duration>] [--tabs-close <duration>] [--no-tabs] [--background-throttling true|false] [--settle <duration>] " +
-  "[--block-trackers true|false] [--block-types image,media,font] [--block-patterns <host|glob>,...] [--no-block] [--cache] [--cache-max-size <size>] [--no-cache] [--humanize off|light|full|adaptive] [--sharing session|tabs] [--dry-run] [--json]";
+  "[--block-trackers true|false] [--block-types image,media,font] [--block-patterns <host|glob>,...] [--no-block] [--cache] [--cache-max-size <size>] [--no-cache] [--humanize off|light|full|adaptive] [--sharing session|tabs] " +
+  "[--engine chrome|lightpanda] [--attach auto|<dir>|<url>] [--dry-run] [--json]";
 
 /** More help for `set`: what each tuning flag writes to identity.json. */
 export const SET_DETAILS = `Each flag writes one key of identity.json; an empty value (--settle "") removes it, and
@@ -377,7 +389,15 @@ Input:
   --humanize <level>              off (default), light (the pointer travels a curve to a point
                                   inside the target, keys typed with human delays), full (plus
                                   overshoot, reading pauses, wheel scrolling) or adaptive
-                                  (light, full on a site after a challenge page there)`;
+                                  (light, full on a site after a challenge page there)
+
+Which engine runs this identity (both off by default):
+  --engine lightpanda             read mode: Lightpanda instead of Chrome, for reading pages;
+                                  needs lightpanda on PATH (turno browser doctor says how)
+  --attach auto|<dir>|<url>       use the Chrome you have open instead of the identity's own:
+                                  "auto" is your default Chrome profile, after you turn on
+                                  chrome://inspect/#remote-debugging; Chrome asks you to allow
+                                  each connection, and the agent then sees all its windows`;
 
 /** The flags of `set`, for completion. */
 export const SET_FLAG_NAMES = ["--dry-run", "--json", ...SETTINGS_FLAG_NAMES];
@@ -439,6 +459,17 @@ export function set(m: BrowserApi, id: string, args: string[], io: Io): number {
   io.out(`updated identity.json of "${id}"; the next Chrome start of browser-${id} uses it\n`);
   const code = show(m, id, [], io);
   if (patch.sharing !== undefined) io.out(`\n${sharingNote(id, settings.sharing)}`);
+  if (typeof patch.attach === "string") {
+    const s = style(io);
+    io.out(
+      s.note(
+        "warn",
+        "attach mode: the agent works in your own Chrome and sees every window and signed-in site of that profile. " +
+          "Turn on remote debugging at chrome://inspect/#remote-debugging and allow each connection Chrome asks about; " +
+          'turno closes only the tabs it opened. Undo with --attach "".',
+      ),
+    );
+  }
   return code;
 }
 
@@ -447,6 +478,7 @@ const DOCTOR_FLAGS: FlagSpec = { fix: { type: "boolean" }, "no-launch": { type: 
 const SECTIONS: [string, (area: string) => boolean][] = [
   ["Chrome", (a) => a === "chrome"],
   ["System", (a) => a === "system"],
+  ["Engines", (a) => a === "engines"],
   ["Identities", (a) => a === "identities" || a.startsWith("identity ")],
 ];
 
