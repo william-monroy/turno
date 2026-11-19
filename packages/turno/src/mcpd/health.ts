@@ -117,7 +117,7 @@ async function portChecks(env: NodeJS.ProcessEnv): Promise<McpdCheck[]> {
     return out;
   }
   const ours = await answersAsMcpd(port, token);
-  const owner = await portOwner(port, { env });
+  const owner = await portOwner(port, { env, ...(ours?.pid !== undefined ? { pid: ours.pid } : {}) });
   const uid = process.getuid?.();
   if (ours) {
     if (owner?.uid !== undefined && uid !== undefined && owner.uid !== uid) {
