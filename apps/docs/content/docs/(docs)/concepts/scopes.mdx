@@ -41,6 +41,8 @@ lease = "10m"
 idle = "30m"
 ```
 
+A browser identity whose `identity.json` has `"sharing": "tabs"` is the exception: it runs with `exclusive = false`, so every session reaches the one Chrome, and turno-browser gives each session its own tabs and locks them ([Browser identities](/docs/concepts/browser-identities#several-agents-one-browser)).
+
 ## Servers that ask the user
 
 Some servers ask the user a question in the middle of a call (MCP elicitation) or ask the client's model for a completion (sampling). mcpd relays those to the session whose call is in flight. When calls from several sessions are in flight on a shared server, it refuses the request instead of guessing: use `scope = "session"` or `exclusive = true` for those servers.

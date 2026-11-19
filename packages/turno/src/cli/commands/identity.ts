@@ -276,6 +276,7 @@ export const command = group(
       "turno identity set browser:school --settle 500ms --dry-run --json",
       "turno identity set browser:school --humanize adaptive",
       "turno identity set browser:school --no-block --no-cache",
+      "turno identity set browser:school --sharing tabs",
       "turno identity prefer ~/code/acme linear=linear:work",
       "turno identity remove linear:work --dry-run",
       "turno identity log --verify",

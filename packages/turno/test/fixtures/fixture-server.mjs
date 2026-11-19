@@ -42,10 +42,15 @@ if (process.env.FIXTURE_TOOLS_FILE) {
     /* no extra tools */
   }
 }
+// FIXTURE_SESSIONS=1: declare turno's session capability, so mcpd says when a session ends.
+const sessions = process.env.FIXTURE_SESSIONS === "1" ? { experimental: { "io.turno/sessions": {} } } : {};
 const server = new Server(
   { name: "fixture", version: "1.0.0" },
-  { capabilities: { tools: { listChanged: true }, resources: { subscribe: true, listChanged: true }, logging: {} }, instructions: "fixture instructions" },
+  { capabilities: { tools: { listChanged: true }, resources: { subscribe: true, listChanged: true }, logging: {}, ...sessions }, instructions: "fixture instructions" },
 );
+server.fallbackNotificationHandler = async (n) => {
+  if (n.method === "notifications/io.turno/session_ended") event(`session_ended ${n.params?.session}`);
+};
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
 server.setRequestHandler(ListResourcesRequestSchema, async () => ({
   resources: [{ uri: pathToFileURL(process.cwd()).href, name: "cwd" }],

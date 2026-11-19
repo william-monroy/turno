@@ -244,6 +244,22 @@ describe("reading and checking", () => {
     expect(ok.version).toBe(2);
     expect(readIdentitySettings("res", sb.env)?.cache).toEqual({ maxSize: "200MB" });
   });
+
+  it("writes format 5 only while sharing is set, and takes only session or tabs", () => {
+    const s = writeIdentitySettings("team", { sharing: "tabs", settle: "100ms" }, sb.env, T0);
+    expect(s).toEqual({
+      version: 5,
+      settle: "100ms",
+      sharing: "tabs",
+      created: T0.toISOString(),
+      updated: T0.toISOString(),
+    });
+    expect(readIdentitySettings("team", sb.env)?.sharing).toBe("tabs");
+    expect(() => writeIdentitySettings("team", { sharing: "all" as "tabs" }, sb.env)).toThrow(
+      'sharing must be "session" (the default, one agent session at a time) or "tabs"',
+    );
+    expect(writeIdentitySettings("team", { sharing: null }, sb.env, T1).version).toBe(2);
+  });
 });
 
 describe("addIdentity and removeIdentity", () => {

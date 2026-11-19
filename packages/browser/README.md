@@ -63,6 +63,8 @@ turno identity show browser:school
   already in use".
 - **Through the gateway.** `turno identity add` prints the `mcp.toml` block: a `shared`,
   `exclusive` server, so one session uses the identity at a time and mcpd stops it when idle.
+  With `"sharing": "tabs"` (`turno identity set browser:<id> --sharing tabs`, then
+  `exclusive = false`) several agent sessions use it at once, each in its own locked tabs.
 
 ## Credential vault
 

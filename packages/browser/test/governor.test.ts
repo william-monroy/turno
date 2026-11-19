@@ -273,3 +273,105 @@ describe("tab governor: parking", () => {
     expect(b.url()).toBe("https://b.example/next");
   });
 });
+
+describe("tab governor: several sessions in one browser", () => {
+  /** Two sessions' pages: each owner's cap apart, their current tabs protected, notes per owner. */
+  function shared(policy: Partial<TabPolicy>) {
+    let t = 1_000_000;
+    const context = new FakeContext();
+    const owners = new Map<FakePage, string>();
+    const currents = new Map<string, FakePage>();
+    const governor = new TabGovernor(
+      context as unknown as BrowserContext,
+      { ...DEFAULT_TABS, ...policy },
+      {
+        current: () => undefined,
+        tabs: () => context.pages() as unknown as Page[],
+        protected: () => [...currents.values()] as unknown as Page[],
+        owner: (page) => owners.get(page as unknown as FakePage),
+        // A popup belongs to the session of its opener, decided before the cap runs.
+        adopt: async (page) => {
+          const opener = (await (page as unknown as FakePage).opener()) as FakePage | null;
+          const owner = opener ? owners.get(opener) : undefined;
+          if (owner) owners.set(page as unknown as FakePage, owner);
+        },
+        now: () => t,
+        timer: false,
+      },
+    );
+    governor.start();
+    const open = (session: string, url: string, opener?: FakePage) => {
+      const page = new FakePage(url, opener ?? null);
+      if (!opener) owners.set(page, session);
+      context.open(page);
+      currents.set(session, page);
+      return page;
+    };
+    return {
+      context,
+      governor,
+      owners,
+      currents,
+      advance: (ms: number) => (t += ms),
+      async call(session: string, during: () => void) {
+        governor.beginCall();
+        during();
+        await governor.afterCall();
+        const view = { current: () => currents.get(session) as unknown as Page, tabs: () => [] };
+        governor.endCall(view);
+      },
+      open,
+    };
+  }
+
+  it("caps each session's tabs apart and never closes another session's", async () => {
+    const g = shared({ max: 2 });
+    const b1 = g.open("B", "https://b.example/1");
+    await g.call("A", () => void g.open("A", "https://a.example/1"));
+    g.advance(1000);
+    await g.call("A", () => void g.open("A", "https://a.example/2"));
+    g.advance(1000);
+    await g.call("A", () => void g.open("A", "https://a.example/3"));
+    expect(g.context.pages().map((p) => p.url())).toEqual([
+      "https://b.example/1",
+      "https://a.example/2",
+      "https://a.example/3",
+    ]);
+    expect(b1.closed).toBe(false);
+    // The note goes to A, not to B.
+    expect(g.governor.takeNotes("B")).toEqual([]);
+    expect(g.governor.takeNotes("A")).toEqual([
+      expect.stringContaining("closed the least recently used tab (https://a.example/1)"),
+    ]);
+  });
+
+  it("counts a popup as the opener's session's tab", async () => {
+    const g = shared({ max: 1 });
+    const a = g.open("A", "https://a.example/");
+    g.open("B", "https://b.example/");
+    await g.call("A", () => {
+      g.context.open(new FakePage("https://popup.example/", a));
+    });
+    await g.governor.settled();
+    // A's popup went past A's cap of one: the popup is new and a is A's current tab, so A keeps
+    // both until it moves on; B's tab is never a candidate.
+    const popup = g.context.all.find((p) => p.url() === "https://popup.example/")!;
+    expect(g.owners.get(popup)).toBe("A");
+    expect(g.context.pages().map((p) => p.url())).toContain("https://b.example/");
+  });
+
+  it("parks no session's current tab", async () => {
+    const g = shared({ parkMs: 60_000, closeMs: 0 });
+    const a = g.open("A", "https://a.example/");
+    const b = g.open("B", "https://b.example/");
+    const old = new FakePage("https://old.example/");
+    g.owners.set(old, "A");
+    g.context.open(old);
+    g.advance(120_000);
+    await g.governor.sweep();
+    expect(a.gotos).toEqual([]);
+    expect(b.gotos).toEqual([]);
+    expect(old.gotos).toEqual(["about:blank"]);
+    expect(g.governor.takeNotes("A")).toEqual([expect.stringContaining("parked a tab unused")]);
+  });
+});

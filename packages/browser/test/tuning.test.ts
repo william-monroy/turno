@@ -12,6 +12,7 @@ describe("resolveTuning", () => {
       backgroundThrottling: false,
       resources: {},
       humanize: { level: "off" },
+      sharing: "session",
     });
     expect(DEFAULT_TABS).toEqual({ max: 8, popups: "close", parkMs: 300_000, closeMs: 900_000 });
   });
@@ -23,6 +24,7 @@ describe("resolveTuning", () => {
       backgroundThrottling: true,
       resources: {},
       humanize: { level: "off" },
+      sharing: "session",
     });
     expect(
       resolveTuning(settings, { maxTabs: 0, popups: "keep", closeAfterMs: 60_000, backgroundThrottling: false }),
@@ -31,6 +33,7 @@ describe("resolveTuning", () => {
       backgroundThrottling: false,
       resources: {},
       humanize: { level: "off" },
+      sharing: "session",
     });
   });
 
@@ -43,6 +46,19 @@ describe("resolveTuning", () => {
       resolveTuning({ ...base, version: 4, humanize: { level: "full", seed: 7 } }, { humanize: "off" }).humanize,
     ).toEqual({ level: "off", seed: 7 });
     expect(resolveTuning(undefined, { humanize: "adaptive" }).humanize).toEqual({ level: "adaptive" });
+  });
+
+  it("serves one session at a time unless identity.json or --sharing asks for tabs, the flag winning", () => {
+    expect(resolveTuning({ ...base, version: 5, sharing: "tabs" }).sharing).toBe("tabs");
+    expect(resolveTuning({ ...base, version: 5, sharing: "tabs" }, { sharing: "session" }).sharing).toBe("session");
+    expect(resolveTuning(undefined, { sharing: "tabs" }).sharing).toBe("tabs");
+    expect(extractTuning(["--sharing", "tabs", "--headless"])).toEqual({
+      tuning: { sharing: "tabs" },
+      rest: ["--headless"],
+    });
+    expect(() => extractTuning(["--sharing=all"])).toThrow(
+      '--sharing must be "session" (one agent session at a time) or "tabs", not "all"',
+    );
   });
 
   it("turns on blocking and the cache only when identity.json asks, with a 100MB cache by default", () => {

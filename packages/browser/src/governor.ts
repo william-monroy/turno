@@ -18,6 +18,11 @@ import type { TabPolicy } from "./tuning.js";
  * A page counts as used when it is the current tab at the end of a tool call, and when its main
  * frame navigates (a person using a headed window). The current tab is never parked or closed,
  * and neither is the last page.
+ *
+ * With `"sharing": "tabs"` several sessions work in one browser: the cap counts each session's
+ * pages apart (`owner`) and closes only that session's least recently used page, no session's
+ * current tab is parked or closed (`protected`), and each note goes to the session whose page it
+ * is about.
  */
 
 /** A popup that opens this long after a tool call ended still counts as the call's. */
@@ -31,11 +36,21 @@ interface PageState {
   moving?: boolean;
 }
 
-export interface GovernorOptions {
+/** One session's view of the tabs: its current tab and the indexes `browser_tabs` uses. */
+export interface TabView {
   /** The page the stock tools act on (upstream's current tab), if any. */
   current(): Page | undefined;
   /** The pages in upstream's tab order (the indexes `browser_tabs` uses). */
   tabs(): Page[];
+}
+
+export interface GovernorOptions extends TabView {
+  /** Pages never parked or closed: every session's current tab (default: `current()`). */
+  protected?(): Page[];
+  /** The session that holds a page; the cap counts each owner's pages apart (default: one group). */
+  owner?(page: Page): string | undefined;
+  /** Runs first for each page Chrome opens, before the popup check and the cap. */
+  adopt?(page: Page): Promise<void>;
   now?: () => number;
   /** Sweep for unused pages on a timer (the default); tests call `sweep()` themselves. */
   timer?: boolean;
@@ -56,7 +71,8 @@ export class TabGovernor {
   private readonly pages = new Map<Page, PageState>();
   private calls = 0;
   private lastCallEnd = Number.NEGATIVE_INFINITY;
-  private notes: string[] = [];
+  /** Notes for the next result, per owner of the page they are about (undefined: whoever calls next). */
+  private notes = new Map<string | undefined, string[]>();
   private timer: NodeJS.Timeout | undefined;
   private sweeping: Promise<void> | undefined;
   private readonly now: () => number;
@@ -117,18 +133,19 @@ export class TabGovernor {
     this.calls++;
   }
 
-  /** A tool call ended: its current tab was used now. */
-  endCall(): void {
+  /** A tool call ended: its current tab (of `view`, by default the governor's) was used now. */
+  endCall(view: TabView = this.options): void {
     this.calls = Math.max(0, this.calls - 1);
     this.lastCallEnd = this.now();
-    const current = this.options.current();
+    const current = view.current();
     if (current && !current.isClosed()) this.track(current).lastUsed = this.now();
   }
 
-  /** What the governor did since the last call, one line each, for the next tool result. */
-  takeNotes(): string[] {
-    const out = this.notes;
-    this.notes = [];
+  /** What the governor did since the last call, one line each, for the next tool result of `owner`. */
+  takeNotes(owner?: string): string[] {
+    const out = [...(this.notes.get(owner) ?? []), ...(owner === undefined ? [] : (this.notes.get(undefined) ?? []))];
+    this.notes.delete(owner);
+    this.notes.delete(undefined);
     return out;
   }
 
@@ -141,14 +158,14 @@ export class TabGovernor {
    * Before a stock tool runs: when the page it is about to use is parked, load its URL again.
    * That page is the tab `browser_tabs` is about to select, else the current tab.
    */
-  async prepare(name: string, args: Record<string, unknown>): Promise<void> {
+  async prepare(name: string, args: Record<string, unknown>, view: TabView = this.options): Promise<void> {
     if (name === "browser_tabs") {
       if (args.action !== "select" || typeof args.index !== "number") return;
-      const page = this.options.tabs()[args.index];
+      const page = view.tabs()[args.index];
       if (page) await this.restore(page);
       return;
     }
-    const current = this.options.current();
+    const current = view.current();
     if (!current) return;
     if (name === "browser_navigate") {
       // The call replaces the page anyway.
@@ -160,9 +177,9 @@ export class TabGovernor {
   }
 
   /** Marks parked tabs in a tab list of a tool result (`- 2: [](about:blank)`). */
-  annotateTabs(text: string): string {
+  annotateTabs(text: string, view: TabView = this.options): string {
     if (!text.includes("](about:blank)")) return text;
-    const tabs = this.options.tabs();
+    const tabs = view.tabs();
     return text.replace(/^(- (\d+):.*\]\(about:blank\))$/gm, (line, _all, index: string) => {
       const page = tabs[Number(index)];
       const url = page ? this.parkedUrl(page) : undefined;
@@ -181,15 +198,16 @@ export class TabGovernor {
 
   private async sweepOnce(): Promise<void> {
     const { parkMs, closeMs } = this.policy;
-    const current = this.options.current();
+    const kept = this.protectedPages();
     for (const [page, state] of [...this.pages]) {
       if (this.calls > 0) return;
-      if (page === current || page.isClosed() || state.moving) continue;
+      if (kept.includes(page) || page.isClosed() || state.moving) continue;
       const unused = this.now() - state.lastUsed;
       if (closeMs > 0 && unused >= closeMs && this.openPages().length > 1) {
         const url = state.parkedUrl ?? page.url();
+        const owner = this.options.owner?.(page);
         await page.close().catch(() => {});
-        this.note(`closed a tab unused for ${minutes(unused)} (${shortUrl(url)})`);
+        this.note(`closed a tab unused for ${minutes(unused)} (${shortUrl(url)})`, owner);
         continue;
       }
       if (parkMs > 0 && unused >= parkMs && state.parkedUrl === undefined) await this.park(page, state, unused);
@@ -198,6 +216,12 @@ export class TabGovernor {
 
   private openPages(): Page[] {
     return [...this.pages.keys()].filter((p) => !p.isClosed());
+  }
+
+  private protectedPages(): Page[] {
+    if (this.options.protected) return this.options.protected();
+    const current = this.options.current();
+    return current ? [current] : [];
   }
 
   private track(page: Page): PageState {
@@ -219,7 +243,9 @@ export class TabGovernor {
   /** A page Chrome just opened. */
   private async adopt(page: Page): Promise<void> {
     this.track(page);
+    // Whether a call asked for it is decided when the page opens, not after the hook ran.
     const asked = this.calls > 0 || this.now() - this.lastCallEnd < POPUP_GRACE_MS;
+    if (this.options.adopt) await this.options.adopt(page);
     if (this.policy.popups === "close" && !asked) {
       const opener = await page.opener().catch(() => null);
       if (opener) {
@@ -235,13 +261,14 @@ export class TabGovernor {
   private async enforceCap(added: Page): Promise<void> {
     const { max } = this.policy;
     if (max <= 0) return;
-    const open = this.openPages();
+    const owner = this.options.owner?.(added);
+    const open = this.openPages().filter((p) => this.options.owner?.(p) === owner);
     const excess = open.length - max;
     if (excess <= 0) return;
-    const current = this.options.current();
+    const kept = this.protectedPages();
     const lastUsed = (p: Page) => this.pages.get(p)?.lastUsed ?? 0;
     const victims = open
-      .filter((p) => p !== current && p !== added)
+      .filter((p) => !kept.includes(p) && p !== added)
       .sort((a, b) => lastUsed(a) - lastUsed(b))
       .slice(0, excess);
     for (const page of victims) {
@@ -249,6 +276,7 @@ export class TabGovernor {
       await page.close().catch(() => {});
       this.note(
         `closed the least recently used tab (${shortUrl(url)}): more than ${max} were open; tab numbers changed, list them again before selecting one`,
+        owner,
       );
     }
   }
@@ -262,6 +290,7 @@ export class TabGovernor {
       state.parkedUrl = url;
       this.note(
         `parked a tab unused for ${minutes(unused)} on about:blank (${shortUrl(url)}); using it again loads that page`,
+        this.options.owner?.(page),
       );
     } catch {
       /* the page would not leave (a slow unload): try again on the next sweep */
@@ -277,10 +306,11 @@ export class TabGovernor {
     state.moving = true;
     try {
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
-      this.note(`loaded ${shortUrl(url)} again in a tab that was parked`);
+      this.note(`loaded ${shortUrl(url)} again in a tab that was parked`, this.options.owner?.(page));
     } catch (error) {
       this.note(
         `could not load ${shortUrl(url)} again in a parked tab: ${String((error as Error).message ?? error).split("\n")[0]}`,
+        this.options.owner?.(page),
       );
     } finally {
       state.moving = false;
@@ -289,8 +319,10 @@ export class TabGovernor {
     }
   }
 
-  private note(text: string): void {
-    this.notes.push(text);
-    if (this.notes.length > 20) this.notes.splice(0, this.notes.length - 20);
+  private note(text: string, owner?: string): void {
+    const list = this.notes.get(owner) ?? [];
+    list.push(text);
+    if (list.length > 20) list.splice(0, list.length - 20);
+    this.notes.set(owner, list);
   }
 }

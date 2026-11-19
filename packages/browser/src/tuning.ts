@@ -1,6 +1,7 @@
 import type { HumanizeLevel, HumanizeSettings } from "./humanize.js";
 import { DEFAULT_CACHE_BYTES, type ResourcePolicy } from "./resources.js";
 import type { IdentitySettings } from "./settings.js";
+import type { SharingMode } from "./sharing.js";
 import { parseDuration, parseSize } from "./units.js";
 
 /**
@@ -38,6 +39,11 @@ export interface Tuning {
   resources: ResourcePolicy;
   /** Human-like input (`humanize.ts`), from `--humanize` or identity.json `humanize`; off by default. */
   humanize: HumanizeSettings;
+  /**
+   * `"session"` (the default): one backend serves every call, as mcpd's `exclusive = true` lets
+   * one session at a time. `"tabs"`: each agent session gets its own tabs, with locks (`sharing.ts`).
+   */
+  sharing: SharingMode;
 }
 
 /** The defaults, documented on the browser identities page. */
@@ -56,6 +62,7 @@ export interface TuningFlags {
   closeAfterMs?: number;
   backgroundThrottling?: boolean;
   humanize?: HumanizeLevel;
+  sharing?: SharingMode;
 }
 
 /** The tuning of a session: flags, then identity.json, then the defaults. */
@@ -78,6 +85,7 @@ export function resolveTuning(settings: IdentitySettings | undefined, flags: Tun
       ...settings?.humanize,
       level: flags.humanize ?? settings?.humanize?.level ?? "off",
     },
+    sharing: flags.sharing ?? settings?.sharing ?? "session",
   };
 }
 

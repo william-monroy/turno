@@ -88,4 +88,19 @@ describe("manifestSnippet", () => {
     );
     expect(() => manifestSnippet("Bad Id")).toThrow();
   });
+
+  it("renders a shared, non-exclusive server for an identity whose sharing is tabs", () => {
+    expect(manifestSnippet("team", { sharing: "tabs" })).toBe(
+      [
+        "[server.browser-team]",
+        'command = "turno-browser-mcp"',
+        'args = ["--identity", "team"]',
+        'scope = "shared"',
+        "exclusive = false  # every agent session at once, each in its own tabs",
+        'idle = "30m"',
+        "",
+      ].join("\n"),
+    );
+    expect(manifestSnippet("team", { sharing: "session" })).toBe(manifestSnippet("team"));
+  });
 });

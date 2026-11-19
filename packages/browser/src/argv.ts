@@ -24,7 +24,7 @@ import { parseDuration } from "./units.js";
  * Headed mode and `viewport: null` are already the program's defaults for headed runs, so
  * nothing is added for them; no init scripts are ever added.
  *
- * The tab governor, background throttling and humanize flags (`TUNING_FLAGS`) are turno's: they are
+ * The tab governor, background throttling, humanize and sharing flags (`TUNING_FLAGS`) are turno's: they are
  * taken out here and win over identity.json.
  *
  * An identity holds saved logins, so serving it over HTTP (`--port`, `--host`) lets any local
@@ -128,6 +128,7 @@ export const TUNING_FLAGS = {
   "--close-after": "<duration>",
   "--background-throttling": "",
   "--humanize": "<off|light|full|adaptive>",
+  "--sharing": "<session|tabs>",
 } as const;
 
 function tuningValue(flag: keyof typeof TUNING_FLAGS, value: string, out: TuningFlags): void {
@@ -142,6 +143,10 @@ function tuningValue(flag: keyof typeof TUNING_FLAGS, value: string, out: Tuning
   } else if (flag === "--popups") {
     if (value !== "close" && value !== "keep") throw new Error(`--popups must be "close" or "keep", not "${value}"`);
     out.popups = value;
+  } else if (flag === "--sharing") {
+    if (value !== "session" && value !== "tabs")
+      throw new Error(`--sharing must be "session" (one agent session at a time) or "tabs", not "${value}"`);
+    out.sharing = value;
   } else {
     const ms = parseDuration(value);
     if (ms === undefined) throw new Error(`${flag} must be a duration like "5m", "90s" or "0" (off), not "${value}"`);
