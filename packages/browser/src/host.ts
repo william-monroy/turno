@@ -9,7 +9,7 @@ import type { Page } from "patchright-core";
 import type { SecretStore } from "turno-core/secrets";
 import { CallToolRequestSchema, type CallToolResult, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { Sampler } from "./act-model.js";
-import { explainFailure } from "./diagnose.js";
+import { coveredBeforeCall, explainFailure } from "./diagnose.js";
 import { type Engine, type EngineFlags, type IdentityRef, type LaunchedBrowser, createEngine } from "./engine.js";
 import { TabGovernor, type TabView } from "./governor.js";
 import {
@@ -648,7 +648,10 @@ class SessionBackend extends EventEmitter implements ServerBackend {
           ?.currentTab()
           ?.page.bringToFront()
           .catch(() => {});
-      result = await backend.callTool(name, args, signal);
+      const page = backendContext(backend)?.currentTab()?.page;
+      result =
+        (launched.engine === "lightpanda" ? undefined : await coveredBeforeCall(page, name, args, json)) ??
+        (await backend.callTool(name, args, signal));
       if (result.isError)
         result = await explainFailure(backendContext(backend)?.currentTab()?.page, name, args, result, json);
       await this.afterStock(running, session, name, args, pending, result, backendContext(backend)?.currentTab()?.page);
@@ -711,7 +714,11 @@ class SessionBackend extends EventEmitter implements ServerBackend {
               .current()
               ?.bringToFront()
               .catch(() => {});
-          result = await backend.callTool(name, args, signal);
+          result =
+            (running.launched.engine === "lightpanda"
+              ? undefined
+              : await coveredBeforeCall(tabs.current(), name, args, json)) ??
+            (await backend.callTool(name, args, signal));
           if (result.isError) result = await explainFailure(tabs.current(), name, args, result, json);
           await this.afterStock(running, key, name, args, pending, result, tabs.current());
           // The tab the call left current is the session's before the cap counts its tabs.

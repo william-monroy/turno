@@ -136,7 +136,9 @@ in one call costs the agent one round trip instead of one per field.
 
 When a click or a type fails because of the page, the error says why: the element that covers
 the target (a cookie banner, a dialog) with its buttons, or that the target is hidden or
-disabled, and the next step. Playwright waits 500 ms after each action for the work it started;
+disabled, and the next step. A target in view that another element covers before the call, and
+still covers it 300 ms later, is named at once: the call does not run, instead of waiting out
+Playwright's 5 second action timeout. Playwright waits 500 ms after each action for the work it started;
 `"settle": "100ms"` in `identity.json` (`turno identity set browser:school --settle 100ms`)
 shortens that wait (Playwright's own `--timeout-settle` wins over it).
 

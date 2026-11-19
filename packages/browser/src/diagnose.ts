@@ -5,9 +5,14 @@ import type { ToolResult } from "./upstream.js";
  * Click and type errors that say what is in the way. When an action on an element
  * fails because the element cannot take it, Playwright retries until the action timeout and
  * then reports "Timeout 5000ms exceeded" with a call log, which leaves the agent guessing. The
- * host looks at the target once, after the failure (a successful call costs nothing), and
- * replaces the error with one that names the element in the way, or the state of the target,
- * and the next step.
+ * host looks at the target once, after the failure, and replaces the error with one that names
+ * the element in the way, or the state of the target, and the next step.
+ *
+ * One case is checked before the call too (`coveredBeforeCall`): a target in view that another
+ * element covers, such as a cookie banner over the page. When the same element still covers it
+ * a moment later, the call does not run and the agent hears which element is in the way at
+ * once, instead of after the 5 second action timeout. That check costs one look at the target
+ * per call and never scrolls the page.
  */
 
 /** The stock tools whose failures are diagnosed, with the verb for the message. */
@@ -46,7 +51,7 @@ export function isActionabilityFailure(text: string): boolean {
  * Runs in the page, on the target element: what keeps an action from it. Self-contained, as
  * Playwright serializes it.
  */
-function inspect(el: Element): Diagnosis {
+function inspect(el: Element, scroll = true): Diagnosis {
   const clean = (s: string | null | undefined, max = 60) => {
     const t = (s ?? "").replace(/\s+/g, " ").trim();
     return t.length > max ? `${t.slice(0, max - 3)}...` : t;
@@ -141,10 +146,12 @@ function inspect(el: Element): Diagnosis {
   if ((el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) && el.readOnly)
     return { state: "readonly", target };
 
-  el.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
+  if (scroll) el.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
   const r = el.getBoundingClientRect();
   const x = r.left + r.width / 2;
   const y = r.top + r.height / 2;
+  // Without scrolling, a center outside the viewport cannot be hit-tested: nothing to say yet.
+  if (!scroll && (x < 0 || y < 0 || x >= window.innerWidth || y >= window.innerHeight)) return { state: "ok", target };
   let hit = document.elementFromPoint(x, y);
   while (hit?.shadowRoot) {
     const inner = hit.shadowRoot.elementFromPoint(x, y);
@@ -200,7 +207,7 @@ function named(e: ElementInfo): string {
 export function failureMessage(tool: string, target: string, d: Diagnosis | undefined, original: string): string {
   const verb = DIAGNOSED_TOOLS[tool] ?? "act on";
   const first = original.split("\n").find((l) => l.trim()) ?? original;
-  const detail = `Playwright: ${first.trim()}`;
+  const detail = original.startsWith("the call did not run") ? `turno: ${first.trim()}` : `Playwright: ${first.trim()}`;
   if (!d) {
     return [
       `Could not ${verb} ${target}: the element is no longer on the page.`,
@@ -243,6 +250,55 @@ export function failureMessage(tool: string, target: string, d: Diagnosis | unde
         detail,
       ].join("\n");
   }
+}
+
+/** How long a cover must stay before the call is refused: an overlay fading out is let through. */
+const COVER_STABLE_MS = 300;
+
+/** The error result of a stock call, in the shape the call asked for. */
+function errorOf(message: string, json: boolean): ToolResult {
+  return {
+    isError: true,
+    content: [
+      {
+        type: "text",
+        text: json ? JSON.stringify({ isError: true, error: message }, null, 2) : `### Error\n${message}`,
+      },
+    ],
+  };
+}
+
+/**
+ * Before a diagnosed call: when its target is in view and another element covers it, now and
+ * `COVER_STABLE_MS` later, the error that names that element; undefined (run the call) otherwise.
+ * Anything this check cannot tell (a target not found yet, out of view, in a frame) is left to
+ * Playwright and the diagnosis after it.
+ */
+export async function coveredBeforeCall(
+  page: Page | undefined,
+  tool: string,
+  args: Record<string, unknown>,
+  json: boolean,
+  wait: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+): Promise<ToolResult | undefined> {
+  if (!page || !(tool in DIAGNOSED_TOOLS)) return undefined;
+  const target = String(args.target ?? args.startTarget ?? "");
+  if (!target) return undefined;
+  const look = async (): Promise<Diagnosis | undefined> => {
+    try {
+      const locator = locatorOf(page, target);
+      if ((await locator.count()) !== 1) return undefined;
+      return await locator.evaluate(inspect, false, { timeout: 500 });
+    } catch {
+      return undefined;
+    }
+  };
+  const first = await look();
+  if (first?.state !== "covered") return undefined;
+  await wait(COVER_STABLE_MS);
+  const again = await look();
+  if (again?.state !== "covered" || again.cover.selector !== first.cover.selector) return undefined;
+  return errorOf(failureMessage(tool, target, again, "the call did not run: the target is covered"), json);
 }
 
 /**
