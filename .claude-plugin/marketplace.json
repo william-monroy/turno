@@ -8,7 +8,7 @@
     {
       "name": "turno",
       "source": "./plugins/turno",
-      "description": "Skills that resume or fork a session under a turno profile and copy a claude.ai artifact between profiles. A separate status hook records reset times for turno status."
+      "description": "Skills that resume or fork a session under a turno profile, copy a claude.ai artifact between profiles, and drive a browser identity from the shell. A separate status hook records reset times for turno status."
     }
   ]
 }

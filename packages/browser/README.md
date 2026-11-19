@@ -36,6 +36,7 @@ with it; turno works without it. The whole story is at [turno.wimo.dev](https://
 | [Record and replay](#record-and-replay) | save a flow once, replay it with parameters; recordings and traces, opt-in |
 | [Blocking and cache](#lighter-pages) | opt-in: block trackers, images, media or fonts; cache static resources on disk |
 | [Engines](https://turno.wimo.dev/docs/concepts/browser-identities#engines) | opt-in: read mode on Lightpanda for reading pages with little memory, or attach to the Chrome you have open |
+| [From the shell](https://turno.wimo.dev/docs/concepts/browser-identities#from-the-shell) | `turno browser do <id> open`, `snapshot`, `click`, `type`, `read`: the same browser and rules, as shell commands for coding agents |
 | [Health and reputation](#know-when-something-is-wrong) | a signed-out identity says so, and each site's challenges are counted |
 | [`turno browser doctor`](#know-when-something-is-wrong) | checks Chrome and every identity, with a fix for each problem |
 
