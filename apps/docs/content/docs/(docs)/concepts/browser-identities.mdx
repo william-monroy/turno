@@ -51,6 +51,8 @@ idle = "30m"
 ```
 
 Then run `turno mcp sync`. `turno identity add browser:school --sharing tabs` prints that block.
+`turno browser doctor` warns about the opposite mistake: a server with `exclusive = false` for an
+identity that serves one session at a time, whose sessions would share one current tab.
 
 mcpd marks each call with the session it comes from, and turno-browser gives every session its own backend and current tab:
 

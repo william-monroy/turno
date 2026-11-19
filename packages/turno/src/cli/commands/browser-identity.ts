@@ -1,12 +1,14 @@
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
+import { type Manifest, loadManifest } from "../../core/manifest.js";
 import { tildify } from "../../core/paths.js";
 import { type FlagSpec, JSON_FLAG, type Parsed, bool, parseFlags, str } from "../args.js";
 import { Exit } from "../exit.js";
 import { type Io, fail } from "../io.js";
 import { emit, jsonOutput } from "../output.js";
 import { style } from "../style.js";
+import type { ServedIdentity } from "turno-browser";
 import type { BrowserApi } from "./browser.js";
 
 /** `turno browser show --json` and `turno identity show browser:<id> --json`. */
@@ -677,10 +679,54 @@ const SECTIONS: [string, (area: string) => boolean][] = [
   ["Identities", (a) => a === "identities" || a.startsWith("identity ")],
 ];
 
+/** The value of `--flag v` or `--flag=v` in a server's args. */
+function flagValue(args: string[], flag: string): string | undefined {
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === flag) return args[i + 1];
+    if (args[i]!.startsWith(`${flag}=`)) return args[i]!.slice(flag.length + 1);
+  }
+  return undefined;
+}
+
+/**
+ * The mcp.toml servers that run turno-browser-mcp for an identity, for the doctor's check of
+ * `exclusive` against the identity's `sharing`. An unreadable mcp.toml gives none (`turno doctor`
+ * reports it).
+ */
+export function servedIdentities(env: NodeJS.ProcessEnv): ServedIdentity[] {
+  let manifest: Manifest;
+  try {
+    manifest = loadManifest(env);
+  } catch {
+    return [];
+  }
+  const out: ServedIdentity[] = [];
+  for (const [name, server] of Object.entries(manifest.servers)) {
+    if (server.kind !== "stdio") continue;
+    const runs = [server.command, ...server.args].some((a) => basename(a) === "turno-browser-mcp");
+    const identity = flagValue(server.args, "--identity");
+    if (!runs || !identity) continue;
+    const sharing = flagValue(server.args, "--sharing");
+    out.push({
+      name,
+      identity: identity.replace(/^browser:/, ""),
+      exclusive: server.exclusive,
+      scope: server.scope,
+      ...(sharing ? { sharing } : {}),
+    });
+  }
+  return out;
+}
+
 export async function doctor(m: BrowserApi, args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, DOCTOR_FLAGS, 0);
   const json = bool(p, "json");
-  const report = await m.runDoctor({ env: io.env, fix: bool(p, "fix"), launch: !bool(p, "no-launch") });
+  const report = await m.runDoctor({
+    env: io.env,
+    fix: bool(p, "fix"),
+    launch: !bool(p, "no-launch"),
+    servers: servedIdentities(io.env),
+  });
   const failed = report.checks.some((c) => c.level === "fail");
   const exit = failed ? Exit.failure : Exit.ok;
   const status = (c: DoctorCheck) => (c.level === "info" ? "skip" : c.level);

@@ -50,6 +50,7 @@ export {
   type DoctorCheck,
   type DoctorOptions,
   type DoctorReport,
+  type ServedIdentity,
   findChrome,
   runDoctor,
 } from "./doctor.js";
