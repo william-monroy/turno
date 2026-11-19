@@ -453,11 +453,18 @@ export const DOCTOR_CHECKS = [
     fix: "Start Chrome, open chrome://inspect/#remote-debugging and turn remote debugging on; Chrome then asks you to allow each connection. Or turn attach off: turno browser set <id> --attach \"\".",
   },
   {
+    id: "browser-sharing-not-exclusive",
+    source: BROWSER,
+    match: "lets several sessions in (exclusive = false), but this identity serves one at a time",
+    title: "Several sessions share one tab",
+    why: 'mcp.toml runs the identity\'s server with exclusive = false, so mcpd lets every agent session in at once, but the identity serves one session at a time ("sharing": "session", the default). Those sessions then share one current tab: one agent\'s navigation replaces the page another is reading. Either give each session its own tabs (the fix below, which keeps exclusive = false), or set exclusive = true for that server in mcp.toml and run turno mcp sync, so sessions take turns.',
+  },
+  {
     id: "browser-stray-lightpanda",
     source: BROWSER,
     match: "was left running by a server that is gone",
     title: "A Lightpanda was left running",
-    why: "A turno-browser-mcp in read mode was killed before it could stop the Lightpanda it started.",
+    why: "A turno-browser-mcp in read mode was killed before it could stop the Lightpanda it started. The next read mode server for the same identity (or, without an identity, the next one started with --engine lightpanda) stops it too.",
   },
   {
     id: "browser-smoke-launch-failed",

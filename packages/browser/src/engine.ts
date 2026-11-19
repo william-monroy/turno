@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import type { Browser, BrowserContext, Page } from "patchright-core";
+import { storagePartitioningArgs } from "./chrome-features.js";
 import { type AttachTarget, createAttachEngine, parseAttachTarget } from "./engine-attach.js";
 import { createLightpandaEngine } from "./engine-lightpanda.js";
 import { findProfileChrome, readLockPid } from "./lifecycle.js";
@@ -170,7 +171,8 @@ function profileInUse(identity: IdentityRef | undefined, userDataDir: string): E
  * records Chrome's PID and process group in it, gives it back when Chrome closes, and applies
  * identity.json: languages and locale as Chrome flags, the time zone as `timezoneId`. With
  * `backgroundThrottling` it drops Playwright's three anti-throttling switches and
- * turns off its focus emulation (`launchTuning`).
+ * turns off its focus emulation (`launchTuning`). Third-party storage partitioning, which
+ * Playwright turns off, stays on (`chrome-features.ts`).
  */
 const chromeEngine: Engine = {
   id: "chrome",
@@ -189,12 +191,15 @@ const chromeEngine: Engine = {
       const userArgs = (config.browser.launchOptions.args as string[] | undefined) ?? [];
       const applied = launchSettings(settings, userArgs, systemTimezone(), config.browser.contextOptions);
       const tuned = tuning ? launchTuning(tuning) : { ignoreDefaultArgs: [], contextOptions: {} };
+      // Chrome's third-party storage partitioning stays on, as in a person's Chrome (`chrome-features.ts`).
+      const partitioning =
+        config.browser.browserName === "chromium" && ignore !== true ? storagePartitioningArgs() : undefined;
       const launchOptions = {
         tracesDir,
         ...config.browser.launchOptions,
         ...tuned.contextOptions,
         ...config.browser.contextOptions,
-        ...(applied.args.length ? { args: [...userArgs, ...applied.args] } : {}),
+        args: [...(partitioning?.args ?? []), ...userArgs, ...applied.args],
         ...(applied.timezoneId ? { timezoneId: applied.timezoneId } : {}),
         handleSIGINT: false,
         handleSIGTERM: false,
@@ -203,6 +208,7 @@ const chromeEngine: Engine = {
             ? true
             : [
                 "--disable-extensions",
+                ...(partitioning?.ignoreDefaultArgs ?? []),
                 ...tuned.ignoreDefaultArgs,
                 ...(keychainArgs(settings).ignoreDefaultArgs ?? []),
                 ...(Array.isArray(ignore) ? ignore : []),

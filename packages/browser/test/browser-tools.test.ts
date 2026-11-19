@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vit
 import { POPUP_GRACE_MS } from "../src/governor.js";
 import { identityStateDir } from "../src/ids.js";
 import { writeIdentitySettings } from "../src/settings.js";
-import { chromeUnavailable, killSandboxProcesses } from "./helpers/chrome.js";
+import { chromeUnavailable, stopSandboxProcesses } from "./helpers/chrome.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
@@ -33,7 +33,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   for (const t of running.splice(0)) await t.close().catch(() => {});
-  killSandboxProcesses(sb.home);
+  await stopSandboxProcesses(sb.home);
   sb.cleanup();
 });
 
@@ -109,6 +109,9 @@ async function site(): Promise<{
     "/covered": `<title>covered</title><button id="save" onclick="document.title='saved'">Save</button>
       <div class="cookie-banner" role="dialog" aria-label="We use cookies" style="position:fixed;inset:0;background:#fff">
         <p>We use cookies</p><button>Accept all</button><button>Reject</button></div>`,
+    "/fading": `<title>fading</title><button id="go" onclick="document.title='clicked'">Go</button>
+      <div id="veil" style="position:fixed;inset:0;background:#fff"></div>
+      <script>setTimeout(() => document.getElementById("veil").remove(), 150);</script>`,
     "/disabled": `<title>disabled</title><button id="go" disabled>Continue</button>`,
     "/hidden": `<title>hidden</title><nav class="menu" aria-label="Menu" style="display:none"><a id="settings" href="/b">Settings</a></nav>`,
     "/form": `<title>Sign up</title><h1>Sign up</h1>
@@ -247,7 +250,14 @@ describe.skipIf(reason !== undefined)(
         '### Error\nCould not click button "Save" (button#save), #save: dialog "We use cookies" (div.cookie-banner) covers it and would get the click instead.',
       );
       expect(text).toContain('Next: close or answer that element first (it has "Accept all", "Reject")');
-      expect(text).toContain("Playwright: ");
+      // Named before the call ran, not after Playwright's action timeout.
+      expect(text).toContain("turno: the call did not run: the target is covered");
+
+      // Not in the way: an overlay that goes within 300 ms.
+      await call(client, "browser_navigate", { url: `${web.url}/fading` });
+      const fading = await client.callTool({ name: "browser_click", arguments: { target: "#go" } });
+      expect(fading.isError, textOf(fading)).toBeFalsy();
+      expect(await call(client, "browser_evaluate", { function: "() => document.title" })).toContain("clicked");
 
       await call(client, "browser_navigate", { url: `${web.url}/disabled` });
       expect(textOf(await client.callTool({ name: "browser_click", arguments: { target: "#go" } }))).toContain(

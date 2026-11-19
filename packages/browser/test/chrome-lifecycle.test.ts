@@ -15,7 +15,7 @@ import { readRuntimeLock } from "../src/runtime-lock.js";
 import { writeIdentitySettings } from "../src/settings.js";
 import { type TurnoTool, turnoZod } from "../src/tools.js";
 import { upstream } from "../src/upstream.js";
-import { alive, chromeUnavailable, killSandboxProcesses, sandboxProcesses, waitFor } from "./helpers/chrome.js";
+import { alive, chromeUnavailable, stopSandboxProcesses, sandboxProcesses, waitFor } from "./helpers/chrome.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
@@ -44,7 +44,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   for (const t of running.splice(0)) await t.close().catch(() => {});
-  killSandboxProcesses(sb.home);
+  await stopSandboxProcesses(sb.home);
   sb.cleanup();
 });
 

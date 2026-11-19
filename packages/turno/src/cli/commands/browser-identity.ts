@@ -1,12 +1,14 @@
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
+import { type Manifest, loadManifest } from "../../core/manifest.js";
 import { tildify } from "../../core/paths.js";
 import { type FlagSpec, JSON_FLAG, type Parsed, bool, parseFlags, str } from "../args.js";
 import { Exit } from "../exit.js";
 import { type Io, fail } from "../io.js";
 import { emit, jsonOutput } from "../output.js";
 import { style } from "../style.js";
+import type { ServedIdentity } from "turno-browser";
 import type { BrowserApi } from "./browser.js";
 
 /** `turno browser show --json` and `turno identity show browser:<id> --json`. */
@@ -33,6 +35,7 @@ type HumanizeSettings = NonNullable<IdentitySettings["humanize"]>;
 type RecordSettings = NonNullable<IdentitySettings["record"]>;
 type ActSettings = NonNullable<IdentitySettings["act"]>;
 type CaptchaSettings = NonNullable<IdentitySettings["captcha"]>;
+type TabLockSettings = NonNullable<IdentitySettings["tabLocks"]>;
 export type SettingsPatch = Parameters<BrowserApi["writeIdentitySettings"]>[1];
 type DoctorCheck = Awaited<ReturnType<BrowserApi["runDoctor"]>>["checks"][number];
 
@@ -64,8 +67,11 @@ export const SETTINGS_FLAGS: FlagSpec = {
   "no-cache": { type: "boolean" },
   // Human-like input (format 4): off, light, full or adaptive.
   humanize: { type: "string" },
-  // How many agent sessions use the identity's browser at once (format 5).
+  // How many agent sessions use the identity's browser at once (format 5), and with tabs how
+  // long a call waits for a held tab and when an idle session lets go (format 8).
   sharing: { type: "string" },
+  "tab-lock-wait": { type: "string" },
+  "tab-lock-release": { type: "string" },
   // Which engine runs the identity (format 6): read mode on Lightpanda, or attach mode.
   engine: { type: "string" },
   attach: { type: "string" },
@@ -107,6 +113,8 @@ const KEY_FLAGS: readonly (readonly [string, string])[] = [
   ["cache.maxSize", "--cache-max-size"],
   ["humanize.level", "--humanize"],
   ["sharing", "--sharing"],
+  ["tabLocks.wait", "--tab-lock-wait"],
+  ["tabLocks.release", "--tab-lock-release"],
   ["engine", "--engine"],
   ["attach", "--attach"],
   ["record.flows", "--record-flows"],
@@ -282,6 +290,9 @@ function tuningPatch(
   // Checked by the package: an unknown value comes back as `--sharing must be ...`.
   const sharing = value("sharing");
   if (sharing !== undefined) patch.sharing = sharing as IdentitySettings["sharing"] | null;
+  const locks = { wait: value("tab-lock-wait"), release: value("tab-lock-release") };
+  if (locks.wait !== undefined || locks.release !== undefined)
+    patch.tabLocks = mergeGroup<TabLockSettings>(current?.tabLocks, locks);
   recordPatch(p, value, patch, current);
   actPatch(p, value, patch, current);
   captchaPatch(p, value, patch, current);
@@ -474,6 +485,16 @@ export function show(m: BrowserApi, id: string, args: string[], io: Io): number 
         `${HUMANIZE_TEXT[settings.humanize.level] ?? settings.humanize.level}${settings.humanize.seed === undefined ? "" : s.muted(` (seed ${settings.humanize.seed})`)}`,
       ]);
     if (settings.sharing === "tabs") rows.push(["sharing", "every agent session at once, each in its own tabs"]);
+    if (settings.tabLocks)
+      rows.push([
+        "tab locks",
+        `${[
+          settings.tabLocks.wait !== undefined ? `wait ${settings.tabLocks.wait}` : "",
+          settings.tabLocks.release !== undefined ? `release after ${settings.tabLocks.release}` : "",
+        ]
+          .filter(Boolean)
+          .join(", ")}${s.muted(settings.sharing === "tabs" ? "" : ' (used with "sharing": "tabs")')}`,
+      ]);
     if (settings.engine === "lightpanda") rows.push(["engine", "Lightpanda (read mode)"]);
     if (settings.attach !== undefined) rows.push(["engine", `attach to your Chrome (${settings.attach})`]);
     const recorded = describeRecord(settings.record);
@@ -511,7 +532,7 @@ const SET_FLAGS: FlagSpec = { ...SETTINGS_FLAGS, "dry-run": { type: "boolean" },
 export const SET_SYNOPSIS =
   "[--timezone <zone>] [--locale <tag>] [--languages <tag,...>] [--region <CC>] [--health-url <url>] [--health-text <text>] [--health-selector <css>] [--no-health] " +
   "[--tabs-max <n>] [--tabs-popups close|keep] [--tabs-park <duration>] [--tabs-close <duration>] [--no-tabs] [--background-throttling true|false] [--settle <duration>] " +
-  "[--block-trackers true|false] [--block-types image,media,font] [--block-patterns <host|glob>,...] [--no-block] [--cache] [--cache-max-size <size>] [--no-cache] [--humanize off|light|full|adaptive] [--sharing session|tabs] " +
+  "[--block-trackers true|false] [--block-types image,media,font] [--block-patterns <host|glob>,...] [--no-block] [--cache] [--cache-max-size <size>] [--no-cache] [--humanize off|light|full|adaptive] [--sharing session|tabs] [--tab-lock-wait <duration>] [--tab-lock-release <duration>] " +
   "[--engine chrome|lightpanda] [--attach auto|<dir>|<url>] [--record-flows true|false] [--record-traces true|false] [--record-screenshots true|false] [--record-max-size <size>] [--no-record] " +
   "[--act] [--act-sampling true|false] [--act-provider chat-completions] [--act-endpoint <url>] [--act-model <name>] [--act-key keychain:<item>] [--act-max-steps <n>] [--act-max-tokens <n>] [--act-timeout <duration>] [--no-act] " +
   "[--captcha-provider task-api] [--captcha-endpoint <url>] [--captcha-key keychain:<item>] [--captcha-timeout <duration>] [--no-captcha] [--dry-run] [--json]";
@@ -536,6 +557,10 @@ How the host runs this identity's Chrome (read at every Chrome start):
   --sharing session|tabs          "tabs": every agent session at once, each in its own locked
                                   tabs (default "session": one at a time); mcp.toml then needs
                                   exclusive = false for the identity's server
+  --tab-lock-wait <duration>      with tabs: how long a call waits for a tab another session
+                                  holds, "0" (fail at once) to "10m" (default 10s)
+  --tab-lock-release <duration>   with tabs: a session without calls lets go of its tabs after
+                                  this, "0" (free between calls) to "24h" (default 5m)
 
 Blocking without the cache turns Chrome's own HTTP cache off: use them together.
 
@@ -677,10 +702,54 @@ const SECTIONS: [string, (area: string) => boolean][] = [
   ["Identities", (a) => a === "identities" || a.startsWith("identity ")],
 ];
 
+/** The value of `--flag v` or `--flag=v` in a server's args. */
+function flagValue(args: string[], flag: string): string | undefined {
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === flag) return args[i + 1];
+    if (args[i]!.startsWith(`${flag}=`)) return args[i]!.slice(flag.length + 1);
+  }
+  return undefined;
+}
+
+/**
+ * The mcp.toml servers that run turno-browser-mcp for an identity, for the doctor's check of
+ * `exclusive` against the identity's `sharing`. An unreadable mcp.toml gives none (`turno doctor`
+ * reports it).
+ */
+export function servedIdentities(env: NodeJS.ProcessEnv): ServedIdentity[] {
+  let manifest: Manifest;
+  try {
+    manifest = loadManifest(env);
+  } catch {
+    return [];
+  }
+  const out: ServedIdentity[] = [];
+  for (const [name, server] of Object.entries(manifest.servers)) {
+    if (server.kind !== "stdio") continue;
+    const runs = [server.command, ...server.args].some((a) => basename(a) === "turno-browser-mcp");
+    const identity = flagValue(server.args, "--identity");
+    if (!runs || !identity) continue;
+    const sharing = flagValue(server.args, "--sharing");
+    out.push({
+      name,
+      identity: identity.replace(/^browser:/, ""),
+      exclusive: server.exclusive,
+      scope: server.scope,
+      ...(sharing ? { sharing } : {}),
+    });
+  }
+  return out;
+}
+
 export async function doctor(m: BrowserApi, args: string[], io: Io): Promise<number> {
   const p = parseFlags(args, DOCTOR_FLAGS, 0);
   const json = bool(p, "json");
-  const report = await m.runDoctor({ env: io.env, fix: bool(p, "fix"), launch: !bool(p, "no-launch") });
+  const report = await m.runDoctor({
+    env: io.env,
+    fix: bool(p, "fix"),
+    launch: !bool(p, "no-launch"),
+    servers: servedIdentities(io.env),
+  });
   const failed = report.checks.some((c) => c.level === "fail");
   const exit = failed ? Exit.failure : Exit.ok;
   const status = (c: DoctorCheck) => (c.level === "info" ? "skip" : c.level);

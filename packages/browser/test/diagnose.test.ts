@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { type Diagnosis, explainFailure, failureMessage, isActionabilityFailure } from "../src/diagnose.js";
+import type { Page } from "patchright-core";
+import {
+  type Diagnosis,
+  coveredBeforeCall,
+  explainFailure,
+  failureMessage,
+  isActionabilityFailure,
+} from "../src/diagnose.js";
 
 const TIMEOUT = `locator.click: Timeout 5000ms exceeded.
 Call log:
@@ -79,5 +86,62 @@ describe("explainFailure", () => {
     expect(await explainFailure(page, "browser_navigate", { url: "x" }, nav, false)).toBe(nav);
     const stale = result("### Error\nRef e9 not found in the current page snapshot. Try capturing new snapshot.");
     expect(await explainFailure(page, "browser_click", { target: "e9" }, stale, false)).toBe(stale);
+  });
+});
+
+describe("coveredBeforeCall", () => {
+  const target = { role: "button", name: "Save", selector: "button#save" };
+  const covered = (selector: string): Diagnosis => ({
+    state: "covered",
+    target,
+    cover: { role: "dialog", name: "We use cookies", selector },
+    buttons: ["Accept all"],
+  });
+  /** A page whose one element answers each look with the next diagnosis in `looks`. */
+  const pageWith = (looks: (Diagnosis | Error)[], count = 1) => {
+    const seen: unknown[] = [];
+    const page = {
+      locator: () => ({
+        count: async () => count,
+        evaluate: async (_fn: unknown, scroll: unknown) => {
+          seen.push(scroll);
+          const next = looks.shift();
+          if (next instanceof Error) throw next;
+          return next;
+        },
+      }),
+    } as unknown as Page;
+    return { page, seen };
+  };
+  const noWait = async () => {};
+
+  it("refuses the call when the same element covers the target twice, without scrolling", async () => {
+    const { page, seen } = pageWith([covered("div.cookie"), covered("div.cookie")]);
+    const res = await coveredBeforeCall(page, "browser_click", { target: "#save" }, false, noWait);
+    expect(res?.isError).toBe(true);
+    const text = (res!.content[0] as { text: string }).text;
+    expect(text).toMatch(
+      /^### Error\nCould not click button "Save" \(button#save\), #save: dialog "We use cookies" \(div\.cookie\) covers it/,
+    );
+    expect(text).toContain("turno: the call did not run: the target is covered");
+    expect(seen).toEqual([false, false]);
+  });
+
+  it("lets the call run when the cover goes or changes, the target is free, unknown, not one element, or the tool is not diagnosed", async () => {
+    const run = (looks: (Diagnosis | Error)[], tool = "browser_click", count = 1) =>
+      coveredBeforeCall(pageWith(looks, count).page, tool, { target: "#save" }, false, noWait);
+    expect(await run([covered("div.cookie"), { state: "ok", target }])).toBeUndefined();
+    expect(await run([covered("div.cookie"), covered("div.other")])).toBeUndefined();
+    expect(await run([{ state: "ok", target }])).toBeUndefined();
+    expect(await run([new Error("Timeout")])).toBeUndefined();
+    expect(await run([covered("div.cookie"), covered("div.cookie")], "browser_click", 2)).toBeUndefined();
+    expect(await run([covered("div.cookie"), covered("div.cookie")], "browser_snapshot")).toBeUndefined();
+    expect(await coveredBeforeCall(undefined, "browser_click", { target: "#save" }, false, noWait)).toBeUndefined();
+  });
+
+  it("answers in JSON when the call asked for it", async () => {
+    const { page } = pageWith([covered("div.cookie"), covered("div.cookie")]);
+    const res = await coveredBeforeCall(page, "browser_click", { target: "#save" }, true, noWait);
+    expect(JSON.parse((res!.content[0] as { text: string }).text)).toMatchObject({ isError: true });
   });
 });

@@ -51,6 +51,8 @@ idle = "30m"
 ```
 
 Then run `turno mcp sync`. `turno identity add browser:school --sharing tabs` prints that block.
+`turno browser doctor` warns about the opposite mistake: a server with `exclusive = false` for an
+identity that serves one session at a time, whose sessions would share one current tab.
 
 mcpd marks each call with the session it comes from, and turno-browser gives every session its own backend and current tab:
 
@@ -63,6 +65,20 @@ mcpd marks each call with the session it comes from, and turno-browser gives eve
 | `browser_close` | closes only the calling session's tabs; the browser stays open for the others |
 | Tab list | `browser_tabs` lists every tab and marks the ones other sessions hold (`(in use by session 3f2a9c1b)`) |
 | Tab governor | the cap (`max`) counts each session's tabs apart, and no session's current tab is parked or closed |
+
+The 10 seconds and the 5 minutes are the defaults. Change them per identity (identity.json
+format 9; `"0"` makes a call fail at once, or frees a session's tabs between its calls):
+
+```sh
+turno identity set browser:school --tab-lock-wait 30s --tab-lock-release 10m
+```
+
+```json
+{ "sharing": "tabs", "tabLocks": { "wait": "30s", "release": "10m" } }
+```
+
+They only matter with `"sharing": "tabs"`. Read mode works with tab sharing, so they apply there
+too; attach mode does not go with tab sharing, so they never apply to it.
 
 Two sessions' calls run at the same time on their own tabs. Every session shares the identity's profile: the same cookies, storage and signed-in accounts. Tab sharing keeps agents from acting in each other's tabs; it does not separate accounts (use one identity per account for that). Tabs a session leaves behind stay open until the tab governor parks and closes them.
 
@@ -120,7 +136,9 @@ in one call costs the agent one round trip instead of one per field.
 
 When a click or a type fails because of the page, the error says why: the element that covers
 the target (a cookie banner, a dialog) with its buttons, or that the target is hidden or
-disabled, and the next step. Playwright waits 500 ms after each action for the work it started;
+disabled, and the next step. A target in view that another element covers before the call, and
+still covers it 300 ms later, is named at once: the call does not run, instead of waiting out
+Playwright's 5 second action timeout. Playwright waits 500 ms after each action for the work it started;
 `"settle": "100ms"` in `identity.json` (`turno identity set browser:school --settle 100ms`)
 shortens that wait (Playwright's own `--timeout-settle` wins over it).
 
@@ -140,13 +158,15 @@ turno-browser-mcp --identity school --humanize full  # the server's flag wins ov
 | Level | What changes |
 |---|---|
 | `off` (default) | Nothing: Playwright's input. |
-| `light` | The pointer travels a curve from where it last was on that page to a point inside the target, with small timing jitter; the button stays down for 40 to 90 ms; text up to 80 characters is typed key by key with per-key delays. |
+| `light` | The pointer travels a curve from where it last was on that page to a point inside the target (one arc, some 4 to 8% longer than the straight line), with small timing jitter; the button stays down for 40 to 90 ms; text up to 80 characters is typed key by key with per-key delays. |
 | `full` | `light`, plus a move time that follows the distance and the target's size, a slow-fast-slow speed, overshoot and correction on long moves, a short pause the first time a page is acted on, longer gaps between words, and an element out of view scrolled to in wheel notches. `browser_mouse_wheel` scrolls in notches too. |
 | `adaptive` | `light`, and `full` on a site where the identity met a captcha, "verify it's you" or block page (in the [reputation log](#reputation-log) of the last 30 days, or in this session). |
 
 It works through the stock tools (`browser_click`, `browser_hover`, `browser_type`,
 `browser_fill_form`, `browser_select_option`, `browser_drag`, `browser_press_key` and the
-coordinate tools) and `browser_batch`, without changing their arguments or results. Every event
+coordinate tools) and `browser_batch`, without changing their arguments or results. A
+`browser_login` sign-in clicks into each field and types its value key by key too; the keys go to
+Chrome only, never to a result, a recording or a log. Every event
 still goes through Chrome's own input pipeline, and Playwright still checks that the target is
 visible, enabled and not covered. Longer text is pasted as before, and a field that is not text
 (a date, a color) is filled as before. `"seed"` in the group (`"humanize": { "level": "full",
@@ -435,7 +455,9 @@ nightly binary on Linux), and turno runs the `lightpanda` on your PATH, or the o
 `TURNO_LIGHTPANDA_PATH`. `turno browser doctor` shows the one it found and how to install it.
 
 turno starts `lightpanda serve` on a private Unix socket (no TCP port) with Lightpanda's
-telemetry off, and stops it when the session closes or after the idle limit. For an identity,
+telemetry off, and stops it when the session closes or after the idle limit. A Lightpanda left
+running by a server that was killed (SIGKILL gives it no chance to clean up) is stopped when the
+next read mode server for the same identity starts, as a Chrome left behind on a profile is. For an identity,
 Lightpanda keeps its own cookies in `lightpanda-cookies.json` in the identity's state folder: it
 never reads or writes the Chrome profile, so a site you signed into in Chrome is not signed in
 here, and read mode runs no health check, reputation log, blocking or cache.

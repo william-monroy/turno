@@ -24,6 +24,7 @@ export {
   type IdentitySettings,
   type RecordSettings,
   type SettingsPatch,
+  type TabLockSettings,
   checkIdentitySettings,
   identitySettingsPath,
   readIdentitySettings,
@@ -50,6 +51,7 @@ export {
   type DoctorCheck,
   type DoctorOptions,
   type DoctorReport,
+  type ServedIdentity,
   findChrome,
   runDoctor,
 } from "./doctor.js";

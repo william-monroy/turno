@@ -67,6 +67,7 @@
     "browser-chrome-not-found",
     "browser-lightpanda-not-found",
     "browser-attach-not-listening",
+    "browser-sharing-not-exclusive",
     "browser-stray-lightpanda",
     "browser-smoke-launch-failed"
   ]

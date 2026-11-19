@@ -172,6 +172,53 @@ describe("tab governor: popups", () => {
     expect(byHand.closed).toBe(false);
   });
 
+  it("lets a call start only after a popup it is closing is gone", async () => {
+    const g = setup();
+    const [a] = g.context.all;
+    g.advance(POPUP_GRACE_MS + 1);
+    // A slow close (a busy machine): the popup is still open when the next call begins.
+    let finish: () => void = () => {};
+    const ad = new FakePage("https://ads.example/", a!);
+    const close = ad.close.bind(ad);
+    ad.close = () => new Promise<void>((resolve) => (finish = () => void close().then(resolve)));
+    g.context.open(ad);
+    await Promise.resolve();
+    g.governor.beginCall();
+    let quiet = false;
+    const waiting = g.governor.quiet().then(() => {
+      quiet = true;
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(quiet).toBe(false);
+    finish();
+    await waiting;
+    expect(ad.closed).toBe(true);
+    g.governor.endCall();
+  });
+
+  it("lets a call start only after a sweep that is closing a tab is done", async () => {
+    const g = setup({ parkMs: 0, closeMs: 60_000 });
+    const [a] = g.context.all;
+    const b = new FakePage("https://b.example/");
+    await g.call(a, () => void g.context.open(b));
+    let finish: () => void = () => {};
+    const close = b.close.bind(b);
+    b.close = () => new Promise<void>((resolve) => (finish = () => void close().then(resolve)));
+    g.advance(2 * 60_000);
+    const sweeping = g.governor.sweep();
+    g.governor.beginCall();
+    let quiet = false;
+    const waiting = g.governor.quiet().then(() => {
+      quiet = true;
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(quiet).toBe(false);
+    finish();
+    await Promise.all([waiting, sweeping]);
+    expect(b.closed).toBe(true);
+    g.governor.endCall();
+  });
+
   it("keeps every popup with popups: keep", async () => {
     const g = setup({ popups: "keep" });
     const ad = g.context.open(new FakePage("https://ads.example/", g.context.all[0]!));

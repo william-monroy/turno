@@ -9,7 +9,7 @@ import type { Page } from "patchright-core";
 import type { SecretStore } from "turno-core/secrets";
 import { CallToolRequestSchema, type CallToolResult, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { Sampler } from "./act-model.js";
-import { explainFailure } from "./diagnose.js";
+import { coveredBeforeCall, explainFailure } from "./diagnose.js";
 import { type Engine, type EngineFlags, type IdentityRef, type LaunchedBrowser, createEngine } from "./engine.js";
 import { TabGovernor, type TabView } from "./governor.js";
 import {
@@ -242,6 +242,8 @@ interface Running {
   sharing?: TabSharing;
   /** Traces and screenshots of this browser, when identity.json `record` asks for them. */
   recording?: Recording;
+  /** Human-like input, when humanize is on: also types a `browser_login` fill. */
+  input?: HumanInput;
 }
 
 class SessionBackend extends EventEmitter implements ServerBackend {
@@ -269,7 +271,8 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       redactor: Redactor;
       guard: VaultGuard;
       vaultStore?: SecretStore;
-      tabLocks: TabLockPolicy;
+      /** Wins over identity.json `tabLocks` (tests); the defaults fill the rest. */
+      tabLocks: Partial<TabLockPolicy>;
       stockTypes: ReadonlyMap<string, string>;
       providers?: Providers;
     },
@@ -422,7 +425,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         sharing = new TabSharing({
           context: launched.context,
           root: { backend, config: sessionConfig },
-          policy: this.host.tabLocks,
+          policy: { ...DEFAULT_TAB_LOCKS, ...tuning.tabLocks, ...this.host.tabLocks },
           createView: async () => {
             const config = viewConfig(forViews);
             const view = new BrowserBackend(config, launched.context, tools, {});
@@ -479,6 +482,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         ...(idle ? { idle } : {}),
         ...(sharing ? { sharing } : {}),
         ...(recording ? { recording } : {}),
+        ...(input ? { input } : {}),
       };
     })();
     promise.catch(() => {
@@ -528,9 +532,11 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     let shared: { sharing: TabSharing; view: SessionView; key: string } | undefined;
     let recording: Recording | undefined;
     let engine: string | undefined;
+    let input: HumanInput | undefined;
     if (tool.browser !== false) {
       const running = await this.browser();
       engine = running.launched.engine;
+      input = running.input;
       endCall = running.idle?.begin();
       browserContext = running.launched.context;
       let view: SessionView = { backend: running.backend, config: running.config };
@@ -579,6 +585,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
                 guard: this.host.guard,
                 ...(this.host.vaultStore ? { store: this.host.vaultStore } : {}),
                 ...(recording ? { beforeFill: (page: Page) => recording.pauseForSecret(page) } : {}),
+                ...(input ? { input } : {}),
               },
             }
           : {}),
@@ -633,6 +640,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     governor.beginCall();
     let result: ToolResult;
     try {
+      await governor.quiet();
       const pending = await this.beforeStock(running, session, name, args, backendContext(backend)?.currentTab()?.page);
       await governor.prepare(name, args);
       if (tuning.backgroundThrottling && !launched.userBrowser && name !== "browser_tabs")
@@ -640,7 +648,10 @@ class SessionBackend extends EventEmitter implements ServerBackend {
           ?.currentTab()
           ?.page.bringToFront()
           .catch(() => {});
-      result = await backend.callTool(name, args, signal);
+      const page = backendContext(backend)?.currentTab()?.page;
+      result =
+        (launched.engine === "lightpanda" ? undefined : await coveredBeforeCall(page, name, args, json)) ??
+        (await backend.callTool(name, args, signal));
       if (result.isError)
         result = await explainFailure(backendContext(backend)?.currentTab()?.page, name, args, result, json);
       await this.afterStock(running, session, name, args, pending, result, backendContext(backend)?.currentTab()?.page);
@@ -677,6 +688,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     let result: ToolResult;
     let restore: (() => void) | undefined;
     try {
+      await governor.quiet();
       view = await sharing.view(key);
       const { backend, config } = view;
       const refused = name === "browser_close" ? undefined : await sharing.before(key, name, args, view, signal);
@@ -702,7 +714,11 @@ class SessionBackend extends EventEmitter implements ServerBackend {
               .current()
               ?.bringToFront()
               .catch(() => {});
-          result = await backend.callTool(name, args, signal);
+          result =
+            (running.launched.engine === "lightpanda"
+              ? undefined
+              : await coveredBeforeCall(tabs.current(), name, args, json)) ??
+            (await backend.callTool(name, args, signal));
           if (result.isError) result = await explainFailure(tabs.current(), name, args, result, json);
           await this.afterStock(running, key, name, args, pending, result, tabs.current());
           // The tab the call left current is the session's before the cap counts its tabs.
@@ -940,7 +956,7 @@ export function createHost(options: HostOptions): Host {
     tuning: options.tuning ?? {},
     redactor,
     guard: new VaultGuard(),
-    tabLocks: { ...DEFAULT_TAB_LOCKS, ...options.tabLocks },
+    tabLocks: options.tabLocks ?? {},
     ...(options.identity ? { identity: options.identity } : {}),
     ...(options.vaultStore ? { vaultStore: options.vaultStore } : {}),
     ...(options.providers ? { providers: options.providers } : {}),

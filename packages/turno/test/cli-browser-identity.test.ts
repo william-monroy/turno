@@ -8,6 +8,7 @@ import {
   browserCommand,
   loadBrowser,
 } from "../src/cli/commands/browser.js";
+import { servedIdentities } from "../src/cli/commands/browser-identity.js";
 import { command as identity, setBrowserDeps } from "../src/cli/commands/identity.js";
 import { parseManifest } from "../src/core/manifest.js";
 import { fakeIo } from "./helpers/cli.js";
@@ -282,6 +283,25 @@ describe("turno identity add/show/set for browser identities", () => {
     expect(JSON.parse(readFileSync(settingsFile("team"), "utf8")).sharing).toBeUndefined();
   });
 
+  it("sets the tab lock wait and idle release, names the flag in an error, and removes one with an empty value", async () => {
+    prev = setBrowserDeps(deps(real));
+    await identity.run(["add", "browser:team", "--sharing", "tabs"], fakeIo(sb.env));
+    const set = fakeIo(sb.env);
+    expect(
+      await identity.run(["set", "browser:team", "--tab-lock-wait", "30s", "--tab-lock-release", "10m"], set),
+    ).toBe(0);
+    expect(set.lines.join("\n")).toMatch(/tab locks +wait 30s, release after 10m/);
+    expect(JSON.parse(readFileSync(settingsFile("team"), "utf8"))).toMatchObject({
+      version: 9,
+      tabLocks: { wait: "30s", release: "10m" },
+    });
+    await expect(identity.run(["set", "browser:team", "--tab-lock-wait", "1h"], fakeIo(sb.env))).rejects.toThrow(
+      /--tab-lock-wait must be a duration from "0" \(fail at once\) to "10m"/,
+    );
+    expect(await identity.run(["set", "browser:team", "--tab-lock-wait", ""], fakeIo(sb.env))).toBe(0);
+    expect(JSON.parse(readFileSync(settingsFile("team"), "utf8")).tabLocks).toEqual({ release: "10m" });
+  });
+
   it("reports what set changed with --json, and what it would change with --dry-run --json", async () => {
     prev = setBrowserDeps(deps(real));
     await identity.run(["add", "browser:school"], fakeIo(sb.env));
@@ -320,14 +340,14 @@ describe("turno identity add/show/set for browser identities", () => {
     const newer = { ...pkg, API_VERSION: { major: pkg.API_VERSION.major + 1, minor: 0 } };
     prev = setBrowserDeps(deps(() => loadBrowser({ importer: async () => old })));
     await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(
-      "turno-browser is too old for this turno (it has no API_VERSION, this turno needs 1.7 or a later 1.x); update it: npm install --global turno-browser@latest",
+      "turno-browser is too old for this turno (it has no API_VERSION, this turno needs 1.8 or a later 1.x); update it: npm install --global turno-browser@latest",
     );
-    // 1.5 has no record key, flows or recordings.
+    // 1.7 has no tabLocks key and no servers check in its doctor.
     setBrowserDeps(
-      deps(() => loadBrowser({ importer: async () => ({ ...pkg, API_VERSION: { major: 1, minor: 5 } }) })),
+      deps(() => loadBrowser({ importer: async () => ({ ...pkg, API_VERSION: { major: 1, minor: 7 } }) })),
     );
     await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(
-      /its API is 1\.5, this turno needs 1\.7 or a later 1\.x/,
+      /its API is 1\.7, this turno needs 1\.8 or a later 1\.x/,
     );
     setBrowserDeps(deps(() => loadBrowser({ importer: async () => newer })));
     await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(
@@ -376,7 +396,7 @@ describe("turno browser doctor", () => {
     const cmd = browserCommand(deps(async () => doctorModule(seen)));
     const io = fakeIo(sb.env);
     expect(await cmd.run(["doctor", "--no-launch"], io)).toBe(1);
-    expect(seen).toEqual([{ env: sb.env, fix: false, launch: false }]);
+    expect(seen).toEqual([{ env: sb.env, fix: false, launch: false, servers: [] }]);
     const text = io.lines.join("\n");
     expect(text).toMatch(/^Chrome\n/m);
     expect(text).toMatch(/^Identities\n {2}browser:school\n/m);
@@ -390,7 +410,7 @@ describe("turno browser doctor", () => {
     const cmd = browserCommand(deps(async () => doctorModule(seen)));
     const io = fakeIo(sb.env);
     expect(await cmd.run(["doctor", "--json", "--fix"], io)).toBe(1);
-    expect(seen).toEqual([{ env: sb.env, fix: true, launch: true }]);
+    expect(seen).toEqual([{ env: sb.env, fix: true, launch: true, servers: [] }]);
     const json = JSON.parse(io.lines.join("\n"));
     expect(json).toMatchObject({
       schemaVersion: 1,
@@ -407,6 +427,55 @@ describe("turno browser doctor", () => {
       manual: null,
     });
     expect(json.checks[3]).toMatchObject({ status: "warn", fix: "turno browser doctor --fix", auto: true });
+  });
+});
+
+describe("turno browser doctor and mcp.toml", () => {
+  it("passes the servers that run turno-browser-mcp for an identity, with exclusive, scope and --sharing", () => {
+    sb.write(
+      ".config/turno/mcp.toml",
+      [
+        "[server.browser-school]",
+        'command = "turno-browser-mcp"',
+        'args = ["--identity", "school"]',
+        'scope = "shared"',
+        "exclusive = false",
+        "",
+        "[server.bank]",
+        'command = "node"',
+        'args = ["/opt/turno/bin/turno-browser-mcp", "--identity=browser:bank", "--sharing", "tabs"]',
+        'scope = "shared"',
+        "exclusive = true",
+        "",
+        "[server.other]",
+        'command = "other-mcp"',
+        'args = ["--identity", "x"]',
+        "",
+      ].join("\n"),
+    );
+    expect(servedIdentities(sb.env)).toEqual([
+      { name: "browser-school", identity: "school", exclusive: false, scope: "shared" },
+      { name: "bank", identity: "bank", exclusive: true, scope: "shared", sharing: "tabs" },
+    ]);
+  });
+
+  it("warns, through the real package, when sessions of a one-session identity would share a tab", async () => {
+    const mod = await real();
+    mod.addIdentity("school", sb.env);
+    sb.write(
+      ".config/turno/mcp.toml",
+      '[server.browser-school]\ncommand = "turno-browser-mcp"\nargs = ["--identity", "school"]\nexclusive = false\n',
+    );
+    const report = await mod.runDoctor({ env: sb.env, launch: false, servers: servedIdentities(sb.env) });
+    expect(report.checks.find((c) => c.area === "identity school" && c.level === "warn")).toMatchObject({
+      text: expect.stringMatching(
+        /^\[server\.browser-school\] in mcp\.toml lets several sessions in \(exclusive = false\)/,
+      ),
+      fix: "turno browser set school --sharing tabs",
+    });
+    mod.writeIdentitySettings("school", { sharing: "tabs" }, sb.env);
+    const after = await mod.runDoctor({ env: sb.env, launch: false, servers: servedIdentities(sb.env) });
+    expect(after.checks.some((c) => c.text.includes("lets several sessions in"))).toBe(false);
   });
 });
 

@@ -146,7 +146,12 @@ export function moveDuration(distance: number, targetWidth: number, level: "ligh
   return (110 + 140 * bits) * rng.range(0.9, 1.15);
 }
 
-/** A curve from `from` to `to`: a cubic Bezier whose control points bend to one side. */
+/**
+ * A curve from `from` to `to`: a cubic Bezier whose control points bend to one side. The bend is
+ * what a wrist pivoting makes: the path strays about a tenth to a sixth of the distance from the
+ * straight line, so it is some 3 to 9% longer than that line (a path within 1% of it, as an
+ * earlier version drew, reads as a straight line).
+ */
 function curve(from: Point, to: Point, duration: number, level: "light" | "full", rng: Rng, persona: Persona): Step[] {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
@@ -154,18 +159,15 @@ function curve(from: Point, to: Point, duration: number, level: "light" | "full"
   if (distance < 1 || duration <= 0) return [{ x: to.x, y: to.y, wait: 0 }];
   const nx = -dy / distance;
   const ny = dx / distance;
-  const spread = Math.min(120, distance * (level === "full" ? 0.22 : 0.15));
+  const spread = Math.min(180, distance * (level === "full" ? 0.34 : 0.3));
   const side = rng.chance(0.75) ? persona.bend : -persona.bend;
   const c1 = rng.range(0.15, 0.45);
   const c2 = rng.range(0.55, 0.85);
-  const p1 = {
-    x: from.x + dx * c1 + nx * side * rng.range(0.2, 1) * spread,
-    y: from.y + dy * c1 + ny * side * rng.range(0.2, 1) * spread,
-  };
-  const p2 = {
-    x: from.x + dx * c2 + nx * side * rng.range(0, 0.6) * spread,
-    y: from.y + dy * c2 + ny * side * rng.range(0, 0.6) * spread,
-  };
+  // Both control points on the same side: one smooth arc, never an S.
+  const h1 = rng.range(0.55, 1) * spread;
+  const h2 = rng.range(0.25, 0.75) * spread;
+  const p1 = { x: from.x + dx * c1 + nx * side * h1, y: from.y + dy * c1 + ny * side * h1 };
+  const p2 = { x: from.x + dx * c2 + nx * side * h2, y: from.y + dy * c2 + ny * side * h2 };
   const count = Math.max(4, Math.round(duration / STEP_MS));
   const steps: Step[] = [];
   for (let i = 1; i <= count; i++) {

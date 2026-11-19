@@ -77,8 +77,15 @@ export function sandboxProcesses(home: string): { pid: number; ppid: number; pgi
     });
 }
 
-export function killSandboxProcesses(home: string): void {
-  for (const p of sandboxProcesses(home)) {
+/**
+ * Kills every process that names the sandbox and resolves once they are gone. Waiting matters:
+ * a Chrome that got SIGKILL (or is still shutting down after its server closed) keeps writing
+ * into its profile until it has exited, and a recursive delete of the sandbox that runs at the
+ * same time fails with ENOTEMPTY when a file appears in a folder it just emptied.
+ */
+export async function stopSandboxProcesses(home: string, ms = 10_000): Promise<void> {
+  const left = () => sandboxProcesses(home).filter((p) => alive(p.pid));
+  for (const p of left()) {
     for (const sig of ["SIGCONT", "SIGKILL"] as const) {
       try {
         process.kill(p.pid, sig);
@@ -87,4 +94,6 @@ export function killSandboxProcesses(home: string): void {
       }
     }
   }
+  if (!(await waitFor(() => left().length === 0, ms)))
+    throw new Error(`processes of the sandbox ${home} did not exit: ${left().map((p) => p.pid)}`);
 }

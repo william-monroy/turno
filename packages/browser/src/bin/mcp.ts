@@ -2,8 +2,11 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { type BuiltArgv, buildArgv } from "../argv.js";
+import { engineChoice } from "../engine.js";
+import { lightpandaCookieJar, sweepOrphanLightpandas } from "../engine-lightpanda.js";
 import { runHost } from "../host.js";
 import { installShutdownGuard, sweepOrphan } from "../lifecycle.js";
+import { readIdentitySettings } from "../settings.js";
 
 /**
  * turno-browser-mcp [--identity <id>] [playwright-mcp flags]
@@ -101,6 +104,27 @@ if (built.userDataDir && !help) {
     );
   }
   installShutdownGuard(built.userDataDir);
+}
+
+if (!help && readMode(built)) {
+  const jar = built.identity !== undefined ? lightpandaCookieJar(built.identity, process.env) : undefined;
+  for (const swept of await sweepOrphanLightpandas(jar)) {
+    process.stderr.write(
+      swept.action === "survived"
+        ? `turno-browser-mcp: a Lightpanda an earlier run left open (pid ${swept.pid}) did not stop\n`
+        : `turno-browser-mcp: closed a Lightpanda an earlier run left open (pid ${swept.pid})\n`,
+    );
+  }
+}
+
+/** True when this server runs on Lightpanda (`--engine lightpanda`, or the identity's engine). */
+function readMode(argv: BuiltArgv): boolean {
+  try {
+    const settings = argv.identity !== undefined ? readIdentitySettings(argv.identity, process.env) : undefined;
+    return engineChoice(argv.engineFlags ?? {}, settings).kind === "lightpanda";
+  } catch {
+    return false; // the launch reports a bad identity.json or flag
+  }
 }
 
 await runHost(built.args, {

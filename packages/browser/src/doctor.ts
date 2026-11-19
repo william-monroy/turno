@@ -3,13 +3,14 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { browserPaths as paths } from "turno-core/paths";
-import { type ProcTable, parentIsInit, readProcTable, signalProcess } from "turno-core/process";
+import { type ProcTable, readProcTable, signalProcess } from "turno-core/process";
 import { readHealth } from "./health.js";
 import { identityDir, isValidIdentityId } from "./ids.js";
 import { defaultChromeUserDataDir, parseAttachTarget, resolveAttachEndpoint } from "./engine-attach.js";
 import {
   type LightpandaInfo,
   findLightpanda,
+  findOrphanLightpandas,
   lightpandaCookieJar,
   lightpandaInstallHint,
 } from "./engine-lightpanda.js";
@@ -67,7 +68,22 @@ export interface DoctorOptions {
   lightpanda?: (env: NodeJS.ProcessEnv) => LightpandaInfo | undefined;
   /** The process table, for a Lightpanda left running (tests inject one). */
   procTable?: () => ProcTable | undefined;
+  /** The mcp.toml servers that run turno-browser-mcp for an identity (turno-cli reads mcp.toml). */
+  servers?: readonly ServedIdentity[];
   now?: Date;
+}
+
+/** One mcp.toml server of an identity, as mcpd runs it. */
+export interface ServedIdentity {
+  /** The server's name in mcp.toml (`browser-work`). */
+  name: string;
+  identity: string;
+  /** mcp.toml `exclusive`: one client session at a time. */
+  exclusive: boolean;
+  /** mcp.toml `scope`: with "session" every client session gets its own server. */
+  scope: string;
+  /** A `--sharing` flag in the server's args, which wins over identity.json. */
+  sharing?: string;
 }
 
 export interface DoctorReport {
@@ -202,7 +218,31 @@ function settingsFix(id: string, problem: string): string | undefined {
   return flag ? `turno identity set browser:${id} ${flag}` : undefined;
 }
 
-function identityChecks(id: string, env: NodeJS.ProcessEnv, now: Date): DoctorCheck[] {
+/**
+ * A server that lets several client sessions in (`exclusive = false`, one server for all of
+ * them) on an identity that serves one session at a time: those sessions silently share one
+ * current tab, and one agent's navigation replaces the page another is reading.
+ */
+function servingRows(id: string, settings: IdentitySettings | undefined, servers: readonly ServedIdentity[]) {
+  const out: Omit<DoctorCheck, "area">[] = [];
+  for (const server of servers) {
+    if (server.identity !== id || server.exclusive || server.scope === "session") continue;
+    if ((server.sharing ?? settings?.sharing ?? "session") !== "session") continue;
+    out.push({
+      level: "warn",
+      text: `[server.${server.name}] in mcp.toml lets several sessions in (exclusive = false), but this identity serves one at a time ("sharing": "session"), so those sessions share one current tab`,
+      fix: `turno browser set ${id} --sharing tabs`,
+    });
+  }
+  return out;
+}
+
+function identityChecks(
+  id: string,
+  env: NodeJS.ProcessEnv,
+  now: Date,
+  servers: readonly ServedIdentity[] = [],
+): DoctorCheck[] {
   const area = `identity ${id}`;
   const out: DoctorCheck[] = [];
   const add = (c: Omit<DoctorCheck, "area">) => out.push({ area, ...c });
@@ -229,6 +269,7 @@ function identityChecks(id: string, env: NodeJS.ProcessEnv, now: Date): DoctorCh
   }
 
   if (settings) for (const c of engineRows(id, settings, env)) add(c);
+  if (!problems.length) for (const c of servingRows(id, settings, servers)) add(c);
 
   const lock = readRuntimeLock(id, env);
   const chrome = findProfileChrome(identityDir(id, env));
@@ -340,13 +381,9 @@ function engineRows(id: string, settings: IdentitySettings, env: NodeJS.ProcessE
   }
 }
 
-/** A `lightpanda serve` that a turno-browser-mcp started (its socket is in a `turno-lightpanda-` folder) and that outlived it. */
+/** A `lightpanda serve` that a turno-browser-mcp started and that outlived it. */
 function strayLightpandas(table: ProcTable | undefined): number[] {
-  if (!table) return [];
-  return [...table.entries()]
-    .filter(([, p]) => /\/turno-lightpanda-[^/\s]+\/cdp\.sock(\s|$)/.test(p.command) && / serve /.test(p.command))
-    .filter(([, p]) => parentIsInit(p.ppid, table))
-    .map(([pid]) => pid);
+  return table ? findOrphanLightpandas("any", table).map((o) => o.pid) : [];
 }
 
 function engineChecks(opts: DoctorOptions, env: NodeJS.ProcessEnv, ids: string[]): DoctorCheck[] {
@@ -452,7 +489,7 @@ async function collect(
       text: "no browser identities yet",
       fix: "turno identity add browser:<id>",
     });
-  for (const id of ids) checks.push(...identityChecks(id, env, now));
+  for (const id of ids) checks.push(...identityChecks(id, env, now, opts.servers));
   return checks;
 }
 

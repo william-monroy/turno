@@ -142,6 +142,17 @@ export class TabGovernor {
     this.calls++;
   }
 
+  /**
+   * Resolves once nothing the governor started before the call is still in flight: a popup
+   * check or a sweep may be closing a page right now, and upstream reads every tab (title,
+   * console) to build a result, so a page closing under the call fails it with "Target page,
+   * context or browser has been closed". Call after `beginCall`, which keeps new work from
+   * starting.
+   */
+  async quiet(): Promise<void> {
+    await Promise.all([...this.adopting, this.sweeping]);
+  }
+
   /** A tool call ended: its current tab (of `view`, by default the governor's) was used now. */
   endCall(view: TabView = this.options): void {
     this.calls = Math.max(0, this.calls - 1);

@@ -252,3 +252,35 @@ describe("browser doctor: identities", () => {
     });
   });
 });
+
+describe("browser doctor: mcp.toml against the identity's sharing", () => {
+  const shared = (over: Partial<{ exclusive: boolean; scope: string; sharing: string }> = {}) => ({
+    name: "browser-work",
+    identity: "work",
+    exclusive: false,
+    scope: "shared",
+    ...over,
+  });
+  const warned = async (servers: ReturnType<typeof shared>[]) =>
+    find((await doctor({ servers })).checks, "identity work", /lets several sessions in/);
+
+  it("warns when a one-session identity is served to several sessions at once", async () => {
+    addIdentity("work", sb.env);
+    expect(await warned([shared()])).toEqual({
+      area: "identity work",
+      level: "warn",
+      text: '[server.browser-work] in mcp.toml lets several sessions in (exclusive = false), but this identity serves one at a time ("sharing": "session"), so those sessions share one current tab',
+      fix: "turno browser set work --sharing tabs",
+    });
+  });
+
+  it("says nothing for exclusive servers, one server per session, --sharing tabs, or another identity", async () => {
+    addIdentity("work", sb.env);
+    expect(await warned([shared({ exclusive: true })])).toBeUndefined();
+    expect(await warned([shared({ scope: "session" })])).toBeUndefined();
+    expect(await warned([shared({ sharing: "tabs" })])).toBeUndefined();
+    expect(await warned([{ ...shared(), identity: "school" }])).toBeUndefined();
+    writeFileSync(identitySettingsPath("work", sb.env), JSON.stringify({ format: 7, sharing: "tabs" }));
+    expect(await warned([shared()])).toBeUndefined();
+  });
+});

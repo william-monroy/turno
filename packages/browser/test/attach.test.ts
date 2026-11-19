@@ -8,7 +8,7 @@ import type { Browser } from "patchright-core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resolveAttachEndpoint } from "../src/engine-attach.js";
 import { playwright } from "../src/upstream.js";
-import { alive, chromeUnavailable, killSandboxProcesses, waitFor } from "./helpers/chrome.js";
+import { alive, chromeUnavailable, stopSandboxProcesses, waitFor } from "./helpers/chrome.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
@@ -43,7 +43,7 @@ afterEach(async () => {
   for (const b of watchers.splice(0)) await b.close().catch(() => {});
   chrome?.kill("SIGKILL");
   chrome = undefined;
-  killSandboxProcesses(sb.home);
+  await stopSandboxProcesses(sb.home);
   sb.cleanup();
 });
 

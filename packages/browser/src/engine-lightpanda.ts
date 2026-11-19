@@ -1,13 +1,15 @@
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { isAbsolute, join } from "node:path";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import type { Browser, BrowserContext } from "patchright-core";
 import { findOnPath } from "turno-core/paths";
+import { type ProcTable, parentIsInit, readProcTable } from "turno-core/process";
 import { startCdpRelay } from "./cdp-relay.js";
 import type { Engine, LaunchedBrowser } from "./engine.js";
 import { IdleTimer, idleMs } from "./idle-timer.js";
 import { identityStateDir } from "./ids.js";
+import { type StopOptions, stopChrome } from "./lifecycle.js";
 import { playwright, upstream } from "./upstream.js";
 
 /**
@@ -163,6 +165,70 @@ function socketDir(env: NodeJS.ProcessEnv): string {
   const base = env.TMPDIR || tmpdir();
   const fits = join(base, "turno-lightpanda-XXXXXX", "relay.sock").length <= 100;
   return mkdtempSync(join(fits || process.platform === "win32" ? base : "/tmp", "turno-lightpanda-"));
+}
+
+/** The arguments every `lightpanda serve` of turno starts with, up to the socket path. */
+const SERVE = " serve --unix-socket ";
+/** What follows the socket path in that command line. */
+const AFTER_SOCKET = " --log-level ";
+
+export interface OrphanLightpanda {
+  pid: number;
+  /** The private folder of its sockets (`turno-lightpanda-*`), removed once it is gone. */
+  socketDir: string;
+}
+
+/**
+ * The `lightpanda serve` processes an earlier turno-browser-mcp left running: started by turno
+ * (a `cdp.sock` in a `turno-lightpanda-*` folder), for this identity's cookie jar (or with no
+ * jar, for a server without an identity), and with no parent left (reparented to init), so a
+ * Lightpanda that a live server drives is never touched. `"any"` finds them for every jar
+ * (`turno browser doctor`).
+ */
+export function findOrphanLightpandas(jar: string | undefined | "any", table: ProcTable): OrphanLightpanda[] {
+  const found: OrphanLightpanda[] = [];
+  for (const p of table.values()) {
+    const at = p.command.indexOf(SERVE);
+    if (at < 0) continue;
+    const end = p.command.indexOf(AFTER_SOCKET, at + SERVE.length);
+    if (end < 0) continue;
+    const socket = p.command.slice(at + SERVE.length, end);
+    const dir = dirname(socket);
+    if (basename(socket) !== "cdp.sock" || !basename(dir).startsWith("turno-lightpanda-")) continue;
+    // The cookie jar is the last argument (see `launch`).
+    const forJar =
+      jar === "any" ||
+      (jar === undefined ? !p.command.includes(" --cookie-jar ") : p.command.endsWith(` --cookie-jar ${jar}`));
+    if (!forJar || !parentIsInit(p.ppid, table)) continue;
+    found.push({ pid: p.pid, socketDir: dir });
+  }
+  return found;
+}
+
+export interface LightpandaSweep {
+  pid: number;
+  action: "exited" | "killed" | "survived";
+}
+
+/**
+ * Stops the Lightpanda a server killed with SIGKILL left behind (its exit handler never ran), as
+ * the Chrome sweep does for a profile: SIGTERM first, so it writes the identity's cookie jar,
+ * then SIGKILL. Runs when a server that may use read mode starts.
+ */
+export async function sweepOrphanLightpandas(
+  jar: string | undefined,
+  opts: StopOptions & { table?: ProcTable } = {},
+): Promise<LightpandaSweep[]> {
+  const table = opts.table ?? readProcTable();
+  if (!table) return [];
+  const done: LightpandaSweep[] = [];
+  for (const orphan of findOrphanLightpandas(jar, table)) {
+    // Spawned without a group of its own: only the process itself is signalled.
+    const action = await stopChrome({ pid: orphan.pid, pgid: -1, leaderAlive: true, owner: "orphan" }, opts);
+    if (action !== "survived") rmSync(orphan.socketDir, { recursive: true, force: true });
+    done.push({ pid: orphan.pid, action });
+  }
+  return done;
 }
 
 /** Every Lightpanda this process started, stopped when it exits (an exit handler is sync). */
