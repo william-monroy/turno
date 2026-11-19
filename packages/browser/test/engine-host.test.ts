@@ -108,6 +108,29 @@ describe("createEngine", () => {
     });
   });
 
+  it("refuses traces or screenshots in attach or read mode chosen by a flag, before anything starts", async () => {
+    writeIdentitySettings("rec", { record: { flows: true, traces: true } }, sb.env);
+    const identity = { id: "rec", env: sb.env };
+    for (const [flags, why] of [
+      [{ attach: "auto" }, /record\.traces do not go with attach mode: a trace or screenshot could show your own tabs/],
+      [{ engine: "lightpanda" }, /record\.traces do not go with engine "lightpanda": read mode renders no page/],
+    ] as const) {
+      const client = await connect(await config(), createEngine(await config(), flags), identity);
+      const res = await client.callTool({ name: "browser_navigate", arguments: { url: "about:blank" } });
+      expect(res.isError).toBe(true);
+      expect(text(res)).toMatch(why);
+    }
+    // Flows alone need neither, so they go with both.
+    writeIdentitySettings("rec", { record: { flows: true } }, sb.env);
+    const env = { ...sb.env, PATH: "" };
+    const client = await connect(await config(), createEngine(await config(), { engine: "lightpanda" }), {
+      id: "rec",
+      env,
+    });
+    const res = await client.callTool({ name: "browser_navigate", arguments: { url: "about:blank" } });
+    expect(text(res)).toMatch(/read mode needs Lightpanda/);
+  });
+
   it("reports a missing Lightpanda as a tool error with the install command", async () => {
     const env = { ...sb.env, PATH: "" };
     writeIdentitySettings("reader", { engine: "lightpanda" }, env);

@@ -353,7 +353,10 @@ function recordProblems(v: Record<string, unknown>, out: string[]): void {
  * the browser, the user's own too, so neither traces nor screenshots are taken there. Read mode:
  * Lightpanda renders no page, so there is nothing to screenshot or screencast.
  */
-export function recordEngineClash(engine: string, record: { traces?: unknown; screenshots?: unknown }): string | undefined {
+export function recordEngineClash(
+  engine: string,
+  record: { traces?: unknown; screenshots?: unknown },
+): string | undefined {
   const asked = [record.traces === true && "traces", record.screenshots === true && "screenshots"].filter(Boolean);
   if (!asked.length) return undefined;
   const what = `record.${asked.join(" and record.")}`;

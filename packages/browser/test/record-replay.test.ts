@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vit
 import { flowsDir, listFlows, readFlow } from "../src/flows.js";
 import { addIdentity } from "../src/identities.js";
 import { listRecordings, recordingsDir, tracesTmpDir, zipTexts } from "../src/recordings.js";
+import { SESSION_META_KEY } from "../src/session.js";
 import { writeIdentitySettings } from "../src/settings.js";
 import { vaultAdd } from "../src/vault.js";
 import { chromeUnavailable, killSandboxProcesses, waitFor } from "./helpers/chrome.js";
@@ -60,8 +61,13 @@ async function call(
   client: Client,
   name: string,
   args: Record<string, unknown> = {},
+  session?: string,
 ): Promise<{ text: string; error: boolean }> {
-  const res = await client.callTool({ name, arguments: args });
+  const res = await client.callTool({
+    name,
+    arguments: args,
+    ...(session ? { _meta: { [SESSION_META_KEY]: session } } : {}),
+  });
   const text = ((res as { content: { text?: string }[] }).content ?? []).map((c) => c.text ?? "").join("\n");
   return { text, error: Boolean(res.isError) };
 }
@@ -280,6 +286,46 @@ describe.skipIf(reason !== undefined)(
       const steps = readFlow("rec", auto!.name, sb.env).steps;
       expect(steps.find((s) => s.tool === "browser_login")?.args).toEqual({ site: "local" });
       expect(readFlow("rec", auto!.name, sb.env).params.find((p) => p.sensitive)).toBeDefined();
+      await client.close();
+    });
+
+    it('with "sharing": "tabs", records only the session that started, and replays in its tabs', async () => {
+      const web = await site();
+      onTestFinished(() => web.close());
+      addIdentity("team", sb.env);
+      writeIdentitySettings("team", { sharing: "tabs", humanize: { level: "light", seed: 7 } }, sb.env);
+      const client = await start("team");
+      const A = "aaaaaaaa-1111-4111-8111-111111111111";
+      const B = "bbbbbbbb-2222-4222-8222-222222222222";
+      expect((await call(client, "browser_record", { action: "start", name: "a-only" }, A)).error).toBe(false);
+      await call(client, "browser_navigate", { url: `${web.url}/login` }, A);
+      await call(client, "browser_navigate", { url: `${web.url}/other` }, B);
+      const snapA = (await call(client, "browser_snapshot", {}, A)).text;
+      const typed = await call(client, "browser_type", { target: ref(snapA, "textbox", "Email"), text: EMAIL }, A);
+      expect(typed.error, typed.text).toBe(false);
+      // B is not recording: its own browser_record says so, and its calls stay out of A's flow.
+      expect((await call(client, "browser_record", { action: "status" }, B)).text).toMatch(
+        /No named flow is being recorded/,
+      );
+      await call(client, "browser_navigate", { url: `${web.url}/third` }, B);
+      const stopped = await call(client, "browser_record", { action: "stop" }, A);
+      expect(stopped.error, stopped.text).toBe(false);
+      const flow = readFlow("team", "a-only", sb.env);
+      expect(flow.steps.map((st) => st.tool)).toEqual(["browser_navigate", "browser_type"]);
+      expect(flow.steps[0]!.args).toEqual({ url: `${web.url}/login` });
+
+      // Replayed by A (with human-like input on), in A's tab; B's tab stays where it was.
+      const replayed = await call(
+        client,
+        "browser_replay",
+        { flow: "a-only", params: { email: "bob@example.com" } },
+        A,
+      );
+      expect(replayed.error, replayed.text).toBe(false);
+      expect((await call(client, "browser_snapshot", {}, B)).text).toContain(`${web.url}/third`);
+      const after = (await call(client, "browser_snapshot", {}, A)).text;
+      expect(after).toContain(`${web.url}/login`);
+      expect(after).toMatch(/textbox "Email"[^\n]*: bob@example\.com/);
       await client.close();
     });
   },

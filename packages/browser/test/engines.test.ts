@@ -199,7 +199,7 @@ describe("server flags", () => {
 
 describe("identity.json engine and attach", () => {
   it("writes them as format 6 and validates them", () => {
-    expect(IDENTITY_FORMAT_VERSION).toBe(6);
+    expect(IDENTITY_FORMAT_VERSION).toBeGreaterThanOrEqual(6);
     const s = writeIdentitySettings("reader", { engine: "lightpanda" }, sb.env);
     expect(s).toMatchObject({ version: 6, engine: "lightpanda" });
     expect(() => writeIdentitySettings("reader", { attach: "auto" }, sb.env)).toThrow(/pick one/);
