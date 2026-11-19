@@ -168,6 +168,71 @@ function staticChecks(s, { headed, reference }) {
   return out;
 }
 
+const base = (tag) => (typeof tag === "string" ? tag.split("-")[0].toLowerCase() : undefined);
+
+/**
+ * Checks that the parts of one identity agree with each other: the headers of the page's
+ * request with what the page reads, a dedicated worker with its page, and the language dates
+ * are formatted in with the first language. An override applied to one layer only (a typed
+ * user agent, an emulated time zone on pages only) shows up here.
+ */
+export function consistencyChecks(report) {
+  const out = [];
+  const s = report.static ?? {};
+  const h = report.request;
+  if (!h) out.push(check("headers-match-navigator", "consistency", "info", undefined, "no request headers recorded"));
+  else {
+    const wrong = [];
+    if (h["user-agent"] !== undefined && h["user-agent"] !== s.userAgent) wrong.push("User-Agent");
+    const firstLang =
+      typeof h["accept-language"] === "string" ? h["accept-language"].split(",")[0].split(";")[0].trim() : undefined;
+    if (firstLang && s.languages?.length && firstLang !== s.languages[0]) wrong.push("Accept-Language");
+    if (h["sec-ch-ua-platform"] !== undefined && s.uaData && h["sec-ch-ua-platform"] !== `"${s.uaData.platform}"`)
+      wrong.push("Sec-CH-UA-Platform");
+    const major = /Chrome\/(\d+)/.exec(s.userAgent ?? "")?.[1];
+    if (major && typeof h["sec-ch-ua"] === "string" && !h["sec-ch-ua"].includes(`v="${major}"`))
+      wrong.push("Sec-CH-UA");
+    out.push(
+      wrong.length
+        ? check(
+            "headers-match-navigator",
+            "consistency",
+            "warn",
+            wrong,
+            "the request headers say something else than the page reads",
+          )
+        : check("headers-match-navigator", "consistency", "pass"),
+    );
+  }
+  const w = report.worker;
+  if (!w) out.push(check("worker-matches-page", "consistency", "info", undefined, "no worker report"));
+  else {
+    const fields = ["userAgent", "platform", "languages", "timezone"].filter((f) => !same(w[f], s[f]));
+    if (s.uaData && w.uaPlatform !== s.uaData.platform) fields.push("uaData.platform");
+    out.push(
+      fields.length
+        ? check("worker-matches-page", "consistency", "warn", fields, "a worker reads other values than its page")
+        : check("worker-matches-page", "consistency", "pass"),
+    );
+  }
+  const lang = base(s.languages?.[0]);
+  const intl = base(s.locale);
+  out.push(
+    !lang || !intl
+      ? check("intl-matches-languages", "consistency", "info", undefined, "no languages or Intl locale")
+      : lang === intl
+        ? check("intl-matches-languages", "consistency", "pass", s.locale)
+        : check(
+            "intl-matches-languages",
+            "consistency",
+            "warn",
+            { languages: s.languages, locale: s.locale },
+            "dates and numbers are formatted in another language than the first of navigator.languages",
+          ),
+  );
+  return out;
+}
+
 /** Checks on side effects the page sees while the automation works on it. */
 function protocolChecks(report) {
   const out = [];
@@ -367,6 +432,7 @@ export function checkReport(report, { headed, reference, expect }) {
   const checks = [
     ...staticChecks(report.static ?? {}, { headed, reference }),
     ...protocolChecks(report),
+    ...consistencyChecks(report),
     ...eventChecks(report.events ?? [], report.boxes, { headed }),
   ];
   if (reference) {

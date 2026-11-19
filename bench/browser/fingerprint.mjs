@@ -81,11 +81,12 @@ if (baseline && baseline.kind !== "turno-browser-fingerprint") fail(`${values.ba
 if (values.list) {
   console.log("Configurations:");
   for (const c of known.values())
-    console.log(`  ${c.name.padEnd(15)} ${c.description}${c.needs ? ` (needs ${c.needs})` : ""}`);
+    console.log(`  ${c.name.padEnd(22)} ${c.description}${c.needs ? ` (needs ${c.needs})` : ""}`);
   console.log(
     "\nChecks: webdriver, headless-token, client-hints-match, automation-globals, extra-globals,\n" +
       "notification-permission, webgl, window-size, plugins, chrome-object, csp-enforced, main-world-calls,\n" +
-      "legacy-runtime-leak, matches-plain-chrome, events-trusted, pointer-moves-before-click, click-at-center,\n" +
+      "legacy-runtime-leak, headers-match-navigator, worker-matches-page, intl-matches-languages,\n" +
+      "matches-plain-chrome, events-trusted, pointer-moves-before-click, click-at-center,\n" +
       "press-duration, hover-dwell, screen-offset, coalesced-events, typing-key-events, typing-interval,\n" +
       "key-hold, focus-before-keys, scroll-steps, and public-<detector> with the public pages.",
   );

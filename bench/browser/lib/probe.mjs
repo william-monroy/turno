@@ -1,7 +1,9 @@
 // The probe page of the fingerprint bench: what any page can observe about the browser that
 // opens it and about the input it receives. It records navigator fields, automation markers,
 // side effects of the DevTools protocol, and every input event with its timing, isTrusted,
-// coordinates and coalesced events, and POSTs all of it to /report/<run> on its own server. The
+// coordinates and coalesced events, and POSTs all of it to /report/<run> on its own server.
+// The server adds what the page cannot see itself: the headers of the page's own request, and
+// what a dedicated worker the page starts reads (a worker has its own navigator). The
 // page never needs the automation to read it back, so reading the report cannot disturb what
 // it measured.
 
@@ -133,8 +135,25 @@ const PROBE_SCRIPT = String.raw`
     flush();
   }
   collect();
+  try { new Worker('/probe-worker.js?run=' + encodeURIComponent(run)); } catch (e) { /* no workers */ }
 })();
 `;
+
+// Runs in a dedicated worker the probe page starts: the navigator a worker sees, which an
+// override applied to pages only leaves as it was.
+const WORKER_SCRIPT = `
+const run = new URLSearchParams(location.search).get('run') || 'unnamed';
+fetch('/worker-report/' + encodeURIComponent(run), { method: 'POST', body: JSON.stringify({
+  userAgent: navigator.userAgent,
+  platform: navigator.platform,
+  languages: Array.from(navigator.languages || []),
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  uaPlatform: navigator.userAgentData ? navigator.userAgentData.platform : null,
+}) }).catch(() => {});
+`;
+
+/** The request headers of the probe page the checks compare with what the page reads. */
+const HEADERS = ["user-agent", "accept-language", "sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform"];
 
 const PROBE_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Probe</title>
 <style>
@@ -163,8 +182,39 @@ const PROBE_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><
  */
 export async function startProbeSite() {
   const reports = new Map();
+  const requests = new Map();
+  const workers = new Map();
+  // The page's report, with the request headers and the worker's report of the same run.
+  const store = (run, report) => {
+    if (!report) return;
+    if (requests.has(run)) report.request = requests.get(run);
+    if (workers.has(run)) report.worker = workers.get(run);
+    reports.set(run, report);
+  };
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://x");
+    if (req.method === "POST" && url.pathname.startsWith("/worker-report/")) {
+      let body = "";
+      req.on("data", (d) => {
+        if (body.length < 64 * 1024) body += d;
+      });
+      req.on("end", () => {
+        const run = decodeURIComponent(url.pathname.slice("/worker-report/".length));
+        try {
+          workers.set(run, JSON.parse(body));
+          store(run, reports.get(run));
+        } catch {
+          /* a truncated report */
+        }
+        res.end("ok");
+      });
+      return;
+    }
+    if (url.pathname === "/probe-worker.js") {
+      res.setHeader("content-type", "text/javascript; charset=utf-8");
+      res.end(WORKER_SCRIPT);
+      return;
+    }
     if (req.method === "POST" && url.pathname.startsWith("/report/")) {
       let body = "";
       req.on("data", (d) => {
@@ -172,7 +222,7 @@ export async function startProbeSite() {
       });
       req.on("end", () => {
         try {
-          reports.set(decodeURIComponent(url.pathname.slice("/report/".length)), JSON.parse(body));
+          store(decodeURIComponent(url.pathname.slice("/report/".length)), JSON.parse(body));
         } catch {
           /* a truncated report; the next flush replaces it */
         }
@@ -181,8 +231,13 @@ export async function startProbeSite() {
       return;
     }
     if (url.pathname === "/probe") {
+      const run = url.searchParams.get("run") ?? "unnamed";
+      requests.set(
+        run,
+        Object.fromEntries(HEADERS.filter((h) => req.headers[h] !== undefined).map((h) => [h, req.headers[h]])),
+      );
       res.setHeader("content-type", "text/html; charset=utf-8");
-      res.setHeader("content-security-policy", `script-src 'nonce-${NONCE}'`);
+      res.setHeader("content-security-policy", `script-src 'nonce-${NONCE}'; worker-src 'self'`);
       res.end(PROBE_HTML);
       return;
     }
