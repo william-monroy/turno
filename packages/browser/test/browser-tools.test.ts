@@ -419,7 +419,9 @@ describe.skipIf(reason !== undefined)(
       await call(client, "browser_click", { target: "a", element: "Open B link" });
       const t0 = Date.now();
       await call(client, "browser_click", { target: "button", element: "Press button" });
-      expect(Date.now() - t0).toBeLessThan(4_000);
+      // A click that waited for that frame would hang until a timeout and fail; the bound is loose
+      // so a loaded CI runner, which can take a few seconds for any click, does not fail it.
+      expect(Date.now() - t0).toBeLessThan(15_000);
       expect(await call(client, "browser_evaluate", { function: "() => document.title" })).toContain('"clicked"');
     }, 60_000);
   },

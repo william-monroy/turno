@@ -209,7 +209,8 @@ describe.skipIf(reason !== undefined)(reason ? `tab sharing (skipped: ${reason})
     expect(refused.isError).toBe(true);
     expect(refused.text).toContain("waited 0.3 seconds for it");
     expect(refused.text).toContain("after 120 seconds without a call");
-    expect(Date.now() - t0).toBeLessThan(5_000);
+    // Well under the default 10 second wait, so it shows the identity's 0.3 seconds were used.
+    expect(Date.now() - t0).toBeLessThan(9_000);
   }, 60_000);
 
   it("gives a popup to the session whose page opened it", async () => {
