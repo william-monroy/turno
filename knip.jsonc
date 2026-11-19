@@ -2,8 +2,8 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
     ".": {
-      "entry": ["scripts/*.mjs", "bench/*.mjs"],
-      "project": ["scripts/*.mjs", "bench/*.mjs"]
+      "entry": ["scripts/*.mjs", "bench/*.mjs", "bench/browser/*.mjs"],
+      "project": ["scripts/*.mjs", "bench/**/*.mjs"]
     },
     "packages/turno": {
       // demo/server.ts runs as its own process (turno demo starts it by path).

@@ -11,7 +11,7 @@
       "packages/*/test/**/*.ts",
       "scripts/**/*.mjs",
       "plugins/**/*.mjs",
-      "bench/*.mjs"
+      "bench/**/*.mjs"
     ]
   },
   "formatter": {
