@@ -97,6 +97,9 @@ jobs:
         with:
           node-version: 24
       - run: pnpm install --frozen-lockfile
+      # turno-core resolves through its dist/ exports, so the packages are built before the
+      # type check, as in ci.yml.
+      - run: pnpm build
       - run: pnpm check
         env:
           TURNO_SKIP_E2E: "1"
