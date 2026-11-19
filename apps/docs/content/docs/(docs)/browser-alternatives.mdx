@@ -1,0 +1,125 @@
+---
+title: Browser tools compared
+description: How turno-browser compares with Playwright MCP, chrome-devtools-mcp, browser-use, Stagehand, Steel, Browserbase and agent-browser, and when each one is the better choice.
+---
+
+This page helps you pick a browser tool for an agent. turno-browser is the layer above the browser driver: identities, a credential vault, sessions you can move, several agents in one browser, record and replay, a live view, and limits on what Chrome keeps in memory. It runs the Playwright MCP tools on your own Chrome, so it sits next to the tools below rather than replacing Playwright.
+
+Every claim about another project comes from its own docs or repository, checked on 2026-11-19 and listed under [Sources](#sources). Projects change quickly: check their docs before you decide. Facts about turno-browser come from [Browser identities](/docs/concepts/browser-identities), [the guide](/docs/guides/signed-in-browser), [Security](/docs/security) and [Benchmarks](/docs/benchmarks).
+
+## At a glance
+
+| | Where the browser runs | How an agent uses it | License and cost |
+|---|---|---|---|
+| **turno-browser** | your machine: your installed Chrome, headed, one persistent profile per identity | MCP server over stdio; `turno browser do` from a shell | Apache-2.0, free |
+| [Playwright MCP](https://github.com/microsoft/playwright-mcp) | your machine: Chrome, Firefox, WebKit or Edge, headed by default | MCP server; for coding agents, Microsoft points to its CLI and skills | Apache-2.0, free |
+| [chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) | your machine: Chrome or Chrome for Testing | MCP server, a CLI and skills | Apache-2.0, free; sends usage statistics to Google unless you opt out |
+| [browser-use](https://github.com/browser-use/browser-use) | Browser Use Cloud by default, or a local Chrome or Chromium | Python library (an agent that runs its own model), CLI, MCP server, hosted API | MIT library; models and cloud browsers are billed per use |
+| [Stagehand](https://github.com/browserbase/stagehand) | a local Chrome, or Browserbase | SDK for TypeScript, Python and Go; a `browse` CLI for coding agents | MIT; `act`, `extract` and `observe` call a model you pay for, and Browserbase is billed if you run there |
+| [Steel](https://github.com/steel-dev/steel-browser) | Steel Cloud, or self-hosted with Docker or Node | REST API, Node and Python SDKs, an MCP server | Apache-2.0 (steel-browser), MIT (MCP server); Steel Cloud starts with free credits, then usage |
+| [Browserbase](https://www.browserbase.com) | Browserbase's cloud | API, Stagehand, a hosted MCP server | hosted service: a free plan, then plans billed per browser hour |
+| [agent-browser](https://github.com/vercel-labs/agent-browser) | your machine (Chrome for Testing by default), or a cloud provider | native CLI with skills; `agent-browser mcp` over stdio | Apache-2.0, free |
+
+## Signed-in sessions
+
+| | How you sign in, and how it persists |
+|---|---|
+| **turno-browser** | You sign in by hand once per identity; the cookies stay in that identity's Chrome profile. An optional health check marks an identity `NEEDS_AUTH` when the sign-in is gone. A session can be exported, encrypted with a passphrase and an expiry, and imported on another machine. Attach mode works in the Chrome you already have open. |
+| Playwright MCP | A persistent profile by default, one per MCP client workspace; or an isolated context loaded from a storage state file; or a browser extension that connects to your open Chrome or Edge tabs. |
+| chrome-devtools-mcp | A dedicated profile that is kept between runs; or `--autoConnect` to the Chrome you have open (Chrome 144 or newer, after you allow it in Chrome). |
+| browser-use | Locally: the Chrome you have open with your logins, a temporary copy of one of your Chrome profiles, or a user data folder of its own kept between runs. In the cloud: cloud profiles. |
+| Stagehand | A local user data folder kept between runs; on Browserbase, contexts. |
+| Steel | Sessions keep cookies and local storage across requests. Saved browser profiles and managed credentials are Steel Cloud features; self-hosted Steel does not have them. |
+| Browserbase | Contexts keep cookies, localStorage, IndexedDB and more across sessions, encrypted at rest on Browserbase's infrastructure. |
+| agent-browser | A read-only copy of a Chrome profile, a persistent profile folder, or saved state files restored per session (encrypted when you set a key). It can also attach to a running Chrome. |
+
+## Credentials and what the model sees
+
+| | |
+|---|---|
+| **turno-browser** | A vault per identity in the OS secret store (macOS Keychain or Linux Secret Service). `browser_login` fills the username, password and current one-time code on the origins you allowed; the agent never sees them, and they are hidden from later results, recordings and the live view. |
+| Playwright MCP | A secrets file whose values are replaced in tool responses; its docs call this a convenience, not a security feature, and say the server is not a security boundary. |
+| chrome-devtools-mcp | Its docs say it exposes the browser's content to the MCP client, and to avoid sharing what you do not want the client to see. |
+| browser-use | `sensitive_data`: the model types a secret by name and the value is redacted from its output. Its docs say this is not a sandbox, since the Python the model writes can read the value. |
+| Stagehand | Your code fills credentials: `observe()` returns selectors, so the values never reach the model. |
+| Steel | The MCP server hands the browser to a person at a login, never guesses a password, and redacts credentials before they reach a response or a log. |
+| Browserbase | A 1Password integration fills a login the user approves, without returning the values to your application. |
+| agent-browser | An auth vault encrypted with AES-256-GCM; its docs say passwords in it never reach the model's context. It also has domain allowlists, action policies and confirmations. |
+
+## Several agents at once
+
+| | |
+|---|---|
+| **turno-browser** | One session per identity at a time by default. With tab sharing on, several agent sessions work in one Chrome, each in its own tabs, with locks that keep one session out of another's tabs. They share the identity's cookies; one identity per account keeps accounts apart. |
+| Playwright MCP | A persistent profile serves one browser at a time; parallel clients need `--isolated` or their own profile. Over HTTP, `--shared-browser-context` shares one context, and a tab can open in its own named isolated context. |
+| chrome-devtools-mcp | When one server is shared by concurrent sessions, page ID routing lets each session work on its own tab; `--isolated` gives each server a temporary profile. |
+| Steel | The MCP server allows 10 live sessions per key by default; self-hosted Steel runs one session at a time. |
+| Browserbase | Concurrent browsers up to your plan's limit. Its docs advise against several sessions on one context at once. |
+| agent-browser | Each `--session` gets its own daemon and browser. Sessions that share one Chrome can pin their tab, and another session cannot take a pinned tab. |
+
+## Memory on a laptop
+
+| | |
+|---|---|
+| **turno-browser** | Chrome closes after 15 minutes without a tool call and opens again on the next one. A tab governor caps open pages (8 by default) and parks and closes unused ones. Read mode on Lightpanda measured 64 MB against 913 MB for headless Chrome on the same pages ([measurement](/docs/concepts/browser-identities#read-mode-lightpanda)). |
+| Playwright MCP | `--idle-timeout` closes the browser after an hour without a call when headless; a headed browser stays open unless you set it. |
+| chrome-devtools-mcp | It starts the browser only when a tool needs one. |
+| agent-browser | The daemon closes a headless browser after an hour without commands (headed browsers are exempt), and it can run on Lightpanda. |
+| browser-use, Stagehand, Steel, Browserbase | When the browser runs in their cloud, it takes no memory on your machine. |
+
+## Record and replay
+
+| | |
+|---|---|
+| **turno-browser** | An agent saves what it did as a flow and replays it later; typed text becomes parameters, and sensitive ones are asked again or read from the secret store. Playwright traces and screenshots are off by default. There is no video. |
+| Playwright MCP | Records what you do by hand as Playwright code, and records traces and video (opt-in tools). |
+| chrome-devtools-mcp | Performance traces with insights, and screencast video. |
+| browser-use | Recordings in Browser Use Cloud. |
+| Stagehand | On Browserbase, server-side caching returns identical calls without spending model tokens. |
+| Steel | A UI to watch sessions live and replay them. |
+| Browserbase | Every session is recorded as video by default, one recording per tab. |
+| agent-browser | Video recording (with ffmpeg) and traces; saved flows (experimental) replay a recorded task's requests. |
+
+## Human take-over
+
+| | |
+|---|---|
+| **turno-browser** | Off by default. A live view on 127.0.0.1 shows the agent's tab; pause holds the agent's next call while you act, and on resume the agent is told what changed. Pages that hold a vault value are not shown. |
+| chrome-devtools-mcp | With `--autoConnect` you and the agent use the same Chrome, so you can switch between your own work and the agent's. |
+| browser-use | In the cloud, you open the live view, act, then continue the same session. |
+| Steel | The MCP server's handoff gives you the browser for a login or a payment and gives it back to the agent, which reads the page again. |
+| Browserbase | Live View lets you watch, click, type and scroll in a running session; it can be embedded read-only. |
+| agent-browser | A stream of the viewport that accepts mouse, keyboard and touch input, and a local dashboard. |
+
+## Engines
+
+| | |
+|---|---|
+| **turno-browser** | Your installed Chrome; read mode on Lightpanda; attach to your own Chrome; Camoufox (not recommended). |
+| Playwright MCP | Chrome, Firefox, WebKit, Edge. |
+| chrome-devtools-mcp | Chrome and Chrome for Testing; other Chromium browsers are not guaranteed. |
+| browser-use | A local Chrome, Chromium or Edge, or a cloud browser. |
+| Stagehand | A local Chrome, or Browserbase. |
+| Steel | Chrome, driven over the Chrome DevTools Protocol. |
+| agent-browser | Chrome for Testing, a running Chrome, Lightpanda, Obscura, Mobile Safari in the iOS Simulator, and several cloud providers. |
+
+## Which one fits
+
+- **Playwright MCP** is the better choice when you want Microsoft's MCP server for Playwright, need Firefox or WebKit, want test assertions or Playwright code generated from a session, or work with one account per project. Its CLI and skills use fewer tokens for coding agents. turno-browser serves the same tools, so moving from one to the other keeps an agent's habits.
+- **chrome-devtools-mcp** is the better choice for debugging and performance work: traces with insights, Lighthouse audits, heap snapshots, console messages with source-mapped stack traces, network mocks. It is maintained in the ChromeDevTools organization.
+- **browser-use** is the better choice when you want a complete agent that takes a task and finishes it with its own model, from Python, or when you want hosted runs at scale without running browsers yourself.
+- **Stagehand** is the better choice when you write the automation as code in TypeScript, Python or Go and want `act`, `extract` and `observe` with schemas, against a local Chrome or Browserbase.
+- **Steel** is the better choice when you want a browser API you can host yourself in Docker, or a cloud browser with an MCP server that hands logins to a person.
+- **Browserbase** is the better choice when the browsers must run in the cloud: many at once, from servers or CI, with recordings and a live view you can embed in your own app.
+- **agent-browser** is the better choice when you want a native CLI with skills that match its version, a browser per session, domain allowlists and action confirmations, or engines turno-browser does not have (Obscura, Mobile Safari, cloud providers).
+- **turno-browser** fits when several coding agents work on one laptop with your own signed-in accounts: one profile per identity, passwords the model never sees, Chrome kept from growing with idle tabs, flows to replay, and a live view to take over. It does not run in the cloud, has no SDK, and does not do performance profiling.
+
+## Sources
+
+- Playwright MCP: [README](https://github.com/microsoft/playwright-mcp) (profiles, isolated contexts, extension, `--secrets`, `--idle-timeout`, `--shared-browser-context`, browsers, opt-in tools, "not a security boundary").
+- chrome-devtools-mcp: [README](https://github.com/ChromeDevTools/chrome-devtools-mcp) (Chrome support, usage statistics, CLI and skills), [advanced usage](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/advanced-usage.md) (concurrent sessions, user data folder, `--autoConnect`), [tool reference](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/tool-reference.md) (traces, screencast).
+- browser-use: [README](https://github.com/browser-use/browser-use) (cloud default, local browsers, authentication, `sensitive_data`, license and cost), [MCP server](https://docs.browser-use.com/open-source/mcp), [human in the loop](https://docs.browser-use.com/cloud/agent/human-in-the-loop).
+- Stagehand: [README](https://github.com/browserbase/stagehand) (SDKs, local user data folder, `observe()` and credentials, caching on Browserbase, `browse` CLI, hosted MCP).
+- Steel: [steel-browser README](https://github.com/steel-dev/steel-browser) (self-hosting, sessions, live and replay UI), [Steel MCP server README](https://github.com/steel-dev/steel-mcp-server) (handoff, credentials, session limits, self-hosted limits), [pricing](https://steel.dev/pricing).
+- Browserbase: [contexts](https://docs.browserbase.com/platform/browser/core-features/contexts), [session replay](https://docs.browserbase.com/platform/browser/observability/session-replay), [live view](https://docs.browserbase.com/platform/browser/observability/session-live-view), [1Password agentic autofill](https://docs.browserbase.com/integrations/1password/agentic-autofill), [pricing](https://www.browserbase.com/pricing).
+- agent-browser: [README](https://github.com/vercel-labs/agent-browser) (daemon, engines, providers, MCP), [sessions](https://agent-browser.dev/sessions), [security](https://agent-browser.dev/security), [video recording](https://agent-browser.dev/recording), [streaming](https://agent-browser.dev/streaming), [dashboard](https://agent-browser.dev/dashboard), [changelog](https://github.com/vercel-labs/agent-browser/blob/main/CHANGELOG.md) (saved flows).
