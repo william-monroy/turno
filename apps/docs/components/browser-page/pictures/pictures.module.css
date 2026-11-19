@@ -1,0 +1,464 @@
+/*
+ * The pictures of the turno-browser page. One identity, `school`, in its own tone; a Chrome
+ * window is outlined in that tone, solid while Chrome runs and dashed while it is only the
+ * profile on disk. Things change in cuts on the page's beat, as on the home page.
+ */
+
+.frame {
+  --tone: var(--tone-third);
+  --tone-soft: var(--tone-third-soft);
+  position: relative;
+  container-type: inline-size;
+  border: 1px solid var(--line);
+  background: var(--card);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.inner {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: clamp(14px, 3.6cqw, 24px);
+}
+.frame[data-wait] .inner {
+  visibility: hidden;
+}
+
+/* The row over the window: who is acting, and how much time went by. */
+.top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 12px;
+  min-height: 24px;
+}
+.actors {
+  display: inline-flex;
+  gap: 6px;
+}
+.actor {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.actor[data-on] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+.clock {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px dashed var(--dim);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.clock[data-off] {
+  visibility: hidden;
+}
+
+/* A Chrome window ---------------------------------------------------------------------------- */
+
+.win {
+  border: 1.5px solid var(--tone);
+  background: var(--paper);
+}
+.win[data-win="closed"] {
+  border-style: dashed;
+}
+.win[data-win="none"] {
+  border-color: var(--line);
+  border-style: dashed;
+}
+.address {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 5px 10px 5px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.win:not([data-win="open"]) .address {
+  border-bottom-style: dashed;
+}
+.lights {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+}
+.lights > i {
+  width: 6px;
+  height: 6px;
+  background: var(--line);
+}
+.url {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.win:not([data-win="open"]) .url {
+  color: var(--dim);
+}
+.page {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  height: 172px;
+  padding: 14px 16px;
+}
+.page[data-center] {
+  align-items: center;
+  text-align: center;
+}
+.quiet {
+  color: var(--dim);
+}
+.signed {
+  color: var(--tone);
+}
+.path {
+  min-width: 0;
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+/* What a page holds: a heading and lines that stand for its text. */
+.heading {
+  font-family: var(--font-sans, inherit);
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.lines > i {
+  height: 7px;
+  background: var(--line);
+}
+.lines > i:nth-child(1) {
+  width: 72%;
+}
+.lines > i:nth-child(2) {
+  width: 54%;
+}
+.lines > i:nth-child(3) {
+  width: 63%;
+}
+
+/* A sign-in form. */
+.form {
+  display: grid;
+  gap: 6px;
+  width: min(100%, 300px);
+}
+.field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 26px;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+}
+.field > span:first-child {
+  color: var(--dim);
+}
+.field[data-filled] {
+  border-color: var(--tone);
+}
+.value {
+  letter-spacing: 0.1em;
+}
+.button {
+  justify-self: start;
+  padding: 3px 12px;
+  border: 1px solid var(--ink);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.note {
+  color: var(--dim);
+}
+
+/* Under the window: where the profile lives. */
+.disk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  color: var(--dim);
+}
+
+/* Tabs --------------------------------------------------------------------------------------- */
+
+.stripWrap {
+  position: relative;
+  padding: 22px 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.strip {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 4px;
+}
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  min-width: 0;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  font-size: 10.5px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.tab > i {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  background: var(--ink);
+}
+.tab[data-state="park"] {
+  border-style: dashed;
+  color: var(--dim);
+}
+.tab[data-state="park"] > i {
+  background: none;
+  outline: 1px solid var(--dim);
+  outline-offset: -1px;
+}
+.tab[data-state="closing"] {
+  background: var(--ink);
+  color: var(--paper);
+  text-decoration: line-through;
+}
+.tab[data-state="closing"] > i {
+  background: var(--paper);
+}
+.tab[data-current] {
+  border-color: var(--tone-keep);
+  box-shadow: inset 0 2px 0 var(--tone-keep);
+}
+.tab[data-current] > i {
+  background: var(--tone-keep);
+}
+@container (max-width: 520px) {
+  .tab {
+    justify-content: center;
+    padding: 0;
+  }
+  .tab > span {
+    display: none;
+  }
+}
+
+/* The cap: a dashed tick after the last page that may stay open. */
+.cap {
+  position: absolute;
+  top: -20px;
+  bottom: 0;
+  left: calc((100% + 4px) * var(--cap) / 12 - 2px);
+  border-left: 1px dashed var(--dim);
+}
+.cap > span {
+  position: absolute;
+  top: 0;
+  right: 6px;
+  font-size: 10.5px;
+  line-height: 1;
+  color: var(--dim);
+  white-space: nowrap;
+}
+.strip[data-cap="12"] .cap {
+  border-left-color: var(--tone-keep);
+}
+.strip[data-cap="12"] .cap > span {
+  color: var(--tone-keep);
+}
+
+.pageShort {
+  height: 96px;
+}
+
+/* How many pages run and how many are parked: one square each. */
+.meter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+}
+.count {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--dim);
+}
+.count > b {
+  min-width: 1ch;
+  font-weight: 500;
+  color: var(--ink);
+}
+.squares {
+  display: inline-flex;
+  gap: 3px;
+  min-width: 78px;
+}
+.squares > i {
+  width: 7px;
+  height: 7px;
+  background: var(--ink);
+}
+.squares[data-kind="park"] > i {
+  background: none;
+  outline: 1px solid var(--dim);
+  outline-offset: -1px;
+}
+
+/* The vault ---------------------------------------------------------------------------------- */
+
+.vault {
+  display: grid;
+  gap: 22px 14px;
+  padding-top: 8px;
+}
+@container (min-width: 560px) {
+  .vault {
+    grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
+  }
+  .vaultLeft {
+    grid-column: 1;
+  }
+  .model {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+.vaultLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.box {
+  position: relative;
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+.boxLabel {
+  position: absolute;
+  top: 0;
+  left: 10px;
+  translate: 0 -50%;
+  padding-inline: 6px;
+  background: var(--card);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim);
+  white-space: nowrap;
+}
+.keychain {
+  display: grid;
+  gap: 4px;
+  min-height: 108px;
+  padding: 16px 12px 12px;
+  align-content: start;
+}
+.entry {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.entry > span:first-child {
+  color: var(--dim);
+}
+.entry[data-off] {
+  visibility: hidden;
+}
+.key {
+  color: var(--tone);
+}
+.model {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 220px;
+  padding: 16px 12px 12px;
+  border-color: var(--tone-keep);
+}
+.model .boxLabel {
+  color: var(--tone-keep);
+}
+.call {
+  color: var(--ink);
+}
+.call > span:first-child {
+  color: var(--dim);
+}
+.reply {
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+.reply b {
+  font-weight: 500;
+  color: var(--tone-keep);
+  white-space: nowrap;
+}
+.pageForm {
+  height: auto;
+  min-height: 150px;
+}
+
+/* The hero's picture ------------------------------------------------------------------------- */
+
+.heroShot {
+  position: relative;
+}
+/* The identity's light behind its window: an account is present. */
+.heroShot::before {
+  content: "";
+  position: absolute;
+  inset: -18% -12%;
+  background: radial-gradient(closest-side, color-mix(in oklab, var(--tone-third) 22%, transparent), transparent);
+  pointer-events: none;
+}
+.heroShot > * {
+  position: relative;
+}
+.readouts {
+  display: grid;
+  border-top: 1px solid var(--line);
+}
+.readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 14px;
+  min-height: 38px;
+  padding: 8px 12px;
+}
+.readout + .readout {
+  border-top: 1px solid var(--line);
+}
+.readout > span:last-child {
+  color: var(--dim);
+}
+.vaulted {
+  color: var(--tone-keep);
+}

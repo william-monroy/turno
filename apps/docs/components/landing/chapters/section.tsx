@@ -17,7 +17,7 @@ import {
   useState,
 } from "react";
 import { localePath } from "@/lib/layout.shared";
-import type { Headline, Lang, SectionCopy, StoryId } from "../copy";
+import type { Headline, Lang, SectionCopy } from "../copy";
 import { BEAT, useNarrate, useReducedMotion } from "../story";
 import s from "./section.module.css";
 
@@ -96,7 +96,8 @@ export function Chapter({
   scrollSteps,
   quiet = false,
 }: {
-  id: StoryId;
+  /** The section's id on its page: its anchor, and the prefix of its headline's id. */
+  id: string;
   /** Where the chapter stands in the story, from 0: the first draws in full, and the side of the list alternates. */
   index: number;
   lang: Lang;

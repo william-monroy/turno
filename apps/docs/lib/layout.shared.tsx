@@ -1,6 +1,7 @@
 import { uiTranslations } from "fumadocs-ui/i18n";
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
-import { Logo } from "@/components/logo";
+import { LogoMark } from "@/components/logo";
+import { ProductSwitch } from "@/components/product-switch";
 import { i18n } from "@/lib/i18n";
 
 export const REPO = "https://github.com/wimo-dev/turno";
@@ -44,8 +45,9 @@ export function baseOptions(lang: string): BaseLayoutProps {
   const t = NAV[lang] ?? NAV.en!;
   return {
     nav: {
-      title: <Logo className="h-6 w-auto" />,
+      title: <LogoMark className="h-5 w-auto" />,
       url: localePath(lang, "/"),
+      children: <ProductSwitch lang={lang} home={localePath(lang, "/")} browser={localePath(lang, "/browser")} />,
     },
     githubUrl: REPO,
     links: [

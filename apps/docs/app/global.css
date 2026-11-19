@@ -121,3 +121,28 @@
   white-space: pre;
 }
 @import "./docs-theme.css";
+
+/* The two tools of the toolkit, next to the logo in every header: the current one is filled. */
+.d-products {
+  display: inline-flex;
+  flex: none;
+  margin-left: 4px;
+  border: 1px solid var(--color-fd-border);
+}
+.d-product {
+  padding: 3px 9px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-fd-muted-foreground);
+  white-space: nowrap;
+}
+.d-product + .d-product {
+  border-left: 1px solid var(--color-fd-border);
+}
+.d-product:hover,
+.d-product:focus-visible,
+.d-product[aria-current="true"] {
+  background: var(--color-fd-foreground);
+  color: var(--color-fd-background);
+}

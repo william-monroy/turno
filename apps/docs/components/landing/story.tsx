@@ -1,7 +1,9 @@
 "use client";
 
 import { createContext, type ReactNode, type RefObject, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { SectionId } from "./copy";
+
+/** A section of a page by its id: the home page's chapters, or another page's own. */
+type SectionId = string;
 
 /** The tempo of the page: every stepped change lands on a multiple of this. */
 export const BEAT = 125;
