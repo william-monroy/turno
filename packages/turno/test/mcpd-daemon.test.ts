@@ -120,7 +120,20 @@ describe("single instance and port policy", () => {
   it("names the owner of a busy port when the system can tell", async () => {
     const { port } = await listen();
     const owner = await portOwner(port, { env: sb.env });
-    if (owner) expect(owner.pid).toBe(process.pid); // lsof or /proc available
+    expect(owner).toBeDefined(); // something listens, even when lsof cannot say what
+    if (owner?.pid !== undefined) expect(owner.pid).toBe(process.pid); // lsof or /proc available
+    expect(await portOwner(port, { env: sb.env, pid: process.pid })).toMatchObject({ pid: process.pid });
+  });
+
+  it("tells a free port without lsof", async () => {
+    const { server, port } = await listen();
+    await new Promise((resolve) => server.close(resolve));
+    expect(await portOwner(port, { env: { PATH: "" } })).toBeUndefined();
+  });
+
+  it("still reports a busy port when lsof cannot name its owner", async () => {
+    const { port } = await listen();
+    expect(await portOwner(port, { platform: "darwin", env: { PATH: "" } })).toEqual({});
   });
 
   it("recognizes an mcpd without a lock (an older version) on the port as already running", async () => {

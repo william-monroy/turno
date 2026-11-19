@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { readFileSync, readdirSync, readlinkSync } from "node:fs";
+import { connect } from "node:net";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -11,6 +12,11 @@ export interface PeerOptions {
   procRoot?: string;
   /** PATH used to find lsof. */
   env?: NodeJS.ProcessEnv;
+}
+
+/** portOwner's options: a pid to check first, such as the one mcpd reports. */
+export interface PortOwnerOptions extends PeerOptions {
+  pid?: number;
 }
 
 /** One row of /proc/net/tcp or tcp6. */
@@ -128,8 +134,39 @@ export interface PortOwner {
   command?: string;
 }
 
-/** Which process listens on 127.0.0.1:`port`, as far as this user can tell. Undefined when unknown or free. */
-export async function portOwner(port: number, opts: PeerOptions = {}): Promise<PortOwner | undefined> {
+/** Whether something accepts TCP connections on 127.0.0.1:`port`, the address mcpd binds. */
+function listensOn(port: number, timeoutMs = 1000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = connect({ host: "127.0.0.1", port });
+    const done = (yes: boolean) => {
+      socket.destroy();
+      resolve(yes);
+    };
+    socket.setTimeout(timeoutMs, () => done(true)); // accepted the SYN but slow to finish: busy
+    socket.once("connect", () => done(true));
+    socket.once("error", () => done(false));
+  });
+}
+
+function parseLsof(stdout: string): PortOwner | undefined {
+  const owner: PortOwner = {};
+  for (const line of stdout.split("\n")) {
+    if (line.startsWith("p") && owner.pid === undefined) owner.pid = Number(line.slice(1));
+    else if (line.startsWith("c") && owner.command === undefined) owner.command = line.slice(1);
+    else if (line.startsWith("u") && owner.uid === undefined) owner.uid = Number(line.slice(1));
+  }
+  return owner.pid !== undefined ? owner : undefined;
+}
+
+/**
+ * Which process listens on 127.0.0.1:`port`, as far as this user can tell. Undefined when the
+ * port is free; an empty object when something listens but the system cannot say what.
+ *
+ * On macOS lsof scans every process and can take many seconds on a busy machine, so a free port
+ * is told by a refused connection without lsof, and `opts.pid` (a process expected to hold the
+ * port) is checked alone first.
+ */
+export async function portOwner(port: number, opts: PortOwnerOptions = {}): Promise<PortOwner | undefined> {
   const platform = opts.platform ?? process.platform;
   if (platform === "linux") {
     const procRoot = opts.procRoot ?? "/proc";
@@ -145,21 +182,23 @@ export async function portOwner(port: number, opts: PeerOptions = {}): Promise<P
       return { uid: row.uid, ...(pid ? { pid } : {}), ...(command ? { command } : {}) };
     }
   }
-  try {
-    const { stdout } = await run("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-Fpcu"], {
-      timeout: 3000,
-      env: opts.env ?? process.env,
-    });
-    const owner: PortOwner = {};
-    for (const line of stdout.split("\n")) {
-      if (line.startsWith("p") && owner.pid === undefined) owner.pid = Number(line.slice(1));
-      else if (line.startsWith("c") && owner.command === undefined) owner.command = line.slice(1);
-      else if (line.startsWith("u") && owner.uid === undefined) owner.uid = Number(line.slice(1));
+  if (!(await listensOn(port))) return undefined;
+  const lsof = async (args: string[]): Promise<PortOwner | undefined> => {
+    try {
+      const { stdout } = await run("lsof", ["-nP", ...args, `-iTCP:${port}`, "-sTCP:LISTEN", "-Fpcu"], {
+        timeout: 3000,
+        env: opts.env ?? process.env,
+      });
+      return parseLsof(stdout);
+    } catch {
+      return undefined; // lsof exits 1 when it finds nothing; also missing or too slow
     }
-    return owner.pid !== undefined ? owner : undefined;
-  } catch {
-    return undefined;
+  };
+  if (opts.pid !== undefined) {
+    const own = await lsof(["-a", "-p", String(opts.pid)]);
+    if (own) return own;
   }
+  return (await lsof([])) ?? {};
 }
 
 /** "node (pid 123, uid 501)" for messages. */
