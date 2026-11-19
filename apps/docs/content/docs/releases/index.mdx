@@ -6,7 +6,12 @@ description: What is new in each version of turno.
 One page per version: what changed, how to use it and what to run when you upgrade. Each package's full changelog is on GitHub, and each GitHub release links back here.
 
 <ReleaseLine>
-<Release latest version="0.3.0" date="2026-11-18" href="/docs/releases/v0-3-0" packages={["turno-cli@0.3.0", "turno-browser@0.3.0", "turno-core@0.1.0", "turno-fonts@0.1.2"]}>
+<Release latest version="0.4.0" date="2026-11-19" href="/docs/releases/v0-4-0" packages={["turno-cli@0.4.0", "turno-browser@0.4.0"]}>
+
+One browser for several agents. A browser identity can **[serve several agent sessions at once](/docs/concepts/browser-identities#several-agents-one-browser)**, each in its own tabs, **[record a flow and replay it](/docs/concepts/browser-identities#flows-record-and-replay)**, be **[driven from the shell](/docs/concepts/browser-identities#from-the-shell)** and **[show you the agent's tab so you can take over](/docs/concepts/browser-identities#live-view-and-take-over)**. Lightpanda and your own Chrome join as **[engines](/docs/concepts/browser-identities#engines)**. Every new setting is off until you turn it on.
+
+</Release>
+<Release version="0.3.0" date="2026-11-18" href="/docs/releases/v0-3-0" packages={["turno-cli@0.3.0", "turno-browser@0.3.0", "turno-core@0.1.0", "turno-fonts@0.1.2"]}>
 
 A browser your agents can sign in with and carry between machines. `turno-browser` **[signs in to a site without showing the password to the model](/docs/concepts/browser-identities#credential-vault)**, **[moves a signed-in session to another machine](/docs/concepts/browser-identities#moving-a-session)** and **[keeps tabs under control](/docs/concepts/browser-identities#tabs)**. The CLI gets **[a stable output contract for scripts](/docs/reference/json-output)**, diagnostics you can paste into an issue, and a safe mode. After upgrading, run `turno mcp sync` once.
 
