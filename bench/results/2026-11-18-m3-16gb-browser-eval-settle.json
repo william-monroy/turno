@@ -1,0 +1,8756 @@
+{
+  "version": 1,
+  "kind": "turno-browser-eval",
+  "startedAt": "2026-11-19T04:25:32.784Z",
+  "finishedAt": "2026-11-19T04:34:01.283Z",
+  "machine": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M3",
+    "memoryGiB": 16
+  },
+  "node": "v26.13.0",
+  "browser": "Chrome 157.0.8103.79",
+  "headed": false,
+  "rounds": 5,
+  "tasks": [
+    {
+      "id": "form",
+      "title": "Fill a sign-up form (text, email, select, radio, checkbox) and submit it"
+    },
+    {
+      "id": "popup",
+      "title": "Approve an authorization popup and come back to the page that opened it"
+    },
+    {
+      "id": "overlay",
+      "title": "Click a button that a cookie banner covers: read the error, dismiss the banner, retry"
+    },
+    {
+      "id": "slow",
+      "title": "Wait for a slow page and its late data, then confirm the order"
+    },
+    {
+      "id": "tabs",
+      "title": "Open 10 reports in new tabs, read a value from each, submit the sum"
+    },
+    {
+      "id": "shadow",
+      "title": "Type a promo code into a field two shadow roots deep and apply it"
+    },
+    {
+      "id": "frames",
+      "title": "Fill a form in a same-origin iframe and press a button in a cross-origin iframe"
+    },
+    {
+      "id": "dialog",
+      "title": "Delete a draft behind a confirm() dialog"
+    },
+    {
+      "id": "find",
+      "title": "Read one price from a 400-row catalog without reading the whole page"
+    }
+  ],
+  "configs": [
+    {
+      "name": "default",
+      "description": "the server as installed, no identity.json keys",
+      "versions": {
+        "turnoBrowser": "0.3.0",
+        "patchrightCore": "1.64.3"
+      }
+    },
+    {
+      "name": "settle-100",
+      "description": "identity.json \"settle\": \"100ms\"",
+      "identity": {
+        "settle": "100ms"
+      },
+      "versions": {
+        "turnoBrowser": "0.3.0",
+        "patchrightCore": "1.64.3"
+      }
+    }
+  ],
+  "unsupported": {},
+  "results": [
+    {
+      "task": "form",
+      "config": "default",
+      "round": 0,
+      "status": "ok",
+      "wallMs": 1450,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 2113,
+      "tokens": 529,
+      "peakMiB": 1016,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 54,
+          "bytes": 241,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 6,
+          "bytes": 917,
+          "error": false
+        },
+        {
+          "tool": "browser_fill_form",
+          "ms": 193,
+          "bytes": 384,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1096,
+          "bytes": 261,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 98,
+          "bytes": 310,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "form",
+      "config": "settle-100",
+      "round": 0,
+      "status": "ok",
+      "wallMs": 573,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 2113,
+      "tokens": 529,
+      "peakMiB": 1050,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 138,
+          "bytes": 241,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 12,
+          "bytes": 917,
+          "error": false
+        },
+        {
+          "tool": "browser_fill_form",
+          "ms": 144,
+          "bytes": 384,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 273,
+          "bytes": 261,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 5,
+          "bytes": 310,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "popup",
+      "config": "default",
+      "round": 0,
+      "status": "ok",
+      "wallMs": 1489,
+      "calls": 9,
+      "errors": 0,
+      "bytes": 2303,
+      "tokens": 576,
+      "peakMiB": 922,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 116,
+          "bytes": 236,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 17,
+          "bytes": 323,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1005,
+          "bytes": 395,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 10,
+          "bytes": 134,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 78,
+          "bytes": 134,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 15,
+          "bytes": 455,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 221,
+          "bytes": 246,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 9,
+          "bytes": 70,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 16,
+          "bytes": 310,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "popup",
+      "config": "settle-100",
+      "round": 0,
+      "status": "ok",
+      "wallMs": 1242,
+      "calls": 9,
+      "errors": 0,
+      "bytes": 2303,
+      "tokens": 576,
+      "peakMiB": 1003,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 88,
+          "bytes": 236,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 24,
+          "bytes": 323,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 778,
+          "bytes": 395,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 21,
+          "bytes": 134,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 19,
+          "bytes": 134,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 31,
+          "bytes": 455,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 254,
+          "bytes": 246,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 7,
+          "bytes": 70,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 19,
+          "bytes": 310,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "overlay",
+      "config": "default",
+      "round": 0,
+      "status": "ok",
+      "wallMs": 6837,
+      "calls": 6,
+      "errors": 1,
+      "bytes": 1977,
+      "tokens": 495,
+      "peakMiB": 982,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 40,
+          "bytes": 244,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 5,
+          "bytes": 488,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 5047,
+          "bytes": 414,
+          "error": true
+        },
+        {
+          "tool": "browser_click",
+          "ms": 669,
+          "bytes": 257,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1065,
+          "bytes": 262,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 10,
+          "bytes": 312,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "overlay",
+      "config": "settle-100",
+      "round": 0,
+      "status": "ok",
+      "wallMs": 5467,
+      "calls": 6,
+      "errors": 1,
+      "bytes": 1977,
+      "tokens": 495,
+      "peakMiB": 1012,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 62,
+          "bytes": 244,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 11,
+          "bytes": 488,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 5034,
+          "bytes": 414,
+          "error": true
+        },
+        {
+          "tool": "browser_click",
+          "ms": 130,
+          "bytes": 257,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 225,
+          "bytes": 262,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 5,
+          "bytes": 312,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "slow",
+      "config": "default",
+      "round": 0,
+      "status": "ok",
+      "wallMs": 3609,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1340,
+      "tokens": 335,
+      "peakMiB": 1006,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 899,
+          "bytes": 230,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 1488,
+          "bytes": 291,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 7,
+          "bytes": 271,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1200,
+          "bytes": 249,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 15,
+          "bytes": 299,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "slow",
+      "config": "settle-100",
+      "round": 0,
+      "status": "ok",
+      "wallMs": 3106,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1340,
+      "tokens": 335,
+      "peakMiB": 914,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 901,
+          "bytes": 230,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 1864,
+          "bytes": 291,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 12,
+          "bytes": 271,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 315,
+          "bytes": 249,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 15,
+          "bytes": 299,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "tabs",
+      "config": "default",
+      "round": 0,
+      "status": "ok",
+      "wallMs": 12365,
+      "calls": 66,
+      "errors": 0,
+      "bytes": 26908,
+      "tokens": 6727,
+      "peakMiB": 1607,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 123,
+          "bytes": 237,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 11,
+          "bytes": 1561,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 947,
+          "bytes": 392,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 20,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 17,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 12,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 4,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 47,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 694,
+          "bytes": 433,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 30,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 147,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 14,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 6,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 82,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1024,
+          "bytes": 487,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 29,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 21,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 14,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 15,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 154,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 661,
+          "bytes": 541,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 16,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 10,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 14,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 13,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 71,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 829,
+          "bytes": 595,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 26,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 15,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 16,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 46,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 159,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 759,
+          "bytes": 649,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 9,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 11,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 15,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 8,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 46,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 794,
+          "bytes": 703,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 59,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 30,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 50,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 15,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 46,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 858,
+          "bytes": 932,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 124,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 148,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 50,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 29,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 198,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1141,
+          "bytes": 932,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 45,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 58,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 52,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 73,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 56,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 723,
+          "bytes": 935,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 21,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 29,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 11,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 11,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 158,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 22,
+          "bytes": 2017,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 124,
+          "bytes": 96,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1263,
+          "bytes": 711,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 30,
+          "bytes": 760,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "tabs",
+      "config": "settle-100",
+      "round": 0,
+      "status": "ok",
+      "wallMs": 6518,
+      "calls": 66,
+      "errors": 0,
+      "bytes": 26908,
+      "tokens": 6727,
+      "peakMiB": 1729,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 96,
+          "bytes": 237,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 14,
+          "bytes": 1561,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 282,
+          "bytes": 392,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 16,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 14,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 39,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 28,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 83,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 560,
+          "bytes": 433,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 14,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 16,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 30,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 15,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 84,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 542,
+          "bytes": 487,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 8,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 8,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 6,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 9,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 35,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 228,
+          "bytes": 541,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 6,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 8,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 16,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 18,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 23,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 240,
+          "bytes": 595,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 28,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 19,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 13,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 9,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 41,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 192,
+          "bytes": 649,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 10,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 19,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 23,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 13,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 36,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 523,
+          "bytes": 703,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 24,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 24,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 15,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 22,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 39,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 447,
+          "bytes": 932,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 60,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 27,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 15,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 32,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 52,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 369,
+          "bytes": 932,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 173,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 24,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 10,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 148,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 111,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 565,
+          "bytes": 935,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 127,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 77,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 22,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 32,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 126,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 58,
+          "bytes": 2017,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 152,
+          "bytes": 96,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 331,
+          "bytes": 711,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 64,
+          "bytes": 760,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "shadow",
+      "config": "default",
+      "round": 0,
+      "status": "ok",
+      "wallMs": 1205,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1352,
+      "tokens": 338,
+      "peakMiB": 1018,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 68,
+          "bytes": 235,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 8,
+          "bytes": 465,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 49,
+          "bytes": 107,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1071,
+          "bytes": 249,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 9,
+          "bytes": 296,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "shadow",
+      "config": "settle-100",
+      "round": 0,
+      "status": "ok",
+      "wallMs": 329,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1352,
+      "tokens": 338,
+      "peakMiB": 1016,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 34,
+          "bytes": 235,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 7,
+          "bytes": 465,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 26,
+          "bytes": 107,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 251,
+          "bytes": 249,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 11,
+          "bytes": 296,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "frames",
+      "config": "default",
+      "round": 0,
+      "status": "ok",
+      "wallMs": 2357,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1565,
+      "tokens": 392,
+      "peakMiB": 1115,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 163,
+          "bytes": 233,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 16,
+          "bytes": 561,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 42,
+          "bytes": 168,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1072,
+          "bytes": 300,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1062,
+          "bytes": 303,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "frames",
+      "config": "settle-100",
+      "round": 0,
+      "status": "ok",
+      "wallMs": 1028,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1565,
+      "tokens": 392,
+      "peakMiB": 1020,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 212,
+          "bytes": 233,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 50,
+          "bytes": 561,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 157,
+          "bytes": 168,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 351,
+          "bytes": 300,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 258,
+          "bytes": 303,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "dialog",
+      "config": "default",
+      "round": 0,
+      "status": "ok",
+      "wallMs": 1119,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1232,
+      "tokens": 308,
+      "peakMiB": 998,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 48,
+          "bytes": 232,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 3,
+          "bytes": 272,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 33,
+          "bytes": 362,
+          "error": false
+        },
+        {
+          "tool": "browser_handle_dialog",
+          "ms": 1028,
+          "bytes": 71,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 7,
+          "bytes": 295,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "dialog",
+      "config": "settle-100",
+      "round": 0,
+      "status": "ok",
+      "wallMs": 450,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1232,
+      "tokens": 308,
+      "peakMiB": 1051,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 55,
+          "bytes": 232,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 7,
+          "bytes": 272,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 48,
+          "bytes": 362,
+          "error": false
+        },
+        {
+          "tool": "browser_handle_dialog",
+          "ms": 322,
+          "bytes": 71,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 19,
+          "bytes": 295,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "find",
+      "config": "default",
+      "round": 0,
+      "status": "ok",
+      "wallMs": 209,
+      "calls": 2,
+      "errors": 0,
+      "bytes": 660,
+      "tokens": 165,
+      "peakMiB": 924,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 134,
+          "bytes": 235,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 74,
+          "bytes": 425,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "find",
+      "config": "settle-100",
+      "round": 0,
+      "status": "ok",
+      "wallMs": 344,
+      "calls": 2,
+      "errors": 0,
+      "bytes": 660,
+      "tokens": 165,
+      "peakMiB": 988,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 186,
+          "bytes": 235,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 158,
+          "bytes": 425,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "form",
+      "config": "settle-100",
+      "round": 1,
+      "status": "ok",
+      "wallMs": 551,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 2113,
+      "tokens": 529,
+      "peakMiB": 992,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 58,
+          "bytes": 241,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 7,
+          "bytes": 917,
+          "error": false
+        },
+        {
+          "tool": "browser_fill_form",
+          "ms": 210,
+          "bytes": 384,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 259,
+          "bytes": 261,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 16,
+          "bytes": 310,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "form",
+      "config": "default",
+      "round": 1,
+      "status": "ok",
+      "wallMs": 1354,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 2113,
+      "tokens": 529,
+      "peakMiB": 969,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 103,
+          "bytes": 241,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 11,
+          "bytes": 917,
+          "error": false
+        },
+        {
+          "tool": "browser_fill_form",
+          "ms": 156,
+          "bytes": 384,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1075,
+          "bytes": 261,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 7,
+          "bytes": 310,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "popup",
+      "config": "settle-100",
+      "round": 1,
+      "status": "ok",
+      "wallMs": 461,
+      "calls": 9,
+      "errors": 0,
+      "bytes": 2303,
+      "tokens": 576,
+      "peakMiB": 1018,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 55,
+          "bytes": 236,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 13,
+          "bytes": 323,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 256,
+          "bytes": 395,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 4,
+          "bytes": 134,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 3,
+          "bytes": 134,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 4,
+          "bytes": 455,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 116,
+          "bytes": 246,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 2,
+          "bytes": 70,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 5,
+          "bytes": 310,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "popup",
+      "config": "default",
+      "round": 1,
+      "status": "ok",
+      "wallMs": 837,
+      "calls": 9,
+      "errors": 0,
+      "bytes": 2303,
+      "tokens": 576,
+      "peakMiB": 1012,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 53,
+          "bytes": 236,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 4,
+          "bytes": 323,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 598,
+          "bytes": 395,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 17,
+          "bytes": 134,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 9,
+          "bytes": 134,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 8,
+          "bytes": 455,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 134,
+          "bytes": 246,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 4,
+          "bytes": 70,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 9,
+          "bytes": 310,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "overlay",
+      "config": "settle-100",
+      "round": 1,
+      "status": "ok",
+      "wallMs": 5545,
+      "calls": 6,
+      "errors": 1,
+      "bytes": 1977,
+      "tokens": 495,
+      "peakMiB": 1013,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 50,
+          "bytes": 244,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 3,
+          "bytes": 488,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 5032,
+          "bytes": 414,
+          "error": true
+        },
+        {
+          "tool": "browser_click",
+          "ms": 159,
+          "bytes": 257,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 261,
+          "bytes": 262,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 39,
+          "bytes": 312,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "overlay",
+      "config": "default",
+      "round": 1,
+      "status": "ok",
+      "wallMs": 6677,
+      "calls": 6,
+      "errors": 1,
+      "bytes": 1977,
+      "tokens": 495,
+      "peakMiB": 1083,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 46,
+          "bytes": 244,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 10,
+          "bytes": 488,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 5036,
+          "bytes": 414,
+          "error": true
+        },
+        {
+          "tool": "browser_click",
+          "ms": 555,
+          "bytes": 257,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1024,
+          "bytes": 262,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 5,
+          "bytes": 312,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "slow",
+      "config": "settle-100",
+      "round": 1,
+      "status": "ok",
+      "wallMs": 6790,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1340,
+      "tokens": 335,
+      "peakMiB": 1038,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 845,
+          "bytes": 230,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 4805,
+          "bytes": 291,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 355,
+          "bytes": 271,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 636,
+          "bytes": 249,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 149,
+          "bytes": 299,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "slow",
+      "config": "default",
+      "round": 1,
+      "status": "ok",
+      "wallMs": 3777,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1340,
+      "tokens": 335,
+      "peakMiB": 975,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 859,
+          "bytes": 230,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 1824,
+          "bytes": 291,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 4,
+          "bytes": 271,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1083,
+          "bytes": 249,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 7,
+          "bytes": 299,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "tabs",
+      "config": "settle-100",
+      "round": 1,
+      "status": "ok",
+      "wallMs": 5511,
+      "calls": 66,
+      "errors": 0,
+      "bytes": 27279,
+      "tokens": 6820,
+      "peakMiB": 1596,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 59,
+          "bytes": 237,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 7,
+          "bytes": 1561,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 287,
+          "bytes": 392,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 12,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 7,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 9,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 3,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 68,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 449,
+          "bytes": 433,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 17,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 7,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 9,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 9,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 31,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 539,
+          "bytes": 487,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 79,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 35,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 15,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 9,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 34,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 214,
+          "bytes": 541,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 5,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 6,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 6,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 5,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 31,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 226,
+          "bytes": 595,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 8,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 8,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 9,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 19,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 75,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 326,
+          "bytes": 595,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 130,
+          "bytes": 821,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 142,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 41,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 52,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 157,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 319,
+          "bytes": 703,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 34,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 21,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 12,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 7,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 21,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 242,
+          "bytes": 932,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 39,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 27,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 28,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 10,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 36,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 235,
+          "bytes": 932,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 89,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 76,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 59,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 42,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 160,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 451,
+          "bytes": 935,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 32,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 40,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 16,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 23,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 29,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 12,
+          "bytes": 2017,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 22,
+          "bytes": 96,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 272,
+          "bytes": 711,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 10,
+          "bytes": 760,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "tabs",
+      "config": "default",
+      "round": 1,
+      "status": "ok",
+      "wallMs": 7449,
+      "calls": 66,
+      "errors": 0,
+      "bytes": 26908,
+      "tokens": 6727,
+      "peakMiB": 1740,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 60,
+          "bytes": 237,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 12,
+          "bytes": 1561,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 605,
+          "bytes": 392,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 4,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 5,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 8,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 3,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 18,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 544,
+          "bytes": 433,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 2,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 3,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 4,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 2,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 16,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 576,
+          "bytes": 487,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 4,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 6,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 7,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 3,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 17,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 614,
+          "bytes": 541,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 13,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 27,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 20,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 19,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 107,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 634,
+          "bytes": 595,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 5,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 6,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 6,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 4,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 17,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 561,
+          "bytes": 649,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 4,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 4,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 6,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 3,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 14,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 538,
+          "bytes": 703,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 4,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 5,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 7,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 4,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 20,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 561,
+          "bytes": 932,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 6,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 6,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 7,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 6,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 21,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 578,
+          "bytes": 932,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 7,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 8,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 6,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 5,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 16,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 559,
+          "bytes": 935,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 11,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 6,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 7,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 6,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 17,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 6,
+          "bytes": 2017,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 10,
+          "bytes": 96,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1047,
+          "bytes": 711,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 9,
+          "bytes": 760,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "shadow",
+      "config": "settle-100",
+      "round": 1,
+      "status": "ok",
+      "wallMs": 344,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1352,
+      "tokens": 338,
+      "peakMiB": 1026,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 51,
+          "bytes": 235,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 8,
+          "bytes": 465,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 39,
+          "bytes": 107,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 237,
+          "bytes": 249,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 7,
+          "bytes": 296,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "shadow",
+      "config": "default",
+      "round": 1,
+      "status": "ok",
+      "wallMs": 1121,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1352,
+      "tokens": 338,
+      "peakMiB": 1011,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 44,
+          "bytes": 235,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 6,
+          "bytes": 465,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 29,
+          "bytes": 107,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1038,
+          "bytes": 249,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 5,
+          "bytes": 296,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "frames",
+      "config": "settle-100",
+      "round": 1,
+      "status": "ok",
+      "wallMs": 640,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1565,
+      "tokens": 392,
+      "peakMiB": 1151,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 95,
+          "bytes": 233,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 8,
+          "bytes": 561,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 39,
+          "bytes": 168,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 255,
+          "bytes": 300,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 243,
+          "bytes": 303,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "frames",
+      "config": "default",
+      "round": 1,
+      "status": "ok",
+      "wallMs": 2215,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1565,
+      "tokens": 392,
+      "peakMiB": 1162,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 70,
+          "bytes": 233,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 6,
+          "bytes": 561,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 31,
+          "bytes": 168,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1044,
+          "bytes": 300,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1064,
+          "bytes": 303,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "dialog",
+      "config": "settle-100",
+      "round": 1,
+      "status": "ok",
+      "wallMs": 313,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1232,
+      "tokens": 308,
+      "peakMiB": 1033,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 33,
+          "bytes": 232,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 5,
+          "bytes": 272,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 44,
+          "bytes": 362,
+          "error": false
+        },
+        {
+          "tool": "browser_handle_dialog",
+          "ms": 222,
+          "bytes": 71,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 9,
+          "bytes": 295,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "dialog",
+      "config": "default",
+      "round": 1,
+      "status": "ok",
+      "wallMs": 1162,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1232,
+      "tokens": 308,
+      "peakMiB": 999,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 45,
+          "bytes": 232,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 5,
+          "bytes": 272,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 70,
+          "bytes": 362,
+          "error": false
+        },
+        {
+          "tool": "browser_handle_dialog",
+          "ms": 1031,
+          "bytes": 71,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 9,
+          "bytes": 295,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "find",
+      "config": "settle-100",
+      "round": 1,
+      "status": "ok",
+      "wallMs": 208,
+      "calls": 2,
+      "errors": 0,
+      "bytes": 660,
+      "tokens": 165,
+      "peakMiB": 1016,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 140,
+          "bytes": 235,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 68,
+          "bytes": 425,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "find",
+      "config": "default",
+      "round": 1,
+      "status": "ok",
+      "wallMs": 177,
+      "calls": 2,
+      "errors": 0,
+      "bytes": 660,
+      "tokens": 165,
+      "peakMiB": 935,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 113,
+          "bytes": 235,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 64,
+          "bytes": 425,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "form",
+      "config": "default",
+      "round": 2,
+      "status": "ok",
+      "wallMs": 1454,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 2113,
+      "tokens": 529,
+      "peakMiB": 1023,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 64,
+          "bytes": 241,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 26,
+          "bytes": 917,
+          "error": false
+        },
+        {
+          "tool": "browser_fill_form",
+          "ms": 184,
+          "bytes": 384,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1099,
+          "bytes": 261,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 81,
+          "bytes": 310,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "form",
+      "config": "settle-100",
+      "round": 2,
+      "status": "ok",
+      "wallMs": 442,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 2113,
+      "tokens": 529,
+      "peakMiB": 1027,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 69,
+          "bytes": 241,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 9,
+          "bytes": 917,
+          "error": false
+        },
+        {
+          "tool": "browser_fill_form",
+          "ms": 108,
+          "bytes": 384,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 248,
+          "bytes": 261,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 8,
+          "bytes": 310,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "popup",
+      "config": "default",
+      "round": 2,
+      "status": "ok",
+      "wallMs": 970,
+      "calls": 9,
+      "errors": 0,
+      "bytes": 2303,
+      "tokens": 576,
+      "peakMiB": 982,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 81,
+          "bytes": 236,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 4,
+          "bytes": 323,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 628,
+          "bytes": 395,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 4,
+          "bytes": 134,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 5,
+          "bytes": 134,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 5,
+          "bytes": 455,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 222,
+          "bytes": 246,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 9,
+          "bytes": 70,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 13,
+          "bytes": 310,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "popup",
+      "config": "settle-100",
+      "round": 2,
+      "status": "ok",
+      "wallMs": 382,
+      "calls": 9,
+      "errors": 0,
+      "bytes": 2303,
+      "tokens": 576,
+      "peakMiB": 1046,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 38,
+          "bytes": 236,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 5,
+          "bytes": 323,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 232,
+          "bytes": 395,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 2,
+          "bytes": 134,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 3,
+          "bytes": 134,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 3,
+          "bytes": 455,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 90,
+          "bytes": 246,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 2,
+          "bytes": 70,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 6,
+          "bytes": 310,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "overlay",
+      "config": "default",
+      "round": 2,
+      "status": "ok",
+      "wallMs": 6751,
+      "calls": 6,
+      "errors": 1,
+      "bytes": 1977,
+      "tokens": 495,
+      "peakMiB": 1003,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 42,
+          "bytes": 244,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 5,
+          "bytes": 488,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 5047,
+          "bytes": 414,
+          "error": true
+        },
+        {
+          "tool": "browser_click",
+          "ms": 592,
+          "bytes": 257,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1057,
+          "bytes": 262,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 6,
+          "bytes": 312,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "overlay",
+      "config": "settle-100",
+      "round": 2,
+      "status": "ok",
+      "wallMs": 5552,
+      "calls": 6,
+      "errors": 1,
+      "bytes": 1977,
+      "tokens": 495,
+      "peakMiB": 961,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 50,
+          "bytes": 244,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 4,
+          "bytes": 488,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 5046,
+          "bytes": 414,
+          "error": true
+        },
+        {
+          "tool": "browser_click",
+          "ms": 197,
+          "bytes": 257,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 238,
+          "bytes": 262,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 16,
+          "bytes": 312,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "slow",
+      "config": "default",
+      "round": 2,
+      "status": "ok",
+      "wallMs": 3886,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1340,
+      "tokens": 335,
+      "peakMiB": 982,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 850,
+          "bytes": 230,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 1910,
+          "bytes": 291,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 14,
+          "bytes": 271,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1108,
+          "bytes": 249,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 4,
+          "bytes": 299,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "slow",
+      "config": "settle-100",
+      "round": 2,
+      "status": "ok",
+      "wallMs": 2946,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1340,
+      "tokens": 335,
+      "peakMiB": 1013,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 837,
+          "bytes": 230,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 1847,
+          "bytes": 291,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 4,
+          "bytes": 271,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 255,
+          "bytes": 249,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 3,
+          "bytes": 299,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "tabs",
+      "config": "default",
+      "round": 2,
+      "status": "ok",
+      "wallMs": 8183,
+      "calls": 66,
+      "errors": 0,
+      "bytes": 26908,
+      "tokens": 6727,
+      "peakMiB": 1670,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 42,
+          "bytes": 237,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 5,
+          "bytes": 1561,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 645,
+          "bytes": 392,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 3,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 3,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 6,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 2,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 19,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 661,
+          "bytes": 433,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 2,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 4,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 5,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 4,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 19,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 547,
+          "bytes": 487,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 3,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 4,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 5,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 2,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 17,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 632,
+          "bytes": 541,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 13,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 45,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 27,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 10,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 22,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 609,
+          "bytes": 595,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 5,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 8,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 6,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 4,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 24,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 621,
+          "bytes": 649,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 21,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 18,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 13,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 6,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 21,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 599,
+          "bytes": 703,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 29,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 16,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 46,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 43,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 82,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 705,
+          "bytes": 932,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 17,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 29,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 19,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 27,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 54,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 621,
+          "bytes": 932,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 9,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 9,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 7,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 12,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 19,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 581,
+          "bytes": 935,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 9,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 7,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 7,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 4,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 20,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 5,
+          "bytes": 2017,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 25,
+          "bytes": 96,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1071,
+          "bytes": 711,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 8,
+          "bytes": 760,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "tabs",
+      "config": "settle-100",
+      "round": 2,
+      "status": "ok",
+      "wallMs": 3674,
+      "calls": 66,
+      "errors": 0,
+      "bytes": 26908,
+      "tokens": 6727,
+      "peakMiB": 1834,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 50,
+          "bytes": 237,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 5,
+          "bytes": 1561,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 247,
+          "bytes": 392,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 8,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 7,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 6,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 3,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 23,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 173,
+          "bytes": 433,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 5,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 9,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 9,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 7,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 18,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 199,
+          "bytes": 487,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 20,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 37,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 8,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 3,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 18,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 195,
+          "bytes": 541,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 15,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 41,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 51,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 31,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 19,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 195,
+          "bytes": 595,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 9,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 20,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 13,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 6,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 60,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 315,
+          "bytes": 649,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 19,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 32,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 23,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 22,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 105,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 261,
+          "bytes": 703,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 47,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 19,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 9,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 19,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 29,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 215,
+          "bytes": 932,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 13,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 31,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 35,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 39,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 184,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 233,
+          "bytes": 932,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 8,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 15,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 8,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 4,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 13,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 157,
+          "bytes": 935,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 7,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 8,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 7,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 6,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 15,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 6,
+          "bytes": 2017,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 8,
+          "bytes": 96,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 239,
+          "bytes": 711,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 11,
+          "bytes": 760,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "shadow",
+      "config": "default",
+      "round": 2,
+      "status": "ok",
+      "wallMs": 1132,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1352,
+      "tokens": 338,
+      "peakMiB": 1082,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 35,
+          "bytes": 235,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 3,
+          "bytes": 465,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 28,
+          "bytes": 107,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1051,
+          "bytes": 249,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 14,
+          "bytes": 296,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "shadow",
+      "config": "settle-100",
+      "round": 2,
+      "status": "ok",
+      "wallMs": 404,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1352,
+      "tokens": 338,
+      "peakMiB": 1045,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 111,
+          "bytes": 235,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 4,
+          "bytes": 465,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 45,
+          "bytes": 107,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 236,
+          "bytes": 249,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 8,
+          "bytes": 296,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "frames",
+      "config": "default",
+      "round": 2,
+      "status": "ok",
+      "wallMs": 2401,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1565,
+      "tokens": 392,
+      "peakMiB": 1118,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 207,
+          "bytes": 233,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 18,
+          "bytes": 561,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 34,
+          "bytes": 168,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1069,
+          "bytes": 300,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1073,
+          "bytes": 303,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "frames",
+      "config": "settle-100",
+      "round": 2,
+      "status": "ok",
+      "wallMs": 616,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1565,
+      "tokens": 392,
+      "peakMiB": 1158,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 79,
+          "bytes": 233,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 10,
+          "bytes": 561,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 34,
+          "bytes": 168,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 240,
+          "bytes": 300,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 252,
+          "bytes": 303,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "dialog",
+      "config": "default",
+      "round": 2,
+      "status": "ok",
+      "wallMs": 1223,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1232,
+      "tokens": 308,
+      "peakMiB": 1008,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 39,
+          "bytes": 232,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 3,
+          "bytes": 272,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 43,
+          "bytes": 362,
+          "error": false
+        },
+        {
+          "tool": "browser_handle_dialog",
+          "ms": 1090,
+          "bytes": 71,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 48,
+          "bytes": 295,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "dialog",
+      "config": "settle-100",
+      "round": 2,
+      "status": "ok",
+      "wallMs": 326,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1232,
+      "tokens": 308,
+      "peakMiB": 1048,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 34,
+          "bytes": 232,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 3,
+          "bytes": 272,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 38,
+          "bytes": 362,
+          "error": false
+        },
+        {
+          "tool": "browser_handle_dialog",
+          "ms": 245,
+          "bytes": 71,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 6,
+          "bytes": 295,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "find",
+      "config": "default",
+      "round": 2,
+      "status": "ok",
+      "wallMs": 309,
+      "calls": 2,
+      "errors": 0,
+      "bytes": 660,
+      "tokens": 165,
+      "peakMiB": 889,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 171,
+          "bytes": 235,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 138,
+          "bytes": 425,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "find",
+      "config": "settle-100",
+      "round": 2,
+      "status": "ok",
+      "wallMs": 174,
+      "calls": 2,
+      "errors": 0,
+      "bytes": 660,
+      "tokens": 165,
+      "peakMiB": 990,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 113,
+          "bytes": 235,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 61,
+          "bytes": 425,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "form",
+      "config": "settle-100",
+      "round": 3,
+      "status": "ok",
+      "wallMs": 485,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 2113,
+      "tokens": 529,
+      "peakMiB": 999,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 52,
+          "bytes": 241,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 5,
+          "bytes": 917,
+          "error": false
+        },
+        {
+          "tool": "browser_fill_form",
+          "ms": 153,
+          "bytes": 384,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 269,
+          "bytes": 261,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 5,
+          "bytes": 310,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "form",
+      "config": "default",
+      "round": 3,
+      "status": "ok",
+      "wallMs": 1288,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 2113,
+      "tokens": 529,
+      "peakMiB": 961,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 53,
+          "bytes": 241,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 6,
+          "bytes": 917,
+          "error": false
+        },
+        {
+          "tool": "browser_fill_form",
+          "ms": 135,
+          "bytes": 384,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1078,
+          "bytes": 261,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 16,
+          "bytes": 310,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "popup",
+      "config": "settle-100",
+      "round": 3,
+      "status": "ok",
+      "wallMs": 411,
+      "calls": 9,
+      "errors": 0,
+      "bytes": 2303,
+      "tokens": 576,
+      "peakMiB": 955,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 56,
+          "bytes": 236,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 6,
+          "bytes": 323,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 239,
+          "bytes": 395,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 2,
+          "bytes": 134,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 3,
+          "bytes": 134,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 3,
+          "bytes": 455,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 95,
+          "bytes": 246,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 1,
+          "bytes": 70,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 4,
+          "bytes": 310,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "popup",
+      "config": "default",
+      "round": 3,
+      "status": "ok",
+      "wallMs": 818,
+      "calls": 9,
+      "errors": 0,
+      "bytes": 2303,
+      "tokens": 576,
+      "peakMiB": 1016,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 41,
+          "bytes": 236,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 3,
+          "bytes": 323,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 618,
+          "bytes": 395,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 2,
+          "bytes": 134,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 3,
+          "bytes": 134,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 7,
+          "bytes": 455,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 123,
+          "bytes": 246,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 12,
+          "bytes": 70,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 8,
+          "bytes": 310,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "overlay",
+      "config": "settle-100",
+      "round": 3,
+      "status": "ok",
+      "wallMs": 5497,
+      "calls": 6,
+      "errors": 1,
+      "bytes": 1977,
+      "tokens": 495,
+      "peakMiB": 1028,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 54,
+          "bytes": 244,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 3,
+          "bytes": 488,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 5031,
+          "bytes": 414,
+          "error": true
+        },
+        {
+          "tool": "browser_click",
+          "ms": 170,
+          "bytes": 257,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 231,
+          "bytes": 262,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 8,
+          "bytes": 312,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "overlay",
+      "config": "default",
+      "round": 3,
+      "status": "ok",
+      "wallMs": 6976,
+      "calls": 6,
+      "errors": 1,
+      "bytes": 1977,
+      "tokens": 495,
+      "peakMiB": 973,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 193,
+          "bytes": 244,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 11,
+          "bytes": 488,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 5069,
+          "bytes": 414,
+          "error": true
+        },
+        {
+          "tool": "browser_click",
+          "ms": 551,
+          "bytes": 257,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1084,
+          "bytes": 262,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 66,
+          "bytes": 312,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "slow",
+      "config": "settle-100",
+      "round": 3,
+      "status": "ok",
+      "wallMs": 3072,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1340,
+      "tokens": 335,
+      "peakMiB": 886,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 945,
+          "bytes": 230,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 1563,
+          "bytes": 291,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 52,
+          "bytes": 271,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 479,
+          "bytes": 249,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 34,
+          "bytes": 299,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "slow",
+      "config": "default",
+      "round": 3,
+      "status": "ok",
+      "wallMs": 3789,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1340,
+      "tokens": 335,
+      "peakMiB": 879,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 1054,
+          "bytes": 230,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 1542,
+          "bytes": 291,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 20,
+          "bytes": 271,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1123,
+          "bytes": 249,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 49,
+          "bytes": 299,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "tabs",
+      "config": "settle-100",
+      "round": 3,
+      "status": "ok",
+      "wallMs": 7293,
+      "calls": 66,
+      "errors": 0,
+      "bytes": 26908,
+      "tokens": 6727,
+      "peakMiB": 1755,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 204,
+          "bytes": 237,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 16,
+          "bytes": 1561,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 322,
+          "bytes": 392,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 6,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 21,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 69,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 113,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 71,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 394,
+          "bytes": 433,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 13,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 22,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 13,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 83,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 110,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 693,
+          "bytes": 487,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 46,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 13,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 17,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 16,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 53,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 276,
+          "bytes": 541,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 17,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 10,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 8,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 4,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 17,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 164,
+          "bytes": 595,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 9,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 8,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 9,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 4,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 18,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 199,
+          "bytes": 649,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 11,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 23,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 17,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 22,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 30,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 238,
+          "bytes": 703,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 181,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 34,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 33,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 28,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 95,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 615,
+          "bytes": 932,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 210,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 297,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 62,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 39,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 319,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 583,
+          "bytes": 932,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 161,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 107,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 94,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 21,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 75,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 429,
+          "bytes": 935,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 55,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 21,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 7,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 5,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 18,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 11,
+          "bytes": 2017,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 36,
+          "bytes": 96,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 348,
+          "bytes": 711,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 10,
+          "bytes": 760,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "tabs",
+      "config": "default",
+      "round": 3,
+      "status": "ok",
+      "wallMs": 9549,
+      "calls": 66,
+      "errors": 0,
+      "bytes": 26908,
+      "tokens": 6727,
+      "peakMiB": 1633,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 103,
+          "bytes": 237,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 8,
+          "bytes": 1561,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 615,
+          "bytes": 392,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 3,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 6,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 10,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 3,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 22,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 641,
+          "bytes": 433,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 85,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 107,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 11,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 23,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 132,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 650,
+          "bytes": 487,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 19,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 13,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 18,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 10,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 46,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 690,
+          "bytes": 541,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 20,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 43,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 67,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 40,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 94,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 615,
+          "bytes": 595,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 22,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 42,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 30,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 43,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 54,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 616,
+          "bytes": 649,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 26,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 18,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 20,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 25,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 131,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 878,
+          "bytes": 703,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 17,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 13,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 14,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 7,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 30,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 604,
+          "bytes": 932,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 24,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 18,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 9,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 10,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 21,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 614,
+          "bytes": 932,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 15,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 86,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 34,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 26,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 89,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 631,
+          "bytes": 935,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 29,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 74,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 13,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 20,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 43,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 14,
+          "bytes": 2017,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 30,
+          "bytes": 96,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1051,
+          "bytes": 711,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 8,
+          "bytes": 760,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "shadow",
+      "config": "settle-100",
+      "round": 3,
+      "status": "ok",
+      "wallMs": 316,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1352,
+      "tokens": 338,
+      "peakMiB": 1035,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 31,
+          "bytes": 235,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 3,
+          "bytes": 465,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 22,
+          "bytes": 107,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 248,
+          "bytes": 249,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 13,
+          "bytes": 296,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "shadow",
+      "config": "default",
+      "round": 3,
+      "status": "ok",
+      "wallMs": 1215,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1352,
+      "tokens": 338,
+      "peakMiB": 953,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 46,
+          "bytes": 235,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 5,
+          "bytes": 465,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 33,
+          "bytes": 107,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1117,
+          "bytes": 249,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 13,
+          "bytes": 296,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "frames",
+      "config": "settle-100",
+      "round": 3,
+      "status": "ok",
+      "wallMs": 755,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1565,
+      "tokens": 392,
+      "peakMiB": 1123,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 133,
+          "bytes": 233,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 12,
+          "bytes": 561,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 53,
+          "bytes": 168,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 273,
+          "bytes": 300,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 284,
+          "bytes": 303,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "frames",
+      "config": "default",
+      "round": 3,
+      "status": "ok",
+      "wallMs": 2270,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1565,
+      "tokens": 392,
+      "peakMiB": 1124,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 85,
+          "bytes": 233,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 9,
+          "bytes": 561,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 37,
+          "bytes": 168,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1065,
+          "bytes": 300,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1074,
+          "bytes": 303,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "dialog",
+      "config": "settle-100",
+      "round": 3,
+      "status": "ok",
+      "wallMs": 632,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1232,
+      "tokens": 308,
+      "peakMiB": 997,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 111,
+          "bytes": 232,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 51,
+          "bytes": 272,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 148,
+          "bytes": 362,
+          "error": false
+        },
+        {
+          "tool": "browser_handle_dialog",
+          "ms": 267,
+          "bytes": 71,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 52,
+          "bytes": 295,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "dialog",
+      "config": "default",
+      "round": 3,
+      "status": "ok",
+      "wallMs": 1231,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1232,
+      "tokens": 308,
+      "peakMiB": 894,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 97,
+          "bytes": 232,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 18,
+          "bytes": 272,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 54,
+          "bytes": 362,
+          "error": false
+        },
+        {
+          "tool": "browser_handle_dialog",
+          "ms": 1044,
+          "bytes": 71,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 18,
+          "bytes": 295,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "find",
+      "config": "settle-100",
+      "round": 3,
+      "status": "ok",
+      "wallMs": 183,
+      "calls": 2,
+      "errors": 0,
+      "bytes": 660,
+      "tokens": 165,
+      "peakMiB": 1019,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 120,
+          "bytes": 235,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 62,
+          "bytes": 425,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "find",
+      "config": "default",
+      "round": 3,
+      "status": "ok",
+      "wallMs": 169,
+      "calls": 2,
+      "errors": 0,
+      "bytes": 660,
+      "tokens": 165,
+      "peakMiB": 959,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 118,
+          "bytes": 235,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 51,
+          "bytes": 425,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "form",
+      "config": "default",
+      "round": 4,
+      "status": "ok",
+      "wallMs": 1241,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 2113,
+      "tokens": 529,
+      "peakMiB": 1008,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 43,
+          "bytes": 241,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 5,
+          "bytes": 917,
+          "error": false
+        },
+        {
+          "tool": "browser_fill_form",
+          "ms": 120,
+          "bytes": 384,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1062,
+          "bytes": 261,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 10,
+          "bytes": 310,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "form",
+      "config": "settle-100",
+      "round": 4,
+      "status": "ok",
+      "wallMs": 542,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 2113,
+      "tokens": 529,
+      "peakMiB": 1012,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 101,
+          "bytes": 241,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 14,
+          "bytes": 917,
+          "error": false
+        },
+        {
+          "tool": "browser_fill_form",
+          "ms": 156,
+          "bytes": 384,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 263,
+          "bytes": 261,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 8,
+          "bytes": 310,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "popup",
+      "config": "default",
+      "round": 4,
+      "status": "ok",
+      "wallMs": 876,
+      "calls": 9,
+      "errors": 0,
+      "bytes": 2303,
+      "tokens": 576,
+      "peakMiB": 965,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 68,
+          "bytes": 236,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 7,
+          "bytes": 323,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 677,
+          "bytes": 395,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 2,
+          "bytes": 134,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 5,
+          "bytes": 134,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 4,
+          "bytes": 455,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 102,
+          "bytes": 246,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 2,
+          "bytes": 70,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 7,
+          "bytes": 310,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "popup",
+      "config": "settle-100",
+      "round": 4,
+      "status": "ok",
+      "wallMs": 384,
+      "calls": 9,
+      "errors": 0,
+      "bytes": 2303,
+      "tokens": 576,
+      "peakMiB": 1004,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 34,
+          "bytes": 236,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 3,
+          "bytes": 323,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 234,
+          "bytes": 395,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 2,
+          "bytes": 134,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 3,
+          "bytes": 134,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 3,
+          "bytes": 455,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 97,
+          "bytes": 246,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 1,
+          "bytes": 70,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 6,
+          "bytes": 310,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "overlay",
+      "config": "default",
+      "round": 4,
+      "status": "ok",
+      "wallMs": 6892,
+      "calls": 6,
+      "errors": 1,
+      "bytes": 1977,
+      "tokens": 495,
+      "peakMiB": 977,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 45,
+          "bytes": 244,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 6,
+          "bytes": 488,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 5051,
+          "bytes": 414,
+          "error": true
+        },
+        {
+          "tool": "browser_click",
+          "ms": 612,
+          "bytes": 257,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1127,
+          "bytes": 262,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 49,
+          "bytes": 312,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "overlay",
+      "config": "settle-100",
+      "round": 4,
+      "status": "ok",
+      "wallMs": 5747,
+      "calls": 6,
+      "errors": 1,
+      "bytes": 1977,
+      "tokens": 495,
+      "peakMiB": 1018,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 84,
+          "bytes": 244,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 14,
+          "bytes": 488,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 5087,
+          "bytes": 414,
+          "error": true
+        },
+        {
+          "tool": "browser_click",
+          "ms": 186,
+          "bytes": 257,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 265,
+          "bytes": 262,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 110,
+          "bytes": 312,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "slow",
+      "config": "default",
+      "round": 4,
+      "status": "ok",
+      "wallMs": 3844,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1340,
+      "tokens": 335,
+      "peakMiB": 1010,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 847,
+          "bytes": 230,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 1849,
+          "bytes": 291,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 5,
+          "bytes": 271,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1135,
+          "bytes": 249,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 8,
+          "bytes": 299,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "slow",
+      "config": "settle-100",
+      "round": 4,
+      "status": "ok",
+      "wallMs": 3361,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1340,
+      "tokens": 335,
+      "peakMiB": 1012,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 838,
+          "bytes": 230,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 1936,
+          "bytes": 291,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 43,
+          "bytes": 271,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 520,
+          "bytes": 249,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 23,
+          "bytes": 299,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "tabs",
+      "config": "default",
+      "round": 4,
+      "status": "ok",
+      "wallMs": 13999,
+      "calls": 66,
+      "errors": 0,
+      "bytes": 26908,
+      "tokens": 6727,
+      "peakMiB": 1619,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 65,
+          "bytes": 237,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 7,
+          "bytes": 1561,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 631,
+          "bytes": 392,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 6,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 7,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 13,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 6,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 29,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 618,
+          "bytes": 433,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 3,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 4,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 9,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 8,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 30,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 642,
+          "bytes": 487,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 41,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 50,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 30,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 25,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 71,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 853,
+          "bytes": 541,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 34,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 32,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 64,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 7,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 137,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1323,
+          "bytes": 595,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 11,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 68,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 39,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 21,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 80,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 659,
+          "bytes": 649,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 38,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 35,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 30,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 13,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 48,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 734,
+          "bytes": 703,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 11,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 17,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 29,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 37,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 67,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1102,
+          "bytes": 932,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 235,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 118,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 131,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 111,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 215,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1424,
+          "bytes": 932,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 35,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 40,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 75,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 103,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 252,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1172,
+          "bytes": 935,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 59,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 33,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 24,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 88,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 124,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 176,
+          "bytes": 2017,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 113,
+          "bytes": 96,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1605,
+          "bytes": 711,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 72,
+          "bytes": 760,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "tabs",
+      "config": "settle-100",
+      "round": 4,
+      "status": "ok",
+      "wallMs": 11064,
+      "calls": 66,
+      "errors": 0,
+      "bytes": 26908,
+      "tokens": 6727,
+      "peakMiB": 1628,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 281,
+          "bytes": 237,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 70,
+          "bytes": 1561,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 620,
+          "bytes": 392,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 11,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 29,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 38,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 8,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 26,
+          "bytes": 126,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 668,
+          "bytes": 433,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 13,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 16,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 15,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 21,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 35,
+          "bytes": 180,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 459,
+          "bytes": 487,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 8,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 12,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 13,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 19,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 32,
+          "bytes": 234,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 342,
+          "bytes": 541,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 42,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 38,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 17,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 14,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 171,
+          "bytes": 288,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 856,
+          "bytes": 595,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 242,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 491,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 89,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 314,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 387,
+          "bytes": 342,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 822,
+          "bytes": 649,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 28,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 158,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 114,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 11,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 76,
+          "bytes": 396,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 439,
+          "bytes": 703,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 33,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 19,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 14,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 16,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 28,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 200,
+          "bytes": 932,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 16,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 13,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 15,
+          "bytes": 145,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 12,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 50,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1215,
+          "bytes": 932,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 30,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 25,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 50,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 38,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 124,
+          "bytes": 450,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 851,
+          "bytes": 935,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 165,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 36,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 31,
+          "bytes": 146,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 25,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_tabs",
+          "ms": 104,
+          "bytes": 452,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 55,
+          "bytes": 2017,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 142,
+          "bytes": 96,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 629,
+          "bytes": 711,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 71,
+          "bytes": 760,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "shadow",
+      "config": "default",
+      "round": 4,
+      "status": "ok",
+      "wallMs": 1361,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1352,
+      "tokens": 338,
+      "peakMiB": 937,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 169,
+          "bytes": 235,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 11,
+          "bytes": 465,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 76,
+          "bytes": 107,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1086,
+          "bytes": 249,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 19,
+          "bytes": 296,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "shadow",
+      "config": "settle-100",
+      "round": 4,
+      "status": "ok",
+      "wallMs": 315,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1352,
+      "tokens": 338,
+      "peakMiB": 1037,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 38,
+          "bytes": 235,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 5,
+          "bytes": 465,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 26,
+          "bytes": 107,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 240,
+          "bytes": 249,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 6,
+          "bytes": 296,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "frames",
+      "config": "default",
+      "round": 4,
+      "status": "ok",
+      "wallMs": 3037,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1565,
+      "tokens": 392,
+      "peakMiB": 1053,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 194,
+          "bytes": 233,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 19,
+          "bytes": 561,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 341,
+          "bytes": 168,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1266,
+          "bytes": 300,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 1215,
+          "bytes": 303,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "frames",
+      "config": "settle-100",
+      "round": 4,
+      "status": "ok",
+      "wallMs": 680,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1565,
+      "tokens": 392,
+      "peakMiB": 1062,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 144,
+          "bytes": 233,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 10,
+          "bytes": 561,
+          "error": false
+        },
+        {
+          "tool": "browser_type",
+          "ms": 38,
+          "bytes": 168,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 258,
+          "bytes": 300,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 231,
+          "bytes": 303,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "dialog",
+      "config": "default",
+      "round": 4,
+      "status": "ok",
+      "wallMs": 1278,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1232,
+      "tokens": 308,
+      "peakMiB": 964,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 33,
+          "bytes": 232,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 3,
+          "bytes": 272,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 41,
+          "bytes": 362,
+          "error": false
+        },
+        {
+          "tool": "browser_handle_dialog",
+          "ms": 1179,
+          "bytes": 71,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 22,
+          "bytes": 295,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "dialog",
+      "config": "settle-100",
+      "round": 4,
+      "status": "ok",
+      "wallMs": 461,
+      "calls": 5,
+      "errors": 0,
+      "bytes": 1232,
+      "tokens": 308,
+      "peakMiB": 995,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 109,
+          "bytes": 232,
+          "error": false
+        },
+        {
+          "tool": "browser_snapshot",
+          "ms": 10,
+          "bytes": 272,
+          "error": false
+        },
+        {
+          "tool": "browser_click",
+          "ms": 101,
+          "bytes": 362,
+          "error": false
+        },
+        {
+          "tool": "browser_handle_dialog",
+          "ms": 234,
+          "bytes": 71,
+          "error": false
+        },
+        {
+          "tool": "browser_wait_for",
+          "ms": 5,
+          "bytes": 295,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "find",
+      "config": "default",
+      "round": 4,
+      "status": "ok",
+      "wallMs": 182,
+      "calls": 2,
+      "errors": 0,
+      "bytes": 660,
+      "tokens": 165,
+      "peakMiB": 983,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 128,
+          "bytes": 235,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 54,
+          "bytes": 425,
+          "error": false
+        }
+      ]
+    },
+    {
+      "task": "find",
+      "config": "settle-100",
+      "round": 4,
+      "status": "ok",
+      "wallMs": 218,
+      "calls": 2,
+      "errors": 0,
+      "bytes": 660,
+      "tokens": 165,
+      "peakMiB": 1010,
+      "browser": "Chrome 157.0.8103.79",
+      "steps": [
+        {
+          "tool": "browser_navigate",
+          "ms": 150,
+          "bytes": 235,
+          "error": false
+        },
+        {
+          "tool": "browser_find",
+          "ms": 68,
+          "bytes": 425,
+          "error": false
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "cells": {
+      "form": {
+        "default": {
+          "runs": 5,
+          "ok": 5,
+          "wallMs": 1354,
+          "calls": 5,
+          "errors": 0,
+          "tokens": 529,
+          "peakMiB": 1008
+        },
+        "settle-100": {
+          "runs": 5,
+          "ok": 5,
+          "wallMs": 542,
+          "calls": 5,
+          "errors": 0,
+          "tokens": 529,
+          "peakMiB": 1012
+        }
+      },
+      "popup": {
+        "default": {
+          "runs": 5,
+          "ok": 5,
+          "wallMs": 876,
+          "calls": 9,
+          "errors": 0,
+          "tokens": 576,
+          "peakMiB": 982
+        },
+        "settle-100": {
+          "runs": 5,
+          "ok": 5,
+          "wallMs": 411,
+          "calls": 9,
+          "errors": 0,
+          "tokens": 576,
+          "peakMiB": 1004
+        }
+      },
+      "overlay": {
+        "default": {
+          "runs": 5,
+          "ok": 5,
+          "wallMs": 6837,
+          "calls": 6,
+          "errors": 1,
+          "tokens": 495,
+          "peakMiB": 982
+        },
+        "settle-100": {
+          "runs": 5,
+          "ok": 5,
+          "wallMs": 5545,
+          "calls": 6,
+          "errors": 1,
+          "tokens": 495,
+          "peakMiB": 1013
+        }
+      },
+      "slow": {
+        "default": {
+          "runs": 5,
+          "ok": 5,
+          "wallMs": 3789,
+          "calls": 5,
+          "errors": 0,
+          "tokens": 335,
+          "peakMiB": 982
+        },
+        "settle-100": {
+          "runs": 5,
+          "ok": 5,
+          "wallMs": 3106,
+          "calls": 5,
+          "errors": 0,
+          "tokens": 335,
+          "peakMiB": 1012
+        }
+      },
+      "tabs": {
+        "default": {
+          "runs": 5,
+          "ok": 5,
+          "wallMs": 9549,
+          "calls": 66,
+          "errors": 0,
+          "tokens": 6727,
+          "peakMiB": 1633
+        },
+        "settle-100": {
+          "runs": 5,
+          "ok": 5,
+          "wallMs": 6518,
+          "calls": 66,
+          "errors": 0,
+          "tokens": 6727,
+          "peakMiB": 1729
+        }
+      },
+      "shadow": {
+        "default": {
+          "runs": 5,
+          "ok": 5,
+          "wallMs": 1205,
+          "calls": 5,
+          "errors": 0,
+          "tokens": 338,
+          "peakMiB": 1011
+        },
+        "settle-100": {
+          "runs": 5,
+          "ok": 5,
+          "wallMs": 329,
+          "calls": 5,
+          "errors": 0,
+          "tokens": 338,
+          "peakMiB": 1035
+        }
+      },
+      "frames": {
+        "default": {
+          "runs": 5,
+          "ok": 5,
+          "wallMs": 2357,
+          "calls": 5,
+          "errors": 0,
+          "tokens": 392,
+          "peakMiB": 1118
+        },
+        "settle-100": {
+          "runs": 5,
+          "ok": 5,
+          "wallMs": 680,
+          "calls": 5,
+          "errors": 0,
+          "tokens": 392,
+          "peakMiB": 1123
+        }
+      },
+      "dialog": {
+        "default": {
+          "runs": 5,
+          "ok": 5,
+          "wallMs": 1223,
+          "calls": 5,
+          "errors": 0,
+          "tokens": 308,
+          "peakMiB": 998
+        },
+        "settle-100": {
+          "runs": 5,
+          "ok": 5,
+          "wallMs": 450,
+          "calls": 5,
+          "errors": 0,
+          "tokens": 308,
+          "peakMiB": 1033
+        }
+      },
+      "find": {
+        "default": {
+          "runs": 5,
+          "ok": 5,
+          "wallMs": 182,
+          "calls": 2,
+          "errors": 0,
+          "tokens": 165,
+          "peakMiB": 935
+        },
+        "settle-100": {
+          "runs": 5,
+          "ok": 5,
+          "wallMs": 208,
+          "calls": 2,
+          "errors": 0,
+          "tokens": 165,
+          "peakMiB": 1010
+        }
+      }
+    },
+    "paired": {
+      "form": {
+        "wallMs": {
+          "n": 5,
+          "a": 1354,
+          "b": 542,
+          "delta": -803,
+          "relative": -0.5930576070901034,
+          "lower": 5,
+          "higher": 0,
+          "interval": [
+            -1012,
+            -699
+          ]
+        },
+        "calls": {
+          "n": 5,
+          "a": 5,
+          "b": 5,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "errors": {
+          "n": 5,
+          "a": 0,
+          "b": 0,
+          "delta": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "tokens": {
+          "n": 5,
+          "a": 529,
+          "b": 529,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "peakMiB": {
+          "n": 5,
+          "a": 1008,
+          "b": 1012,
+          "delta": 23,
+          "relative": 0.022817460317460316,
+          "lower": 0,
+          "higher": 5,
+          "interval": [
+            4,
+            38
+          ]
+        }
+      },
+      "popup": {
+        "wallMs": {
+          "n": 5,
+          "a": 876,
+          "b": 411,
+          "delta": -407,
+          "relative": -0.4646118721461187,
+          "lower": 5,
+          "higher": 0,
+          "interval": [
+            -588,
+            -247
+          ]
+        },
+        "calls": {
+          "n": 5,
+          "a": 9,
+          "b": 9,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "errors": {
+          "n": 5,
+          "a": 0,
+          "b": 0,
+          "delta": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "tokens": {
+          "n": 5,
+          "a": 576,
+          "b": 576,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "peakMiB": {
+          "n": 5,
+          "a": 982,
+          "b": 1004,
+          "delta": 39,
+          "relative": 0.03971486761710794,
+          "lower": 1,
+          "higher": 4,
+          "interval": [
+            -61,
+            81
+          ]
+        }
+      },
+      "overlay": {
+        "wallMs": {
+          "n": 5,
+          "a": 6837,
+          "b": 5545,
+          "delta": -1199,
+          "relative": -0.17536931402661987,
+          "lower": 5,
+          "higher": 0,
+          "interval": [
+            -1479,
+            -1132
+          ]
+        },
+        "calls": {
+          "n": 5,
+          "a": 6,
+          "b": 6,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "errors": {
+          "n": 5,
+          "a": 1,
+          "b": 1,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "tokens": {
+          "n": 5,
+          "a": 495,
+          "b": 495,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "peakMiB": {
+          "n": 5,
+          "a": 982,
+          "b": 1013,
+          "delta": 30,
+          "relative": 0.03054989816700611,
+          "lower": 2,
+          "higher": 3,
+          "interval": [
+            -70,
+            55
+          ]
+        }
+      },
+      "slow": {
+        "wallMs": {
+          "n": 5,
+          "a": 3789,
+          "b": 3106,
+          "delta": -503,
+          "relative": -0.13275270519926102,
+          "lower": 4,
+          "higher": 1,
+          "interval": [
+            -940,
+            3013
+          ]
+        },
+        "calls": {
+          "n": 5,
+          "a": 5,
+          "b": 5,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "errors": {
+          "n": 5,
+          "a": 0,
+          "b": 0,
+          "delta": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "tokens": {
+          "n": 5,
+          "a": 335,
+          "b": 335,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "peakMiB": {
+          "n": 5,
+          "a": 982,
+          "b": 1012,
+          "delta": 7,
+          "relative": 0.007128309572301426,
+          "lower": 1,
+          "higher": 4,
+          "interval": [
+            -92,
+            63
+          ]
+        }
+      },
+      "tabs": {
+        "wallMs": {
+          "n": 5,
+          "a": 9549,
+          "b": 6518,
+          "delta": -2935,
+          "relative": -0.307362027437428,
+          "lower": 5,
+          "higher": 0,
+          "interval": [
+            -5847,
+            -1938
+          ]
+        },
+        "calls": {
+          "n": 5,
+          "a": 66,
+          "b": 66,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "errors": {
+          "n": 5,
+          "a": 0,
+          "b": 0,
+          "delta": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "tokens": {
+          "n": 5,
+          "a": 6727,
+          "b": 6727,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 1,
+          "interval": [
+            0,
+            93
+          ]
+        },
+        "peakMiB": {
+          "n": 5,
+          "a": 1633,
+          "b": 1729,
+          "delta": 122,
+          "relative": 0.0747091243110839,
+          "lower": 1,
+          "higher": 4,
+          "interval": [
+            -144,
+            164
+          ]
+        }
+      },
+      "shadow": {
+        "wallMs": {
+          "n": 5,
+          "a": 1205,
+          "b": 329,
+          "delta": -876,
+          "relative": -0.7269709543568464,
+          "lower": 5,
+          "higher": 0,
+          "interval": [
+            -1046,
+            -728
+          ]
+        },
+        "calls": {
+          "n": 5,
+          "a": 5,
+          "b": 5,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "errors": {
+          "n": 5,
+          "a": 0,
+          "b": 0,
+          "delta": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "tokens": {
+          "n": 5,
+          "a": 338,
+          "b": 338,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "peakMiB": {
+          "n": 5,
+          "a": 1011,
+          "b": 1035,
+          "delta": 15,
+          "relative": 0.01483679525222552,
+          "lower": 2,
+          "higher": 3,
+          "interval": [
+            -37,
+            100
+          ]
+        }
+      },
+      "frames": {
+        "wallMs": {
+          "n": 5,
+          "a": 2357,
+          "b": 680,
+          "delta": -1575,
+          "relative": -0.6682223165040305,
+          "lower": 5,
+          "higher": 0,
+          "interval": [
+            -2357,
+            -1329
+          ]
+        },
+        "calls": {
+          "n": 5,
+          "a": 5,
+          "b": 5,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "errors": {
+          "n": 5,
+          "a": 0,
+          "b": 0,
+          "delta": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "tokens": {
+          "n": 5,
+          "a": 392,
+          "b": 392,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "peakMiB": {
+          "n": 5,
+          "a": 1118,
+          "b": 1123,
+          "delta": -1,
+          "relative": -0.0008944543828264759,
+          "lower": 3,
+          "higher": 2,
+          "interval": [
+            -95,
+            40
+          ]
+        }
+      },
+      "dialog": {
+        "wallMs": {
+          "n": 5,
+          "a": 1223,
+          "b": 450,
+          "delta": -817,
+          "relative": -0.6680294358135732,
+          "lower": 5,
+          "higher": 0,
+          "interval": [
+            -897,
+            -599
+          ]
+        },
+        "calls": {
+          "n": 5,
+          "a": 5,
+          "b": 5,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "errors": {
+          "n": 5,
+          "a": 0,
+          "b": 0,
+          "delta": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "tokens": {
+          "n": 5,
+          "a": 308,
+          "b": 308,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "peakMiB": {
+          "n": 5,
+          "a": 998,
+          "b": 1033,
+          "delta": 40,
+          "relative": 0.04008016032064128,
+          "lower": 0,
+          "higher": 5,
+          "interval": [
+            31,
+            103
+          ]
+        }
+      },
+      "find": {
+        "wallMs": {
+          "n": 5,
+          "a": 182,
+          "b": 208,
+          "delta": 31,
+          "relative": 0.17032967032967034,
+          "lower": 1,
+          "higher": 4,
+          "interval": [
+            -135,
+            135
+          ]
+        },
+        "calls": {
+          "n": 5,
+          "a": 2,
+          "b": 2,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "errors": {
+          "n": 5,
+          "a": 0,
+          "b": 0,
+          "delta": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "tokens": {
+          "n": 5,
+          "a": 165,
+          "b": 165,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "peakMiB": {
+          "n": 5,
+          "a": 935,
+          "b": 1010,
+          "delta": 64,
+          "relative": 0.06844919786096257,
+          "lower": 0,
+          "higher": 5,
+          "interval": [
+            27,
+            101
+          ]
+        }
+      },
+      "all": {
+        "wallMs": {
+          "n": 5,
+          "a": 27305,
+          "b": 19057,
+          "delta": -9938,
+          "relative": -0.3639626442043582,
+          "lower": 5,
+          "higher": 0,
+          "interval": [
+            -11793,
+            -4406
+          ]
+        },
+        "calls": {
+          "n": 5,
+          "a": 108,
+          "b": 108,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "errors": {
+          "n": 5,
+          "a": 1,
+          "b": 1,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 0,
+          "interval": [
+            0,
+            0
+          ]
+        },
+        "tokens": {
+          "n": 5,
+          "a": 9865,
+          "b": 9865,
+          "delta": 0,
+          "relative": 0,
+          "lower": 0,
+          "higher": 1,
+          "interval": [
+            0,
+            93
+          ]
+        },
+        "peakMiB": {
+          "n": 5,
+          "a": 1633,
+          "b": 1729,
+          "delta": 122,
+          "relative": 0.0747091243110839,
+          "lower": 1,
+          "higher": 4,
+          "interval": [
+            -144,
+            164
+          ]
+        }
+      }
+    }
+  }
+}

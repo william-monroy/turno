@@ -1,9 +1,9 @@
 ---
 title: Benchmarks
-description: How much memory MCP servers take with and without the gateway, and how to measure it on your machine.
+description: How much memory MCP servers take with and without the gateway, how turno-browser does on a fixed set of browser tasks, and what a page can observe about it.
 ---
 
-This page gives the memory numbers behind turno's claim, how they were measured, and the command that reproduces them on your machine.
+This page gives the memory numbers behind turno's claim, how they were measured, and the command that reproduces them on your machine. The [turno-browser](#turno-browser) section covers the browser server: an evaluation suite of browser tasks with paired A/B runs, and a fingerprint and event bench.
 
 turno exists because of one measurement: 18 Claude Code sessions open on a 16 GB Mac held about 11.7 GB in MCP server processes, most of them copies of the same few servers. The benchmark reproduces that effect with public servers so anyone can check it.
 
@@ -74,3 +74,119 @@ Memory is the sum of the resident set size (RSS) of every process involved, read
 ## On your real setup
 
 Once the gateway runs, `turno mcp savings` compares its memory now with an estimate of the same live sessions without it, and `turno mcp top` shows memory per running server.
+
+## turno-browser
+
+Two scripts in `bench/browser` measure the browser server itself. Both start the built `turno-browser-mcp` the way an agent does, over stdio, on a throwaway identity in a throwaway `HOME`, so they test the real server and never read or change your own profiles.
+
+```sh
+git clone https://github.com/wimo-dev/turno && cd turno
+pnpm install && pnpm build
+pnpm bench:browser --list                        # tasks and configurations
+pnpm bench:browser                               # every task, the default configuration
+pnpm bench:browser --b settle-100 --rounds 5     # A/B: default against settle-100
+pnpm bench:fingerprint                           # what a page can observe, against plain Chrome
+```
+
+### Evaluation suite
+
+`pnpm bench:browser` runs a fixed set of short browser tasks on local fixture pages:
+
+| Task | What the agent does |
+|---|---|
+| `form` | fills a sign-up form (text, email, select, radio, checkbox) and submits it |
+| `popup` | approves an authorization popup and comes back to the page that opened it |
+| `overlay` | clicks a button a cookie banner covers, reads the error, dismisses the banner, retries |
+| `slow` | waits for a slow page and its late data, then confirms the order |
+| `tabs` | opens 10 reports in new tabs, reads a value from each, submits the sum |
+| `shadow` | types into a field two shadow roots deep and applies it |
+| `frames` | fills a form in a same-origin iframe and presses a button in a cross-origin iframe |
+| `dialog` | deletes a draft behind a `confirm()` dialog |
+| `find` | reads one price from a 400-row catalog without reading the whole page |
+
+Each task is a fixed script of tool calls, the way an agent works: take a snapshot, act on the refs it shows, read an error and recover. It is not a model, so every configuration gets exactly the same calls; the suite answers "does this change break a task, add calls, or cost time, tokens or memory", not "how good is an agent". Every run gets its own server, Chrome and fixture site, and Chrome starts before the clock does. For each run it records:
+
+| Metric | How |
+|---|---|
+| Success | from what the fixture site received (each page posts what the user did), never from what the script believes |
+| Calls, errors | tool calls the model would send, and how many returned an error |
+| Wall time | of the task, after Chrome has started |
+| Tokens | bytes of tool results divided by four, an estimate |
+| Peak memory | the highest sum of resident memory of the server and its Chrome processes, sampled every 200 ms |
+
+With `--b <config>` every task runs in both configurations, in pairs, and the configuration that runs first alternates from one round to the next, so a warm cache or a machine that heats up weighs on both sides. The second table gives, per task and for all tasks together, the median of the paired differences (B minus A) relative to A, in how many pairs B was lower and higher, and from five rounds on a 95% bootstrap interval. `--smoke` runs four tasks once; CI runs it on every pull request. `--json` and `--out <file>` give the full report, every tool call included.
+
+Configurations are data in `bench/browser/lib/configs.mjs`: server flags, `identity.json` keys, environment, another build of the server, headed or headless. The built-in ones:
+
+| Configuration | What changes |
+|---|---|
+| `default` | nothing: the server as installed |
+| `headed` | a visible Chrome window |
+| `settle-100` | `"settle": "100ms"` |
+| `block-heavy` | blocks images, media and fonts |
+| `tabs-4` | at most 4 open pages |
+| `humanize-light`, `humanize-full` | human-like input levels (needs a turno-browser that has them) |
+| `camoufox` | Camoufox as the engine (needs a turno-browser that has it) |
+
+A configuration the server does not accept (an unknown `identity.json` key or flag) is reported as unsupported instead of failing. More go in a JSON file passed with `--config-file`, for example a before and after of an update, or Chrome Beta:
+
+```json title="configs.json"
+[
+  { "name": "main", "description": "the build on main", "bin": "../turno-main/packages/browser/dist/bin/mcp.js" },
+  { "name": "beta", "description": "Chrome Beta", "args": ["--browser", "chrome-beta"] }
+]
+```
+
+```sh
+pnpm bench:browser --config-file configs.json --a main --b default --rounds 5
+```
+
+Apple M3, 16 GB, macOS, Node 26.13, Chrome 157 headless, turno-browser 0.3.0, 2026-11-18, `default` against `settle-100`, five rounds (raw output in [bench/results](https://github.com/wimo-dev/turno/tree/main/bench/results)). Medians, then the median of the paired differences with its 95% interval:
+
+| Task | Calls | Tokens | Wall time, default | Wall time, `settle-100` | Difference |
+|---|---|---|---|---|---|
+| `form` | 5 | 529 | 1,354 ms | 542 ms | -59% [-1,012, -699 ms] |
+| `popup` | 9 | 576 | 876 ms | 411 ms | -46% [-588, -247 ms] |
+| `overlay` | 6 (1 error) | 495 | 6,837 ms | 5,545 ms | -18% [-1,479, -1,132 ms] |
+| `slow` | 5 | 335 | 3,789 ms | 3,106 ms | -13% [-940, +3,013 ms] |
+| `tabs` | 66 | 6,727 | 9,549 ms | 6,518 ms | -31% [-5,847, -1,938 ms] |
+| `shadow` | 5 | 338 | 1,205 ms | 329 ms | -73% [-1,046, -728 ms] |
+| `frames` | 5 | 392 | 2,357 ms | 680 ms | -67% [-2,357, -1,329 ms] |
+| `dialog` | 5 | 308 | 1,223 ms | 450 ms | -67% [-897, -599 ms] |
+| `find` | 2 | 165 | 182 ms | 208 ms | +17% [-135, +135 ms] |
+| all nine | 108 | 9,865 | | | -36% [-11.8, -4.4 s] |
+
+Every run of both configurations succeeded, with the same calls and tokens: a shorter settle changes only the wait. It saves the most where a task is mostly actions (`shadow`, `frames`, `dialog`), little where the time goes to the page (`slow`, whose interval crosses zero) or to one call (`find`). Peak memory was about 1,000 MiB per run (1,630 MiB with ten tabs open) in both. The `overlay` task spends about 5 s in its first click: the click waits out the action timeout before turno says which element covers the button. The machine was busy with other work during the run, which is what the pairs are for.
+
+### Fingerprint and event bench
+
+`pnpm bench:fingerprint` opens a local probe page through the server and runs fixed steps with the stock tools: a click, a hover, a typed text, a text typed with `slowly`, and a click on a button below the fold. The page records what any site can observe and posts it to the bench, so reading the result never touches the page:
+
+- **navigator**: user agent, client hints and their agreement with it, languages, plugins, WebGL renderer, window size, permissions;
+- **automation markers**: `navigator.webdriver` and how it is defined, globals that Playwright, Puppeteer or Selenium leave, and any global plain Chrome does not have;
+- **protocol side effects**: DOM calls that come from outside the page's own scripts, whether the page's Content Security Policy holds, and the old `Runtime.enable` console leak;
+- **input events**: `isTrusted`, timing, coordinates and coalesced events of every pointer, key and wheel event, and the pointer path before the click.
+
+The reference is the same installed Chrome started directly on the probe page, with no automation at all and a throwaway profile; `matches-plain-chrome` lists the fields that differ. Each check is `pass`, `info` (a fact, not a problem), `warn` (something a detector can see) or `fail` (a contradiction or a plain automation marker).
+
+On Chrome 157 with the default configuration, headed, every navigator, automation and protocol check passes and the fields match plain Chrome. The input checks warn, as expected for the stock tools: the cursor makes one move to the exact center of the target, the button is pressed and released within 2 ms, `slowly` types a key every 1 to 5 ms, plain typing arrives as one input event, and a click below the fold scrolls in one jump. Those are what human-like input changes; the `humanize-light` and `humanize-full` configurations state in `expect` which input checks they must turn into a pass, and the bench fails when they do not.
+
+To catch a regression after a Patchright or Chrome update, keep a report and compare the next run with it; the exit code is 1 when a check got worse:
+
+```sh
+pnpm bench:fingerprint --headed --out before.json
+# update patchright-core or Chrome, rebuild
+pnpm bench:fingerprint --headed --baseline before.json
+```
+
+The public detector pages run only when you set `TURNO_BENCH_PUBLIC_DETECTORS=1`: rebrowser bot-detector, Sannysoft, CreepJS, and the TLS fingerprint at browserleaks, whose JA4 and HTTP/2 hashes must match plain Chrome's exactly. These are third-party sites: they see the visit, your IP address and your browser. The bench always uses the throwaway identity, never a profile you signed into. Measured once on the machine above, headed: Sannysoft 0 of 31 tests failed, CreepJS 0% headless, JA4 and HTTP/2 identical to plain Chrome, and rebrowser 15 of 16 passed. The one it flags, `storagePartitioning`, is real: Playwright turns off Chrome's third-party storage partitioning, which a normal Chrome has.
+
+`turno browser bench`, in the CLI, is a different tool: it launches engines directly through Playwright, without the MCP server, against the public pages and your own URLs. This bench drives the server you run, adds the local probe and the input events, and lives in the repository.
+
+### Caveats
+
+- Passing a detector page says little about how a real site scores a visit; the value is the trend between runs and configurations.
+- The tasks are scripted. They measure the server's part (calls, waits, result size, memory), not a model's choices.
+- Tokens are estimated from bytes; a real tokenizer gives somewhat different numbers, the same way for both sides of an A/B.
+- Memory is RSS summed over the processes, which overstates real pressure as in the gateway benchmark above.
+- Other work on the machine adds noise to wall time. Pairs and alternation spread it over both sides, and the interval shows how much is left; run five rounds or more before trusting a difference.
