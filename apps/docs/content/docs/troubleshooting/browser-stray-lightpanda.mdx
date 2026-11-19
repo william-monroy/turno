@@ -18,7 +18,7 @@ It is a warning; warnings do not change the exit code. Words in angle brackets s
 
 ## Why it happens
 
-A turno-browser-mcp in read mode was killed before it could stop the Lightpanda it started.
+A turno-browser-mcp in read mode was killed before it could stop the Lightpanda it started. The next read mode server for the same identity (or, without an identity, the next one started with --engine lightpanda) stops it too.
 
 ## Fix
 

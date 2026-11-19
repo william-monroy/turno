@@ -94,6 +94,7 @@ It exits with code 1 when a check fails; warnings exit 0. Each row below is one 
 | [Google Chrome is not installed (turno-browser)](/docs/troubleshooting/browser-chrome-not-found) | `Google Chrome not found` | failure |
 | [Lightpanda is not installed, and an identity uses read mode](/docs/troubleshooting/browser-lightpanda-not-found) | `Lightpanda not found, and read mode needs it for <users>` | failure |
 | [No Chrome to attach to](/docs/troubleshooting/browser-attach-not-listening) | `attach: no Chrome with remote debugging on< for <dir>>, so the next tool call fails` | warning |
+| [Several sessions share one tab](/docs/troubleshooting/browser-sharing-not-exclusive) | `[server.<name>] in mcp.toml lets several sessions in (exclusive = false), but this identity serves one at a time ("sharing": "session"), so those sessions share one current tab` | warning |
 | [A Lightpanda was left running](/docs/troubleshooting/browser-stray-lightpanda) | `Lightpanda pid <stray> was left running by a server that is gone` | warning |
 | [The test launch of Chrome failed](/docs/troubleshooting/browser-smoke-launch-failed) | `smoke launch failed: <first line>` | failure |
 
