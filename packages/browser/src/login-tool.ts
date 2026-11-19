@@ -1,6 +1,7 @@
 import type { Frame, Locator, Page } from "patchright-core";
 import type { SecretStore } from "turno-core/secrets";
 import type { IdentityRef } from "./engine.js";
+import type { HumanInput } from "./human-input.js";
 import type { Redactor, VaultGuard } from "./redact.js";
 import { totp, totpSecondsLeft } from "./totp.js";
 import type { TurnoTool } from "./tools.js";
@@ -36,6 +37,12 @@ export interface VaultAccess {
    * so the fill is never traced or screenshotted (`recordings.ts`).
    */
   beforeFill?: (page: Page) => Promise<void>;
+  /**
+   * Human-like input, when the identity's humanize is on: each value is typed key by key into
+   * its field, as `browser_type` would. Keys go to Chrome's input pipeline and nowhere else:
+   * not into a result (the redactor), a trace (`beforeFill` stopped it) or a log.
+   */
+  input?: HumanInput;
 }
 
 type Field = "username" | "password" | "code";
@@ -232,7 +239,10 @@ export function loginTool(): TurnoTool {
       };
       const filled: Field[] = [];
       let last: Locator | undefined;
-      for (const [field, locator] of fields) {
+      // With humanize on, the fields are clicked into and typed key by key (`human-input.ts`).
+      const humanized = vault.input && vault.input.levelFor(page) !== "off" ? vault.input : undefined;
+      for (const [field, found] of fields) {
+        const locator = humanized ? humanized.wrapLocator(found, page) : found;
         try {
           await locator.fill(values[field]!, { timeout: 5_000 });
         } catch (error) {

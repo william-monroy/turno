@@ -242,6 +242,8 @@ interface Running {
   sharing?: TabSharing;
   /** Traces and screenshots of this browser, when identity.json `record` asks for them. */
   recording?: Recording;
+  /** Human-like input, when humanize is on: also types a `browser_login` fill. */
+  input?: HumanInput;
 }
 
 class SessionBackend extends EventEmitter implements ServerBackend {
@@ -480,6 +482,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         ...(idle ? { idle } : {}),
         ...(sharing ? { sharing } : {}),
         ...(recording ? { recording } : {}),
+        ...(input ? { input } : {}),
       };
     })();
     promise.catch(() => {
@@ -529,9 +532,11 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     let shared: { sharing: TabSharing; view: SessionView; key: string } | undefined;
     let recording: Recording | undefined;
     let engine: string | undefined;
+    let input: HumanInput | undefined;
     if (tool.browser !== false) {
       const running = await this.browser();
       engine = running.launched.engine;
+      input = running.input;
       endCall = running.idle?.begin();
       browserContext = running.launched.context;
       let view: SessionView = { backend: running.backend, config: running.config };
@@ -580,6 +585,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
                 guard: this.host.guard,
                 ...(this.host.vaultStore ? { store: this.host.vaultStore } : {}),
                 ...(recording ? { beforeFill: (page: Page) => recording.pauseForSecret(page) } : {}),
+                ...(input ? { input } : {}),
               },
             }
           : {}),

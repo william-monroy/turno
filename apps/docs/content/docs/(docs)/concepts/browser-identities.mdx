@@ -162,7 +162,9 @@ turno-browser-mcp --identity school --humanize full  # the server's flag wins ov
 
 It works through the stock tools (`browser_click`, `browser_hover`, `browser_type`,
 `browser_fill_form`, `browser_select_option`, `browser_drag`, `browser_press_key` and the
-coordinate tools) and `browser_batch`, without changing their arguments or results. Every event
+coordinate tools) and `browser_batch`, without changing their arguments or results. A
+`browser_login` sign-in clicks into each field and types its value key by key too; the keys go to
+Chrome only, never to a result, a recording or a log. Every event
 still goes through Chrome's own input pipeline, and Playwright still checks that the target is
 visible, enabled and not covered. Longer text is pasted as before, and a field that is not text
 (a date, a color) is filled as before. `"seed"` in the group (`"humanize": { "level": "full",

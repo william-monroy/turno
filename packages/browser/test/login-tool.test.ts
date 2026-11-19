@@ -93,6 +93,13 @@ async function site(): Promise<{ url: string; posted: string[]; close(): Promise
         <button>Sign in</button>
       </form>`,
     "/code": `<title>Two-step</title><form method="post" action="/session"><label>Code <input name="otp" autocomplete="one-time-code" inputmode="numeric"></label><button>Verify</button></form>`,
+    // Counts the trusted key presses in each field, so a test sees the typing without a value.
+    "/typed": `<title>Sign in</title><form method="post" action="/session">
+        <label>Email <input name="email" type="email" autocomplete="username"></label>
+        <label>Password <input name="password" type="password" autocomplete="current-password"></label>
+        <button>Sign in</button></form><p id="keys">none</p>
+      <script>const n = {}; document.addEventListener("keydown", (e) => { if (!e.isTrusted || !e.target.name) return;
+        n[e.target.name] = (n[e.target.name] || 0) + 1; document.getElementById("keys").textContent = "keys " + Object.entries(n).map(([k, v]) => k + "=" + v).join(" "); }, true);</script>`,
     "/echo": `<title>Echo</title><form method="post" action="/session"><label>Email <input id="user" name="user"></label><label>Password <input type="password" name="pw"></label>
       <button type="button" onclick="document.getElementById('out').textContent = document.getElementById('user').value + ' / ' + document.querySelector('[name=pw]').value">Show</button></form><p id="out"></p>`,
   };
@@ -222,6 +229,34 @@ describe.skipIf(reason !== undefined)(
       expect(valid.includes(sent), "the code is one of the current TOTP codes").toBe(true);
       assertClean(filled.text, [sent]);
       expect(base32Decode(TOTP_SECRET).length).toBe(20);
+    }, 120_000);
+
+    it("types the values key by key when humanize is on, and still no result shows one", async () => {
+      const web = await site();
+      onTestFinished(() => web.close());
+      addIdentity("human", sb.env);
+      await vaultAdd(
+        "human",
+        "local",
+        { urls: [`${web.url}/typed`], username: USERNAME, password: PASSWORD },
+        { env: sb.env },
+      );
+      const client = await start("human", ["--humanize", "light"]);
+      await call(client, "browser_navigate", { url: `${web.url}/typed` });
+      const filled = await call(client, "browser_login", { site: "local" });
+      expect(filled.error, "browser_login failed").toBe(false);
+      assertClean(filled.text);
+      // The page counted a trusted key press per character in each field.
+      const snap = await call(client, "browser_snapshot");
+      assertClean(snap.text);
+      const keys = /keys [^\n"]*/.exec(snap.text)?.[0];
+      expect(keys).toBe(`keys email=${USERNAME.length} password=${PASSWORD.length}`);
+      await call(client, "browser_click", { target: "button", element: "Sign in button" });
+      expect(web.posted).toHaveLength(1);
+      const sent = new URLSearchParams(web.posted[0]);
+      expect(sent.get("email") === USERNAME && sent.get("password") === PASSWORD, "the form got both values").toBe(
+        true,
+      );
     }, 120_000);
 
     it("checks a field the model names: a password goes only into a password input", async () => {
