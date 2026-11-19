@@ -6,7 +6,8 @@
  *
  * Variables of a live session (TURNO_*, CLAUDE*, CODEX_*, CURSOR_*, ANTHROPIC_*) are cleared too,
  * except the switches that select tests (TURNO_SKIP_E2E, TURNO_E2E_NETWORK, TURNO_SKIP_CHROME,
- * TURNO_SKIP_LIGHTPANDA) and TURNO_LIGHTPANDA_PATH, which points the read mode tests at a Lightpanda.
+ * TURNO_SKIP_LIGHTPANDA), TURNO_LIGHTPANDA_PATH, which points the read mode tests at a Lightpanda,
+ * and TURNO_CAMOUFOX_PATH and TURNO_PLAYWRIGHT_CORE, which turn on the Camoufox tests.
  */
 import { chmodSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -18,6 +19,8 @@ const KEEP = new Set([
   "TURNO_SKIP_CHROME",
   "TURNO_SKIP_LIGHTPANDA",
   "TURNO_LIGHTPANDA_PATH",
+  "TURNO_CAMOUFOX_PATH",
+  "TURNO_PLAYWRIGHT_CORE",
 ]);
 const LIVE = /^(TURNO_|CLAUDE|CODEX_|CURSOR_|ANTHROPIC_|XDG_)/;
 

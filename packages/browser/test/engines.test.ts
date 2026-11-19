@@ -173,7 +173,7 @@ describe("server flags", () => {
   });
 
   it("refuses a bad engine, a bad target and the two together", () => {
-    expect(() => extractEngine(["--engine", "firefox"])).toThrow(/"chrome" or "lightpanda"/);
+    expect(() => extractEngine(["--engine", "firefox"])).toThrow(/"chrome", "lightpanda" \(read mode\) or "camoufox"/);
     expect(() => extractEngine(["--attach", "http://10.0.0.2:9222"])).toThrow(/^--attach/);
     expect(() => extractEngine(["--attach"])).toThrow(/needs a value/);
     expect(() => extractEngine(["--engine", "lightpanda", "--attach", "auto"])).toThrow(/pick one/);

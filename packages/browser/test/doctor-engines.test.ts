@@ -24,6 +24,8 @@ const base = (more: Partial<DoctorOptions> = {}): DoctorOptions => ({
   launch: false,
   chrome: () => ({ path: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", version: "157.0.0.0" }),
   lightpanda: () => undefined,
+  camoufox: () => undefined,
+  playwrightCore: () => undefined,
   procTable: () => new Map(),
   ...more,
 });
@@ -33,7 +35,8 @@ const rows = async (opts: DoctorOptions, area?: string) =>
 
 describe("doctor engine checks", () => {
   it("shows Lightpanda when found, and only informs when it is missing and unused", async () => {
-    expect(await rows(base({ lightpanda: () => ({ path: "/opt/lightpanda", version: "1.1.0" }) }), "engines")).toEqual([
+    const found = await rows(base({ lightpanda: () => ({ path: "/opt/lightpanda", version: "1.1.0" }) }), "engines");
+    expect(found.filter((c) => /Lightpanda/.test(c.text))).toEqual([
       { area: "engines", level: "ok", text: "Lightpanda 1.1.0 at /opt/lightpanda (read mode)" },
     ]);
     const [missing] = await rows(base(), "engines");

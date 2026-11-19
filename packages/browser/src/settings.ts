@@ -5,6 +5,7 @@ import { type ActSettings, type CaptchaSettings, actProblems, captchaProblems } 
 import { parseAttachTarget } from "./engine-attach.js";
 import { IdentityError, assertIdentityId } from "./ids.js";
 import { HUMANIZE_LEVELS, type HumanizeSettings } from "./humanize.js";
+import { type ProxySettings, type UserAgentMode, networkEngineClash, networkProblems } from "./network.js";
 import { parseDuration, parseSize } from "./units.js";
 
 /**
@@ -51,6 +52,9 @@ import { parseDuration, parseSize } from "./units.js";
  * - `live` (format 10): the live view and take-over (`live.ts`), off by default: `enabled` serves
  *   a view of the agent's tab on 127.0.0.1 and lets the user pause the agent; `wait` is how long
  *   a paused call waits for the user to resume before it fails (default 2m).
+ * - `userAgent`, `proxy` (format 11), and the `"camoufox"` value of `engine`: opt-in network and
+ *   user agent settings (`network.ts`) and Camoufox as an alternate engine
+ *   (`engine-camoufox.ts`), all off by default.
  *
  * A missing file means Chrome's own defaults, as before identity.json existed.
  */
@@ -62,7 +66,7 @@ import { parseDuration, parseSize } from "./units.js";
  * only when it uses one of them, so an older turno-browser keeps reading every other file and
  * refuses one it would misread with "update turno-browser".
  */
-export const IDENTITY_FORMAT_VERSION = 10;
+export const IDENTITY_FORMAT_VERSION = 11;
 
 /** The keys format 2 added. */
 const FORMAT_2_KEYS = ["tabs", "backgroundThrottling", "settle", "block", "cache"] as const;
@@ -113,6 +117,12 @@ export interface LiveSettings {
 /** Bounds of `live.wait`. */
 export const MIN_LIVE_WAIT_MS = 5_000;
 export const MAX_LIVE_WAIT_MS = 30 * 60_000;
+
+/** The keys format 11 added (the `"camoufox"` engine also writes format 11). */
+const FORMAT_11_KEYS = ["userAgent", "proxy"] as const;
+
+/** The values of `engine`: `"chrome"` (the default), read mode, and Camoufox (format 11). */
+const ENGINE_VALUES = ["chrome", "lightpanda", "camoufox"] as const;
 
 /** What turno-browser records for an identity (`recorder.ts`, `recordings.ts`); all off by default. */
 export interface RecordSettings {
@@ -204,8 +214,8 @@ export interface IdentitySettings {
   humanize?: HumanizeSettings;
   /** `"tabs"`: several agent sessions at once, each in its own locked tabs; default `"session"`. */
   sharing?: SharingSetting;
-  /** `"lightpanda"`: read mode on Lightpanda; default `"chrome"`. */
-  engine?: "chrome" | "lightpanda";
+  /** `"lightpanda"`: read mode on Lightpanda; `"camoufox"`: Camoufox; default `"chrome"`. */
+  engine?: (typeof ENGINE_VALUES)[number];
   /** Connect to a Chrome the user has open: `"auto"`, a user data dir, or a loopback endpoint. */
   attach?: string;
   record?: RecordSettings;
@@ -217,6 +227,10 @@ export interface IdentitySettings {
   tabLocks?: TabLockSettings;
   /** The live view and take-over: `enabled` and `wait`; off by default. */
   live?: LiveSettings;
+  /** `"coherent"`: the installed Chrome's own user agent and client hints, checked at launch. */
+  userAgent?: UserAgentMode;
+  /** A proxy for the identity's traffic; credentials only as `keychain:` references. */
+  proxy?: ProxySettings;
   /** ISO dates. */
   created: string;
   updated: string;
@@ -238,7 +252,8 @@ export type SettingsPatch = {
     | (typeof FORMAT_7_KEYS)[number]
     | (typeof FORMAT_8_KEYS)[number]
     | (typeof FORMAT_9_KEYS)[number]
-    | (typeof FORMAT_10_KEYS)[number]]?: IdentitySettings[K] | null;
+    | (typeof FORMAT_10_KEYS)[number]
+    | (typeof FORMAT_11_KEYS)[number]]?: IdentitySettings[K] | null;
 };
 
 const KEYS = new Set([
@@ -257,6 +272,7 @@ const KEYS = new Set([
   ...FORMAT_8_KEYS,
   ...FORMAT_9_KEYS,
   ...FORMAT_10_KEYS,
+  ...FORMAT_11_KEYS,
   "created",
   "updated",
 ]);
@@ -343,6 +359,9 @@ function browserProblems(v: Record<string, unknown>, out: string[]): void {
   captchaProblems(v.captcha, v, out);
   tabLockProblems(v.tabLocks, out);
   liveProblems(v.live, out);
+  networkProblems(v, out);
+  const networkClash = networkEngineClash(engineOf(v), v);
+  if (networkClash) out.push(networkClash);
   if (v.cache !== undefined) {
     const c = v.cache;
     if (!isObject(c)) out.push('cache must be an object, like {} or { "maxSize": "100MB" }');
@@ -393,14 +412,22 @@ function humanizeProblems(h: unknown, out: string[]): void {
   unknownKeys(h, ["level", "seed"], "humanize", out);
 }
 
-/** Problems with the format 6 keys. */
+/** The engine identity.json asks for: attach wins, like at launch. */
+function engineOf(v: Record<string, unknown>): string {
+  return v.attach !== undefined ? "attach" : String(v.engine ?? "chrome");
+}
+
+/** Problems with the format 6 keys (and the format 11 `"camoufox"` engine). */
 function engineProblems(v: Record<string, unknown>, out: string[]): void {
-  if (v.engine !== undefined && v.engine !== "chrome" && v.engine !== "lightpanda")
-    out.push('engine must be "chrome" (the default) or "lightpanda" (read mode)');
+  if (v.engine !== undefined && !(ENGINE_VALUES as readonly unknown[]).includes(v.engine))
+    out.push('engine must be "chrome" (the default), "lightpanda" (read mode) or "camoufox"');
+  if (v.engine === "camoufox" && v.keychain === "system")
+    out.push('keychain does not go with engine "camoufox": it sets how Chrome encrypts its cookies');
   if (v.attach !== undefined) {
     const target = typeof v.attach === "string" ? parseAttachTarget(v.attach) : { error: "attach must be a string" };
     if ("error" in target) out.push(target.error);
-    else if (v.engine === "lightpanda") out.push('attach does not go with engine "lightpanda": pick one');
+    else if (v.engine === "lightpanda" || v.engine === "camoufox")
+      out.push(`attach does not go with engine "${v.engine}": pick one`);
     else if (v.sharing === "tabs") out.push('attach does not go with sharing "tabs": pick one');
   }
   const level = isObject(v.humanize) ? v.humanize.level : undefined;
@@ -424,7 +451,7 @@ function recordProblems(v: Record<string, unknown>, out: string[]): void {
       out.push('record.maxSize must be a size from "10MB" to "10GB", like "200MB"');
   }
   unknownKeys(r, ["flows", "traces", "screenshots", "maxSize"], "record", out);
-  const clash = recordEngineClash(v.attach !== undefined ? "attach" : String(v.engine ?? "chrome"), r);
+  const clash = recordEngineClash(engineOf(v), r);
   if (clash) out.push(clash);
 }
 
@@ -604,6 +631,7 @@ export function writeIdentitySettings(
     else next[key] = value;
   }
   const formats = [
+    FORMAT_11_KEYS,
     FORMAT_10_KEYS,
     FORMAT_9_KEYS,
     FORMAT_8_KEYS,
@@ -614,7 +642,9 @@ export function writeIdentitySettings(
     FORMAT_3_KEYS,
     FORMAT_2_KEYS,
   ];
-  const newest = formats.findIndex((keys) => keys.some((k) => next[k] !== undefined));
+  // Camoufox is an engine value, not a key: it writes format 11, so an older turno-browser refuses it.
+  const newest =
+    next.engine === "camoufox" ? 0 : formats.findIndex((keys) => keys.some((k) => next[k] !== undefined));
   next.version = newest < 0 ? 1 : IDENTITY_FORMAT_VERSION - newest;
   if (typeof next.locale === "string") next.locale = canonicalLocale(next.locale) ?? next.locale;
   if (Array.isArray(next.languages)) next.languages = (next.languages as string[]).map((l) => canonicalLocale(l) ?? l);
