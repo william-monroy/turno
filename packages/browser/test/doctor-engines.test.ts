@@ -41,6 +41,19 @@ describe("doctor engine checks", () => {
     expect(missing!.text).toMatch(/never downloads it/);
   });
 
+  it("gives each platform its own install step", async () => {
+    const [linux] = await rows(base({ platform: "linux" }), "engines");
+    expect(linux).toMatchObject({
+      level: "info",
+      fix: expect.stringMatching(
+        /^curl -fL --create-dirs -o ~\/\.local\/bin\/lightpanda https:\/\/github\.com\/lightpanda-io\/browser\/releases\/download\/nightly\/lightpanda-(x86_64|aarch64)-linux && chmod \+x ~\/\.local\/bin\/lightpanda$/,
+      ),
+    });
+    const [windows] = await rows(base({ platform: "win32" }), "engines");
+    expect(windows).toMatchObject({ level: "info", manual: expect.stringMatching(/no build for this platform/) });
+    expect(windows!.fix).toBeUndefined();
+  });
+
   it("fails when an identity uses read mode and Lightpanda is missing", async () => {
     addIdentity("reader", sb.env);
     writeIdentitySettings("reader", { engine: "lightpanda" }, sb.env);

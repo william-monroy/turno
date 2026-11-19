@@ -442,7 +442,7 @@ export const DOCTOR_CHECKS = [
     match: "and read mode needs it for",
     title: "Lightpanda is not installed, and an identity uses read mode",
     why: "An identity runs on the Lightpanda engine (identity.json `engine`), and turno found no `lightpanda` on PATH or at TURNO_LIGHTPANDA_PATH. turno never downloads it, so its tool calls fail until you install it or switch the identity back to Chrome.",
-    fix: "Install Lightpanda with the command doctor prints (on macOS, brew install lightpanda-io/browser/lightpanda), or run turno browser set <id> --engine chrome.",
+    fix: "Install Lightpanda with the command doctor prints (on macOS, brew install lightpanda-io/browser/lightpanda; on Linux, a curl of Lightpanda's nightly binary into ~/.local/bin), or run turno browser set <id> --engine chrome.",
   },
   {
     id: "browser-attach-not-listening",

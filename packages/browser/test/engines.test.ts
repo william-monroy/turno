@@ -126,7 +126,11 @@ describe("Lightpanda discovery and read mode", () => {
 
   it("says how to install it and that turno never downloads it", () => {
     expect(lightpandaInstallHint("darwin")).toBe("brew install lightpanda-io/browser/lightpanda");
-    expect(lightpandaInstallHint("linux", "x64")).toContain("lightpanda-x86_64-linux");
+    expect(lightpandaInstallHint("linux", "x64")).toBe(
+      "curl -fL --create-dirs -o ~/.local/bin/lightpanda https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-x86_64-linux && chmod +x ~/.local/bin/lightpanda",
+    );
+    expect(lightpandaInstallHint("linux", "arm64")).toContain("lightpanda-aarch64-linux");
+    expect(lightpandaInstallHint("win32")).toMatch(/no build for this platform/);
     expect(lightpandaMissing({ PATH: "" }).message).toMatch(/not on PATH.*never downloads/);
   });
 

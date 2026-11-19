@@ -47,6 +47,11 @@ afterEach(async () => {
   sb.cleanup();
 });
 
+/** The env of a process this test starts: everything it writes under HOME lands in the sandbox. */
+function sandboxEnv(): NodeJS.ProcessEnv {
+  return { ...sb.env, XDG_CONFIG_HOME: join(sb.home, ".config"), XDG_CACHE_HOME: join(sb.home, ".cache") };
+}
+
 /** The "user's" Chrome: headless, a throwaway profile, remote debugging on a free port. */
 async function startUserChrome(): Promise<string> {
   const dir = join(sb.home, "user-chrome");
@@ -60,7 +65,8 @@ async function startUserChrome(): Promise<string> {
       "--no-default-browser-check",
       USER_PAGE,
     ],
-    { stdio: "ignore" },
+    // The sandbox HOME and XDG dirs: Chrome writes crash reports and the font cache under them.
+    { stdio: "ignore", env: sandboxEnv() },
   );
   expect(await waitFor(() => existsSync(join(dir, "DevToolsActivePort")), 20_000)).toBe(true);
   return dir;
@@ -83,7 +89,7 @@ async function start(args: string[], env: Record<string, string> = {}): Promise<
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [bin, ...args],
-    env: { ...(sb.env as Record<string, string>), ...env },
+    env: { ...(sandboxEnv() as Record<string, string>), ...env },
     cwd: sb.home,
     stderr: "pipe",
   });

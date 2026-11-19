@@ -80,7 +80,11 @@ export function readModeRefusal(tool: string): string | undefined {
   );
 }
 
-/** How to install Lightpanda on this platform, for errors and `turno browser doctor`. */
+/**
+ * How to install Lightpanda on this platform, for errors and `turno browser doctor`: one command
+ * a person runs on macOS (Homebrew) and Linux (Lightpanda's own nightly download), the reason
+ * there is none elsewhere.
+ */
 export function lightpandaInstallHint(
   platform: NodeJS.Platform = process.platform,
   arch: string = process.arch,
@@ -88,7 +92,7 @@ export function lightpandaInstallHint(
   if (platform === "darwin") return "brew install lightpanda-io/browser/lightpanda";
   if (platform === "linux") {
     const file = arch === "arm64" ? "lightpanda-aarch64-linux" : "lightpanda-x86_64-linux";
-    return `download https://github.com/lightpanda-io/browser/releases/download/nightly/${file}, make it executable and put it on PATH (or set TURNO_LIGHTPANDA_PATH)`;
+    return `curl -fL --create-dirs -o ~/.local/bin/lightpanda https://github.com/lightpanda-io/browser/releases/download/nightly/${file} && chmod +x ~/.local/bin/lightpanda`;
   }
   return "Lightpanda has no build for this platform (on Windows, use WSL)";
 }

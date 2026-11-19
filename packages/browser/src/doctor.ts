@@ -354,8 +354,9 @@ function engineChecks(opts: DoctorOptions, env: NodeJS.ProcessEnv, ids: string[]
   const area = "engines";
   const lightpanda = (opts.lightpanda ?? findLightpanda)(env);
   const users = ids.filter((id) => checkIdentitySettings(id, env).settings?.engine === "lightpanda");
-  const hint = lightpandaInstallHint();
-  const install = hint.startsWith("brew ") ? { fix: hint } : { manual: hint };
+  const platform = opts.platform ?? process.platform;
+  const hint = lightpandaInstallHint(platform);
+  const install = platform === "darwin" || platform === "linux" ? { fix: hint } : { manual: hint };
   if (lightpanda)
     out.push({
       area,

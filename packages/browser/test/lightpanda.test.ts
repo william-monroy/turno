@@ -88,6 +88,8 @@ async function start(args: string[]): Promise<Client> {
     args: [bin, ...args],
     env: {
       ...(sb.env as Record<string, string>),
+      XDG_CONFIG_HOME: join(sb.home, ".config"),
+      XDG_CACHE_HOME: join(sb.home, ".cache"),
       TMPDIR: tmp,
       TURNO_LIGHTPANDA_PATH: found!.path,
     },
