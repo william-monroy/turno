@@ -15,7 +15,7 @@ import s from "./pictures.module.css";
 
 /** The phases of each step and how many beats each holds: the typing, then what it draws. */
 const BEATS: Record<number, number[]> = {
-  0: [4, 1],
+  0: [4, 6, 1],
   1: [4, 5, 6, 1],
   2: [4, 1],
 };
@@ -33,6 +33,7 @@ export default function IdentitiesPicture({ lang, chosen, run, drawn, armed, red
   let result: string | undefined;
   if (chosen === 0) {
     if (p >= 1) result = PRINTS.added;
+    if (p >= 2) result = PRINTS.next;
   } else if (chosen === 1) {
     cmd = CMD.login;
     if (p >= 1) result = PRINTS.opening;

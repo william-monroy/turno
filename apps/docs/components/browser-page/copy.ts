@@ -21,7 +21,7 @@ export const CMD = {
   sharing: "turno-browser set school --sharing tabs",
   replay: "turno-browser replay school sign-in",
   live: "turno-browser live school",
-  setup: "turno-browser setup claude",
+  setup: "turno-browser setup claude-code --identity school",
   withTurnoInstall: "npm install --global turno-cli turno-browser",
   withTurnoAdd: "turno identity add browser:school",
 } as const;
@@ -40,6 +40,7 @@ export const SITE = "campus.example.edu";
 /** What the commands and tools print, word for word. */
 export const PRINTS = {
   added: `identity "school" ready at ${IDENTITY_PATH}`,
+  next: "Sign in to your sites once with `turno-browser login school`.",
   opening: `Opening Chrome for identity "school". Sign in to your sites, then close the window to save the session.`,
   capped: "closed the least recently used tab (https://docs.example.com/guide): more than 8 were open",
   parked: "parked a tab unused for 5 minutes on about:blank (https://docs.example.com/api); using it again loads that page",
@@ -303,7 +304,7 @@ const en: BrowserCopy = {
       commands: [
         { run: CMD.install, note: "The package and its command." },
         { run: CMD.add, note: "Your first identity." },
-        { run: CMD.setup, note: "Prints the MCP entry for your agent." },
+        { run: CMD.setup, note: "Prints the config for Claude Code. It does the same for Codex, Cursor and the others." },
       ],
     },
     withTurno: {
@@ -489,7 +490,7 @@ const es: BrowserCopy = {
       commands: [
         { run: CMD.install, note: "El paquete y su comando." },
         { run: CMD.add, note: "Tu primera identidad." },
-        { run: CMD.setup, note: "Imprime la entrada de MCP para tu agente." },
+        { run: CMD.setup, note: "Imprime la configuración para Claude Code. Hace lo mismo para Codex, Cursor y los demás." },
       ],
     },
     withTurno: {
