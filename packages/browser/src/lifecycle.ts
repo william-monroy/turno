@@ -114,10 +114,19 @@ export function findProfileChrome(userDataDir: string, opts: FindOptions = {}): 
   return { pid, pgid: pid, leaderAlive: false, owner: orphaned ? "orphan" : "other" };
 }
 
+/**
+ * How long `stopChrome` waits for the group to go after SIGKILL. A SIGKILL is delivered at
+ * once, but the group is gone only when the kernel has torn down every member and init (or a
+ * subreaper) has reaped each one: until then `kill(-pgid, 0)` still finds the zombies. On a
+ * loaded two-core CI runner with several Chromes that took more than 2 seconds, and the sweep
+ * then reported a Chrome that "did not stop" while it was already dying.
+ */
+export const KILL_WAIT_MS = 5_000;
+
 export interface StopOptions {
   /** How long the browser gets to quit after SIGTERM. */
   graceMs?: number;
-  /** How long to wait for the group to go after SIGKILL. */
+  /** How long to wait for the group to go after SIGKILL (default `KILL_WAIT_MS`). */
   killMs?: number;
   signal?: Signal;
   alive?: Alive;
@@ -150,7 +159,7 @@ export async function stopChrome(
   signal(target.leaderAlive ? target.pid : handle, "SIGTERM");
   if (await waitUntil(gone, opts.graceMs ?? 3000)) return "exited";
   signal(handle, "SIGKILL");
-  return (await waitUntil(gone, opts.killMs ?? 2000)) ? "killed" : "survived";
+  return (await waitUntil(gone, opts.killMs ?? KILL_WAIT_MS)) ? "killed" : "survived";
 }
 
 export interface SweepResult {

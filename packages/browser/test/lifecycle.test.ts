@@ -1,9 +1,10 @@
 import { mkdirSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   findProfileChrome,
   isBrowserProcess,
+  KILL_WAIT_MS,
   parseProcTable,
   type ProcTable,
   readLockPid,
@@ -187,6 +188,28 @@ describe("stopChrome", () => {
       [500, "SIGTERM"],
       [500, "SIGKILL"],
     ]);
+  });
+
+  it("waits more than 2 seconds after SIGKILL before it reports a survivor (zombies still count)", async () => {
+    vi.useFakeTimers();
+    try {
+      // The group goes 3 seconds after SIGKILL, as on a loaded runner.
+      let killedAt: number | undefined;
+      const result = stopChrome(
+        { pid: 500, pgid: 500, leaderAlive: true, owner: "orphan" },
+        {
+          graceMs: 100,
+          signal: (_pid, sig) => {
+            if (sig === "SIGKILL") killedAt = Date.now();
+          },
+          alive: () => killedAt === undefined || Date.now() - killedAt < 3_000,
+        },
+      );
+      await vi.advanceTimersByTimeAsync(KILL_WAIT_MS + 1_000);
+      expect(await result).toBe("killed");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("signals the group of leftover helpers", async () => {
