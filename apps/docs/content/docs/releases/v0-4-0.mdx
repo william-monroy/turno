@@ -21,13 +21,14 @@ turno 0.4.0 is about the browser again. One browser identity can now **[serve se
 
 ## Highlights
 
-<Highlight area="Browser" title="Several agents, one browser" href="/docs/concepts/browser-identities#several-agents-one-browser" more="Several agents, one browser">
+<Highlight area="Browser" title="Several agents, one browser" href="/docs/concepts/browser-identities#several-agents-one-browser">
 
 Until now an identity served one agent session at a time. With `"sharing": "tabs"` several sessions use the same signed-in browser, each with its own current tab and the tabs it holds. Another session's call on a held tab waits up to 10 seconds and then fails with a message that names the holder, `browser_close` closes only the calling session's tabs, and a session lets go of its tabs when it ends or after 5 minutes without a call.
 
 ```sh
 turno identity set browser:school --sharing tabs
-turno identity set browser:school --tab-lock-wait 30s --tab-lock-release 10m
+turno identity set browser:school \
+  --tab-lock-wait 30s --tab-lock-release 10m
 ```
 
 Serve the identity with `exclusive = false` in `mcp.toml`; `turno browser doctor` warns when the two disagree.
@@ -39,9 +40,12 @@ Serve the identity with `exclusive = false` in `mcp.toml`; `turno browser doctor
 `browser_record` saves what an agent does as a named flow. Each element is kept four ways (Playwright's locator, role and name, text and CSS path), so a small change on the page does not break it, and typed text becomes parameters. Passwords, one-time codes and values marked sensitive are never saved. `browser_replay` runs the flow, and when a step no longer fits it stops with a report the agent can continue from.
 
 ```sh
-turno browser flows school                     # saved flows and their parameters
-turno browser replay school sign-in --param password=keychain:school-password
-turno browser record school --flows --traces   # record every session, with Playwright traces
+# saved flows and their parameters
+turno browser flows school
+turno browser replay school sign-in \
+  --param password=keychain:school-password
+# record every session, with traces
+turno browser record school --flows --traces
 ```
 
 </Highlight>
@@ -51,8 +55,9 @@ turno browser record school --flows --traces   # record every session, with Play
 Some coding agents prefer commands to MCP tools. `turno browser do` runs one browser action per command through mcpd, with the same tab locks, vault, recordings and refusals an agent gets over MCP. The commands one agent or one shell runs share a session and keep their tab until `end`. The Claude Code plugin adds a short `browser-identity` skill that teaches the loop.
 
 ```sh
-turno browser do school open https://mail.example.com/
-turno browser do school snapshot          # the page's tree, with refs like e12
+turno browser do school open \
+  https://mail.example.com/
+turno browser do school snapshot   # refs like e12
 turno browser do school click e12
 turno browser do school end
 ```
@@ -65,8 +70,8 @@ Off by default. With `--live true` turno-browser serves a view of the agent's ta
 
 ```sh
 turno browser set school --live true
-turno browser live school     # opens the view
-turno browser pause school    # the agent's next call waits for you
+turno browser live school    # opens the view
+turno browser pause school   # holds the next call
 turno browser resume school
 ```
 
@@ -77,8 +82,10 @@ turno browser resume school
 Read mode runs an identity on [Lightpanda](https://github.com/lightpanda-io/browser) instead of Chrome, to read pages with a fraction of the memory; tools that need a laid-out page are refused with the reason. Attach mode connects to the Chrome you already have open, works in a tab of its own and never closes yours. turno never downloads either engine, and `turno browser doctor` checks both.
 
 ```sh
-turno browser set research --engine lightpanda   # read mode
-turno browser set school --attach auto           # your own Chrome, after turning on remote debugging
+# read mode
+turno browser set research --engine lightpanda
+# your own Chrome, with remote debugging on
+turno browser set school --attach auto
 ```
 
 </Highlight>
