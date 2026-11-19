@@ -50,11 +50,14 @@ Input (wins over the identity's identity.json):
                            full adds overshoot, reading pauses and wheel scrolling; adaptive is
                            light, and full on a site that showed a challenge page
 
-Engines (these flags win over the identity's identity.json; both are off by default):
+Engines (these flags win over the identity's identity.json; all off by default):
   --engine lightpanda      read mode: Lightpanda instead of Chrome, for reading pages
                            (navigate, snapshot, find, click a link, evaluate); other tools are
                            refused. Needs lightpanda on PATH or TURNO_LIGHTPANDA_PATH
-  --engine chrome          the default; turns off an identity's read or attach mode
+  --engine camoufox        Camoufox (a Firefox build) instead of Chrome, with its own profile;
+                           not recommended for your own accounts. Needs Camoufox and
+                           playwright-core (turno browser doctor says how); never downloaded
+  --engine chrome          the default; turns off an identity's read, Camoufox or attach mode
   --attach <target>        connect to a Chrome you already have open instead of launching
                            one: "auto" (your default Chrome profile, after you turn on remote
                            debugging at chrome://inspect/#remote-debugging), a Chrome user

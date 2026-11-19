@@ -27,7 +27,7 @@ import { manifestSnippet } from "./snippet.js";
  *
  * `test/api.test.ts` lists the members, so a change here cannot ship without the version.
  */
-export const API_VERSION = Object.freeze({ major: 1, minor: 9 } as const);
+export const API_VERSION = Object.freeze({ major: 1, minor: 10 } as const);
 
 /** What `API_VERSION` looks like to a reader that does not know this package's version. */
 export interface ApiVersion {
@@ -44,8 +44,10 @@ export interface ApiVersion {
  * `record` key of identity.json, saved flows, replay and recordings, (1.7) the `act` and
  * `captcha` keys of identity.json (no new member) and `solved` in each site of
  * `reputationReport`, (1.8) the `tabLocks` key of identity.json and
- * `runDoctor({ servers })`, the mcp.toml servers of each identity, and (1.9) the `live` key of
- * identity.json and the live view of a running server (status, pause, resume, a one-time link).
+ * `runDoctor({ servers })`, the mcp.toml servers of each identity, (1.9) the `live` key of
+ * identity.json and the live view of a running server (status, pause, resume, a one-time link),
+ * and (1.10) the `userAgent` and `proxy` keys and the `"camoufox"` engine of identity.json, and
+ * the Camoufox and network checks of `runDoctor` (no new member: an older package refuses them).
  */
 export const api = Object.freeze({
   ENGINES,

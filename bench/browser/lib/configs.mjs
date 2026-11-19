@@ -61,9 +61,34 @@ export const BUILTIN = [
   },
   {
     name: "camoufox",
-    description: "Camoufox as the engine (opt-in, Firefox based)",
+    description: "Camoufox as the engine (opt-in, Firefox based, needs Camoufox and playwright-core)",
     identity: { engine: "camoufox" },
     needs: "the Camoufox engine (identity.json engine)",
+    expect: { "headers-match-navigator": "pass", "worker-matches-page": "pass" },
+  },
+  {
+    name: "user-agent-coherent",
+    description: 'identity.json "userAgent": "coherent" (the installed Chrome\'s own user agent, checked at launch)',
+    identity: { userAgent: "coherent" },
+    needs: "identity.json userAgent",
+    expect: {
+      "headless-token": "pass",
+      "client-hints-match": "pass",
+      "headers-match-navigator": "pass",
+      "worker-matches-page": "pass",
+    },
+  },
+  {
+    name: "user-agent-coherent-tz",
+    description: "userAgent coherent with a time zone other than the computer's",
+    identity: { userAgent: "coherent", timezone: "Pacific/Auckland" },
+    needs: "identity.json userAgent",
+    expect: {
+      "headless-token": "pass",
+      "client-hints-match": "pass",
+      "headers-match-navigator": "pass",
+      "worker-matches-page": "pass",
+    },
   },
 ];
 

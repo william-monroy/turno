@@ -36,7 +36,7 @@ export type { BrowserApi };
  * The API version this turno was built against. Typed by the package's own constant, so a
  * change of its API_VERSION in the workspace fails the typecheck until this line follows.
  */
-export const BROWSER_API: typeof API_VERSION = { major: 1, minor: 9 };
+export const BROWSER_API: typeof API_VERSION = { major: 1, minor: 10 };
 
 /** What the package exports that the loader looks at. */
 interface BrowserPackage {
@@ -465,8 +465,8 @@ paused, your clicks, keys and scrolls go to the page. The view is served on 127.
 link it opens works once. Off by default: turn it on with turno browser set <id> --live true
 (it starts with the next turno-browser-mcp for the identity).
 
-Read mode (Lightpanda) has no pixels and attach mode is your own Chrome, which you already see:
-there the view is off, and pause and resume still work. A page that holds a vault or password
+Read mode (Lightpanda) has no pixels, attach mode is your own Chrome, which you already see, and
+Camoufox (Firefox) has no Chrome screencast: there the view is off, and pause and resume still work. A page that holds a vault or password
 value is never shown until it navigates.`,
       flags: ["--no-open", "--json"],
       json: liveCmd.LIVE_JSON,

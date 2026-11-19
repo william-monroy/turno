@@ -411,6 +411,9 @@ With the other settings:
 - Attach mode: it works in the agent's own tab of your Chrome, never in your tabs.
 - Read mode (`"engine": "lightpanda"`): `browser_extract` and `browser_observe` work; `browser_act`
   can only use the tools read mode runs (no drag).
+- [Camoufox](#camoufox): it works, through the same stock tools.
+- [A proxy](#a-proxy): the proxy's user name and password are hidden from the prompt like vault
+  values.
 - `humanize`: each action is the stock tool call, so it moves and types like the agent's own calls.
 - Recordings: a flow records the stock steps the model chose, never the instruction, the prompt or
   the page it read, and a trace or screenshot covers those steps like any other.
@@ -450,7 +453,9 @@ reputation` shows a `solved` column once a solver answered.
 
 With the other settings: it works with `"sharing": "tabs"` (in the calling session's tab) and in
 attach mode (in the agent's own tab); read mode refuses it, since Lightpanda runs no widget, and
-`turno identity set` refuses the combination. It is not recorded in a flow: a replay that meets
+`turno identity set` refuses the combination. Camoufox refuses it too: the token is set from
+Patchright's isolated script world and the widget's callback runs in the page's own, and Camoufox
+runs on stock Playwright. It is not recorded in a flow: a replay that meets
 the captcha again stops at the next step, where the agent can call `browser_solve_captcha` and go
 on with `from`.
 
@@ -519,6 +524,10 @@ With the other settings:
   Chrome, then resume.
 - Read mode (`"engine": "lightpanda"`): Lightpanda renders no pixels, so there is no view. Pause
   and resume work.
+- [Camoufox](#camoufox): the view is a Chrome DevTools Protocol screencast, which Firefox does not
+  have, so there is no view. Pause and resume work; with a headed Camoufox, act in its window.
+- [A proxy](#a-proxy): the view's tab list hides the proxy's user name and password like vault
+  values. The proxy signs in inside the browser, so no page holds them to show.
 - `"sharing": "tabs"`: a pause holds every session. The view lists every tab with the session that
   holds it and follows the tab of the latest call from any session; pick a tab to stay on it. Each
   held call's note is about its own session's current tab.
@@ -561,17 +570,107 @@ Each captcha, "verify it's you" or block page the identity meets is one line in 
 turno browser reputation school    # counts per site, and whether they go up or down
 ```
 
+## Network and user agent
+
+Two settings change how an identity's browser reaches sites. Both are off by default, set per
+identity in `identity.json` (format 11), and **not recommended**: the default, your own Chrome on
+your own connection, is already one coherent browser. They exist for your own accounts and for
+sites you may automate, when you have a reason, and each one has a cost:
+
+- a browser whose parts disagree (a user agent from one Chrome, client hints from another, a time
+  zone that does not match the address) stands out more than one that changes nothing;
+- many sites' terms forbid proxies or automated access, and a sign-in from a new network can lock
+  an account until you confirm it is you;
+- a proxy's operator sees which sites the identity visits, and the full content of plain `http://`
+  pages.
+
+```sh
+turno identity set browser:school --user-agent coherent
+turno identity set browser:school --proxy-server http://proxy.example.com:8080 \
+  --proxy-username alice --proxy-password keychain:school-proxy
+turno secret set school-proxy        # the password, typed into the secret store
+turno identity set browser:school --no-proxy --user-agent ""   # both off again
+```
+
+### A coherent user agent
+
+`"userAgent": "coherent"` takes no value of yours: turno builds the user agent from the Chrome you
+have installed and never takes a typed string. A typed user agent says one thing while the client
+hints, `navigator.platform`, WebGL, the fonts and the TLS handshake still say what the browser
+really is, which is the inconsistency the setting is there to avoid. The Chrome version and the
+platform are never configurable for the same reason: measured with Chrome 157, a page's dedicated
+workers keep the real `navigator.platform` whatever the override, and a popup's first request
+carries the real client hints platform.
+
+What it does:
+
+- **Headed** (the default): nothing changes, since a headed Chrome already presents itself as it
+  is. The launch check below still runs.
+- **Headless**: a headless Chrome says `HeadlessChrome` in its user agent while its client hints say
+  `Google Chrome`. turno gives it the user agent a headed Chrome of the same version and OS sends
+  (Chrome's `--user-agent` switch, which every request, popup and worker carries), and, since that
+  switch alone blanks the client hints' full version list, architecture and platform version,
+  gives each page those values back as this same Chrome reports them. They are read once per
+  Chrome version by a short headless launch on a throwaway profile and kept in the state folder.
+  Workers take them from their page, and a tab a tool opens has them before it loads. A popup a
+  page opens gets them as soon as it exists, which can be after its first document loaded.
+- **Languages and time zone** come from the identity (`--languages`, `--timezone`) or from the
+  computer, as without the setting.
+- **The launch check**: before the agent gets the browser, turno loads a page of its own (answered
+  inside Chrome, so nothing goes out) and compares what it reads: no `HeadlessChrome`, brands and
+  full version list that name the Chrome that runs, the high entropy values this Chrome reports
+  (on Linux Chrome reports an empty platform version, so turno does too), one platform in the user
+  agent, the client hints and `navigator.platform`, the request's headers equal to what the page reads, the
+  languages and time zone you asked for, and dates formatted in the first language. Any
+  contradiction stops the launch with what disagreed. On macOS Chrome takes the date and number
+  format from the system language, not from flags, so languages that start with another language
+  are refused there: start them with the system's, or change the macOS language.
+
+`pnpm bench:fingerprint --configs default,user-agent-coherent,user-agent-coherent-tz` shows the
+result: the headless token gone, and the headers, a worker, the client hints and the Intl locale
+agreeing with the page.
+
+### A proxy
+
+`proxy.server` is an `http://`, `https://`, `socks4://` or `socks5://` URL with a host and port
+only. The credentials never go in the URL or in `identity.json`: `proxy.password` is always a
+`keychain:<item>` reference to the secret store (`turno secret set <item>`), and `proxy.username`
+is a name or a reference too. Chrome cannot sign in to a SOCKS proxy, so a SOCKS proxy takes no
+credentials. turno reads them when the browser starts and hides the user name, the password and
+their `Basic` encoding from every tool result; a missing item stops the start, so no request goes
+out without the proxy. `turno browser doctor` checks that the item exists without reading it.
+
+All of the identity's traffic goes through the proxy, `turno browser login` included, so a site
+sees one network for both. WebRTC is limited to the proxy too, so a page cannot learn your own
+address that way. Sites see the proxy's address, and its operator sees where you go.
+
+### With the other settings
+
+| | `userAgent` | `proxy` |
+|---|---|---|
+| Attach mode | refused: it is your own Chrome, and turno does not change it | refused, for the same reason |
+| Read mode | refused: Lightpanda presents its own user agent | refused: not checked with a proxy |
+| Camoufox | refused: Firefox sends no client hints, and Camoufox presents its own values | works (WebRTC limited the same way) |
+| Tab sharing, humanize | work | work |
+| Natural language actions, live view, `turno browser do` | work | work; the act model's prompt and the view's tab list hide the credentials like vault values |
+| Recordings | work | flows and screenshots work; `record.traces` is refused with a proxy password, since a trace keeps the browser's launch options, password included |
+| A server flag of its own (`--user-agent`, `--device`, `--proxy-server`) | refused: keep one | refused: keep one |
+
+Each refusal comes when you set the key, or, for a server flag that clashes with the file, at
+the first tool call, before any browser opens.
+
 ## Engines
 
-An identity runs on the Chrome turno launches on its own profile. Two other engines are there
-when you ask for one, per identity in `identity.json` (format 6) or per server with a flag, which
-wins over the file:
+An identity runs on the Chrome turno launches on its own profile. Three other engines are there
+when you ask for one, per identity in `identity.json` (format 6, format 11 for Camoufox) or per
+server with a flag, which wins over the file:
 
 | Engine | Set it | What it is for |
 |---|---|---|
 | Chrome (default) | nothing, or `--engine chrome` | everything: the identity's own profile, headed |
 | Read mode | `--engine lightpanda` | reading pages fast and with little memory, on Lightpanda |
 | Attach | `--attach auto` | working in the Chrome you already have open and signed in |
+| Camoufox | `--engine camoufox` | not recommended; a Firefox build, on its own profile |
 
 ```sh
 turno browser set school --engine lightpanda     # read mode for this identity
@@ -586,6 +685,7 @@ with `humanize`. The other two pairs are refused with the reason, in `identity.j
 server flags: attach mode with `"sharing": "tabs"` (in your own Chrome turno keeps one agent's
 tabs apart from yours, not several sessions apart from each other), and read mode with
 `humanize` (Lightpanda lays out no page, so there is no pointer path or scroll to play).
+Camoufox works with both, and with recordings.
 
 ### Read mode (Lightpanda)
 
@@ -641,6 +741,46 @@ Use read mode for public pages you only need to read. It is not a way to visit s
 automation: Lightpanda sends `Lightpanda/1.0` as its user agent, and `browser_login` is
 refused there.
 
+### Camoufox
+
+[Camoufox](https://camoufox.com) is a Firefox build that sets what the browser reports (screen,
+fonts, WebGL and the like) inside the browser itself. turno can run an identity on it, off by
+default and **not recommended for your own accounts**: a Firefox whose reported values differ
+from the computer's is something sites look for, and Camoufox is a third party's build of Firefox
+that you install and keep up to date yourself.
+
+turno never downloads it. Two things must be installed, and `turno browser doctor` checks both
+and prints how to install them:
+
+- Camoufox: `pip install -U camoufox && camoufox fetch`. turno runs the newest build in the
+  installer's cache folder, or the executable at `TURNO_CAMOUFOX_PATH`.
+- Stock Playwright of the same minor version as the Patchright turno-browser uses
+  (`npm install -g playwright-core@<version>`, or its folder at `TURNO_PLAYWRIGHT_CORE`):
+  Patchright drives Chromium only, and Firefox speaks Playwright's own protocol.
+
+For an identity, Camoufox keeps its own Firefox profile in the identity's state folder
+(`camoufox-profile`): the Chrome profile and its sign-ins do not carry over, and
+`turno browser login` (which opens the Chrome profile) is refused; sign in from an agent session,
+with `browser_login` and the vault. The identity's runtime lock holds while it runs. turno passes
+it no generated values: it presents what its build reports for this computer, with the identity's
+languages and time zone, and its `proxy` when set. `userAgent` and `"keychain": "system"` are
+refused with it, and so is attach mode.
+
+Every stock tool runs except `browser_run_code_unsafe`, which runs code written for Patchright's
+API; it is refused with the reason. With the opt-in features:
+
+- [Natural language actions](#natural-language-actions) and `browser_login` work, and so does
+  [`turno browser do`](#from-the-shell), which calls the same server.
+- [Captcha solving](#captcha-solving) is refused, in `identity.json` and, with `--engine camoufox`,
+  when `browser_solve_captcha` is called: it relies on Patchright's script worlds.
+- The [live view](#live-view-and-take-over) shows no picture, since it is a Chrome screencast;
+  pause and resume work.
+
+That was checked with Playwright's own Firefox build in Camoufox's place (an official Camoufox
+build was not available to test), along with a proxy, humanize, tab sharing, recordings,
+natural language actions, `browser_login` and the live view's pause. The health check, reputation log, blocking and cache run the
+same code as with Chrome and were not checked on Firefox separately.
+
 ### Attach to your Chrome
 
 Attach mode connects to the Chrome you already have open instead of launching one, so the agent
@@ -675,7 +815,7 @@ turno never closes your browser or a tab it did not open:
 ## Doctor
 
 ```sh
-turno browser doctor          # Chrome and its version, a test launch, Lightpanda, and each identity's settings, engine, lock and sign-in
+turno browser doctor          # Chrome and its version, a test launch, Lightpanda, Camoufox, and each identity's settings, engine, lock, sign-in and proxy credentials
 turno browser doctor --fix    # clears stale locks, a Chrome left running with no server, and a stray Lightpanda
 ```
 
@@ -683,4 +823,4 @@ Each finding has its own page under [Troubleshooting](/docs/troubleshooting#turn
 
 ## Acceptable use
 
-Use it with your own accounts, on sites whose terms allow automated access by you, and at a human pace. Do not use it to get around access controls, paywalls or rate limits, to scrape at scale, or to access accounts that are not yours. Captcha solving is off unless you turn it on, and then it is for your own accounts only, with the costs [above](#captcha-solving). How you use the browser on third-party sites is between you and each site's terms.
+Use it with your own accounts, on sites whose terms allow automated access by you, and at a human pace. The same goes for the [network and user agent settings](#network-and-user-agent) and Camoufox: they are for your own accounts and sites you may automate. Do not use it to get around access controls, paywalls or rate limits, to scrape at scale, or to access accounts that are not yours. Captcha solving is off unless you turn it on, and then it is for your own accounts only, with the costs [above](#captcha-solving). How you use the browser on third-party sites is between you and each site's terms.

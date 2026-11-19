@@ -388,6 +388,8 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         cliOptions,
         title,
         tuning,
+        // Proxy credentials read at launch leave no tool result or saved trace unredacted.
+        secret: (value, label) => this.host.redactor.add(value, label),
         ...(identity ? { identity } : {}),
       });
       // Human-like input (off by default): the input tools of this browser run on humanized tabs.
@@ -398,7 +400,8 @@ class SessionBackend extends EventEmitter implements ServerBackend {
               ...(identity ? { persona: identity.id, challenged: adaptiveSites(identity.id, identity.env) } : {}),
             });
       // Read mode and attach mode never use the identity's Chrome profile, so the profile's
-      // health check, challenge log and resource rules do not apply to them.
+      // health check, challenge log and resource rules do not apply to them. Camoufox keeps a
+      // profile of its own, so they do.
       const profile = launched.engine !== "lightpanda" && launched.engine !== "attach";
       if (identity && profile) {
         try {

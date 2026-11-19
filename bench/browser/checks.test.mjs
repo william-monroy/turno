@@ -3,7 +3,14 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { applyExpectations, checkReport, compareWithBaseline, diffStatic, pointerPath } from "./lib/checks.mjs";
+import {
+  applyExpectations,
+  checkReport,
+  compareWithBaseline,
+  consistencyChecks,
+  diffStatic,
+  pointerPath,
+} from "./lib/checks.mjs";
 
 const STATIC = {
   userAgent:
@@ -214,5 +221,62 @@ test("a baseline comparison lists checks that got worse and fields that changed"
   assert.deepEqual(
     changes.map((c) => c.field),
     ["userAgent"],
+  );
+});
+
+test("headers, a worker and the Intl locale that agree with the page pass the consistency checks", () => {
+  const s = { ...STATIC, timezone: "Europe/Berlin", locale: "en-US" };
+  const report = {
+    static: s,
+    request: {
+      "user-agent": s.userAgent,
+      "accept-language": "en-US,en;q=0.9",
+      "sec-ch-ua": '"Not-A.Brand";v="99", "Google Chrome";v="157", "Chromium";v="157"',
+      "sec-ch-ua-platform": '"macOS"',
+    },
+    worker: {
+      userAgent: s.userAgent,
+      platform: s.platform,
+      languages: s.languages,
+      timezone: s.timezone,
+      uaPlatform: "macOS",
+    },
+  };
+  assert.deepEqual(
+    consistencyChecks(report).map((c) => [c.id, c.status]),
+    [
+      ["headers-match-navigator", "pass"],
+      ["worker-matches-page", "pass"],
+      ["intl-matches-languages", "pass"],
+    ],
+  );
+});
+
+test("an override applied to one layer only shows up as a consistency warning", () => {
+  const s = { ...STATIC, timezone: "Europe/Berlin", locale: "es-419" };
+  const report = {
+    static: s,
+    request: {
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/157.0.0.0",
+      "sec-ch-ua-platform": '"macOS"',
+    },
+    worker: {
+      userAgent: s.userAgent,
+      platform: "Win32",
+      languages: s.languages,
+      timezone: "America/Mexico_City",
+      uaPlatform: "macOS",
+    },
+  };
+  const checks = Object.fromEntries(consistencyChecks(report).map((c) => [c.id, c]));
+  assert.equal(checks["headers-match-navigator"].status, "warn");
+  assert.deepEqual(checks["headers-match-navigator"].value, ["User-Agent"]);
+  assert.deepEqual(checks["worker-matches-page"].value, ["platform", "timezone"]);
+  assert.equal(checks["intl-matches-languages"].status, "warn");
+  // Without headers or a worker report there is nothing to compare: info, not a warning.
+  const bare = consistencyChecks({ static: STATIC });
+  assert.deepEqual(
+    bare.slice(0, 2).map((c) => c.status),
+    ["info", "info"],
   );
 });

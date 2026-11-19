@@ -29,7 +29,7 @@ import { parseDuration } from "./units.js";
  * nothing is added for them; no init scripts are ever added.
  *
  * The tab governor, background throttling, humanize and sharing flags (`TUNING_FLAGS`) are turno's: they are
- * taken out here and win over identity.json. So are `--engine <chrome|lightpanda>` and `--attach <target>` (`engine.ts`); with either and
+ * taken out here and win over identity.json. So are `--engine <chrome|lightpanda|camoufox>` and `--attach <target>` (`engine.ts`); with either and
  * no identity there is no Chrome profile to create. So are `--live` and `--live-wait <duration>` (`live.ts`), which need an identity.
  *
  * An identity holds saved logins, so serving it over HTTP (`--port`, `--host`) lets any local
@@ -213,8 +213,8 @@ export function extractEngine(args: string[]): { engineFlags?: EngineFlags; rest
     const engine = valueAt(args, i, "--engine");
     const attach = engine ? undefined : valueAt(args, i, "--attach");
     if (engine) {
-      if (engine.value !== "chrome" && engine.value !== "lightpanda")
-        throw new Error(`--engine must be "chrome" or "lightpanda" (read mode), not "${engine.value}"`);
+      if (engine.value !== "chrome" && engine.value !== "lightpanda" && engine.value !== "camoufox")
+        throw new Error(`--engine must be "chrome", "lightpanda" (read mode) or "camoufox", not "${engine.value}"`);
       out.engine = engine.value;
       i += engine.used - 1;
     } else if (attach) {
@@ -224,8 +224,8 @@ export function extractEngine(args: string[]): { engineFlags?: EngineFlags; rest
       i += attach.used - 1;
     } else rest.push(args[i]!);
   }
-  if (out.engine === "lightpanda" && out.attach !== undefined)
-    throw new Error("--attach and --engine lightpanda do not go together: pick one");
+  if ((out.engine === "lightpanda" || out.engine === "camoufox") && out.attach !== undefined)
+    throw new Error(`--attach and --engine ${out.engine} do not go together: pick one`);
   return out.engine !== undefined || out.attach !== undefined ? { engineFlags: out, rest } : { rest };
 }
 
@@ -297,12 +297,13 @@ export function buildArgv(rawArgs: string[], options: BuildOptions = {}): BuiltA
     ...(engineFlags ? { engineFlags } : {}),
     ...(live ? { live } : {}),
   };
-  const otherEngine = engineFlags?.engine === "lightpanda" || engineFlags?.attach !== undefined;
+  const otherEngine =
+    engineFlags?.engine === "lightpanda" || engineFlags?.engine === "camoufox" || engineFlags?.attach !== undefined;
   if (otherEngine) {
     const clash = ["--isolated", "--user-data-dir", ...EXTERNAL_BROWSER].find((f) => hasFlag(args, f));
     if (clash)
       throw new Error(
-        `${engineFlags?.attach !== undefined ? "--attach" : "--engine lightpanda"} cannot be combined with ${clash}`,
+        `${engineFlags?.attach !== undefined ? "--attach" : `--engine ${engineFlags?.engine}`} cannot be combined with ${clash}`,
       );
   }
   if (identity !== undefined) {
@@ -318,7 +319,7 @@ export function buildArgv(rawArgs: string[], options: BuildOptions = {}): BuiltA
     return out.tempDir;
   };
 
-  // Read mode and attach mode without an identity start no Chrome, so they need no profile.
+  // Read mode, Camoufox and attach mode without an identity start no Chrome, so they need no profile.
   const needsProfile = !(otherEngine && identity === undefined);
   if (!external && needsProfile && !hasFlag(args, "--user-data-dir") && !hasFlag(args, "--isolated")) {
     out.userDataDir = identity !== undefined ? identityDir(identity, env) : join(makeTemp(), "profile");

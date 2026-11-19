@@ -2,6 +2,7 @@ import { mkdirSync } from "node:fs";
 import { clearHealth } from "./health.js";
 import { IdentityError, identityDir, inUseBy, isInUse } from "./identities.js";
 import { readLockPid } from "./lifecycle.js";
+import { CHROME_PROXY_ARGS, resolveProxy } from "./network.js";
 import { acquireRuntimeLock } from "./runtime-lock.js";
 import { chromeEnv, keychainArgs, launchSettings, readIdentitySettings, systemTimezone } from "./settings.js";
 
@@ -12,11 +13,14 @@ export interface LoginOptions {
 }
 
 /**
- * Opens the identity's persistent Chrome headed, with the same stealth settings as the MCP
+ * Opens the identity's persistent Chrome headed, with the same launch settings as the MCP
  * server (Chrome channel, no fixed viewport, the identity's languages and time zone), and
  * resolves when the user closes the last window or quits Chrome. Used once per site so the user
  * signs in by hand. It holds the identity's runtime lock while the window is open, and clears
  * the last session health result, so the next launch checks the sign-in again.
+ *
+ * With identity.json `proxy`, the sign-in goes through the same proxy as the agent's sessions,
+ * so the site sees one network for both. A Camoufox identity is refused: it keeps its own profile.
  */
 export async function loginIdentity(id: string, options: LoginOptions = {}): Promise<void> {
   const env = options.env ?? process.env;
@@ -26,6 +30,12 @@ export async function loginIdentity(id: string, options: LoginOptions = {}): Pro
   if (isInUse(id, env))
     throw new IdentityError(`identity "${id}" is in use (an MCP session holds its Chrome); close it first`);
   const settings = readIdentitySettings(id, env);
+  if (settings?.engine === "camoufox" && settings.attach === undefined)
+    throw new IdentityError(
+      `identity "${id}" runs on Camoufox, which keeps its own profile, and \`turno browser login\` opens the Chrome profile: sign in from an agent session (browser_login with the vault), or use --engine chrome`,
+    );
+  // Read before the lock, so a missing secret leaves nothing to undo; the value goes only to Chrome.
+  const proxy = settings?.proxy ? await resolveProxy(settings.proxy, env, () => {}) : undefined;
   const held = acquireRuntimeLock(id, env, { holder: "login" });
   try {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -35,7 +45,8 @@ export async function loginIdentity(id: string, options: LoginOptions = {}): Pro
       channel: "chrome",
       headless: false,
       viewport: null,
-      ...(applied.args.length ? { args: applied.args } : {}),
+      ...(applied.args.length || proxy ? { args: [...applied.args, ...(proxy ? CHROME_PROXY_ARGS : [])] } : {}),
+      ...(proxy ? { proxy } : {}),
       ...(applied.timezoneId ? { timezoneId: applied.timezoneId } : {}),
       ...keychainArgs(settings),
       // Chrome gets the caller's environment (HOME, XDG dirs), not this process's.

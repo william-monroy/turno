@@ -194,6 +194,8 @@ export async function startServer(config, { headed = false } = {}) {
     TMPDIR: process.env.TMPDIR ?? tmpdir(),
     // Where read mode finds Lightpanda when it is not on PATH.
     ...(process.env.TURNO_LIGHTPANDA_PATH ? { TURNO_LIGHTPANDA_PATH: process.env.TURNO_LIGHTPANDA_PATH } : {}),
+    // The stock Playwright the camoufox engine runs on, when it is not next to the build.
+    ...(process.env.TURNO_PLAYWRIGHT_CORE ? { TURNO_PLAYWRIGHT_CORE: process.env.TURNO_PLAYWRIGHT_CORE } : {}),
     ...config.env,
   };
   const cleanupHome = () => rmSync(home, { recursive: true, force: true });
@@ -214,6 +216,21 @@ export async function startServer(config, { headed = false } = {}) {
       if (!lightpanda.findLightpanda(env)) {
         cleanupHome();
         throw new UnsupportedConfig(`${config.needs}: Lightpanda is not installed`);
+      }
+    }
+    if (config.identity.engine === "camoufox") {
+      const camoufox = await import(pathToFileURL(join(dirname(bin), "..", "engine-camoufox.js")).href);
+      // Found with the real HOME (Camoufox's installer cache), then handed to the throwaway one.
+      const found = camoufox.findCamoufox(process.env);
+      if (found) env.TURNO_CAMOUFOX_PATH = found.path;
+      const missing = !found
+        ? "Camoufox is not installed"
+        : !camoufox.findPlaywrightCore(env)?.ok
+          ? "playwright-core is missing"
+          : "";
+      if (missing) {
+        cleanupHome();
+        throw new UnsupportedConfig(`${config.needs}: ${missing} (turno browser doctor says how to install it)`);
       }
     }
   }

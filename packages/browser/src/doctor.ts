@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { browserPaths as paths } from "turno-core/paths";
 import { type ProcTable, readProcTable, signalProcess } from "turno-core/process";
+import { type SecretStore, secretStore } from "turno-core/secrets";
 import { readHealth } from "./health.js";
 import { identityDir, isValidIdentityId } from "./ids.js";
 import { defaultChromeUserDataDir, parseAttachTarget, resolveAttachEndpoint } from "./engine-attach.js";
@@ -14,6 +15,15 @@ import {
   lightpandaCookieJar,
   lightpandaInstallHint,
 } from "./engine-lightpanda.js";
+import {
+  type CamoufoxInfo,
+  type PlaywrightCoreInfo,
+  camoufoxInstallHint,
+  camoufoxProfileDir,
+  findCamoufox,
+  findPlaywrightCore,
+  playwrightCoreHint,
+} from "./engine-camoufox.js";
 import { findProfileChrome, sweepOrphan } from "./lifecycle.js";
 import { readChallenges, summarizeChallenges } from "./reputation.js";
 import { inUseMessage, readRuntimeLock, runtimeLockAlive, runtimeLockPath } from "./runtime-lock.js";
@@ -25,10 +35,12 @@ import { type IdentitySettings, acceptLanguages, checkIdentitySettings, systemTi
  *
  * - Chrome: found, its version, and a smoke launch on a throwaway profile (headless).
  * - System: a headed Chrome needs the desktop session (macOS) or a display (Linux).
- * - Engines: Lightpanda for read mode (optional; a failure only when an identity uses it), and
- *   a Lightpanda an earlier server left running.
+ * - Engines: Lightpanda for read mode and Camoufox with the stock Playwright it runs on (both
+ *   optional; a failure only when an identity uses them), and a Lightpanda an earlier server
+ *   left running.
  * - Per identity: identity.json, who holds it (runtime lock and Chrome's profile lock), session
- *   health, and challenges in the last 7 days.
+ *   health, challenges in the last 7 days, and the opt-in network settings (`proxy`: whether
+ *   the secret store has its credentials, never their value; `userAgent`).
  *
  * `--fix` removes runtime locks whose process is gone and stops a Chrome an earlier run left
  * behind on an identity's profile (the same sweep a server start does), and stops a Lightpanda
@@ -66,6 +78,11 @@ export interface DoctorOptions {
   smoke?: (env: NodeJS.ProcessEnv) => Promise<number>;
   /** Finds Lightpanda (tests inject one). */
   lightpanda?: (env: NodeJS.ProcessEnv) => LightpandaInfo | undefined;
+  /** Finds Camoufox and the stock Playwright it runs on (tests inject them). */
+  camoufox?: (env: NodeJS.ProcessEnv) => CamoufoxInfo | undefined;
+  playwrightCore?: (env: NodeJS.ProcessEnv) => (PlaywrightCoreInfo & { ok: boolean }) | undefined;
+  /** The secret store proxy credentials come from (tests inject a fake); default: this machine's. */
+  secrets?: SecretStore;
   /** The process table, for a Lightpanda left running (tests inject one). */
   procTable?: () => ProcTable | undefined;
   /** The mcp.toml servers that run turno-browser-mcp for an identity (turno-cli reads mcp.toml). */
@@ -350,6 +367,14 @@ const ENABLE_DEBUGGING = "start Chrome, open chrome://inspect/#remote-debugging 
 
 /** What an identity's engine needs (identity.json `engine`, `attach`); none for Chrome. */
 function engineRows(id: string, settings: IdentitySettings, env: NodeJS.ProcessEnv): Omit<DoctorCheck, "area">[] {
+  if (settings.engine === "camoufox")
+    return [
+      {
+        level: "info",
+        text: `Camoufox: its own Firefox profile in ${camoufoxProfileDir(id, env)}, not the Chrome profile (sign-ins do not carry over)`,
+        fix: `turno browser set ${id} --engine chrome`,
+      },
+    ];
   if (settings.engine === "lightpanda")
     return [
       {
@@ -414,6 +439,7 @@ function engineChecks(opts: DoctorOptions, env: NodeJS.ProcessEnv, ids: string[]
       text: "Lightpanda not found: only read mode (--engine lightpanda) needs it, and turno never downloads it",
       ...install,
     });
+  out.push(...camoufoxChecks(opts, env, ids, platform));
   const stray = strayLightpandas((opts.procTable ?? readProcTable)());
   if (stray.length)
     out.push({
@@ -423,6 +449,105 @@ function engineChecks(opts: DoctorOptions, env: NodeJS.ProcessEnv, ids: string[]
       fix: FIX,
       auto: true,
     });
+  return out;
+}
+
+/** Camoufox and the stock Playwright it runs on: a failure only when an identity uses the engine. */
+function camoufoxChecks(opts: DoctorOptions, env: NodeJS.ProcessEnv, ids: string[], platform: NodeJS.Platform) {
+  const out: DoctorCheck[] = [];
+  const area = "engines";
+  const users = ids.filter((id) => checkIdentitySettings(id, env).settings?.engine === "camoufox");
+  const needed = users.length > 0;
+  const who = users.map((u) => `browser:${u}`).join(", ");
+  const camoufox = (opts.camoufox ?? findCamoufox)(env);
+  const fix = camoufoxInstallHint(platform);
+  if (camoufox)
+    out.push({
+      area,
+      level: "ok",
+      text: `Camoufox${camoufox.version ? ` (${camoufox.version})` : ""} at ${camoufox.path}`,
+    });
+  else if (needed)
+    out.push({ area, level: "fail", text: `Camoufox not found, and the camoufox engine needs it for ${who}`, fix });
+  else
+    out.push({
+      area,
+      level: "info",
+      text: "Camoufox not found: only the camoufox engine (--engine camoufox) needs it, and turno never downloads it",
+      fix,
+    });
+  const pw = (opts.playwrightCore ?? findPlaywrightCore)(env);
+  const pwFix = playwrightCoreHint();
+  if (pw?.ok) out.push({ area, level: "ok", text: `playwright-core ${pw.version} at ${pw.dir} (for Camoufox)` });
+  else if (pw)
+    out.push({
+      area,
+      level: needed ? "fail" : "warn",
+      text: `playwright-core ${pw.version} at ${pw.dir} is not the version patchright-core is built on, so Camoufox cannot run on it`,
+      fix: pwFix,
+    });
+  else if (needed)
+    out.push({
+      area,
+      level: "fail",
+      text: `playwright-core not found, and Camoufox runs on stock Playwright (patchright-core drives Chromium only): needed for ${who}`,
+      fix: pwFix,
+    });
+  else if (camoufox)
+    out.push({
+      area,
+      level: "info",
+      text: "playwright-core not found: the camoufox engine runs on stock Playwright, since patchright-core drives Chromium only",
+      fix: pwFix,
+    });
+  return out;
+}
+
+/**
+ * The opt-in network settings of an identity: where its traffic goes, and whether the secret
+ * store holds the proxy credentials (it asks whether the item exists, never reads its value).
+ */
+async function networkRows(id: string, env: NodeJS.ProcessEnv, opts: DoctorOptions): Promise<DoctorCheck[]> {
+  const settings = checkIdentitySettings(id, env).settings;
+  const out: DoctorCheck[] = [];
+  const area = `identity ${id}`;
+  if (settings?.userAgent === "coherent")
+    out.push({
+      area,
+      level: "info",
+      text: "userAgent coherent: the installed Chrome's own user agent and client hints, with the identity's languages and time zone, checked at every launch",
+    });
+  const proxy = settings?.proxy;
+  if (!proxy) return out;
+  out.push({
+    area,
+    level: "info",
+    text: `proxy ${proxy.server}: the proxy's operator sees where this identity goes (and the content of plain http:// pages), and sites see the proxy's address`,
+  });
+  const refs = [proxy.username, proxy.password].filter((r): r is string => r?.startsWith("keychain:") === true);
+  if (!refs.length) return out;
+  const store = opts.secrets ?? secretStore(env);
+  if (!store) {
+    out.push({
+      area,
+      level: "fail",
+      text: "the proxy credentials are in the secret store, and this machine has none",
+      manual: "install libsecret (secret-tool), or use a proxy without a password",
+    });
+    return out;
+  }
+  for (const ref of refs) {
+    const item = ref.slice("keychain:".length);
+    const has = await store.has(item).catch(() => false);
+    if (has) out.push({ area, level: "ok", text: `proxy credentials: ${store.label} item "${item}" is there` });
+    else
+      out.push({
+        area,
+        level: "fail",
+        text: `proxy credentials: ${store.label} has no item "${item}", so the browser does not start`,
+        fix: `turno secret set ${item}`,
+      });
+  }
   return out;
 }
 
@@ -489,7 +614,8 @@ async function collect(
       text: "no browser identities yet",
       fix: "turno identity add browser:<id>",
     });
-  for (const id of ids) checks.push(...identityChecks(id, env, now, opts.servers));
+  for (const id of ids)
+    checks.push(...identityChecks(id, env, now, opts.servers), ...(await networkRows(id, env, opts)));
   return checks;
 }
 

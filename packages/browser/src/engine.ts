@@ -2,8 +2,11 @@ import { resolve } from "node:path";
 import type { Browser, BrowserContext, Page } from "patchright-core";
 import { storagePartitioningArgs } from "./chrome-features.js";
 import { type AttachTarget, createAttachEngine, parseAttachTarget } from "./engine-attach.js";
+import { createCamoufoxEngine } from "./engine-camoufox.js";
 import { createLightpandaEngine } from "./engine-lightpanda.js";
 import { findProfileChrome, readLockPid } from "./lifecycle.js";
+import { chromeNetwork, pinUserAgent, verifyCoherence } from "./network-chrome.js";
+import { networkEngineClash } from "./network.js";
 import { acquireRuntimeLock } from "./runtime-lock.js";
 import {
   type IdentitySettings,
@@ -31,6 +34,8 @@ import { type ClientInfo, type IdleTimerLike, type McpConfig, playwright, upstre
  *   `createBrowserWithInfo` exactly as the stock program does.
  * - `lightpanda`: read mode on Lightpanda (`engine-lightpanda.ts`), chosen explicitly.
  * - `attach`: the Chrome the user already has open (`engine-attach.ts`), chosen explicitly.
+ * - `camoufox`: Camoufox, a Firefox build, on stock Playwright (`engine-camoufox.ts`), chosen
+ *   explicitly.
  *
  * Which one runs is decided at every launch (`engineChoice`): a server flag (`--engine`,
  * `--attach`) wins over identity.json (`engine`, `attach`), which is read at every launch like
@@ -39,7 +44,7 @@ import { type ClientInfo, type IdleTimerLike, type McpConfig, playwright, upstre
  * `LaunchedBrowser`.
  */
 
-type EngineId = "chrome" | "upstream" | "lightpanda" | "attach";
+type EngineId = "chrome" | "upstream" | "lightpanda" | "attach" | "camoufox";
 
 export interface LaunchedBrowser {
   engine: EngineId;
@@ -77,6 +82,8 @@ export interface LaunchRequest {
   identity?: IdentityRef;
   /** How to run this browser; the chrome engine applies `backgroundThrottling`. */
   tuning?: Tuning;
+  /** Hides a secret the launch read (proxy credentials) from every tool result. */
+  secret?: (value: string, label: string) => void;
 }
 
 /** A browser identity as the host knows it: its id and the environment that locates its files. */
@@ -176,12 +183,15 @@ function profileInUse(identity: IdentityRef | undefined, userDataDir: string): E
  */
 const chromeEngine: Engine = {
   id: "chrome",
-  async launch({ config, clientInfo, title, identity, tuning }) {
+  async launch({ config, clientInfo, title, identity, tuning, secret }) {
     const userDataDir = config.browser.userDataDir;
     if (userDataDir === undefined) throw new Error("the chrome engine needs a profile directory");
     const { tools } = upstream();
     const tracesDir = resolve(tools.outputDir({ config, cwd: clientInfo.cwd }), "traces");
     const settings = identity ? readIdentitySettings(identity.id, identity.env) : undefined;
+    // Proxy credentials and the coherent user agent are settled before the lock: a missing
+    // secret or an unknown Chrome version stops here, with nothing to undo.
+    const network = settings ? await chromeNetwork(settings, config, identity!.env, secret ?? (() => {})) : undefined;
     const held = identity ? acquireRuntimeLock(identity.id, identity.env, { holder: "mcp" }) : undefined;
     let context: BrowserContext;
     let browser: Browser;
@@ -199,8 +209,9 @@ const chromeEngine: Engine = {
         ...config.browser.launchOptions,
         ...tuned.contextOptions,
         ...config.browser.contextOptions,
-        args: [...(partitioning?.args ?? []), ...userArgs, ...applied.args],
+        args: [...(partitioning?.args ?? []), ...userArgs, ...applied.args, ...(network?.args ?? [])],
         ...(applied.timezoneId ? { timezoneId: applied.timezoneId } : {}),
+        ...(network?.proxy ? { proxy: network.proxy } : {}),
         handleSIGINT: false,
         handleSIGTERM: false,
         ignoreDefaultArgs:
@@ -221,6 +232,8 @@ const chromeEngine: Engine = {
       }
       browser = context.browser() as Browser;
       try {
+        const pinned = network?.pin ? pinUserAgent(context, network.pin) : undefined;
+        if (network?.verify) await verifyCoherence(context, browser.version(), network.verify, pinned);
         await browser.bind(title, { workspaceDir: clientInfo.cwd });
       } catch (err) {
         await browser.close().catch(() => {});
@@ -361,13 +374,17 @@ export function selectEngine(config: McpConfig, fallback: Engine): Engine {
 
 /** The `turno-browser-mcp` flags that pick an engine; each wins over identity.json. */
 export interface EngineFlags {
-  engine?: "chrome" | "lightpanda";
+  engine?: "chrome" | "lightpanda" | "camoufox";
   /** An attach target (`parseAttachTarget`). */
   attach?: string;
 }
 
 /** The engine one launch uses, before the config decides between `chrome` and `upstream`. */
-export type EngineChoice = { kind: "default" } | { kind: "lightpanda" } | { kind: "attach"; target: AttachTarget };
+export type EngineChoice =
+  | { kind: "default" }
+  | { kind: "lightpanda" }
+  | { kind: "camoufox" }
+  | { kind: "attach"; target: AttachTarget };
 
 /**
  * Flags first, then identity.json. A flag of either kind replaces both keys of identity.json:
@@ -381,12 +398,14 @@ export function engineChoice(
   const engine = fromFlags ? flags.engine : settings?.engine;
   const attach = fromFlags ? flags.attach : settings?.attach;
   if (attach !== undefined) {
-    if (engine === "lightpanda") throw new Error("attach and the lightpanda engine do not go together: pick one");
+    if (engine === "lightpanda" || engine === "camoufox")
+      throw new Error(`attach and the ${engine} engine do not go together: pick one`);
     const target = parseAttachTarget(attach);
     if ("error" in target) throw new Error(target.error);
     return { kind: "attach", target };
   }
-  return engine === "lightpanda" ? { kind: "lightpanda" } : { kind: "default" };
+  if (engine === "lightpanda") return { kind: "lightpanda" };
+  return engine === "camoufox" ? { kind: "camoufox" } : { kind: "default" };
 }
 
 /**
@@ -409,10 +428,12 @@ export function tuningClash(engine: string, tuning: Pick<Tuning, "sharing" | "hu
 export function createEngine(config: McpConfig, flags: EngineFlags = {}, fallback?: Engine): Engine {
   const base = selectEngine(config, fallback ?? createUpstreamEngine());
   const lightpanda = createLightpandaEngine();
+  const camoufox = createCamoufoxEngine();
   const choose = (identity?: IdentityRef): Engine => {
     const settings = identity ? readIdentitySettings(identity.id, identity.env) : undefined;
     const choice = engineChoice(flags, settings);
     if (choice.kind === "lightpanda") return lightpanda;
+    if (choice.kind === "camoufox") return camoufox;
     if (choice.kind === "attach") return createAttachEngine(choice.target);
     return base;
   };
@@ -420,12 +441,14 @@ export function createEngine(config: McpConfig, flags: EngineFlags = {}, fallbac
     id: base.id,
     launch: async (request) => {
       const engine = choose(request.identity);
-      const record = request.identity
-        ? readIdentitySettings(request.identity.id, request.identity.env)?.record
-        : undefined;
+      const settings = request.identity ? readIdentitySettings(request.identity.id, request.identity.env) : undefined;
+      const record = settings?.record;
+      // A flag can pick an engine that identity.json's other keys do not go with: refused here,
+      // before anything starts.
       const clash =
         (request.tuning ? tuningClash(engine.id, request.tuning) : undefined) ??
-        (record ? recordEngineClash(engine.id, record) : undefined);
+        (record ? recordEngineClash(engine.id, record) : undefined) ??
+        (settings ? networkEngineClash(engine.id, settings) : undefined);
       if (clash) throw new Error(clash);
       return await engine.launch(request);
     },

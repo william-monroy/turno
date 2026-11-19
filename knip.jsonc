@@ -12,7 +12,9 @@
     },
     "packages/browser": {
       "entry": ["src/index.ts", "src/bin/mcp.ts", "test/**/*.test.ts"],
-      "project": ["src/**/*.ts", "test/**/*.ts"]
+      "project": ["src/**/*.ts", "test/**/*.ts"],
+      // The camoufox engine loads the user's own playwright-core at run time; never a dependency.
+      "ignoreDependencies": ["playwright-core"]
     },
     "packages/core": {
       "entry": ["src/index.ts", "src/paths.ts", "src/secrets.ts", "src/process.ts", "test/**/*.test.ts"],
