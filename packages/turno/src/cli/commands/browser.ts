@@ -5,6 +5,16 @@ import { type Command, type Io, fail, needsAnswer, paint } from "../io.js";
 import type { API_VERSION, BrowserApi } from "turno-browser";
 import { type LoadOptions, OPTIONAL, loadOptional, notInstalled } from "../optional.js";
 import { emit, jsonOutput } from "../output.js";
+import {
+  ACTION_NAMES,
+  DO_DETAILS,
+  DO_JSON,
+  DO_FLAG_NAMES,
+  DO_SYNOPSIS,
+  type DoDeps,
+  browserDo,
+  defaultDoDeps,
+} from "./browser-do.js";
 import * as flowCmd from "./browser-flows.js";
 import * as ident from "./browser-identity.js";
 import * as session from "./browser-session.js";
@@ -308,10 +318,29 @@ const FOOTER = `A developer diagnostic for browser engine compatibility. It need
 turno-browser package (${INSTALL_HINT}).
 Identities are persistent Chrome profiles served by turno-browser-mcp, one session at a time
 through mcpd; turno identity manages them too (browser:<id>). Ids use lowercase letters,
-digits, "-" and "_", for example "school".`;
+digits, "-" and "_", for example "school".
+turno browser do <id> <action> runs one action (open, snapshot, click, type, read...) on an
+identity's browser through mcpd, for coding agents that prefer shell commands (do --help).`;
+
+/**
+ * `turno browser <id> <action>`, the short form of `turno browser do <id> <action>`: taken when
+ * the first word is not a browser subcommand and the second is an action. An identity named like
+ * a subcommand (`show`, `flows`) needs the long form, and the docs and the skill use the long form
+ * so a later subcommand can never change what a written command does.
+ */
+function shortDo(args: readonly string[], subs: Record<string, Sub>): boolean {
+  const [first, second] = args;
+  return (
+    first !== undefined &&
+    second !== undefined &&
+    !(first in subs) &&
+    /^[a-z0-9][a-z0-9_-]*$/.test(first) &&
+    ACTION_NAMES.includes(second)
+  );
+}
 
 /** The `browser` command, with its loader and prompt injectable for tests. */
-export function browserCommand(deps: BrowserDeps = defaultDeps): Command {
+export function browserCommand(deps: BrowserDeps = defaultDeps, doDeps: DoDeps = defaultDoDeps): Command {
   const withModule =
     (sub: string): Sub["run"] =>
     async (args, io) => {
@@ -443,6 +472,15 @@ vault sign-in or the idle limit ends one): --segment picks one, the last by defa
       flags: ["--url"],
       run: withModule("login"),
     },
+    do: {
+      summary: "one action on an identity's browser from the shell: open, snapshot, click, type, read...",
+      synopsis: DO_SYNOPSIS,
+      details: DO_DETAILS,
+      ownHelp: true,
+      json: DO_JSON,
+      flags: [...DO_FLAG_NAMES],
+      run: (args, io) => browserDo(args, io, doDeps),
+    },
     bench: {
       summary: "check how each browser engine loads reference test pages and your URLs (asks first)",
       synopsis: "[--engine <name>]... [--url <url>]... [--only-urls] [--yes] [--json]",
@@ -451,7 +489,7 @@ vault sign-in or the idle limit ends one): --segment picks one, the last by defa
       run: withModule("bench"),
     },
   };
-  return group("browser", "developer tool: compare browser engines (needs turno-browser)", subs, {
+  const command = group("browser", "developer tool: compare browser engines (needs turno-browser)", subs, {
     footer: FOOTER,
     examples: [
       "turno browser identities",
@@ -474,8 +512,16 @@ vault sign-in or the idle limit ends one): --segment picks one, the last by defa
       "turno browser import school.session --as school-laptop",
       "turno browser remove school --dry-run",
       "turno browser bench --only-urls --url https://example.com --yes",
+      "turno browser do school open https://example.com",
+      "turno browser do school snapshot",
+      "turno browser do school click e12",
+      "turno browser do school end",
     ],
   });
+  return {
+    ...command,
+    run: (args, io) => (shortDo(args, subs) ? browserDo(args, io, doDeps) : command.run(args, io)),
+  };
 }
 
 export const command: Command = browserCommand();

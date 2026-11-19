@@ -46,6 +46,10 @@ const ENVIRONMENT: readonly { title: string; rows: readonly (readonly [string, s
       ["TURNO_REGISTRY", "npm registry for update checks (default: npm_config_registry, else registry.npmjs.org)"],
       ["TURNO_BROWSER_IDLE", "turno-browser closes Chrome after this long without a tool call (default: 15m)"],
       ["TURNO_LIGHTPANDA_PATH", "the Lightpanda binary turno-browser's read mode runs (default: lightpanda on PATH)"],
+      [
+        "TURNO_BROWSER_SESSION",
+        "the session name of turno browser do (same as --session; default: default), to keep several apart",
+      ],
     ],
   },
   {

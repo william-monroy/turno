@@ -71,14 +71,14 @@ export function callArguments(json: string | undefined, pairs: readonly string[]
 }
 
 /** The profile a session in `cwd` would use: --profile, else the folder's Claude Code profile, else the hub's. */
-function callerProfile(given: string | undefined, env: NodeJS.ProcessEnv, cwd: string): string {
+export function callerProfile(given: string | undefined, env: NodeJS.ProcessEnv, cwd: string): string {
   if (given) return given;
   const config = loadConfig(env);
   return resolveProfile(cwd, config, env).chosen || config.system || "default";
 }
 
 /** One line from an SDK transport error: the gateway's `{ "error": ... }` text when it sent one. */
-function gatewayMessage(err: unknown): { status?: number; message: string } {
+export function gatewayMessage(err: unknown): { status?: number; message: string } {
   const e = err as { code?: unknown; message?: string };
   const message = e?.message ?? String(err);
   const status = typeof e?.code === "number" && e.code >= 400 && e.code < 600 ? e.code : undefined;
@@ -98,7 +98,7 @@ function gatewayMessage(err: unknown): { status?: number; message: string } {
   return { ...(status ? { status } : {}), message: message.split("\n")[0]! };
 }
 
-interface ContentItem {
+export interface ContentItem {
   type: string;
   text?: string;
   mimeType?: string;
