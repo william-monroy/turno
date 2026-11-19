@@ -92,6 +92,9 @@ It exits with code 1 when a check fails; warnings exit 0. Each row below is one 
 | [An identity's health check could not run](/docs/troubleshooting/browser-health-check-failed) | `the health check of <url> could not run: <health> (checked <checked at>)` | warning |
 | [An identity met challenges in the last 7 days](/docs/troubleshooting/browser-challenges) | `<recent> challenge<s> in the last 7 days on <sites> site<s> (<kinds>)` | warning |
 | [Google Chrome is not installed (turno-browser)](/docs/troubleshooting/browser-chrome-not-found) | `Google Chrome not found` | failure |
+| [Lightpanda is not installed, and an identity uses read mode](/docs/troubleshooting/browser-lightpanda-not-found) | `Lightpanda not found, and read mode needs it for <users>` | failure |
+| [No Chrome to attach to](/docs/troubleshooting/browser-attach-not-listening) | `attach: no Chrome with remote debugging on< for <dir>>, so the next tool call fails` | warning |
+| [A Lightpanda was left running](/docs/troubleshooting/browser-stray-lightpanda) | `Lightpanda pid <stray> was left running by a server that is gone` | warning |
 | [The test launch of Chrome failed](/docs/troubleshooting/browser-smoke-launch-failed) | `smoke launch failed: <first line>` | failure |
 
 </FindingFilter>

@@ -232,11 +232,112 @@ Each captcha, "verify it's you" or block page the identity meets is one line in 
 turno browser reputation school    # counts per site, and whether they go up or down
 ```
 
+## Engines
+
+An identity runs on the Chrome turno launches on its own profile. Two other engines are there
+when you ask for one, per identity in `identity.json` (format 4) or per server with a flag, which
+wins over the file:
+
+| Engine | Set it | What it is for |
+|---|---|---|
+| Chrome (default) | nothing, or `--engine chrome` | everything: the identity's own profile, headed |
+| Read mode | `--engine lightpanda` | reading pages fast and with little memory, on Lightpanda |
+| Attach | `--attach auto` | working in the Chrome you already have open and signed in |
+
+```sh
+turno browser set school --engine lightpanda     # read mode for this identity
+turno browser set school --attach auto           # attach to your own Chrome
+turno browser set school --engine "" --attach "" # back to the default
+turno-browser-mcp --engine lightpanda            # read mode for one server, no identity
+```
+
+### Read mode (Lightpanda)
+
+[Lightpanda](https://github.com/lightpanda-io/browser) is a headless browser built for
+automation: it runs scripts and builds the page, but does not lay it out or draw it. turno never
+downloads it. Install it yourself (`brew install lightpanda-io/browser/lightpanda` on macOS, the
+nightly binary on Linux), and turno runs the `lightpanda` on your PATH, or the one at
+`TURNO_LIGHTPANDA_PATH`. `turno browser doctor` shows the one it found and how to install it.
+
+turno starts `lightpanda serve` on a private Unix socket (no TCP port) with Lightpanda's
+telemetry off, and stops it when the session closes or after the idle limit. For an identity,
+Lightpanda keeps its own cookies in `lightpanda-cookies.json` in the identity's state folder: it
+never reads or writes the Chrome profile, so a site you signed into in Chrome is not signed in
+here, and read mode runs no health check, reputation log, blocking or cache.
+
+These tools run in read mode; the others are refused with the reason before they reach the
+browser:
+
+| Runs | Refused, and why |
+|---|---|
+| `browser_navigate`, `browser_navigate_back`, `browser_snapshot`, `browser_find` | `browser_take_screenshot`: no layout, so a screenshot shows only the text |
+| `browser_click` (a link with `target="_blank"` opens nothing) | `browser_resize`, `browser_emulate_media`, `browser_drag`, `browser_drop`: no layout |
+| `browser_hover`, `browser_type`, `browser_press_key`, `browser_select_option`, `browser_fill_form` | `browser_handle_dialog`: Lightpanda closes dialogs by itself |
+| `browser_evaluate`, `browser_wait_for`, `browser_tabs`, `browser_close`, `browser_batch` | `browser_file_upload`, `browser_run_code_unsafe` |
+| `browser_network_requests`, `browser_network_request`, `browser_console_messages` | `browser_login`: read mode keeps no vault sign-ins |
+
+Checked with Lightpanda 1.1.0 (nightly) through Patchright. Lightpanda's CDP answers a few calls
+differently from Chrome's, so turno passes its traffic through a small relay that turns those
+answers into ones Patchright handles.
+
+Measured on one machine (an Apple M3 with 16 GB, macOS 26.5, Chrome 157, Lightpanda 1.1.0
+nightly; median of five runs): three local pages from a fixture server (an article, a list of
+2,000 links, a page that builds 500 rows with a script), each opened and snapshotted five times
+through the MCP server, headless Chrome against Lightpanda:
+
+| | Chrome (headless) | Lightpanda |
+|---|---|---|
+| Memory after the three pages (browser processes, RSS) | 913 MB | 64 MB |
+| Peak memory | 958 MB | 93 MB |
+| First call, browser start included | 1,329 ms | 307 ms |
+| Article: open and snapshot | 206 ms | 106 ms |
+| 2,000 links: open and snapshot | 707 ms | 420 ms |
+| 500 script-built rows: open and snapshot | 311 ms | 311 ms |
+
+The memory numbers held steady from run to run. The times did not: the machine was busy during
+the runs and single runs varied by a factor of two or more, so read them as a rough ratio, not a
+promise. Your numbers will differ.
+
+Use read mode for public pages you only need to read. It is not a way to visit sites that block
+automation: Lightpanda sends `Lightpanda/1.0` as its user agent, and `browser_login` is
+refused there.
+
+### Attach to your Chrome
+
+Attach mode connects to the Chrome you already have open instead of launching one, so the agent
+works in your real, signed-in browser. It is off until you set it, and it is a big grant: the
+agent can see and act on every window and every signed-in site of that Chrome profile.
+
+Since Chrome 136, `--remote-debugging-port` is ignored on Chrome's default profile, so the way in
+is Chrome's own switch: open `chrome://inspect/#remote-debugging` (Chrome 144 or newer) and turn
+remote debugging on. Chrome then asks you to allow each new connection, and turno waits up to 60
+seconds for your answer. That dialog is the consent step; turno cannot answer it for you.
+
+`--attach` takes `auto` (your default Chrome profile), the absolute path of a Chrome user data
+folder (Chrome Beta or Canary, or a Chrome you started with `--remote-debugging-port` and its own
+`--user-data-dir`), or a loopback endpoint (`http://127.0.0.1:9222`). It never connects to
+another machine.
+
+turno never closes your browser or a tab it did not open:
+
+- it opens a tab of its own when it connects and works there, so its first navigation never
+  replaces one of your pages; the agent can still list and select your tabs;
+- a tab that opens during one of its tool calls is the agent's; tabs that were open before, or
+  that you open between calls, are yours;
+- `browser_close`, the end of the session and the idle limit close the agent's tabs and
+  disconnect; Chrome keeps running (after the idle limit, the next call connects again, and Chrome
+  may ask again);
+- the tab governor counts, parks and closes only the agent's tabs, and closes no popup;
+- there is no runtime lock and no orphan sweep for that Chrome: those act on the identity's own
+  profile, which attach mode does not use; the identity's health check, reputation log, blocking
+  and cache do not apply either;
+- `browser_run_code_unsafe` is refused: it would run arbitrary code against your whole browser.
+
 ## Doctor
 
 ```sh
-turno browser doctor          # Chrome and its version, a test launch, and each identity's settings, lock and sign-in
-turno browser doctor --fix    # clears stale locks and a Chrome left running with no server
+turno browser doctor          # Chrome and its version, a test launch, Lightpanda, and each identity's settings, engine, lock and sign-in
+turno browser doctor --fix    # clears stale locks, a Chrome left running with no server, and a stray Lightpanda
 ```
 
 Each finding has its own page under [Troubleshooting](/docs/troubleshooting#turno-browser-doctor).

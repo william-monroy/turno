@@ -65,6 +65,9 @@
     "browser-health-check-failed",
     "browser-challenges",
     "browser-chrome-not-found",
+    "browser-lightpanda-not-found",
+    "browser-attach-not-listening",
+    "browser-stray-lightpanda",
     "browser-smoke-launch-failed"
   ]
 }

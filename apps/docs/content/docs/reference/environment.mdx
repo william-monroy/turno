@@ -34,6 +34,7 @@ This page lists every environment variable turno reads. `turno help environment`
 | `TURNO_NO_UPDATE_NOTIFIER` | 1: same as TURNO_NO_UPDATE_CHECK (the name gh uses) |
 | `TURNO_REGISTRY` | npm registry for update checks (default: npm_config_registry, else registry.npmjs.org) |
 | `TURNO_BROWSER_IDLE` | turno-browser closes Chrome after this long without a tool call (default: 15m) |
+| `TURNO_LIGHTPANDA_PATH` | the Lightpanda binary turno-browser's read mode runs (default: lightpanda on PATH) |
 
 ## Set by turno for the agents it starts (read them, do not set them)
 
@@ -101,6 +102,8 @@ How turno behaves:
                             npm_config_registry, else registry.npmjs.org)
   TURNO_BROWSER_IDLE        turno-browser closes Chrome after this long without
                             a tool call (default: 15m)
+  TURNO_LIGHTPANDA_PATH     the Lightpanda binary turno-browser's read mode runs
+                            (default: lightpanda on PATH)
 
 Set by turno for the agents it starts (read them, do not set them):
   TURNO_PROFILE          the profile a launcher opened
