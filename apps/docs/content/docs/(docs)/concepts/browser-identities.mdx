@@ -156,7 +156,7 @@ turno-browser-mcp --identity school --humanize full  # the server's flag wins ov
 | Level | What changes |
 |---|---|
 | `off` (default) | Nothing: Playwright's input. |
-| `light` | The pointer travels a curve from where it last was on that page to a point inside the target, with small timing jitter; the button stays down for 40 to 90 ms; text up to 80 characters is typed key by key with per-key delays. |
+| `light` | The pointer travels a curve from where it last was on that page to a point inside the target (one arc, some 4 to 8% longer than the straight line), with small timing jitter; the button stays down for 40 to 90 ms; text up to 80 characters is typed key by key with per-key delays. |
 | `full` | `light`, plus a move time that follows the distance and the target's size, a slow-fast-slow speed, overshoot and correction on long moves, a short pause the first time a page is acted on, longer gaps between words, and an element out of view scrolled to in wheel notches. `browser_mouse_wheel` scrolls in notches too. |
 | `adaptive` | `light`, and `full` on a site where the identity met a captcha, "verify it's you" or block page (in the [reputation log](#reputation-log) of the last 30 days, or in this session). |
 

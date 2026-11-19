@@ -71,6 +71,26 @@ describe("planMove", () => {
     expect(off).toBeGreaterThan(5);
   });
 
+  it("bends visibly at light and full: the path is a few percent longer than the straight line, not a loop", () => {
+    const ratio = (steps: { x: number; y: number }[]) => {
+      let length = 0;
+      let prev = from;
+      for (const s of steps) {
+        length += Math.hypot(s.x - prev.x, s.y - prev.y);
+        prev = s;
+      }
+      return length / Math.hypot(to.x - from.x, to.y - from.y);
+    };
+    for (const level of ["light", "full"] as const) {
+      const ratios = Array.from({ length: 40 }, (_, seed) =>
+        ratio(planMove(from, to, 40, level, new Rng(seed), persona)),
+      );
+      const mean = ratios.reduce((a, b) => a + b, 0) / ratios.length;
+      expect(mean, level).toBeGreaterThan(1.03);
+      expect(Math.max(...ratios), level).toBeLessThan(1.25);
+    }
+  });
+
   it("light never goes past the target; full overshoots and corrects on long moves", () => {
     const ux = (to.x - from.x) / Math.hypot(to.x - from.x, to.y - from.y);
     const uy = (to.y - from.y) / Math.hypot(to.x - from.x, to.y - from.y);
