@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vit
 import { POPUP_GRACE_MS } from "../src/governor.js";
 import { identityStateDir } from "../src/ids.js";
 import { writeIdentitySettings } from "../src/settings.js";
-import { chromeUnavailable, killSandboxProcesses } from "./helpers/chrome.js";
+import { chromeUnavailable, stopSandboxProcesses } from "./helpers/chrome.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
@@ -33,7 +33,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   for (const t of running.splice(0)) await t.close().catch(() => {});
-  killSandboxProcesses(sb.home);
+  await stopSandboxProcesses(sb.home);
   sb.cleanup();
 });
 

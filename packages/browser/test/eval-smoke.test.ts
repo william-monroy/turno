@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { chromeUnavailable, killSandboxProcesses } from "./helpers/chrome.js";
+import { chromeUnavailable, stopSandboxProcesses } from "./helpers/chrome.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
@@ -22,8 +22,8 @@ let sb: Sandbox;
 beforeEach(() => {
   sb = sandbox();
 });
-afterEach(() => {
-  killSandboxProcesses(sb.home);
+afterEach(async () => {
+  await stopSandboxProcesses(sb.home);
   sb.cleanup();
 });
 

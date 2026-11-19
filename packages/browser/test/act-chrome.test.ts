@@ -10,7 +10,7 @@ import { flowsDir, readFlow } from "../src/flows.js";
 import { addIdentity } from "../src/identities.js";
 import { readSolves, reputationPath } from "../src/reputation.js";
 import { writeIdentitySettings } from "../src/settings.js";
-import { chromeUnavailable, killSandboxProcesses } from "./helpers/chrome.js";
+import { chromeUnavailable, stopSandboxProcesses } from "./helpers/chrome.js";
 import { type FakeSecretStore, fakeSecretStore } from "./helpers/fake-secret-store.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
@@ -40,7 +40,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   for (const t of running.splice(0)) await t.close().catch(() => {});
-  killSandboxProcesses(sb.home);
+  await stopSandboxProcesses(sb.home);
   sb.cleanup();
 });
 

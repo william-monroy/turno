@@ -5,7 +5,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { writeIdentitySettings } from "../src/settings.js";
-import { chromeUnavailable, killSandboxProcesses } from "./helpers/chrome.js";
+import { chromeUnavailable, stopSandboxProcesses } from "./helpers/chrome.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
@@ -27,7 +27,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   for (const t of running.splice(0)) await t.close().catch(() => {});
-  killSandboxProcesses(sb.home);
+  await stopSandboxProcesses(sb.home);
   sb.cleanup();
 });
 

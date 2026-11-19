@@ -11,7 +11,7 @@ import { listRecordings, recordingsDir, tracesTmpDir, zipTexts } from "../src/re
 import { SESSION_META_KEY } from "../src/session.js";
 import { writeIdentitySettings } from "../src/settings.js";
 import { vaultAdd } from "../src/vault.js";
-import { chromeUnavailable, killSandboxProcesses, waitFor } from "./helpers/chrome.js";
+import { chromeUnavailable, stopSandboxProcesses, waitFor } from "./helpers/chrome.js";
 import { type FakeSecretStore, fakeSecretStore } from "./helpers/fake-secret-store.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
@@ -39,7 +39,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   for (const t of running.splice(0)) await t.close().catch(() => {});
-  killSandboxProcesses(sb.home);
+  await stopSandboxProcesses(sb.home);
   sb.cleanup();
 });
 

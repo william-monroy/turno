@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vit
 import { addIdentity } from "../src/identities.js";
 import { base32Decode, totp } from "../src/totp.js";
 import { vaultAdd, vaultSetSubmit } from "../src/vault.js";
-import { chromeUnavailable, killSandboxProcesses } from "./helpers/chrome.js";
+import { chromeUnavailable, stopSandboxProcesses } from "./helpers/chrome.js";
 import { fakeSecretStore } from "./helpers/fake-secret-store.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
@@ -34,7 +34,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   for (const t of running.splice(0)) await t.close().catch(() => {});
-  killSandboxProcesses(sb.home);
+  await stopSandboxProcesses(sb.home);
   sb.cleanup();
 });
 

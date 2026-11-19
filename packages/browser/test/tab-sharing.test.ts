@@ -6,7 +6,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { createHost, serve } from "../src/host.js";
 import { SESSION_CAPABILITY, SESSION_ENDED_METHOD, SESSION_META_KEY } from "../src/session.js";
 import { upstream } from "../src/upstream.js";
-import { chromeUnavailable, killSandboxProcesses } from "./helpers/chrome.js";
+import { chromeUnavailable, stopSandboxProcesses } from "./helpers/chrome.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
 /**
@@ -71,7 +71,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   for (const c of clients.splice(0)) await c.close().catch(() => {});
-  killSandboxProcesses(sb.home);
+  await stopSandboxProcesses(sb.home);
   for (const k of ENV_KEYS) {
     if (saved[k] === undefined) delete process.env[k];
     else process.env[k] = saved[k];
