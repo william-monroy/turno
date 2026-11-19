@@ -298,7 +298,7 @@
 /*
  * The handover from the hero: where to start. The four problems sit in the text column, so the
  * thread passes beside them, with hairlines only between them; under them, every chapter in one
- * line, with the numbers the thread will carry.
+ * line, in the order the thread will carry them.
  */
 .t-start {
   display: grid;

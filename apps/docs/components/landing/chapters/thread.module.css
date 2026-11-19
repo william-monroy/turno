@@ -1,5 +1,5 @@
 /*
- * The thread down the left gutter, on the same x as the chapters' numbers: the middle of the
+ * The thread down the left gutter, on the same x as the chapters' knots: the middle of the
  * gutter of `.t-wrap` (1280 px wide at most, centered, padded by --gutter).
  */
 .thread {
@@ -112,7 +112,6 @@
 }
 .item {
   display: inline-flex;
-  gap: 6px;
   padding: 4px 8px;
   color: var(--ink);
   transition: none;
@@ -121,11 +120,4 @@
 .item:focus-visible {
   background: var(--ink);
   color: var(--paper);
-}
-.itemN {
-  color: var(--tone-keep);
-}
-.item:hover .itemN,
-.item:focus-visible .itemN {
-  color: inherit;
 }

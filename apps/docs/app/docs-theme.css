@@ -1049,12 +1049,8 @@ a.d-rel-step:focus-visible {
   margin-top: 18px;
 }
 
-/* Highlights: one headline feature each, numbered down the page like the landing's chapters. */
-#nd-page .prose {
-  counter-reset: d-hl;
-}
+/* Highlights: one headline feature each, down the page like the landing's chapters. */
 .d-hl {
-  counter-increment: d-hl;
   margin-block: 0;
   padding-block: 28px 30px;
   border-top: 1px solid var(--d-line);
@@ -1066,20 +1062,12 @@ a.d-rel-step:focus-visible {
   margin-top: 24px;
 }
 #nd-page .prose .d-hl-area {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
   margin: 0;
   font-family: var(--d-mono);
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--d-dim);
-}
-#nd-page .prose .d-hl-area::before {
-  content: counter(d-hl, decimal-leading-zero);
-  color: var(--d-keep);
-  letter-spacing: 0.04em;
 }
 #nd-page .prose .d-hl-title {
   margin: 10px 0 0;
