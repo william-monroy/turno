@@ -320,14 +320,14 @@ describe("turno identity add/show/set for browser identities", () => {
     const newer = { ...pkg, API_VERSION: { major: pkg.API_VERSION.major + 1, minor: 0 } };
     prev = setBrowserDeps(deps(() => loadBrowser({ importer: async () => old })));
     await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(
-      "turno-browser is too old for this turno (it has no API_VERSION, this turno needs 1.4 or a later 1.x); update it: npm install --global turno-browser@latest",
+      "turno-browser is too old for this turno (it has no API_VERSION, this turno needs 1.5 or a later 1.x); update it: npm install --global turno-browser@latest",
     );
-    // 1.3 has no "sharing" key and no manifestSnippet option.
+    // 1.4 has no engine or attach keys in identity.json.
     setBrowserDeps(
-      deps(() => loadBrowser({ importer: async () => ({ ...pkg, API_VERSION: { major: 1, minor: 3 } }) })),
+      deps(() => loadBrowser({ importer: async () => ({ ...pkg, API_VERSION: { major: 1, minor: 4 } }) })),
     );
     await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(
-      /its API is 1\.3, this turno needs 1\.4 or a later 1\.x/,
+      /its API is 1\.4, this turno needs 1\.5 or a later 1\.x/,
     );
     setBrowserDeps(deps(() => loadBrowser({ importer: async () => newer })));
     await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(

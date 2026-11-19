@@ -54,6 +54,12 @@ export const BUILTIN = [
     },
   },
   {
+    name: "lightpanda",
+    description: "read mode: Lightpanda as the engine (opt-in, needs lightpanda installed)",
+    identity: { engine: "lightpanda" },
+    needs: "read mode (identity.json engine) and lightpanda on PATH or TURNO_LIGHTPANDA_PATH",
+  },
+  {
     name: "camoufox",
     description: "Camoufox as the engine (opt-in, Firefox based)",
     identity: { engine: "camoufox" },

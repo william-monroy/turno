@@ -3,8 +3,16 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { browserPaths as paths } from "turno-core/paths";
+import { type ProcTable, parentIsInit, readProcTable, signalProcess } from "turno-core/process";
 import { readHealth } from "./health.js";
 import { identityDir, isValidIdentityId } from "./ids.js";
+import { defaultChromeUserDataDir, parseAttachTarget, resolveAttachEndpoint } from "./engine-attach.js";
+import {
+  type LightpandaInfo,
+  findLightpanda,
+  lightpandaCookieJar,
+  lightpandaInstallHint,
+} from "./engine-lightpanda.js";
 import { findProfileChrome, sweepOrphan } from "./lifecycle.js";
 import { readChallenges, summarizeChallenges } from "./reputation.js";
 import { inUseMessage, readRuntimeLock, runtimeLockAlive, runtimeLockPath } from "./runtime-lock.js";
@@ -16,15 +24,18 @@ import { type IdentitySettings, acceptLanguages, checkIdentitySettings, systemTi
  *
  * - Chrome: found, its version, and a smoke launch on a throwaway profile (headless).
  * - System: a headed Chrome needs the desktop session (macOS) or a display (Linux).
+ * - Engines: Lightpanda for read mode (optional; a failure only when an identity uses it), and
+ *   a Lightpanda an earlier server left running.
  * - Per identity: identity.json, who holds it (runtime lock and Chrome's profile lock), session
  *   health, and challenges in the last 7 days.
  *
  * `--fix` removes runtime locks whose process is gone and stops a Chrome an earlier run left
- * behind on an identity's profile (the same sweep a server start does).
+ * behind on an identity's profile (the same sweep a server start does), and stops a Lightpanda
+ * an earlier server left running.
  */
 
 export interface DoctorCheck {
-  /** "chrome", "system", "identities" or "identity <id>". */
+  /** "chrome", "system", "engines", "identities" or "identity <id>". */
   area: string;
   level: "ok" | "warn" | "fail" | "info";
   text: string;
@@ -52,6 +63,10 @@ export interface DoctorOptions {
   chrome?: (env: NodeJS.ProcessEnv, platform: NodeJS.Platform) => ChromeInfo | undefined;
   /** Starts and closes Chrome on a temporary profile; resolves with the milliseconds it took. */
   smoke?: (env: NodeJS.ProcessEnv) => Promise<number>;
+  /** Finds Lightpanda (tests inject one). */
+  lightpanda?: (env: NodeJS.ProcessEnv) => LightpandaInfo | undefined;
+  /** The process table, for a Lightpanda left running (tests inject one). */
+  procTable?: () => ProcTable | undefined;
   now?: Date;
 }
 
@@ -213,6 +228,8 @@ function identityChecks(id: string, env: NodeJS.ProcessEnv, now: Date): DoctorCh
     add({ level: "ok", text: `identity.json: ${describeSettings(settings)}` });
   }
 
+  if (settings) for (const c of engineRows(id, settings, env)) add(c);
+
   const lock = readRuntimeLock(id, env);
   const chrome = findProfileChrome(identityDir(id, env));
   if (lock && runtimeLockAlive(lock)) {
@@ -288,6 +305,90 @@ function identityChecks(id: string, env: NodeJS.ProcessEnv, now: Date): DoctorCh
   return out;
 }
 
+const ENABLE_DEBUGGING = "start Chrome, open chrome://inspect/#remote-debugging and turn remote debugging on";
+
+/** What an identity's engine needs (identity.json `engine`, `attach`); none for Chrome. */
+function engineRows(id: string, settings: IdentitySettings, env: NodeJS.ProcessEnv): Omit<DoctorCheck, "area">[] {
+  if (settings.engine === "lightpanda")
+    return [
+      {
+        level: "info",
+        text: `read mode on Lightpanda: its own cookies in ${lightpandaCookieJar(id, env)}, not the Chrome profile`,
+        fix: `turno browser set ${id} --engine chrome`,
+      },
+    ];
+  if (settings.attach === undefined) return [];
+  const target = parseAttachTarget(settings.attach);
+  if ("error" in target) return [];
+  try {
+    const endpoint = resolveAttachEndpoint(target, env);
+    return [
+      {
+        level: "ok",
+        text: `attach: a Chrome listens at ${endpoint.replace(/\/devtools\/.*$/, "")}; it asks you to allow each new connection, and the agent then sees every window of that profile`,
+      },
+    ];
+  } catch {
+    const dir = target.kind === "dir" ? target.dir : target.kind === "auto" ? defaultChromeUserDataDir(env) : undefined;
+    return [
+      {
+        level: "warn",
+        text: `attach: no Chrome with remote debugging on${dir ? ` for ${dir}` : ""}, so the next tool call fails`,
+        manual: ENABLE_DEBUGGING,
+      },
+    ];
+  }
+}
+
+/** A `lightpanda serve` that a turno-browser-mcp started (its socket is in a `turno-lightpanda-` folder) and that outlived it. */
+function strayLightpandas(table: ProcTable | undefined): number[] {
+  if (!table) return [];
+  return [...table.entries()]
+    .filter(([, p]) => /\/turno-lightpanda-[^/\s]+\/cdp\.sock(\s|$)/.test(p.command) && / serve /.test(p.command))
+    .filter(([, p]) => parentIsInit(p.ppid, table))
+    .map(([pid]) => pid);
+}
+
+function engineChecks(opts: DoctorOptions, env: NodeJS.ProcessEnv, ids: string[]): DoctorCheck[] {
+  const out: DoctorCheck[] = [];
+  const area = "engines";
+  const lightpanda = (opts.lightpanda ?? findLightpanda)(env);
+  const users = ids.filter((id) => checkIdentitySettings(id, env).settings?.engine === "lightpanda");
+  const platform = opts.platform ?? process.platform;
+  const hint = lightpandaInstallHint(platform);
+  const install = platform === "darwin" || platform === "linux" ? { fix: hint } : { manual: hint };
+  if (lightpanda)
+    out.push({
+      area,
+      level: "ok",
+      text: `Lightpanda${lightpanda.version ? ` ${lightpanda.version}` : ""} at ${lightpanda.path} (read mode)`,
+    });
+  else if (users.length)
+    out.push({
+      area,
+      level: "fail",
+      text: `Lightpanda not found, and read mode needs it for ${users.map((u) => `browser:${u}`).join(", ")}`,
+      ...install,
+    });
+  else
+    out.push({
+      area,
+      level: "info",
+      text: "Lightpanda not found: only read mode (--engine lightpanda) needs it, and turno never downloads it",
+      ...install,
+    });
+  const stray = strayLightpandas((opts.procTable ?? readProcTable)());
+  if (stray.length)
+    out.push({
+      area,
+      level: "warn",
+      text: `Lightpanda pid ${stray.join(", ")} was left running by a server that is gone`,
+      fix: FIX,
+      auto: true,
+    });
+  return out;
+}
+
 /** Every identity id, including profile dirs with an identity.json only. */
 function identityIds(env: NodeJS.ProcessEnv): string[] {
   try {
@@ -343,6 +444,7 @@ async function collect(
   }
   checks.push(...systemChecks(env, platform));
   const ids = identityIds(env);
+  checks.push(...engineChecks(opts, env, ids));
   if (!ids.length)
     checks.push({
       area: "identities",
@@ -354,9 +456,13 @@ async function collect(
   return checks;
 }
 
-/** Repairs what is safe: stale runtime locks and a Chrome left running with no server. */
-async function repair(env: NodeJS.ProcessEnv): Promise<string[]> {
+/** Repairs what is safe: stale runtime locks, a Chrome left running with no server, a stray Lightpanda. */
+async function repair(env: NodeJS.ProcessEnv, opts: DoctorOptions): Promise<string[]> {
   const done: string[] = [];
+  for (const pid of strayLightpandas((opts.procTable ?? readProcTable)())) {
+    signalProcess(pid, "SIGTERM");
+    done.push(`stopped Lightpanda pid ${pid}, left running by a server that is gone`);
+  }
   for (const id of identityIds(env)) {
     const lock = readRuntimeLock(id, env);
     if (lock && !runtimeLockAlive(lock)) {
@@ -378,7 +484,7 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   let checks = await collect(opts, env, platform, now);
   const fixed: string[] = [];
   if (opts.fix && checks.some((c) => c.auto && (c.level === "warn" || c.level === "fail"))) {
-    fixed.push(...(await repair(env)));
+    fixed.push(...(await repair(env, opts)));
     checks = await collect({ ...opts, launch: false }, env, platform, now).then((again) => {
       // Keep the smoke launch result of the first pass: it does not change with a repair.
       const smoke = checks.find((c) => c.area === "chrome" && /^smoke launch/.test(c.text));

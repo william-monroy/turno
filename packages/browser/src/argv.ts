@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { browserPaths as paths } from "turno-core/paths";
 import { HUMANIZE_LEVELS, type HumanizeLevel } from "./humanize.js";
 import { assertIdentityId, identityDir } from "./identities.js";
+import type { EngineFlags } from "./engine.js";
+import { parseAttachTarget } from "./engine-attach.js";
 import type { TuningFlags } from "./tuning.js";
 import { parseDuration } from "./units.js";
 
@@ -25,7 +27,8 @@ import { parseDuration } from "./units.js";
  * nothing is added for them; no init scripts are ever added.
  *
  * The tab governor, background throttling, humanize and sharing flags (`TUNING_FLAGS`) are turno's: they are
- * taken out here and win over identity.json.
+ * taken out here and win over identity.json. So are `--engine <chrome|lightpanda>` and `--attach <target>` (`engine.ts`); with either and
+ * no identity there is no Chrome profile to create.
  *
  * An identity holds saved logins, so serving it over HTTP (`--port`, `--host`) lets any local
  * process drive a signed-in browser without the stdio pipe or mcpd's token. That needs
@@ -44,6 +47,8 @@ export interface BuiltArgv {
   config?: { path: string; data: PlaywrightMcpConfig };
   /** turno's own flags for the host, when any was given. */
   tuning?: TuningFlags;
+  /** `--engine` and `--attach`, when given. */
+  engineFlags?: EngineFlags;
 }
 
 /** The keys of the Playwright MCP config file that turno sets (pinned by the contract test). */
@@ -186,6 +191,40 @@ export function extractTuning(args: string[]): { tuning?: TuningFlags; rest: str
   return any ? { tuning: out, rest } : { rest };
 }
 
+/** The value of `--flag v` or `--flag=v` at `args[i]`, and how many items it took. */
+function valueAt(args: string[], i: number, flag: string): { value: string; used: number } | undefined {
+  const a = args[i]!;
+  if (a.startsWith(`${flag}=`)) return { value: a.slice(flag.length + 1), used: 1 };
+  if (a !== flag) return undefined;
+  const v = args[i + 1];
+  if (v === undefined || v.startsWith("--")) throw new Error(`${flag} needs a value`);
+  return { value: v, used: 2 };
+}
+
+/** Removes `--engine` and `--attach` from args and returns their values, checked. */
+export function extractEngine(args: string[]): { engineFlags?: EngineFlags; rest: string[] } {
+  const rest: string[] = [];
+  const out: EngineFlags = {};
+  for (let i = 0; i < args.length; i++) {
+    const engine = valueAt(args, i, "--engine");
+    const attach = engine ? undefined : valueAt(args, i, "--attach");
+    if (engine) {
+      if (engine.value !== "chrome" && engine.value !== "lightpanda")
+        throw new Error(`--engine must be "chrome" or "lightpanda" (read mode), not "${engine.value}"`);
+      out.engine = engine.value;
+      i += engine.used - 1;
+    } else if (attach) {
+      const target = parseAttachTarget(attach.value);
+      if ("error" in target) throw new Error(target.error.replace(/^attach/, "--attach"));
+      out.attach = attach.value.trim();
+      i += attach.used - 1;
+    } else rest.push(args[i]!);
+  }
+  if (out.engine === "lightpanda" && out.attach !== undefined)
+    throw new Error("--attach and --engine lightpanda do not go together: pick one");
+  return out.engine !== undefined || out.attach !== undefined ? { engineFlags: out, rest } : { rest };
+}
+
 /** Removes `--identity <id>` / `--identity=<id>` from args and returns the id. */
 export function extractIdentity(args: string[]): { identity?: string; rest: string[] } {
   const rest: string[] = [];
@@ -214,12 +253,21 @@ function defaultTempDir(): string {
 export function buildArgv(rawArgs: string[], options: BuildOptions = {}): BuiltArgv {
   const env = options.env ?? process.env;
   const { identity, rest: afterIdentity } = extractIdentity(rawArgs);
-  const { tuning, rest } = extractTuning(afterIdentity);
+  const { tuning, rest: afterTuning } = extractTuning(afterIdentity);
+  const { engineFlags, rest } = extractEngine(afterTuning);
   const allowHttp = rest.includes(ALLOW_HTTP_IDENTITY);
   const args = rest.filter((a) => a !== ALLOW_HTTP_IDENTITY);
   guardHttp(args, identity, allowHttp);
   const external = hasAny(args, EXTERNAL_BROWSER);
-  const out: BuiltArgv = { args, ...(tuning ? { tuning } : {}) };
+  const out: BuiltArgv = { args, ...(tuning ? { tuning } : {}), ...(engineFlags ? { engineFlags } : {}) };
+  const otherEngine = engineFlags?.engine === "lightpanda" || engineFlags?.attach !== undefined;
+  if (otherEngine) {
+    const clash = ["--isolated", "--user-data-dir", ...EXTERNAL_BROWSER].find((f) => hasFlag(args, f));
+    if (clash)
+      throw new Error(
+        `${engineFlags?.attach !== undefined ? "--attach" : "--engine lightpanda"} cannot be combined with ${clash}`,
+      );
+  }
   if (identity !== undefined) {
     const clash = ["--user-data-dir", "--isolated", ...EXTERNAL_BROWSER].find((f) => hasFlag(args, f));
     if (clash) throw new Error(`--identity cannot be combined with ${clash}`);
@@ -233,7 +281,9 @@ export function buildArgv(rawArgs: string[], options: BuildOptions = {}): BuiltA
     return out.tempDir;
   };
 
-  if (!external && !hasFlag(args, "--user-data-dir") && !hasFlag(args, "--isolated")) {
+  // Read mode and attach mode without an identity start no Chrome, so they need no profile.
+  const needsProfile = !(otherEngine && identity === undefined);
+  if (!external && needsProfile && !hasFlag(args, "--user-data-dir") && !hasFlag(args, "--isolated")) {
     out.userDataDir = identity !== undefined ? identityDir(identity, env) : join(makeTemp(), "profile");
     args.push("--user-data-dir", out.userDataDir);
   }

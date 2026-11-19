@@ -1,15 +1,25 @@
 import { resolve } from "node:path";
-import type { Browser, BrowserContext } from "patchright-core";
+import type { Browser, BrowserContext, Page } from "patchright-core";
+import { type AttachTarget, createAttachEngine, parseAttachTarget } from "./engine-attach.js";
+import { createLightpandaEngine } from "./engine-lightpanda.js";
 import { findProfileChrome, readLockPid } from "./lifecycle.js";
 import { acquireRuntimeLock } from "./runtime-lock.js";
-import { keychainArgs, launchSettings, readIdentitySettings, systemTimezone } from "./settings.js";
+import {
+  type IdentitySettings,
+  keychainArgs,
+  launchSettings,
+  readIdentitySettings,
+  systemTimezone,
+} from "./settings.js";
 import { type Tuning, launchTuning } from "./tuning.js";
+import { IdleTimer, idleMs } from "./idle-timer.js";
 import { type ClientInfo, type IdleTimerLike, type McpConfig, playwright, upstream } from "./upstream.js";
 
 /**
  * Where the browser context behind an MCP session comes from. The host asks an
  * engine for a context when a session first needs the browser, and again after the browser
- * closed (idle limit, `browser_close`); it never launches a browser any other way.
+ * closed (idle limit, `browser_close`); it never launches a browser any other way. This module
+ * and the `engine-*.ts` modules are the only code that knows how each engine starts.
  *
  * - `chrome`: the default. turno launches the installed Chrome itself, as a Patchright
  *   persistent context on the profile it chose (the identity's, or a temporary one), with the
@@ -17,12 +27,17 @@ import { type ClientInfo, type IdleTimerLike, type McpConfig, playwright, upstre
  * - `upstream`: every other mode (`--isolated`, `--cdp-endpoint`, `--endpoint`, `--extension`,
  *   `--shared-browser-context`, another browser than Chromium), handed to upstream's
  *   `createBrowserWithInfo` exactly as the stock program does.
+ * - `lightpanda`: read mode on Lightpanda (`engine-lightpanda.ts`), chosen explicitly.
+ * - `attach`: the Chrome the user already has open (`engine-attach.ts`), chosen explicitly.
  *
- * Another engine (another browser, an attach mode) is one more `Engine` here; the host only
- * sees `LaunchedBrowser`.
+ * Which one runs is decided at every launch (`engineChoice`): a server flag (`--engine`,
+ * `--attach`) wins over identity.json (`engine`, `attach`), which is read at every launch like
+ * the rest of it; without either, the config decides between `chrome` and `upstream`. Another
+ * engine is one more `Engine` and one more case in `createEngine`; the host only sees
+ * `LaunchedBrowser`.
  */
 
-type EngineId = "chrome" | "upstream";
+type EngineId = "chrome" | "upstream" | "lightpanda" | "attach";
 
 export interface LaunchedBrowser {
   engine: EngineId;
@@ -39,6 +54,14 @@ export interface LaunchedBrowser {
   isOpen(): boolean;
   /** Closes the browser after the configured time without a tool call. */
   idleTimer?: IdleTimerLike;
+  /**
+   * True when the browser is the user's own (attach mode): the host opens a tab of its own as
+   * the current tab, the tab governor touches only the agent's tabs, and nothing is brought to
+   * the front.
+   */
+  userBrowser?: boolean;
+  /** Marks a page as opened by the agent, so `close` closes it (attach mode). */
+  own?(page: Page): void;
 }
 
 export interface LaunchRequest {
@@ -63,26 +86,11 @@ export interface IdentityRef {
 export interface Engine {
   id: EngineId;
   launch(request: LaunchRequest): Promise<LaunchedBrowser>;
-}
-
-/** Upstream's default idle limit for a headless browser it owns (`defaultIdleTimeout`). */
-const HEADLESS_IDLE_MS = 60 * 60 * 1000;
-
-/** Upstream's `IdleTimer`: every tool call restarts the countdown. */
-class IdleTimer implements IdleTimerLike {
-  private timer: NodeJS.Timeout | undefined;
-  constructor(
-    private readonly ms: number,
-    private readonly onIdle: () => void,
-  ) {}
-  poke(): void {
-    this.dispose();
-    this.timer = setTimeout(this.onIdle, this.ms);
-  }
-  dispose(): void {
-    clearTimeout(this.timer);
-    this.timer = undefined;
-  }
+  /**
+   * Why this engine does not run a tool, checked before the call reaches (or launches) the
+   * browser; undefined when it runs it. For the identity's engine, `identity` says which one.
+   */
+  refuse?(tool: string, identity?: IdentityRef): string | undefined;
 }
 
 /** True when the config asks for the browser the `chrome` engine launches. */
@@ -216,10 +224,10 @@ const chromeEngine: Engine = {
       throw err;
     }
     let closing = false;
-    const idleMs = config.timeouts?.idle ?? (config.browser.launchOptions.headless ? HEADLESS_IDLE_MS : undefined);
+    const ms = idleMs(config);
     let idleTimer: IdleTimer | undefined;
-    if (idleMs) {
-      const timer = new IdleTimer(idleMs, () => {
+    if (ms) {
+      const timer = new IdleTimer(ms, () => {
         closing = true;
         void browser.close().catch(() => {});
       });
@@ -264,7 +272,7 @@ function remoteConnectOptions(config: McpConfig): Record<string, unknown> {
  * with the session handling of upstream's MCP program (`program.ts`): sessions share one
  * browser for `--shared-browser-context` and `--isolated`, and the last one to leave closes it.
  */
-export function createUpstreamEngine(): Engine {
+function createUpstreamEngine(): Engine {
   let shared: Promise<Awaited<ReturnType<ReturnType<typeof upstream>["tools"]["createBrowserWithInfo"]>>> | undefined;
   let clients = 0;
   return {
@@ -342,4 +350,81 @@ export function createUpstreamEngine(): Engine {
 /** The engine for this config. */
 export function selectEngine(config: McpConfig, fallback: Engine): Engine {
   return usesChromeEngine(config) ? chromeEngine : fallback;
+}
+
+/** The `turno-browser-mcp` flags that pick an engine; each wins over identity.json. */
+export interface EngineFlags {
+  engine?: "chrome" | "lightpanda";
+  /** An attach target (`parseAttachTarget`). */
+  attach?: string;
+}
+
+/** The engine one launch uses, before the config decides between `chrome` and `upstream`. */
+export type EngineChoice = { kind: "default" } | { kind: "lightpanda" } | { kind: "attach"; target: AttachTarget };
+
+/**
+ * Flags first, then identity.json. A flag of either kind replaces both keys of identity.json:
+ * `--engine chrome` turns an identity's attach or read mode off for that server.
+ */
+export function engineChoice(
+  flags: EngineFlags,
+  settings: Pick<IdentitySettings, "engine" | "attach"> | undefined,
+): EngineChoice {
+  const fromFlags = flags.engine !== undefined || flags.attach !== undefined;
+  const engine = fromFlags ? flags.engine : settings?.engine;
+  const attach = fromFlags ? flags.attach : settings?.attach;
+  if (attach !== undefined) {
+    if (engine === "lightpanda") throw new Error("attach and the lightpanda engine do not go together: pick one");
+    const target = parseAttachTarget(attach);
+    if ("error" in target) throw new Error(target.error);
+    return { kind: "attach", target };
+  }
+  return engine === "lightpanda" ? { kind: "lightpanda" } : { kind: "default" };
+}
+
+/**
+ * The host's engine: at every launch it reads the identity's settings and the flags, and hands
+ * the launch to `lightpanda`, `attach`, or the engine the config selects.
+ */
+/**
+ * Why an engine cannot run with these settings, if it cannot: attach mode keeps one agent's tabs
+ * apart from the user's, not several sessions apart from each other, and read mode has no
+ * layout for human-like input to move over.
+ */
+export function tuningClash(engine: string, tuning: Pick<Tuning, "sharing" | "humanize">): string | undefined {
+  if (engine === "attach" && tuning.sharing === "tabs")
+    return '"sharing": "tabs" does not go with attach mode: in your own Chrome turno keeps one agent\'s tabs apart from yours, not several sessions apart. Turn one off (--sharing session, or --attach "")';
+  if (engine === "lightpanda" && tuning.humanize.level !== "off")
+    return "humanize does not go with read mode: Lightpanda lays out no page, so there is no pointer path or scroll to play. Turn one off (--humanize off, or --engine chrome)";
+  return undefined;
+}
+
+export function createEngine(config: McpConfig, flags: EngineFlags = {}, fallback?: Engine): Engine {
+  const base = selectEngine(config, fallback ?? createUpstreamEngine());
+  const lightpanda = createLightpandaEngine();
+  const choose = (identity?: IdentityRef): Engine => {
+    const settings = identity ? readIdentitySettings(identity.id, identity.env) : undefined;
+    const choice = engineChoice(flags, settings);
+    if (choice.kind === "lightpanda") return lightpanda;
+    if (choice.kind === "attach") return createAttachEngine(choice.target);
+    return base;
+  };
+  return {
+    id: base.id,
+    launch: async (request) => {
+      const engine = choose(request.identity);
+      const clash = request.tuning ? tuningClash(engine.id, request.tuning) : undefined;
+      if (clash) throw new Error(clash);
+      return await engine.launch(request);
+    },
+    refuse(tool, identity) {
+      let engine: Engine;
+      try {
+        engine = choose(identity);
+      } catch {
+        return undefined; // the launch reports a bad identity.json or flag
+      }
+      return engine.refuse?.(tool, identity);
+    },
+  };
 }

@@ -189,7 +189,11 @@ export interface UpstreamTools {
 
 interface CoreBundle {
   tools: UpstreamTools;
-  utils: { gracefullyProcessExitDoNotHang(code: number): void };
+  utils: {
+    gracefullyProcessExitDoNotHang(code: number): void;
+    /** What upstream's exit watchdog awaits before the process exits (stdin closed, SIGTERM). */
+    gracefullyCloseSet: Set<() => Promise<void>>;
+  };
 }
 
 /** A zod schema of the bundled zod, as far as turno tools build one. */
