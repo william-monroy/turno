@@ -24,7 +24,7 @@ export type { BrowserApi };
  * The API version this turno was built against. Typed by the package's own constant, so a
  * change of its API_VERSION in the workspace fails the typecheck until this line follows.
  */
-export const BROWSER_API: typeof API_VERSION = { major: 1, minor: 3 };
+export const BROWSER_API: typeof API_VERSION = { major: 1, minor: 4 };
 
 /** What the package exports that the loader looks at. */
 interface BrowserPackage {
@@ -189,7 +189,7 @@ function add(mod: BrowserApi, args: string[], io: Io): number {
   io.out(`identity "${id}" ready at ${tildify(info.dir, io.env)}`);
   io.out(`settings (time zone, languages, health check) in ${tildify(mod.identitySettingsPath(id, io.env), io.env)}`);
   io.out(`\nAdd this to ${tildify(paths(io.env).mcpFile, io.env)}, then run \`turno mcp sync\`:\n`);
-  io.out(mod.manifestSnippet(id));
+  io.out(settings.sharing === "tabs" ? mod.manifestSnippet(id, { sharing: "tabs" }) : mod.manifestSnippet(id));
   io.out(`Sign in to your sites once with \`turno identity login browser:${id}\`.`);
   return 0;
 }
@@ -406,6 +406,7 @@ export function browserCommand(deps: BrowserDeps = defaultDeps): Command {
       "turno browser set school --tabs-max 5 --tabs-popups keep --settle 250ms",
       "turno browser set school --block-trackers true --cache --json",
       "turno browser set school --humanize light",
+      "turno browser set school --sharing tabs",
       "turno browser login school --url https://example.com",
       "turno browser doctor --fix",
       "turno browser reputation school --json",

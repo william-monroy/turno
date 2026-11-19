@@ -9,6 +9,7 @@ import {
   loadBrowser,
 } from "../src/cli/commands/browser.js";
 import { command as identity, setBrowserDeps } from "../src/cli/commands/identity.js";
+import { parseManifest } from "../src/core/manifest.js";
 import { fakeIo } from "./helpers/cli.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
 
@@ -251,7 +252,34 @@ describe("turno identity add/show/set for browser identities", () => {
     await bad(["--no-tabs", "--tabs-max", "3"], /--no-tabs does not go with the other --tabs flags/);
     await bad(["--no-block", "--block-trackers", "true"], /--no-block does not go with the other --block flags/);
     await bad(["--no-cache", "--cache"], /--no-cache does not go with --cache or --cache-max-size/);
+    await bad(
+      ["--sharing", "all"],
+      /^--sharing must be "session" \(the default, one agent session at a time\) or "tabs"$/,
+    );
     expect(readFileSync(settingsFile("school"), "utf8")).toBe(before);
+  });
+
+  it("turns tab sharing on and off with --sharing, and says what mcp.toml needs", async () => {
+    prev = setBrowserDeps(deps(real));
+    const add = fakeIo(sb.env);
+    expect(await identity.run(["add", "browser:team", "--sharing", "tabs"], add)).toBe(0);
+    const snippet = add.lines.join("\n");
+    expect(snippet).toContain("exclusive = false  # every agent session at once, each in its own tabs");
+    expect(snippet).not.toContain("lease");
+    // The block parses as mcp.toml as printed.
+    const block = snippet.slice(snippet.indexOf("[server.browser-team]"), snippet.indexOf('idle = "30m"') + 12);
+    expect(parseManifest(`${block}\n`).servers["browser-team"]).toMatchObject({ scope: "shared", exclusive: false });
+    expect(JSON.parse(readFileSync(settingsFile("team"), "utf8"))).toMatchObject({ version: 5, sharing: "tabs" });
+
+    const on = fakeIo(sb.env);
+    expect(await identity.run(["set", "browser:team", "--sharing", "tabs"], on)).toBe(0);
+    expect(on.lines.join("\n")).toMatch(/sharing +every agent session at once, each in its own tabs/);
+    expect(on.lines.join("\n")).toContain("set exclusive = false for [server.browser-team] (and drop lease)");
+
+    const off = fakeIo(sb.env);
+    expect(await identity.run(["set", "browser:team", "--sharing", ""], off)).toBe(0);
+    expect(off.lines.join("\n")).toContain("set exclusive = true for [server.browser-team]");
+    expect(JSON.parse(readFileSync(settingsFile("team"), "utf8")).sharing).toBeUndefined();
   });
 
   it("reports what set changed with --json, and what it would change with --dry-run --json", async () => {
@@ -292,14 +320,14 @@ describe("turno identity add/show/set for browser identities", () => {
     const newer = { ...pkg, API_VERSION: { major: pkg.API_VERSION.major + 1, minor: 0 } };
     prev = setBrowserDeps(deps(() => loadBrowser({ importer: async () => old })));
     await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(
-      "turno-browser is too old for this turno (it has no API_VERSION, this turno needs 1.3 or a later 1.x); update it: npm install --global turno-browser@latest",
+      "turno-browser is too old for this turno (it has no API_VERSION, this turno needs 1.4 or a later 1.x); update it: npm install --global turno-browser@latest",
     );
-    // 1.2 does not accept the humanize key of identity.json.
+    // 1.3 has no "sharing" key and no manifestSnippet option.
     setBrowserDeps(
-      deps(() => loadBrowser({ importer: async () => ({ ...pkg, API_VERSION: { major: 1, minor: 2 } }) })),
+      deps(() => loadBrowser({ importer: async () => ({ ...pkg, API_VERSION: { major: 1, minor: 3 } }) })),
     );
     await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(
-      /its API is 1\.2, this turno needs 1\.3 or a later 1\.x/,
+      /its API is 1\.3, this turno needs 1\.4 or a later 1\.x/,
     );
     setBrowserDeps(deps(() => loadBrowser({ importer: async () => newer })));
     await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(

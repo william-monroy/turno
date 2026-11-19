@@ -61,6 +61,8 @@ export const SETTINGS_FLAGS: FlagSpec = {
   "no-cache": { type: "boolean" },
   // Human-like input (format 4): off, light, full or adaptive.
   humanize: { type: "string" },
+  // How many agent sessions use the identity's browser at once (format 5).
+  sharing: { type: "string" },
 };
 
 /** The identity.json key behind each tuning flag, so the package's messages name the flag. */
@@ -76,6 +78,7 @@ const KEY_FLAGS: readonly (readonly [string, string])[] = [
   ["block.patterns", "--block-patterns"],
   ["cache.maxSize", "--cache-max-size"],
   ["humanize.level", "--humanize"],
+  ["sharing", "--sharing"],
 ];
 
 const TABS_MAX_PROBLEM = "--tabs-max must be a whole number from 0 (no cap) to 100";
@@ -226,6 +229,9 @@ function tuningPatch(
   const humanize = value("humanize");
   if (humanize !== undefined)
     patch.humanize = humanize === null ? null : ({ ...current?.humanize, level: humanize } as HumanizeSettings);
+  // Checked by the package: an unknown value comes back as `--sharing must be ...`.
+  const sharing = value("sharing");
+  if (sharing !== undefined) patch.sharing = sharing as IdentitySettings["sharing"] | null;
 }
 
 export function hasSettings(patch: SettingsPatch): boolean {
@@ -311,6 +317,7 @@ export function show(m: BrowserApi, id: string, args: string[], io: Io): number 
         "input",
         `${HUMANIZE_TEXT[settings.humanize.level] ?? settings.humanize.level}${settings.humanize.seed === undefined ? "" : s.muted(` (seed ${settings.humanize.seed})`)}`,
       ]);
+    if (settings.sharing === "tabs") rows.push(["sharing", "every agent session at once, each in its own tabs"]);
     rows.push(["created", settings.created]);
     rows.push(["updated", settings.updated]);
   }
@@ -341,7 +348,7 @@ const SET_FLAGS: FlagSpec = { ...SETTINGS_FLAGS, "dry-run": { type: "boolean" },
 export const SET_SYNOPSIS =
   "[--timezone <zone>] [--locale <tag>] [--languages <tag,...>] [--region <CC>] [--health-url <url>] [--health-text <text>] [--health-selector <css>] [--no-health] " +
   "[--tabs-max <n>] [--tabs-popups close|keep] [--tabs-park <duration>] [--tabs-close <duration>] [--no-tabs] [--background-throttling true|false] [--settle <duration>] " +
-  "[--block-trackers true|false] [--block-types image,media,font] [--block-patterns <host|glob>,...] [--no-block] [--cache] [--cache-max-size <size>] [--no-cache] [--humanize off|light|full|adaptive] [--dry-run] [--json]";
+  "[--block-trackers true|false] [--block-types image,media,font] [--block-patterns <host|glob>,...] [--no-block] [--cache] [--cache-max-size <size>] [--no-cache] [--humanize off|light|full|adaptive] [--sharing session|tabs] [--dry-run] [--json]";
 
 /** More help for `set`: what each tuning flag writes to identity.json. */
 export const SET_DETAILS = `Each flag writes one key of identity.json; an empty value (--settle "") removes it, and
@@ -360,6 +367,9 @@ How the host runs this identity's Chrome (read at every Chrome start):
   --block-patterns <list>         block host names (and subdomains) or URL globs with *
   --cache                         keep images, fonts, styles and scripts on disk (100MB)
   --cache-max-size <size>         the cache's size, "1MB" to "10GB"; turns the cache on
+  --sharing session|tabs          "tabs": every agent session at once, each in its own locked
+                                  tabs (default "session": one at a time); mcp.toml then needs
+                                  exclusive = false for the identity's server
 
 Blocking without the cache turns Chrome's own HTTP cache off: use them together.
 
@@ -391,6 +401,13 @@ function rehearse(m: BrowserApi, id: string, patch: SettingsPatch, env: NodeJS.P
   }
 }
 
+/** What mcp.toml needs after `--sharing`: mcpd decides how many sessions reach the server. */
+function sharingNote(id: string, sharing: IdentitySettings["sharing"]): string {
+  return sharing === "tabs"
+    ? `In mcp.toml, set exclusive = false for [server.browser-${id}] (and drop lease), then run \`turno mcp sync\`: mcpd then lets every session in, and each gets its own tabs.`
+    : `In mcp.toml, set exclusive = true for [server.browser-${id}], then run \`turno mcp sync\`: one agent session at a time.`;
+}
+
 export function set(m: BrowserApi, id: string, args: string[], io: Io): number {
   const p = parseFlags(args, SET_FLAGS, 1);
   if (!m.identityExists(id, io.env)) return fail(`identity "${id}" does not exist (turno identity add browser:${id})`);
@@ -420,7 +437,9 @@ export function set(m: BrowserApi, id: string, args: string[], io: Io): number {
     return Exit.ok;
   }
   io.out(`updated identity.json of "${id}"; the next Chrome start of browser-${id} uses it\n`);
-  return show(m, id, [], io);
+  const code = show(m, id, [], io);
+  if (patch.sharing !== undefined) io.out(`\n${sharingNote(id, settings.sharing)}`);
+  return code;
 }
 
 const DOCTOR_FLAGS: FlagSpec = { fix: { type: "boolean" }, "no-launch": { type: "boolean" }, ...JSON_FLAG };
