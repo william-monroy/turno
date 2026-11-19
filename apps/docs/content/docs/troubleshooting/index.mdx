@@ -93,6 +93,11 @@ It exits with code 1 when a check fails; warnings exit 0. Each row below is one 
 | [An identity met challenges in the last 7 days](/docs/troubleshooting/browser-challenges) | `<recent> challenge<s> in the last 7 days on <sites> site<s> (<kinds>)` | warning |
 | [Google Chrome is not installed (turno-browser)](/docs/troubleshooting/browser-chrome-not-found) | `Google Chrome not found` | failure |
 | [Lightpanda is not installed, and an identity uses read mode](/docs/troubleshooting/browser-lightpanda-not-found) | `Lightpanda not found, and read mode needs it for <users>` | failure |
+| [Camoufox is not installed, and an identity uses it](/docs/troubleshooting/browser-camoufox-not-found) | `Camoufox not found, and the camoufox engine needs it for <who>` | failure |
+| [playwright-core is missing for Camoufox](/docs/troubleshooting/browser-playwright-core-missing) | `playwright-core not found, and Camoufox runs on stock Playwright (patchright-core drives Chromium only): needed for <who>` | failure |
+| [playwright-core has the wrong version for Camoufox](/docs/troubleshooting/browser-playwright-core-wrong-version) | `playwright-core <version> at <dir> is not the version patchright-core is built on, so Camoufox cannot run on it` | warning or failure |
+| [No secret store for the proxy credentials](/docs/troubleshooting/browser-proxy-no-secret-store) | `the proxy credentials are in the secret store, and this machine has none` | failure |
+| [The proxy credentials are not in the secret store](/docs/troubleshooting/browser-proxy-secret-missing) | `proxy credentials: <label> has no item "<item>", so the browser does not start` | failure |
 | [No Chrome to attach to](/docs/troubleshooting/browser-attach-not-listening) | `attach: no Chrome with remote debugging on< for <dir>>, so the next tool call fails` | warning |
 | [Several sessions share one tab](/docs/troubleshooting/browser-sharing-not-exclusive) | `[server.<name>] in mcp.toml lets several sessions in (exclusive = false), but this identity serves one at a time ("sharing": "session"), so those sessions share one current tab` | warning |
 | [A Lightpanda was left running](/docs/troubleshooting/browser-stray-lightpanda) | `Lightpanda pid <stray> was left running by a server that is gone` | warning |

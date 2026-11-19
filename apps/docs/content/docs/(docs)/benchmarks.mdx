@@ -127,9 +127,10 @@ Configurations are data in `bench/browser/lib/configs.mjs`: server flags, `ident
 | `tabs-4` | at most 4 open pages |
 | `humanize-light`, `humanize-full` | human-like input levels (needs a turno-browser that has them) |
 | `lightpanda` | read mode on Lightpanda (needs `lightpanda` on PATH or `TURNO_LIGHTPANDA_PATH`; tools read mode refuses count as failed tasks) |
-| `camoufox` | Camoufox as the engine (needs a turno-browser that has it) |
+| `camoufox` | Camoufox as the engine (needs Camoufox and a matching `playwright-core`, see [Camoufox](/docs/concepts/browser-identities#camoufox)) |
+| `user-agent-coherent`, `user-agent-coherent-tz` | `"userAgent": "coherent"`, the second with a time zone other than the computer's; both expect the headless token gone and the consistency checks to pass |
 
-A configuration the server does not accept (an unknown `identity.json` key, engine or flag, or a Lightpanda that is not installed) is reported as unsupported instead of failing. More go in a JSON file passed with `--config-file`, for example a before and after of an update, or Chrome Beta:
+A configuration the server does not accept (an unknown `identity.json` key, engine or flag, or a Lightpanda or Camoufox that is not installed) is reported as unsupported instead of failing. More go in a JSON file passed with `--config-file`, for example a before and after of an update, or Chrome Beta:
 
 ```json title="configs.json"
 [
@@ -165,6 +166,7 @@ Every run of both configurations succeeded, with the same calls and tokens: a sh
 
 - **navigator**: user agent, client hints and their agreement with it, languages, plugins, WebGL renderer, window size, permissions;
 - **automation markers**: `navigator.webdriver` and how it is defined, globals that Playwright, Puppeteer or Selenium leave, and any global plain Chrome does not have;
+- **consistency**: the headers of the page's own request against what the page reads (User-Agent, Accept-Language, the client hints brands and platform), a dedicated worker against its page (user agent, platform, languages, time zone), and the language dates are formatted in against the first language;
 - **protocol side effects**: DOM calls that come from outside the page's own scripts, whether the page's Content Security Policy holds, and the old `Runtime.enable` console leak;
 - **input events**: `isTrusted`, timing, coordinates and coalesced events of every pointer, key and wheel event, and the pointer path before the click.
 
