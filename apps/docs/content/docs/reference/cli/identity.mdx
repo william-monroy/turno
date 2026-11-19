@@ -35,7 +35,8 @@ Usage:
       keychain:<item>] [--act-max-steps <n>] [--act-max-tokens <n>]
       [--act-timeout <duration>] [--no-act] [--captcha-provider task-api]
       [--captcha-endpoint <url>] [--captcha-key keychain:<item>]
-      [--captcha-timeout <duration>] [--no-captcha] [--dry-run] [--json]
+      [--captcha-timeout <duration>] [--no-captcha] [--live true|false]
+      [--live-wait <duration>] [--no-live] [--dry-run] [--json]
                                 change a browser identity's identity.json:
                                 place, languages, health check, tabs, blocking,
                                 cache
@@ -130,7 +131,8 @@ Usage:
       keychain:<item>] [--act-max-steps <n>] [--act-max-tokens <n>]
       [--act-timeout <duration>] [--no-act] [--captcha-provider task-api]
       [--captcha-endpoint <url>] [--captcha-key keychain:<item>]
-      [--captcha-timeout <duration>] [--no-captcha] [--dry-run] [--json]
+      [--captcha-timeout <duration>] [--no-captcha] [--live true|false]
+      [--live-wait <duration>] [--no-live] [--dry-run] [--json]
     change a browser identity's identity.json: place, languages, health check,
     tabs, blocking, cache
 
@@ -198,6 +200,11 @@ party you pick, and many sites' terms forbid them; the server lists their tools 
   --captcha-key keychain:<item>   with its account key in the secret store
   --captcha-timeout <duration>    longest wait for a solution (default 3m)
   --no-act, --no-captcha          turn them off
+
+The live view and take-over (off by default; turno browser live, pause, resume):
+  --live <bool>                   serve a view of the agent's tab on 127.0.0.1 and let you pause
+                                  the agent to take the controls (from the next server start)
+  --live-wait <duration>          how long a paused call waits for you, "5s" to "30m" (default 2m)
 
 Examples:
   $ turno identity set browser:school --timezone Europe/Madrid --languages es-ES,es,en

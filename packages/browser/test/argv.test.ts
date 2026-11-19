@@ -36,6 +36,23 @@ describe("buildArgv", () => {
     expect(b.args).toContain("--headless");
   });
 
+  it("takes --live and --live-wait out for the host, only with an identity", () => {
+    const b = buildArgv(["--identity", "school", "--live", "--live-wait=90s", "--headless"], {
+      env: sb.env,
+      makeTempDir: fakeTemp,
+    });
+    expect(b.live).toEqual({ live: true, waitMs: 90_000 });
+    expect(b.args.some((a) => a.startsWith("--live"))).toBe(false);
+    expect(buildArgv(["--identity", "school", "--live-wait", "5s"], { env: sb.env }).live).toEqual({ waitMs: 5_000 });
+    expect(() => buildArgv(["--live"], { env: sb.env, makeTempDir: fakeTemp })).toThrow(
+      "--live and --live-wait apply only with --identity",
+    );
+    expect(() => buildArgv(["--identity", "school", "--live-wait", "1s"], { env: sb.env })).toThrow(
+      '--live-wait must be a duration from "5s" to "30m", like "2m", not "1s"',
+    );
+    expect(() => buildArgv(["--identity", "school", "--live=yes"], { env: sb.env })).toThrow("--live takes no value");
+  });
+
   it("uses the identity dir under the data dir", () => {
     const b = buildArgv(["--identity", "school"], { env: sb.env, makeTempDir: fakeTemp });
     const dir = join(sb.home, ".local", "share", "turno", "browser", "identities", "school");

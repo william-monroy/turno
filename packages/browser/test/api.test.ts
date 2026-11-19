@@ -49,6 +49,11 @@ const MEMBERS = [
   "removeFlow",
   "replayFlow",
   "traceViewerCommand",
+  // 1.9: the live view of a running server.
+  "liveLink",
+  "livePause",
+  "liveResume",
+  "liveStatus",
 ];
 
 describe("the public API object", () => {
@@ -58,8 +63,9 @@ describe("the public API object", () => {
   // 1.6: the record key, saved flows, replay and recordings.
   // 1.7: the act and captcha keys, and solved captchas in the reputation report.
   // 1.8: the tabLocks key and runDoctor({ servers }) (no new member).
-  it("is version 1.8, frozen, with integer parts", () => {
-    expect(API_VERSION).toEqual({ major: 1, minor: 8 });
+  // 1.9: the live key and the live view of a running server.
+  it("is version 1.9, frozen, with integer parts", () => {
+    expect(API_VERSION).toEqual({ major: 1, minor: 9 });
     expect(Object.isFrozen(API_VERSION)).toBe(true);
     expect(Number.isInteger(API_VERSION.major) && Number.isInteger(API_VERSION.minor)).toBe(true);
   });

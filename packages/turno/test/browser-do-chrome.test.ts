@@ -36,6 +36,8 @@ const reason = skipReason();
 
 let sb: Sandbox;
 let web: { url: string; server: Server };
+/** Set by a test: the /later page goes to /other once this is true (it asks every 200ms). */
+let go = false;
 let daemon: RunningDaemon | undefined;
 const deps: DoDeps = { owner: () => ({ pid: process.pid, command: "node vitest" }), stdin: async () => "" };
 
@@ -43,6 +45,16 @@ beforeAll(async () => {
   const server = createServer((req, res) => {
     res.setHeader("content-type", "text/html");
     const path = (req.url ?? "/").split("?")[0];
+    if (path === "/go") {
+      res.end(go ? "yes" : "no");
+      return;
+    }
+    if (path === "/later") {
+      res.end(
+        `<title>Later</title><h1>Later</h1><button>Stay</button><script>setInterval(async () => { if ((await (await fetch("/go")).text()) === "yes") location.href = "/other"; }, 200)</script>`,
+      );
+      return;
+    }
     res.end(
       path === "/form"
         ? `<title>Form</title><h1>Form</h1><input aria-label="Name"><button onclick="document.querySelector('p').textContent='Hi ' + document.querySelector('input').value">Greet</button><p>nobody yet</p>`
@@ -59,6 +71,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   sb = sandbox();
+  go = false;
 });
 
 afterEach(async () => {
@@ -147,6 +160,53 @@ describe.skipIf(reason !== undefined)(
 
       expect((await run(["do", "school", "end"])).code).toBe(0);
       expect((await run(["do", "school", "end", "--session", "two"])).code).toBe(0);
+    }, 120_000);
+
+    it("holds a command while the user has paused the browser, and fails it when the page changed meanwhile", async () => {
+      api.addIdentity("live", sb.env);
+      api.writeIdentitySettings("live", { live: { enabled: true, wait: "30s" } }, sb.env);
+      sb.write(".config/turno/config.toml", "");
+      sb.write(
+        ".config/turno/mcp.toml",
+        [
+          "[server.browser-live]",
+          `command = ${JSON.stringify(process.execPath)}`,
+          `args = [${JSON.stringify(BIN)}, "--identity", "live", "--headless"]`,
+          `scope = "shared"`,
+          "exclusive = false",
+          "",
+        ].join("\n"),
+      );
+      daemon = await startDaemon({ env: sb.env, port: 0 });
+      expect((await run(["do", "live", "open", `${web.url}/later`])).code).toBe(0);
+      const button = /button "Stay" \[ref=(e\d+)\]/.exec((await run(["do", "live", "snapshot"])).out)?.[1];
+      expect(button).toBeTruthy();
+
+      expect((await run(["pause", "live"])).code).toBe(0);
+      const held = run(["do", "live", "click", button!]);
+      const until = async (cond: (s: Awaited<ReturnType<typeof api.liveStatus>>) => boolean) => {
+        for (let i = 0; i < 150; i++) {
+          if (cond(await api.liveStatus("live", sb.env))) return;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        throw new Error("the live status did not get there in 15s");
+      };
+      await until((s) => s?.waiting === 1);
+      go = true; // what the user does while the command waits: the page moves on
+      await until((s) => s?.tabs.some((t) => t.url === `${web.url}/other`) === true);
+      expect((await run(["resume", "live"])).code).toBe(0);
+
+      const out = await held;
+      expect(out.code).toBe(1);
+      expect(out.err).toBe("error: browser_click was not run: the user changed the browser while you waited (below).");
+      expect(out.out).toMatch(
+        /note: The user paused this browser \(turno browser pause\) for \d+s and has resumed it\./,
+      );
+      expect(out.out).toContain(`note: Current tab: ${web.url}/later -> ${web.url}/other`);
+
+      // Nothing paused: the next command just runs.
+      expect((await run(["do", "live", "snapshot"])).out).toContain("Other page");
+      expect((await run(["do", "live", "end"])).code).toBe(0);
     }, 120_000);
   },
 );

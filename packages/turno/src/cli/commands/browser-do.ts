@@ -421,10 +421,13 @@ function errorText(parts: Map<string, string>, whole: string): string {
     .trim();
 }
 
-/** Notes worth a line: a dialog, new tabs and downloads, what the tab governor did. */
+/**
+ * Notes worth a line: a pause by the user (the live view: how long, what changed while the
+ * command waited), a dialog, new tabs and downloads, what the tab governor did.
+ */
 function notesOf(parts: Map<string, string>): string[] {
   const out: string[] = [];
-  for (const title of ["Modal state", "Events", "Tab governor", "Downloads"]) {
+  for (const title of ["Paused by the user", "Modal state", "Events", "Tab governor", "Downloads"]) {
     const body = parts.get(title);
     if (body)
       out.push(

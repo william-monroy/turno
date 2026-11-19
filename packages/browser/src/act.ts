@@ -430,6 +430,11 @@ export function actTool(): TurnoTool {
             outcome = { ok: false, text: `Stopped: the step limit (${limit}) was reached before the model was done.` };
             break;
           }
+          const held = run.stock.held?.();
+          if (held) {
+            outcome = { ok: false, text: `Stopped: ${held}; no further step was run.` };
+            break;
+          }
           const page = await pageForModel(run, STEP_REPLY_TOKENS + estimateTokens(system) + 500);
           const user = [
             `Instruction: ${instruction}`,
@@ -473,6 +478,12 @@ export function actTool(): TurnoTool {
               run.lines.push(`${steps}. ${call.tool}: refused, ${why2}`);
             } else {
               const label = describeCall(call.tool, call.arguments);
+              const pausedNow = run.stock.held?.();
+              if (pausedNow) {
+                run.lines.push(`${steps}. ${label}: not run`);
+                outcome = { ok: false, text: `Stopped: ${pausedNow}; this step and the ones after it were not run.` };
+                break;
+              }
               const result = await run.stock.call(call.tool, call.arguments, { snapshot: false });
               const parts = sections(textOf(result));
               if (result.isError) {

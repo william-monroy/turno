@@ -34,6 +34,7 @@ with it; turno works without it. The whole story is at [turno.wimo.dev](https://
 | [Tab limits](#a-browser-that-cleans-up) | at most 8 tabs, parked after 5 minutes unused, closed after 15 |
 | [`browser_batch`](#faster-actions) | up to 20 actions in one call, and errors that say what is in the way |
 | [Record and replay](#record-and-replay) | save a flow once, replay it with parameters; recordings and traces, opt-in |
+| [Live view and take-over](https://turno.wimo.dev/docs/concepts/browser-identities#live-view-and-take-over) | opt-in: watch the agent's tab on 127.0.0.1, pause it, act, and resume; the agent is told what changed |
 | [Blocking and cache](#lighter-pages) | opt-in: block trackers, images, media or fonts; cache static resources on disk |
 | [Engines](https://turno.wimo.dev/docs/concepts/browser-identities#engines) | opt-in: read mode on Lightpanda for reading pages with little memory, or attach to the Chrome you have open |
 | [From the shell](https://turno.wimo.dev/docs/concepts/browser-identities#from-the-shell) | `turno browser do <id> open`, `snapshot`, `click`, `type`, `read`: the same browser and rules, as shell commands for coding agents |

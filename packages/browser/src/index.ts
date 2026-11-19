@@ -22,6 +22,7 @@ export {
   type HealthCheck,
   IDENTITY_FORMAT_VERSION,
   type IdentitySettings,
+  type LiveSettings,
   type RecordSettings,
   type SettingsPatch,
   type TabLockSettings,
@@ -80,6 +81,8 @@ export {
   parseSannysoft,
 } from "./detectors.js";
 export { type LoginOptions, loginIdentity } from "./login.js";
+export { LiveError, liveLink, livePause, liveResume, liveStatus } from "./live-client.js";
+export type { LiveStatus } from "./live-server.js";
 export { type TotpParams, TotpError, parseTotpSecret, totp } from "./totp.js";
 export { SealError } from "./sealed.js";
 export {

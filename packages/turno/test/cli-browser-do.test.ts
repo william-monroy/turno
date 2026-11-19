@@ -217,6 +217,21 @@ describe("turno browser do", () => {
     expect(r.err).toContain("error: browser_take_screenshot is refused in read mode");
   });
 
+  it("prints the live view's pause note, and fails a command the pause kept from running", async () => {
+    await daemon(block("school", "", { FAKE_PAUSED_RAN: "browser_click", FAKE_PAUSED_NOT_RUN: "browser_type" }));
+    const ran = await run(["do", "school", "click", "e5"]);
+    expect(ran.code).toBe(0);
+    expect(ran.out).toContain("note: The user paused this browser (the live view) for 12s and has resumed it.");
+    expect(ran.out).toContain('note: Title: "A" -> "B"');
+    const held = await run(["do", "school", "type", "e4", "Ada"]);
+    expect(held.code).toBe(1);
+    expect(held.out).toContain("note: Current tab: about:blank -> http://127.0.0.1:9/b");
+    expect(held.err).toBe("error: browser_type was not run: the user changed the browser while you waited (below).");
+    const j = JSON.parse((await run(["do", "school", "type", "e4", "Ada", "--json"])).out);
+    expect(j).toMatchObject({ ok: false, error: expect.stringMatching(/^browser_type was not run/) });
+    expect(j.notes).toContain("Current tab: about:blank -> http://127.0.0.1:9/b");
+  });
+
   it("reads the page's text, cut at --max-chars", async () => {
     await daemon();
     await run(["do", "school", "open", "https://example.com/"]);
