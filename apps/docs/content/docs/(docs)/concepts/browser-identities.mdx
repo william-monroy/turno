@@ -618,8 +618,9 @@ What it does:
   computer, as without the setting.
 - **The launch check**: before the agent gets the browser, turno loads a page of its own (answered
   inside Chrome, so nothing goes out) and compares what it reads: no `HeadlessChrome`, brands and
-  full version list that name the Chrome that runs, one platform in the user agent, the client
-  hints and `navigator.platform`, the request's headers equal to what the page reads, the
+  full version list that name the Chrome that runs, the high entropy values this Chrome reports
+  (on Linux Chrome reports an empty platform version, so turno does too), one platform in the user
+  agent, the client hints and `navigator.platform`, the request's headers equal to what the page reads, the
   languages and time zone you asked for, and dates formatted in the first language. Any
   contradiction stops the launch with what disagreed. On macOS Chrome takes the date and number
   format from the system language, not from flags, so languages that start with another language

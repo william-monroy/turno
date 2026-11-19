@@ -93,7 +93,7 @@ async function realMetadata(config: McpConfig, env: NodeJS.ProcessEnv, version: 
   );
   try {
     const cached = JSON.parse(readFileSync(file, "utf8")) as UserAgentMetadata;
-    if (cached.fullVersionList?.length) return cached;
+    if (cached.fullVersionList?.length && cached.architecture) return cached;
   } catch {
     /* not read yet */
   }
@@ -179,9 +179,19 @@ export async function chromeNetwork(
       out.pin = { userAgent, metadata: await realMetadata(config, env, version) };
     }
     const languages = acceptLanguages(settings);
+    const given = out.pin?.metadata;
     out.verify = {
       ...(languages ? { languages } : {}),
       ...(settings.timezone ? { timezone: settings.timezone } : {}),
+      ...(given
+        ? {
+            high: {
+              fullVersionList: given.fullVersionList,
+              architecture: given.architecture,
+              platformVersion: given.platformVersion,
+            },
+          }
+        : {}),
     };
   }
   return out;
@@ -192,13 +202,18 @@ export function pinUserAgent(context: BrowserContext, pin: UserAgentPin): { read
   const pending = new WeakMap<Page, Promise<void>>();
   const apply = (page: Page) => {
     // The session stays attached: Chrome drops a DevTools client's overrides when it detaches.
+    // A page that closes first rejects too; only `ready` (the launch check, a tool's new tab)
+    // reports it, so a page that did not get the values fails instead of loading without them.
     const done = context
       .newCDPSession(page)
       .then((session) =>
         session.send("Emulation.setUserAgentOverride", { userAgent: pin.userAgent, userAgentMetadata: pin.metadata }),
       )
       .then(() => undefined)
-      .catch(() => undefined);
+      .catch((error: Error) => {
+        throw new Error(`userAgent "coherent": this page did not take the user agent metadata: ${error.message}`);
+      });
+    done.catch(() => {});
     pending.set(page, done);
   };
   for (const page of context.pages()) apply(page);

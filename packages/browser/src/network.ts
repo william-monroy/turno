@@ -228,14 +228,25 @@ export interface ObservedIdentity {
     platform: string;
     mobile: boolean;
     /** The high entropy values (`getHighEntropyValues`), which a user agent override can blank. */
-    high?: { fullVersionList: { brand: string; version: string }[]; architecture: string; platformVersion: string };
+    high?: HighEntropyValues;
   } | null;
 }
 
-/** What the identity should present: `languages` and `timezone` are what was asked for, else unchecked. */
+/** The client hints high entropy values the launch check reads. */
+interface HighEntropyValues {
+  fullVersionList: { brand: string; version: string }[];
+  architecture: string;
+  platformVersion: string;
+}
+
+/**
+ * What the identity should present: `languages` and `timezone` are what was asked for, else
+ * unchecked; `high` is the metadata a headless Chrome was given, which every page must read back.
+ */
 export interface ExpectedIdentity {
   languages?: string[];
   timezone?: string;
+  high?: HighEntropyValues;
 }
 
 /** The `navigator.userAgentData.platform` and `navigator.platform` prefixes for each UA OS token. */
@@ -248,6 +259,9 @@ const PLATFORMS: readonly { ua: RegExp; hints: string; navigator: RegExp }[] = [
 ];
 
 const base = (tag: string) => tag.split("-")[0]!.toLowerCase();
+
+const highEntropyKey = (h: HighEntropyValues) =>
+  JSON.stringify([h.fullVersionList.map((b) => `${b.brand} ${b.version}`), h.architecture, h.platformVersion]);
 
 /**
  * Every contradiction between what a page reads and what the identity presents; empty when
@@ -271,8 +285,14 @@ export function coherenceProblems(o: ObservedIdentity, expected: ExpectedIdentit
       out.push(`the user agent is ${os.hints} but navigator.platform is ${o.platform}`);
     if (o.uaData.mobile) out.push("the client hints say mobile");
     const high = o.uaData.high;
-    if (high && (!high.fullVersionList.length || !high.architecture || !high.platformVersion))
+    // Chrome on Linux reports an empty platform version, as a person's Chrome there does.
+    const versionless = o.uaData.platform === "Linux";
+    if (high && (!high.fullVersionList.length || !high.architecture || (!high.platformVersion && !versionless)))
       out.push("the client hints high entropy values (full version list, architecture, platform version) are blank");
+    else if (high && expected.high && highEntropyKey(high) !== highEntropyKey(expected.high))
+      out.push(
+        `the client hints high entropy values (${high.architecture || "no architecture"}, platform version ${high.platformVersion || "empty"}) differ from this Chrome's own (${expected.high.architecture}, platform version ${expected.high.platformVersion || "empty"})`,
+      );
     else if (
       high &&
       major &&

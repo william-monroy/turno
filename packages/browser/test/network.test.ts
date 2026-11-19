@@ -245,6 +245,38 @@ describe("a coherent user agent", () => {
       },
     };
     expect(coherenceProblems(full)).toEqual([]);
+    // What the page reads must be the metadata the headless Chrome was given.
+    expect(coherenceProblems(full, { high: full.uaData.high })).toEqual([]);
+    expect(coherenceProblems(full, { high: { ...full.uaData.high, architecture: "x86" } })).toEqual([
+      "the client hints high entropy values (arm, platform version 26.5.0) differ from this Chrome's own (x86, platform version 26.5.0)",
+    ]);
+  });
+
+  it("takes Linux's empty platform version, and only there", () => {
+    // Chrome on Linux reports no platform version (ReduceUserAgentDataLinuxPlatformVersion).
+    const high = {
+      fullVersionList: [{ brand: "Google Chrome", version: "157.0.8103.79" }],
+      architecture: "x86",
+      platformVersion: "",
+    };
+    const linux = {
+      ...coherent,
+      userAgent: reducedUserAgent(157, "linux"),
+      platform: "Linux x86_64",
+      uaData: { ...coherent.uaData!, platform: "Linux", high },
+    };
+    expect(coherenceProblems(linux)).toEqual([]);
+    expect(coherenceProblems(linux, { high })).toEqual([]);
+    expect(coherenceProblems(linux, { high: { ...high, platformVersion: "6.8.0" } })).toEqual([
+      "the client hints high entropy values (x86, platform version empty) differ from this Chrome's own (x86, platform version 6.8.0)",
+    ]);
+    expect(coherenceProblems({ ...linux, uaData: { ...linux.uaData, high: { ...high, architecture: "" } } })).toContain(
+      "the client hints high entropy values (full version list, architecture, platform version) are blank",
+    );
+    const mac = { ...coherent, uaData: { ...coherent.uaData!, high } };
+    expect(coherenceProblems(mac)).toContain(
+      "the client hints high entropy values (full version list, architecture, platform version) are blank",
+    );
   });
 });
 
@@ -469,7 +501,15 @@ describe("the chrome engine's network launch options", () => {
       () => {},
     );
     expect(headless.args).toEqual([`--user-agent=${reducedUserAgent(157)}`]);
-    expect(headless.verify).toEqual({ timezone: "Europe/Berlin" });
+    // The launch check expects every page to read back the metadata the pin gives.
+    expect(headless.verify).toEqual({
+      timezone: "Europe/Berlin",
+      high: {
+        fullVersionList: metadata.fullVersionList,
+        architecture: metadata.architecture,
+        platformVersion: metadata.platformVersion,
+      },
+    });
     expect(headless.pin).toEqual({ userAgent: reducedUserAgent(157), metadata });
     const headed = await chromeNetwork(
       settingsOf({ userAgent: "coherent" }),
