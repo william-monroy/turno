@@ -137,8 +137,11 @@ trabaja dentro de las sesiones que tú iniciaste a mano.
   rastreadores, imágenes, video o fuentes, y guardar recursos estáticos en una caché en disco.
 
 Úsalo con tus propias cuentas, en sitios cuyos términos te permitan el acceso automatizado, y a
-ritmo humano. No lo uses para sortear controles de acceso, muros de pago, CAPTCHAs o límites,
-para extraer datos a gran escala, ni para entrar a cuentas que no son tuyas. Más detalle en
+ritmo humano. No lo uses para sortear controles de acceso, muros de pago o límites, para extraer
+datos a gran escala, ni para entrar a cuentas que no son tuyas. La resolución de captchas y las
+acciones en lenguaje natural vienen apagadas y se activan por identidad; las dos envían contenido
+de la página a un tercero que tú eliges, y resolver captchas puede incumplir los términos de un
+sitio. Más detalle en
 [Identidades del navegador](https://turno.wimo.dev/es/docs/concepts/browser-identities).
 
 ## Preguntas frecuentes
