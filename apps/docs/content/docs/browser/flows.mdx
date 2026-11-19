@@ -22,15 +22,15 @@ keeps no value: a password field, a one-time code or card field, a field named l
 `otp`, `pin` or `token`, a vault value typed by hand, or any parameter the agent lists in
 `sensitive` when it stops. A vault sign-in is a `browser_login` step with the site name only.
 Replay needs the sensitive values again; a value written `keychain:<item>` is read from the secret
-store (`turno secret set <item>`), so the agent never sees it.
+store (`turno-browser secret set <item>`), so the agent never sees it.
 
 ```sh
-turno browser flows school                       # saved flows and their parameters
-turno browser flows school sign-in               # its steps
-turno browser replay school sign-in --param password=keychain:school-password
+turno-browser flows school                       # saved flows and their parameters
+turno-browser flows school sign-in               # its steps
+turno-browser replay school sign-in --param password=keychain:school-password
 ```
 
-`turno browser replay` runs the flow on the identity's Chrome through `turno-browser-mcp`, the
+`turno-browser replay` runs the flow on the identity's Chrome through `turno-browser-mcp`, the
 same way an agent's `browser_replay` does; a sensitive parameter is a `keychain:` reference or
 is typed at a hidden prompt, never a value on the command line.
 
@@ -39,9 +39,9 @@ is typed at a hidden prompt, never a value on the command line.
 Off by default. Per identity:
 
 ```sh
-turno browser record school --flows --traces --screenshots   # what to record, from the next Chrome start
-turno browser record school --off
-turno identity set browser:school --record-traces false --record-max-size 500MB
+turno-browser record school --flows --traces --screenshots   # what to record, from the next Chrome start
+turno-browser record school --off
+turno-browser set school --record-traces false --record-max-size 500MB
 ```
 
 - `flows` saves every session's actions as a flow named `auto-<time>`; the newest 20 are kept.
@@ -50,7 +50,7 @@ turno identity set browser:school --record-traces false --record-max-size 500MB
 
 Traces and screenshots go to `~/.local/state/turno/browser/identities/<id>/recordings/`, one
 folder per browser session, together at most `record.maxSize` (200MB by default; the oldest go
-first). `turno browser traces school` lists them and `turno browser traces school --open` shows the
+first). `turno-browser traces school` lists them and `turno-browser traces school --open` shows the
 last trace in the trace viewer that patchright-core ships, served on 127.0.0.1 in your default
 browser. A trace is saved when turno closes the browser (idle limit, `browser_close`, end of the
 session) and before a sign-in; if the server is killed, the trace in progress is lost and the
@@ -70,7 +70,7 @@ With the other settings:
   that session's actions go into it; `browser_replay` runs in that session's own tabs. A trace
   covers the whole browser, so it holds every session's tabs.
 - Attach mode: flows work; traces and screenshots are refused, because they could show your own
-  tabs. turno says so before it connects, and `turno identity set` refuses the combination.
+  tabs. turno says so before it connects, and `turno-browser set` refuses the combination.
 - Read mode (`"engine": "lightpanda"`): flows work, but a replayed step that needs Chrome fails
   like any such tool call; traces and screenshots are refused, since Lightpanda renders no page.
 - `humanize`: a replay runs each step as the stock tool call, so it moves and types like the

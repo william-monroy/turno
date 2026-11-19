@@ -3,11 +3,13 @@ title: "Several agents, one browser"
 description: "Several agent sessions use one identity's Chrome at once, each in its own tabs."
 ---
 
-With `"sharing": "tabs"` several agent sessions use one identity's Chrome at once, each in its own tabs. It is off by default; turn it on per identity and let mcpd send every session to the server:
+With `"sharing": "tabs"` several agent sessions use one identity's Chrome at once, each in its own tabs. It is off by default; turn it on per identity:
 
 ```sh
-turno identity set browser:school --sharing tabs    # or the server's --sharing tabs
+turno-browser set school --sharing tabs    # or the server's --sharing tabs
 ```
+
+Sessions share a browser when they reach the same server. Without turno, that is the identity's [background server](/docs/browser/actions#the-background-server), where each `turno-browser do` session gets its own tabs. With turno, it is the server mcpd runs for the identity; let mcpd send every session to it:
 
 ```toml title="~/.config/turno/mcp.toml"
 [server.browser-school]
@@ -19,7 +21,7 @@ idle = "30m"
 ```
 
 Then run `turno mcp sync`. `turno identity add browser:school --sharing tabs` prints that block.
-`turno browser doctor` warns about the opposite mistake: a server with `exclusive = false` for an
+`turno-browser doctor` warns about the opposite mistake: a server with `exclusive = false` for an
 identity that serves one session at a time, whose sessions would share one current tab.
 
 mcpd marks each call with the session it comes from, and turno-browser gives every session its own backend and current tab:
@@ -38,7 +40,7 @@ The 10 seconds and the 5 minutes are the defaults. Change them per identity (ide
 format 9; `"0"` makes a call fail at once, or frees a session's tabs between its calls):
 
 ```sh
-turno identity set browser:school --tab-lock-wait 30s --tab-lock-release 10m
+turno-browser set school --tab-lock-wait 30s --tab-lock-release 10m
 ```
 
 ```json

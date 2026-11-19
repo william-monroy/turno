@@ -7,10 +7,10 @@ Off by default. Watch what the agent does in an identity's browser, and take the
 needs you (a captcha, a confirmation, a page it does not understand):
 
 ```sh
-turno browser set school --live true     # from the next turno-browser-mcp for the identity
-turno browser live school                # status, and opens the view in your default browser
-turno browser pause school               # the agent's next call waits for you
-turno browser resume school              # it goes on, and is told what changed
+turno-browser set school --live true     # from the next turno-browser-mcp for the identity
+turno-browser live school                # status, and opens the view in your default browser
+turno-browser pause school               # the agent's next call waits for you
+turno-browser resume school              # it goes on, and is told what changed
 ```
 
 `turno-browser-mcp --identity school --live` turns it on for one server, and `--live-wait 5m`
@@ -20,7 +20,7 @@ from `"5s"` to `"30m"`, 2 minutes by default).
 The view is a page with the agent's tab as a picture (a screencast over CDP, sent only while a view
 is open), a list of tabs with "Follow the agent" (the tab of the latest call) as the default, and
 Pause and Resume buttons. While the agent is paused, your clicks, keys and scrolls on the picture go
-to that tab. In a headed Chrome you can also use the window itself: `turno browser pause` brings the
+to that tab. In a headed Chrome you can also use the window itself: `turno-browser pause` brings the
 agent's tab to the front.
 
 What a pause does:
@@ -45,10 +45,10 @@ How it is protected:
 
 - The view is served on 127.0.0.1 only, on a random port. It answers only a browser that holds the
   server's cookie: a random token made at start, never written to disk or logged.
-  `turno browser live` gets a link from the server whose code works once, within two minutes,
+  `turno-browser live` gets a link from the server whose code works once, within two minutes,
   opens it, and never prints it. Requests must name the server by its loopback address (no DNS
   rebinding), and the buttons only work from the view's own page.
-- `turno browser live`, `pause` and `resume` talk to the server through a Unix socket in a private
+- `turno-browser live`, `pause` and `resume` talk to the server through a Unix socket in a private
   folder (mode 700). `~/.local/state/turno/browser/identities/<id>/live.json` says where it is, and
   holds no secret.
 - A page that holds a vault value or a password is never shown: before `browser_login` fills a
@@ -62,7 +62,7 @@ How it is protected:
 With the other settings:
 
 - Attach mode: you already see the agent's tabs in your own Chrome, and a view would stream your
-  own tabs, so the view is off and `turno browser live` says so. Pause and resume work; act in your
+  own tabs, so the view is off and `turno-browser live` says so. Pause and resume work; act in your
   Chrome, then resume.
 - Read mode (`"engine": "lightpanda"`): Lightpanda renders no pixels, so there is no view. Pause
   and resume work.
@@ -76,7 +76,7 @@ With the other settings:
 - `humanize`: the view shows the humanized pointer moves, but not the sign-in form `browser_login`
   types key by key (the page is hidden first); your own input from the view is sent as is, and is
   never humanized.
-- `turno browser do`: each command is a call of a session like an agent's, so a pause holds it
+- `turno-browser do`: each command is a call of a session like an agent's, so a pause holds it
   too. It prints the pause note as `note:` lines, and a command that the pause kept from running
   fails with exit code 1.
 - Natural language actions and captcha solving: held like any call; a `browser_act` run that the

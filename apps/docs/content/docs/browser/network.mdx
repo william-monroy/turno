@@ -18,9 +18,9 @@ Both are off until `identity.json` asks for them, per identity:
 ```
 
 ```sh
-turno identity set browser:school --block-trackers true --block-types image,font \
+turno-browser set school --block-trackers true --block-types image,font \
   --block-patterns 'ads.example,*/promo/*' --cache-max-size 100MB
-turno identity set browser:school --no-block --no-cache   # both off again
+turno-browser set school --no-block --no-cache   # both off again
 ```
 
 `trackers` blocks a short built-in list of ad and analytics hosts; `types` takes `image`, `media`
@@ -45,11 +45,11 @@ automate, and the choice is yours. Each one has a cost to weigh:
   pages.
 
 ```sh
-turno identity set browser:school --user-agent coherent
-turno identity set browser:school --proxy-server http://proxy.example.com:8080 \
+turno-browser set school --user-agent coherent
+turno-browser set school --proxy-server http://proxy.example.com:8080 \
   --proxy-username alice --proxy-password keychain:school-proxy
-turno secret set school-proxy        # the password, typed into the secret store
-turno identity set browser:school --no-proxy --user-agent ""   # both off again
+turno-browser secret set school-proxy        # the password, typed into the secret store
+turno-browser set school --no-proxy --user-agent ""   # both off again
 ```
 
 ### A coherent user agent
@@ -94,13 +94,13 @@ agreeing with the page.
 
 `proxy.server` is an `http://`, `https://`, `socks4://` or `socks5://` URL with a host and port
 only. The credentials never go in the URL or in `identity.json`: `proxy.password` is always a
-`keychain:<item>` reference to the secret store (`turno secret set <item>`), and `proxy.username`
+`keychain:<item>` reference to the secret store (`turno-browser secret set <item>`), and `proxy.username`
 is a name or a reference too. Chrome cannot sign in to a SOCKS proxy, so a SOCKS proxy takes no
 credentials. turno reads them when the browser starts and hides the user name, the password and
 their `Basic` encoding from every tool result; a missing item stops the start, so no request goes
-out without the proxy. `turno browser doctor` checks that the item exists without reading it.
+out without the proxy. `turno-browser doctor` checks that the item exists without reading it.
 
-All of the identity's traffic goes through the proxy, `turno browser login` included, so a site
+All of the identity's traffic goes through the proxy, `turno-browser login` included, so a site
 sees one network for both. WebRTC is limited to the proxy too, so a page cannot learn your own
 address that way. Sites see the proxy's address, and its operator sees where you go.
 
@@ -112,7 +112,7 @@ address that way. Sites see the proxy's address, and its operator sees where you
 | Read mode | refused: Lightpanda presents its own user agent | refused: not checked with a proxy |
 | Camoufox | refused: Firefox sends no client hints, and Camoufox presents its own values | works (WebRTC limited the same way) |
 | Tab sharing, humanize | work | work |
-| Natural language actions, live view, `turno browser do` | work | work; the act model's prompt and the view's tab list hide the credentials like vault values |
+| Natural language actions, live view, `turno-browser do` | work | work; the act model's prompt and the view's tab list hide the credentials like vault values |
 | Recordings | work | flows and screenshots work; `record.traces` is refused with a proxy password, since a trace keeps the browser's launch options, password included |
 | A server flag of its own (`--user-agent`, `--device`, `--proxy-server`) | refused: keep one | refused: keep one |
 

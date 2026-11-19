@@ -15,9 +15,9 @@ server with a flag, which wins over the file:
 | Camoufox | `--engine camoufox` | a Firefox build, on its own profile |
 
 ```sh
-turno browser set school --engine lightpanda     # read mode for this identity
-turno browser set school --attach auto           # attach to your own Chrome
-turno browser set school --engine "" --attach "" # back to the default
+turno-browser set school --engine lightpanda     # read mode for this identity
+turno-browser set school --attach auto           # attach to your own Chrome
+turno-browser set school --engine "" --attach "" # back to the default
 turno-browser-mcp --engine lightpanda            # read mode for one server, no identity
 ```
 
@@ -35,7 +35,7 @@ Camoufox works with both, and with recordings.
 automation: it runs scripts and builds the page, but does not lay it out or draw it. turno never
 downloads it. Install it yourself (`brew install lightpanda-io/browser/lightpanda` on macOS, the
 nightly binary on Linux), and turno runs the `lightpanda` on your PATH, or the one at
-`TURNO_LIGHTPANDA_PATH`. `turno browser doctor` shows the one it found and how to install it.
+`TURNO_LIGHTPANDA_PATH`. `turno-browser doctor` shows the one it found and how to install it.
 
 turno starts `lightpanda serve` on a private Unix socket (no TCP port) with Lightpanda's
 telemetry off, and stops it when the session closes or after the idle limit. A Lightpanda left
@@ -91,7 +91,7 @@ default. Two things to weigh before you turn it on: a Firefox whose reported val
 the computer's is something sites look for, and Camoufox is a third party's build of Firefox
 that you install and keep up to date yourself.
 
-turno never downloads it. Two things must be installed, and `turno browser doctor` checks both
+turno never downloads it. Two things must be installed, and `turno-browser doctor` checks both
 and prints how to install them:
 
 - Camoufox: `pip install -U camoufox && camoufox fetch`. turno runs the newest build in the
@@ -102,7 +102,7 @@ and prints how to install them:
 
 For an identity, Camoufox keeps its own Firefox profile in the identity's state folder
 (`camoufox-profile`): the Chrome profile and its sign-ins do not carry over, and
-`turno browser login` (which opens the Chrome profile) is refused; sign in from an agent session,
+`turno-browser login` (which opens the Chrome profile) is refused; sign in from an agent session,
 with `browser_login` and the vault. The identity's runtime lock holds while it runs. turno passes
 it no generated values: it presents what its build reports for this computer, with the identity's
 languages and time zone, and its `proxy` when set. `userAgent` and `"keychain": "system"` are
@@ -112,7 +112,7 @@ Every stock tool runs except `browser_run_code_unsafe`, which runs code written 
 API; it is refused with the reason. With the opt-in features:
 
 - [Natural language actions](/docs/browser/natural-language-and-captchas#natural-language-actions) and `browser_login` work, and so does
-  [`turno browser do`](/docs/browser/actions#from-the-shell), which calls the same server.
+  [`turno-browser do`](/docs/browser/actions#from-the-shell), which calls the same server.
 - [Captcha solving](/docs/browser/natural-language-and-captchas#captcha-solving) is refused, in `identity.json` and, with `--engine camoufox`,
   when `browser_solve_captcha` is called: it relies on Patchright's script worlds.
 - The [live view](/docs/browser/live-view) shows no picture, since it is a Chrome screencast;
