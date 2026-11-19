@@ -10,7 +10,7 @@ System ────────────────────────�
     optional: curl https://cursor.com/install -fsS | bash
   ✓ secret store: macOS Keychain (security)
   ✓ Google Chrome installed
-  ✓ turno 0.2.0
+  ✓ turno 0.3.0
 
 Config ─────────────────────────────────────────────────────────────────────────
   ✓ ~/.config/turno/config.toml parses
@@ -25,6 +25,6 @@ Look ─────────────────────────
   ✓ font: MesloLGS Nerd Font installed
 
 Gateway ────────────────────────────────────────────────────────────────────────
-  ✓ mcpd: reachable on port 52097 (pid 91865)
+  ✓ mcpd: reachable on port 59977 (pid 3950)
 
-12 ok, 3 skipped in 94ms
+12 ok, 3 skipped in 105ms
