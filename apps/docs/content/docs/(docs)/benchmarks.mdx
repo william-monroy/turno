@@ -126,9 +126,10 @@ Configurations are data in `bench/browser/lib/configs.mjs`: server flags, `ident
 | `block-heavy` | blocks images, media and fonts |
 | `tabs-4` | at most 4 open pages |
 | `humanize-light`, `humanize-full` | human-like input levels (needs a turno-browser that has them) |
+| `lightpanda` | read mode on Lightpanda (needs `lightpanda` on PATH or `TURNO_LIGHTPANDA_PATH`; tools read mode refuses count as failed tasks) |
 | `camoufox` | Camoufox as the engine (needs a turno-browser that has it) |
 
-A configuration the server does not accept (an unknown `identity.json` key or flag) is reported as unsupported instead of failing. More go in a JSON file passed with `--config-file`, for example a before and after of an update, or Chrome Beta:
+A configuration the server does not accept (an unknown `identity.json` key, engine or flag, or a Lightpanda that is not installed) is reported as unsupported instead of failing. More go in a JSON file passed with `--config-file`, for example a before and after of an update, or Chrome Beta:
 
 ```json title="configs.json"
 [

@@ -23,4 +23,9 @@ tab governor leaves your tabs alone, and `browser_run_code_unsafe` is refused.
 
 `turno browser doctor` gains an Engines section (Lightpanda found or how to install it, a
 Lightpanda left running, which `--fix` stops) and checks each identity's attach target without
-connecting. identity.json is now format 4 (`engine`, `attach`), and the turno-browser API is 1.3.
+connecting. identity.json is now format 6 (`engine`, `attach`), and the turno-browser API is 1.5.
+
+Read mode works with `"sharing": "tabs"`. Two pairs are refused with the reason, in identity.json
+and from server flags: attach mode with `"sharing": "tabs"` (turno keeps one agent's tabs apart
+from yours in your Chrome, not several sessions apart), and read mode with `humanize` (Lightpanda
+lays out no page, so there is no pointer path to play). Attach mode works with `humanize`.

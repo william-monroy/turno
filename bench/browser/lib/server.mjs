@@ -188,7 +188,14 @@ export async function startServer(config, { headed = false } = {}) {
   const bin = config.bin ?? DEFAULT_BIN;
   if (!existsSync(bin)) throw new Error(`${bin} does not exist; run pnpm build first`);
   const home = realpathSync(mkdtempSync(join(tmpdir(), "turno-eval-")));
-  const env = { PATH: process.env.PATH ?? "", HOME: home, TMPDIR: process.env.TMPDIR ?? tmpdir(), ...config.env };
+  const env = {
+    PATH: process.env.PATH ?? "",
+    HOME: home,
+    TMPDIR: process.env.TMPDIR ?? tmpdir(),
+    // Where read mode finds Lightpanda when it is not on PATH.
+    ...(process.env.TURNO_LIGHTPANDA_PATH ? { TURNO_LIGHTPANDA_PATH: process.env.TURNO_LIGHTPANDA_PATH } : {}),
+    ...config.env,
+  };
   const cleanupHome = () => rmSync(home, { recursive: true, force: true });
   if (config.identity && Object.keys(config.identity).length) {
     const settings = await import(pathToFileURL(join(dirname(bin), "..", "settings.js")).href);
@@ -197,8 +204,17 @@ export async function startServer(config, { headed = false } = {}) {
     } catch (err) {
       cleanupHome();
       const msg = String(err?.message ?? err);
-      if (/unknown key/.test(msg)) throw new UnsupportedConfig(`${config.needs ?? "a newer turno-browser"}: ${msg}`);
+      // An unknown key, or an engine this build does not have (`engine` is one key, its values grow).
+      if (/unknown key|engine must be/.test(msg))
+        throw new UnsupportedConfig(`${config.needs ?? "a newer turno-browser"}: ${msg}`);
       throw err;
+    }
+    if (config.identity.engine === "lightpanda") {
+      const lightpanda = await import(pathToFileURL(join(dirname(bin), "..", "engine-lightpanda.js")).href);
+      if (!lightpanda.findLightpanda(env)) {
+        cleanupHome();
+        throw new UnsupportedConfig(`${config.needs}: Lightpanda is not installed`);
+      }
     }
   }
   const { Client } = await sdk("client/index.js");

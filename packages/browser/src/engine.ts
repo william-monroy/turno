@@ -395,7 +395,7 @@ export function tuningClash(engine: string, tuning: Pick<Tuning, "sharing" | "hu
   if (engine === "attach" && tuning.sharing === "tabs")
     return '"sharing": "tabs" does not go with attach mode: in your own Chrome turno keeps one agent\'s tabs apart from yours, not several sessions apart. Turn one off (--sharing session, or --attach "")';
   if (engine === "lightpanda" && tuning.humanize.level !== "off")
-    return 'humanize does not go with read mode: Lightpanda lays out no page, so there is no pointer path or scroll to play. Turn one off (--humanize off, or --engine chrome)';
+    return "humanize does not go with read mode: Lightpanda lays out no page, so there is no pointer path or scroll to play. Turn one off (--humanize off, or --engine chrome)";
   return undefined;
 }
 

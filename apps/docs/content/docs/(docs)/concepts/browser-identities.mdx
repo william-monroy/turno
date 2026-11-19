@@ -235,7 +235,7 @@ turno browser reputation school    # counts per site, and whether they go up or 
 ## Engines
 
 An identity runs on the Chrome turno launches on its own profile. Two other engines are there
-when you ask for one, per identity in `identity.json` (format 4) or per server with a flag, which
+when you ask for one, per identity in `identity.json` (format 6) or per server with a flag, which
 wins over the file:
 
 | Engine | Set it | What it is for |
@@ -250,6 +250,13 @@ turno browser set school --attach auto           # attach to your own Chrome
 turno browser set school --engine "" --attach "" # back to the default
 turno-browser-mcp --engine lightpanda            # read mode for one server, no identity
 ```
+
+With [several agents in one browser](#several-agents-one-browser) and
+[human-like input](#human-like-input): read mode works with `"sharing": "tabs"`, and attach mode
+with `humanize`. The other two pairs are refused with the reason, in `identity.json` and from
+server flags: attach mode with `"sharing": "tabs"` (in your own Chrome turno keeps one agent's
+tabs apart from yours, not several sessions apart from each other), and read mode with
+`humanize` (Lightpanda lays out no page, so there is no pointer path or scroll to play).
 
 ### Read mode (Lightpanda)
 
@@ -270,7 +277,7 @@ browser:
 
 | Runs | Refused, and why |
 |---|---|
-| `browser_navigate`, `browser_navigate_back`, `browser_snapshot`, `browser_find` | `browser_take_screenshot`: no layout, so a screenshot shows only the text |
+| `browser_navigate`, `browser_navigate_back`, `browser_snapshot` (without what is inside an iframe), `browser_find` | `browser_take_screenshot`: no layout, so a screenshot shows only the text |
 | `browser_click` (a link with `target="_blank"` opens nothing) | `browser_resize`, `browser_emulate_media`, `browser_drag`, `browser_drop`: no layout |
 | `browser_hover`, `browser_type`, `browser_press_key`, `browser_select_option`, `browser_fill_form` | `browser_handle_dialog`: Lightpanda closes dialogs by itself |
 | `browser_evaluate`, `browser_wait_for`, `browser_tabs`, `browser_close`, `browser_batch` | `browser_file_upload`, `browser_run_code_unsafe` |

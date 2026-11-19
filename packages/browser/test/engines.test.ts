@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildArgv, extractEngine } from "../src/argv.js";
 import { fixReply } from "../src/cdp-relay.js";
-import { engineChoice } from "../src/engine.js";
+import { engineChoice, tuningClash } from "../src/engine.js";
 import {
   defaultChromeUserDataDir,
   parseAttachTarget,
@@ -194,22 +194,52 @@ describe("server flags", () => {
 });
 
 describe("identity.json engine and attach", () => {
-  it("writes them as format 4 and validates them", () => {
-    expect(IDENTITY_FORMAT_VERSION).toBe(4);
+  it("writes them as format 6 and validates them", () => {
+    expect(IDENTITY_FORMAT_VERSION).toBe(6);
     const s = writeIdentitySettings("reader", { engine: "lightpanda" }, sb.env);
-    expect(s).toMatchObject({ version: 4, engine: "lightpanda" });
+    expect(s).toMatchObject({ version: 6, engine: "lightpanda" });
     expect(() => writeIdentitySettings("reader", { attach: "auto" }, sb.env)).toThrow(/pick one/);
     expect(() => writeIdentitySettings("mine", { engine: "firefox" as never }, sb.env)).toThrow(/engine must be/);
     expect(() => writeIdentitySettings("mine", { attach: "remote" }, sb.env)).toThrow(/attach must be/);
-    expect(writeIdentitySettings("mine", { attach: "auto" }, sb.env)).toMatchObject({ version: 4, attach: "auto" });
+    expect(writeIdentitySettings("mine", { attach: "auto" }, sb.env)).toMatchObject({ version: 6, attach: "auto" });
     expect(writeIdentitySettings("mine", { attach: null }, sb.env).version).toBe(1);
   });
 
-  it("reads a hand-written format 4 file", () => {
+  it("keeps humanize (format 4) and sharing (format 5) and refuses the pairs that cannot work", () => {
+    expect(writeIdentitySettings("mine", { humanize: { level: "light" } }, sb.env).version).toBe(4);
+    expect(writeIdentitySettings("mine", { sharing: "tabs" }, sb.env).version).toBe(5);
+    expect(() => writeIdentitySettings("mine", { attach: "auto" }, sb.env)).toThrow(
+      /attach does not go with sharing "tabs"/,
+    );
+    expect(writeIdentitySettings("mine", { sharing: null, humanize: null, engine: "lightpanda" }, sb.env).version).toBe(
+      6,
+    );
+    expect(() => writeIdentitySettings("mine", { humanize: { level: "light" } }, sb.env)).toThrow(
+      /humanize does not go with engine "lightpanda"/,
+    );
+    // Read mode and sharing go together.
+    expect(writeIdentitySettings("reader2", { engine: "lightpanda", sharing: "tabs" }, sb.env)).toMatchObject({
+      version: 6,
+      sharing: "tabs",
+    });
+  });
+
+  it("refuses the same pairs when they come from server flags", () => {
+    const humanize = { level: "off" as const };
+    expect(tuningClash("attach", { sharing: "tabs", humanize })).toMatch(/does not go with attach mode/);
+    expect(tuningClash("lightpanda", { sharing: "tabs", humanize })).toBeUndefined();
+    expect(tuningClash("lightpanda", { sharing: "session", humanize: { level: "full" } })).toMatch(
+      /humanize does not go with read mode/,
+    );
+    expect(tuningClash("attach", { sharing: "session", humanize: { level: "full" } })).toBeUndefined();
+    expect(tuningClash("chrome", { sharing: "tabs", humanize: { level: "full" } })).toBeUndefined();
+  });
+
+  it("reads a hand-written format 6 file", () => {
     sb.write(
       ".local/share/turno/browser/identities/old.json",
       JSON.stringify({
-        version: 4,
+        version: 6,
         engine: "lightpanda",
         created: "2026-01-01T00:00:00Z",
         updated: "2026-01-01T00:00:00Z",

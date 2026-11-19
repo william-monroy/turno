@@ -150,6 +150,28 @@ describe.skipIf(reason)(`attach mode with a real Chrome${reason ? ` (skipped: ${
     expect(textOf(res)).toMatch(/refused in attach mode/);
   }, 60_000);
 
+  it("plays human-like input in its own tab", async () => {
+    const dir = await startUserChrome();
+    const client = await start(["--attach", dir, "--humanize", "light"]);
+    await call(client, "browser_navigate", {
+      url: "data:text/html,<title>Agent</title><button onclick=\"document.title='clicked'\">Go</button>",
+    });
+    const ref = /button "Go" \[ref=([^\]]+)\]/.exec(await call(client, "browser_snapshot"))![1]!;
+    await call(client, "browser_click", { element: "Go", target: ref });
+    expect(await call(client, "browser_evaluate", { function: "() => document.title" })).toContain('"clicked"');
+  }, 60_000);
+
+  it('refuses "sharing": "tabs" in the user\'s browser, before connecting', async () => {
+    const dir = await startUserChrome();
+    const user = await watch(dir);
+    await waitFor(() => urls(user).includes(USER_PAGE), 10_000);
+    const client = await start(["--attach", dir, "--sharing", "tabs"]);
+    const res = await client.callTool({ name: "browser_navigate", arguments: { url: "about:blank" } });
+    expect(res.isError).toBe(true);
+    expect(textOf(res)).toMatch(/does not go with attach mode/);
+    expect(urls(user)).toEqual([USER_PAGE]);
+  }, 60_000);
+
   it("says how to turn remote debugging on when no Chrome listens", async () => {
     const client = await start(["--attach", join(sb.home, "no-chrome")]);
     const res = await client.callTool({ name: "browser_navigate", arguments: { url: "about:blank" } });

@@ -8,6 +8,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { findLightpanda, lightpandaCookieJar } from "../src/engine-lightpanda.js";
+import { SESSION_META_KEY } from "../src/session.js";
 import { writeIdentitySettings } from "../src/settings.js";
 import { waitFor } from "./helpers/chrome.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -146,4 +147,28 @@ describe.skipIf(reason)(`read mode with a real Lightpanda${reason ? ` (skipped: 
     await call(client, "browser_navigate", { url: `${base}/` });
     expect(await call(client, "browser_evaluate", { function: "() => document.cookie" })).toContain("reader=kept");
   }, 60_000);
+
+  it('serves two agent sessions at once with "sharing": "tabs", each in its own tab', async () => {
+    const client = await start(["--engine", "lightpanda", "--sharing", "tabs"]);
+    const as = async (session: string, name: string, args: Record<string, unknown> = {}) => {
+      const res = await client.callTool({ name, arguments: args, _meta: { [SESSION_META_KEY]: session } });
+      expect(res.isError ?? false, textOf(res)).toBe(false);
+      return textOf(res);
+    };
+    const A = "aaaaaaaa-1111-4111-8111-111111111111";
+    const B = "bbbbbbbb-2222-4222-8222-222222222222";
+    await as(A, "browser_navigate", { url: `${base}/` });
+    await as(B, "browser_navigate", { url: `${base}/two` });
+    expect(await as(A, "browser_evaluate", { function: "() => document.title" })).toContain('"One"');
+    expect(await as(B, "browser_evaluate", { function: "() => document.title" })).toContain('"Two"');
+    expect(lightpandas()).toHaveLength(1);
+  }, 60_000);
+
+  it("refuses human-like input in read mode, with the reason", async () => {
+    const client = await start(["--engine", "lightpanda", "--humanize", "light"]);
+    const res = await client.callTool({ name: "browser_navigate", arguments: { url: `${base}/` } });
+    expect(res.isError).toBe(true);
+    expect(textOf(res)).toMatch(/humanize does not go with read mode/);
+    expect(lightpandas()).toHaveLength(0);
+  }, 30_000);
 });
