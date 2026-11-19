@@ -30,6 +30,7 @@ type TabSettings = NonNullable<IdentitySettings["tabs"]>;
 type BlockSettings = NonNullable<IdentitySettings["block"]>;
 type CacheSettings = NonNullable<IdentitySettings["cache"]>;
 type HumanizeSettings = NonNullable<IdentitySettings["humanize"]>;
+type RecordSettings = NonNullable<IdentitySettings["record"]>;
 export type SettingsPatch = Parameters<BrowserApi["writeIdentitySettings"]>[1];
 type DoctorCheck = Awaited<ReturnType<BrowserApi["runDoctor"]>>["checks"][number];
 
@@ -66,6 +67,12 @@ export const SETTINGS_FLAGS: FlagSpec = {
   // Which engine runs the identity (format 6): read mode on Lightpanda, or attach mode.
   engine: { type: "string" },
   attach: { type: "string" },
+  // What turno-browser records for this identity (format 7): flows, traces, screenshots.
+  "record-flows": { type: "string" },
+  "record-traces": { type: "string" },
+  "record-screenshots": { type: "string" },
+  "record-max-size": { type: "string" },
+  "no-record": { type: "boolean" },
 };
 
 /** The identity.json key behind each tuning flag, so the package's messages name the flag. */
@@ -84,6 +91,10 @@ const KEY_FLAGS: readonly (readonly [string, string])[] = [
   ["sharing", "--sharing"],
   ["engine", "--engine"],
   ["attach", "--attach"],
+  ["record.flows", "--record-flows"],
+  ["record.traces", "--record-traces"],
+  ["record.screenshots", "--record-screenshots"],
+  ["record.maxSize", "--record-max-size"],
 ];
 
 const TABS_MAX_PROBLEM = "--tabs-max must be a whole number from 0 (no cap) to 100";
@@ -241,6 +252,45 @@ function tuningPatch(
   // Checked by the package: an unknown value comes back as `--sharing must be ...`.
   const sharing = value("sharing");
   if (sharing !== undefined) patch.sharing = sharing as IdentitySettings["sharing"] | null;
+  recordPatch(p, value, patch, current);
+}
+
+/** The format 7 `record` key: what turno-browser records for this identity. */
+function recordPatch(
+  p: Parsed,
+  value: (name: string) => string | null | undefined,
+  patch: SettingsPatch,
+  current?: IdentitySettings,
+): void {
+  const parts = {
+    flows: value("record-flows"),
+    traces: value("record-traces"),
+    screenshots: value("record-screenshots"),
+    maxSize: value("record-max-size"),
+  };
+  const given = Object.values(parts).some((v) => v !== undefined);
+  if (bool(p, "no-record")) {
+    if (given) fail("--no-record does not go with the other --record flags");
+    patch.record = null;
+  } else if (given) {
+    const flag = (name: string, v: string | null | undefined) =>
+      typeof v === "string" ? booleanValue(`--record-${name}`, v) : v;
+    patch.record = mergeGroup<RecordSettings>(current?.record, {
+      flows: flag("flows", parts.flows),
+      traces: flag("traces", parts.traces),
+      screenshots: flag("screenshots", parts.screenshots),
+      maxSize: parts.maxSize,
+    });
+  }
+}
+
+/** What an identity records, in a few words: "flows, traces (up to 200MB)". */
+export function describeRecord(r: RecordSettings | undefined): string | undefined {
+  if (!r) return undefined;
+  const on = (["flows", "traces", "screenshots"] as const).filter((k) => r[k]);
+  if (!on.length) return undefined;
+  const files = r.traces || r.screenshots;
+  return `${on.join(", ")}${files ? ` (up to ${r.maxSize ?? "200MB"})` : ""}`;
 }
 
 export function hasSettings(patch: SettingsPatch): boolean {
@@ -329,6 +379,8 @@ export function show(m: BrowserApi, id: string, args: string[], io: Io): number 
     if (settings.sharing === "tabs") rows.push(["sharing", "every agent session at once, each in its own tabs"]);
     if (settings.engine === "lightpanda") rows.push(["engine", "Lightpanda (read mode)"]);
     if (settings.attach !== undefined) rows.push(["engine", `attach to your Chrome (${settings.attach})`]);
+    const recorded = describeRecord(settings.record);
+    if (recorded) rows.push(["recording", recorded]);
     rows.push(["created", settings.created]);
     rows.push(["updated", settings.updated]);
   }
@@ -360,7 +412,7 @@ export const SET_SYNOPSIS =
   "[--timezone <zone>] [--locale <tag>] [--languages <tag,...>] [--region <CC>] [--health-url <url>] [--health-text <text>] [--health-selector <css>] [--no-health] " +
   "[--tabs-max <n>] [--tabs-popups close|keep] [--tabs-park <duration>] [--tabs-close <duration>] [--no-tabs] [--background-throttling true|false] [--settle <duration>] " +
   "[--block-trackers true|false] [--block-types image,media,font] [--block-patterns <host|glob>,...] [--no-block] [--cache] [--cache-max-size <size>] [--no-cache] [--humanize off|light|full|adaptive] [--sharing session|tabs] " +
-  "[--engine chrome|lightpanda] [--attach auto|<dir>|<url>] [--dry-run] [--json]";
+  "[--engine chrome|lightpanda] [--attach auto|<dir>|<url>] [--record-flows true|false] [--record-traces true|false] [--record-screenshots true|false] [--record-max-size <size>] [--no-record] [--dry-run] [--json]";
 
 /** More help for `set`: what each tuning flag writes to identity.json. */
 export const SET_DETAILS = `Each flag writes one key of identity.json; an empty value (--settle "") removes it, and
@@ -397,7 +449,14 @@ Which engine runs this identity (both off by default):
   --attach auto|<dir>|<url>       use the Chrome you have open instead of the identity's own:
                                   "auto" is your default Chrome profile, after you turn on
                                   chrome://inspect/#remote-debugging; Chrome asks you to allow
-                                  each connection, and the agent then sees all its windows`;
+                                  each connection, and the agent then sees all its windows
+
+What turno-browser records for this identity (all off by default; turno browser record):
+  --record-flows <bool>           keep every session's actions as a flow (auto-<time>, newest 20)
+  --record-traces <bool>          a Playwright trace of each browser session (turno browser traces)
+  --record-screenshots <bool>     a screenshot after each action
+  --record-max-size <size>        cap of the traces and screenshots, "10MB" to "10GB" (default 200MB)
+Vault sign-ins and passwords never reach a flow, a trace or a screenshot.`;
 
 /** The flags of `set`, for completion. */
 export const SET_FLAG_NAMES = ["--dry-run", "--json", ...SETTINGS_FLAG_NAMES];

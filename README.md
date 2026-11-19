@@ -258,6 +258,7 @@ change, and print the `turno undo <stamp>` that puts them back. `turno mcp impor
 | `turno browser identities\|add\|show\|set\|login\|remove` | browser identities and their settings (needs `turno-browser`) |
 | `turno browser vault add\|list\|remove\|submit` | sign-in credentials per site in the OS secret store, filled by the `browser_login` tool |
 | `turno browser export <id> --out <file>`, `turno browser import <file>` | move an identity's session to another machine as one encrypted file |
+| `turno browser flows\|replay <id>`, `turno browser record\|traces <id>` | saved flows and replaying them; opt-in recordings (flows, traces, screenshots) and the trace viewer |
 | `turno browser doctor [--fix]`, `turno browser reputation [<id>]` | check Chrome and every identity; how often each site challenged it |
 | `turno browser bench` | developer diagnostic: browser engine compatibility |
 

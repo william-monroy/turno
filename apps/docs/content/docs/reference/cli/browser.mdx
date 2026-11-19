@@ -25,7 +25,9 @@ Usage:
       [--block-patterns <host|glob>,...] [--no-block] [--cache]
       [--cache-max-size <size>] [--no-cache] [--humanize
       off|light|full|adaptive] [--sharing session|tabs] [--engine
-      chrome|lightpanda] [--attach auto|<dir>|<url>] [--dry-run] [--json]
+      chrome|lightpanda] [--attach auto|<dir>|<url>] [--record-flows true|false]
+      [--record-traces true|false] [--record-screenshots true|false]
+      [--record-max-size <size>] [--no-record] [--dry-run] [--json]
                                      change an identity's identity.json (an
                                      empty value removes a setting)
   turno browser doctor [--fix] [--no-launch] [--json]
@@ -39,6 +41,21 @@ Usage:
   turno browser vault add|list|remove|submit <id> ...
                                      credentials browser_login fills without
                                      showing them to the agent
+  turno browser record <id> [--flows] [--traces] [--screenshots] [--max-size
+      <size>] [--off] [--dry-run] [--json]
+                                     what an identity records (flows, traces,
+                                     screenshots); turn it on or off
+  turno browser flows <id> [<flow>] [--remove] [--dry-run] [--json]
+                                     an identity's saved flows; name one to see
+                                     its steps, --remove to delete it
+  turno browser replay <id> <flow> [--param <name=value>]... [--from <step>]
+      [--headless] [--json]
+                                     run a saved flow on the identity's Chrome,
+                                     without an agent
+  turno browser traces <id> [<recording>] [--open] [--segment <n>] [--json]
+                                     an identity's recordings (traces,
+                                     screenshots); --open shows a trace in the
+                                     viewer
   turno browser export <id> --out <file> [--expires 7d] [--force]
                                      write an identity's cookies and site
                                      storage to a file encrypted with a
@@ -77,6 +94,10 @@ Examples:
   $ turno browser doctor --fix
   $ turno browser reputation school --json
   $ turno browser vault add school mail --url https://mail.example.com --username alice
+  $ turno browser record school --flows --traces
+  $ turno browser flows school
+  $ turno browser replay school submit-timesheet --param password=keychain:school-password
+  $ turno browser traces school --open
   $ turno browser export school --out school.session --expires 2d
   $ turno browser import school.session --as school-laptop
   $ turno browser remove school --dry-run
@@ -133,7 +154,9 @@ Usage:
       [--block-patterns <host|glob>,...] [--no-block] [--cache]
       [--cache-max-size <size>] [--no-cache] [--humanize
       off|light|full|adaptive] [--sharing session|tabs] [--engine
-      chrome|lightpanda] [--attach auto|<dir>|<url>] [--dry-run] [--json]
+      chrome|lightpanda] [--attach auto|<dir>|<url>] [--record-flows true|false]
+      [--record-traces true|false] [--record-screenshots true|false]
+      [--record-max-size <size>] [--no-record] [--dry-run] [--json]
     change an identity's identity.json (an empty value removes a setting)
 
 Each flag writes one key of identity.json; an empty value (--settle "") removes it, and
@@ -171,6 +194,13 @@ Which engine runs this identity (both off by default):
                                   "auto" is your default Chrome profile, after you turn on
                                   chrome://inspect/#remote-debugging; Chrome asks you to allow
                                   each connection, and the agent then sees all its windows
+
+What turno-browser records for this identity (all off by default; turno browser record):
+  --record-flows <bool>           keep every session's actions as a flow (auto-<time>, newest 20)
+  --record-traces <bool>          a Playwright trace of each browser session (turno browser traces)
+  --record-screenshots <bool>     a screenshot after each action
+  --record-max-size <size>        cap of the traces and screenshots, "10MB" to "10GB" (default 200MB)
+Vault sign-ins and passwords never reach a flow, a trace or a screenshot.
 
 Examples:
   $ turno browser set school --health-url https://mail.example.com/ --health-text Inbox
@@ -234,6 +264,73 @@ Examples:
   $ turno browser vault list work --json
   $ turno browser vault submit work auto
   $ turno browser vault remove work github --dry-run
+```
+
+### turno browser record
+
+```text
+Usage:
+  turno browser record <id> [--flows] [--traces] [--screenshots] [--max-size
+      <size>] [--off] [--dry-run] [--json]
+    what an identity records (flows, traces, screenshots); turn it on or off
+
+With no flag, shows what the identity records and where. --flows, --traces and --screenshots
+turn those on (the next Chrome start uses them), --off turns everything off; turn one off with
+turno browser set <id> --record-traces false. All are off by default.
+
+  flows        every session's actions saved as a flow (auto-<time>, newest 20 kept)
+  traces       a Playwright trace of each browser session (turno browser traces)
+  screenshots  a screenshot after each action
+
+Vault sign-ins never reach a flow, a trace or a screenshot: the trace stops before a fill and
+starts again after the page navigates, and a password or one-time code is never saved.
+
+Examples:
+  $ turno browser record school --flows --traces
+```
+
+### turno browser flows
+
+```text
+Usage:
+  turno browser flows <id> [<flow>] [--remove] [--dry-run] [--json]
+    an identity's saved flows; name one to see its steps, --remove to delete it
+
+Examples:
+  $ turno browser flows school
+```
+
+### turno browser replay
+
+```text
+Usage:
+  turno browser replay <id> <flow> [--param <name=value>]... [--from <step>]
+      [--headless] [--json]
+    run a saved flow on the identity's Chrome, without an agent
+
+Runs the flow through turno-browser-mcp, the same way an agent's browser_replay does. A
+sensitive parameter is never a value on the command line: pass --param <name>=keychain:<item>
+(store it once with turno secret set <item>), or type it at the hidden prompt. When a step fails,
+the report says which locators it tried; --from continues at a later step.
+
+Examples:
+  $ turno browser replay school submit-timesheet --param password=keychain:school-password
+```
+
+### turno browser traces
+
+```text
+Usage:
+  turno browser traces <id> [<recording>] [--open] [--segment <n>] [--json]
+    an identity's recordings (traces, screenshots); --open shows a trace in the
+    viewer
+
+--open serves the trace on 127.0.0.1 with the trace viewer patchright-core ships and opens it
+in your default browser; Ctrl-C stops it. A recording has one trace per stretch of activity (a
+vault sign-in or the idle limit ends one): --segment picks one, the last by default.
+
+Examples:
+  $ turno browser traces school --open
 ```
 
 ### turno browser export

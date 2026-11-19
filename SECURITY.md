@@ -154,7 +154,8 @@ What it guards against:
   credentials. A password goes only into `<input type="password">`, a username and a code only
   into text inputs, also when the model names the field.
 - **Being recorded.** `browser_login` refuses to run while the server saves traces, sessions
-  or video, or has the devtools capability.
+  or video (Playwright's own `--save-*` options), or has the devtools capability. An identity's
+  own recordings stop around it (see below).
 - **Being submitted without a visible step.** By default the tool only fills; the model clicks
   the sign-in button as a separate tool call. `turno browser vault submit <identity> auto`
   lets the tool submit too.
@@ -170,6 +171,27 @@ What it does not guard against:
   an honest model, not against a model or a page set on extracting a secret.
 - Anything running as your user can ask the secret store for the items, as it can for every
   other secret turno keeps (see out of scope).
+
+### Recordings and flows
+
+Off by default. `browser_record` saves a flow (the agent's tool calls and the elements they
+targeted) and identity.json `record` saves every session as a flow, a Playwright trace and a
+screenshot per action. Flows are files of mode 600 under `~/.local/share/turno/browser/flows/`;
+traces and screenshots are under the identity's state folder, capped in size.
+
+- A flow keeps typed text as parameters. A sensitive parameter keeps no value: a password,
+  one-time code or card field, a field named like `password`, `otp`, `pin` or `token`, a vault
+  value typed by hand, or a name the agent marks sensitive. A file holding a value for one is
+  refused on write and on read. A vault sign-in is kept as `browser_login` with the site name.
+  At replay a sensitive value is given again, or read from the secret store as
+  `keychain:<item>`; it then joins the redactor.
+- Before a vault fill, a value typed into a secret field, or a sensitive parameter at replay,
+  the trace is stopped and saved; it starts again only after every page holding the value has
+  navigated, and no screenshot is taken of such a page. Each saved trace is then searched for
+  those values (also encoded) and deleted if one is found. There is no video.
+- A trace holds what the pages showed, their network traffic and their cookies: treat the
+  recordings folder like the profile itself. Traces and screenshots are not taken in attach
+  mode (they could show your own tabs) or in read mode.
 
 ### Releases and how to verify them
 

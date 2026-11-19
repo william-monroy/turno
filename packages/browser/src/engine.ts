@@ -9,6 +9,7 @@ import {
   keychainArgs,
   launchSettings,
   readIdentitySettings,
+  recordEngineClash,
   systemTimezone,
 } from "./settings.js";
 import { type Tuning, launchTuning } from "./tuning.js";
@@ -413,7 +414,12 @@ export function createEngine(config: McpConfig, flags: EngineFlags = {}, fallbac
     id: base.id,
     launch: async (request) => {
       const engine = choose(request.identity);
-      const clash = request.tuning ? tuningClash(engine.id, request.tuning) : undefined;
+      const record = request.identity
+        ? readIdentitySettings(request.identity.id, request.identity.env)?.record
+        : undefined;
+      const clash =
+        (request.tuning ? tuningClash(engine.id, request.tuning) : undefined) ??
+        (record ? recordEngineClash(engine.id, record) : undefined);
       if (clash) throw new Error(clash);
       return await engine.launch(request);
     },

@@ -22,6 +22,7 @@ export {
   type HealthCheck,
   IDENTITY_FORMAT_VERSION,
   type IdentitySettings,
+  type RecordSettings,
   type SettingsPatch,
   checkIdentitySettings,
   identitySettingsPath,
@@ -100,6 +101,28 @@ export {
   vaultRemove,
   vaultSetSubmit,
 } from "./vault.js";
+export {
+  type Flow,
+  FlowError,
+  type FlowLocator,
+  type FlowParam,
+  type FlowStep,
+  type FlowSummary,
+  type FlowTarget,
+  type ParamRef,
+  flowsDir,
+  listFlows,
+  readFlow,
+  removeFlow,
+} from "./flows.js";
+export { type ReplayOptions, replayFlow } from "./replay.js";
+export {
+  type RecordingSummary,
+  listRecordings,
+  openTraceViewer,
+  recordingsDir,
+  traceViewerCommand,
+} from "./recordings.js";
 export { mcpEntryPath } from "./patchright.js";
 export { browserPaths as paths } from "turno-core/paths";
 

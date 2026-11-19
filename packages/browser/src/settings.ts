@@ -37,6 +37,10 @@ import { parseDuration, parseSize } from "./units.js";
  * - `engine`, `attach` (format 6): which engine runs the identity (`engine.ts`). `engine:
  *   "lightpanda"` is read mode; `attach` connects to a Chrome the user already has open
  *   (`"auto"`, a user data dir, or a loopback endpoint). Both off by default.
+ * - `record` (format 7): what turno-browser records for this identity, all off by default:
+ *   `flows` (every session's actions as a flow, `recorder.ts`), `traces` (Playwright traces) and
+ *   `screenshots` (one per action), the last two under the identity's state folder with a
+ *   size cap (`maxSize`, default 200MB) and the oldest recordings removed first (`recordings.ts`).
  *
  * A missing file means Chrome's own defaults, as before identity.json existed.
  */
@@ -48,7 +52,7 @@ import { parseDuration, parseSize } from "./units.js";
  * only when it uses one of them, so an older turno-browser keeps reading every other file and
  * refuses one it would misread with "update turno-browser".
  */
-export const IDENTITY_FORMAT_VERSION = 6;
+export const IDENTITY_FORMAT_VERSION = 7;
 
 /** The keys format 2 added. */
 const FORMAT_2_KEYS = ["tabs", "backgroundThrottling", "settle", "block", "cache"] as const;
@@ -64,6 +68,25 @@ const FORMAT_5_KEYS = ["sharing"] as const;
 
 /** The keys format 6 added. */
 const FORMAT_6_KEYS = ["engine", "attach"] as const;
+
+/** The keys format 7 added. */
+const FORMAT_7_KEYS = ["record"] as const;
+
+/** What turno-browser records for an identity (`recorder.ts`, `recordings.ts`); all off by default. */
+export interface RecordSettings {
+  /** Record every session's actions as a flow (`auto-<time>`), the newest few kept. */
+  flows?: boolean;
+  /** Playwright traces of each browser session, paused around vault sign-ins. */
+  traces?: boolean;
+  /** A screenshot after each action, skipped on a page that holds vault values. */
+  screenshots?: boolean;
+  /** Size cap of the identity's recordings, like `"200MB"`; the oldest go first. */
+  maxSize?: string;
+}
+
+/** Recordings size cap bounds. */
+const MIN_RECORD_BYTES = 10 * 1024 ** 2;
+const MAX_RECORD_BYTES = 10 * 1024 ** 3;
 
 /** How many agent sessions use the identity's browser at once (`sharing.ts`). */
 type SharingSetting = "session" | "tabs";
@@ -143,6 +166,7 @@ export interface IdentitySettings {
   engine?: "chrome" | "lightpanda";
   /** Connect to a Chrome the user has open: `"auto"`, a user data dir, or a loopback endpoint. */
   attach?: string;
+  record?: RecordSettings;
   /** ISO dates. */
   created: string;
   updated: string;
@@ -160,7 +184,8 @@ export type SettingsPatch = {
     | (typeof FORMAT_3_KEYS)[number]
     | (typeof FORMAT_4_KEYS)[number]
     | (typeof FORMAT_5_KEYS)[number]
-    | (typeof FORMAT_6_KEYS)[number]]?: IdentitySettings[K] | null;
+    | (typeof FORMAT_6_KEYS)[number]
+    | (typeof FORMAT_7_KEYS)[number]]?: IdentitySettings[K] | null;
 };
 
 const KEYS = new Set([
@@ -175,6 +200,7 @@ const KEYS = new Set([
   ...FORMAT_4_KEYS,
   ...FORMAT_5_KEYS,
   ...FORMAT_6_KEYS,
+  ...FORMAT_7_KEYS,
   "created",
   "updated",
 ]);
@@ -256,6 +282,7 @@ function browserProblems(v: Record<string, unknown>, out: string[]): void {
   if (v.sharing !== undefined && v.sharing !== "session" && v.sharing !== "tabs")
     out.push('sharing must be "session" (the default, one agent session at a time) or "tabs"');
   engineProblems(v, out);
+  recordProblems(v, out);
   if (v.cache !== undefined) {
     const c = v.cache;
     if (!isObject(c)) out.push('cache must be an object, like {} or { "maxSize": "100MB" }');
@@ -299,6 +326,45 @@ function engineProblems(v: Record<string, unknown>, out: string[]): void {
   const level = isObject(v.humanize) ? v.humanize.level : undefined;
   if (v.engine === "lightpanda" && level !== undefined && level !== "off")
     out.push('humanize does not go with engine "lightpanda": read mode lays out no page to move a pointer over');
+}
+
+/** Problems with the format 7 `record` key, alone and with the engine keys. */
+function recordProblems(v: Record<string, unknown>, out: string[]): void {
+  if (v.record === undefined) return;
+  const r = v.record;
+  if (!isObject(r)) {
+    out.push("record must be an object with flows, traces, screenshots or maxSize");
+    return;
+  }
+  for (const k of ["flows", "traces", "screenshots"] as const)
+    if (r[k] !== undefined && typeof r[k] !== "boolean") out.push(`record.${k} must be true or false`);
+  if (r.maxSize !== undefined) {
+    const bytes = typeof r.maxSize === "string" ? parseSize(r.maxSize) : undefined;
+    if (bytes === undefined || bytes < MIN_RECORD_BYTES || bytes > MAX_RECORD_BYTES)
+      out.push('record.maxSize must be a size from "10MB" to "10GB", like "200MB"');
+  }
+  unknownKeys(r, ["flows", "traces", "screenshots", "maxSize"], "record", out);
+  const clash = recordEngineClash(v.attach !== undefined ? "attach" : String(v.engine ?? "chrome"), r);
+  if (clash) out.push(clash);
+}
+
+/**
+ * Why an engine cannot record what `record` asks for. Attach mode: a trace covers every tab of
+ * the browser, the user's own too, so neither traces nor screenshots are taken there. Read mode:
+ * Lightpanda renders no page, so there is nothing to screenshot or screencast.
+ */
+export function recordEngineClash(
+  engine: string,
+  record: { traces?: unknown; screenshots?: unknown },
+): string | undefined {
+  const asked = [record.traces === true && "traces", record.screenshots === true && "screenshots"].filter(Boolean);
+  if (!asked.length) return undefined;
+  const what = `record.${asked.join(" and record.")}`;
+  if (engine === "attach")
+    return `${what} do not go with attach mode: a trace or screenshot could show your own tabs. Keep record.flows only, or drop attach`;
+  if (engine === "lightpanda")
+    return `${what} do not go with engine "lightpanda": read mode renders no page to screenshot or trace. Keep record.flows only, or use engine "chrome"`;
+  return undefined;
 }
 
 export function identitySettingsPath(id: string, env: NodeJS.ProcessEnv = process.env): string {
@@ -441,17 +507,9 @@ export function writeIdentitySettings(
     if (value === null) delete next[key];
     else next[key] = value;
   }
-  next.version = FORMAT_6_KEYS.some((k) => next[k] !== undefined)
-    ? 6
-    : FORMAT_5_KEYS.some((k) => next[k] !== undefined)
-      ? 5
-      : FORMAT_4_KEYS.some((k) => next[k] !== undefined)
-        ? 4
-        : FORMAT_3_KEYS.some((k) => next[k] !== undefined)
-          ? 3
-          : FORMAT_2_KEYS.some((k) => next[k] !== undefined)
-            ? 2
-            : 1;
+  const formats = [FORMAT_7_KEYS, FORMAT_6_KEYS, FORMAT_5_KEYS, FORMAT_4_KEYS, FORMAT_3_KEYS, FORMAT_2_KEYS];
+  const newest = formats.findIndex((keys) => keys.some((k) => next[k] !== undefined));
+  next.version = newest < 0 ? 1 : 7 - newest;
   if (typeof next.locale === "string") next.locale = canonicalLocale(next.locale) ?? next.locale;
   if (Array.isArray(next.languages)) next.languages = (next.languages as string[]).map((l) => canonicalLocale(l) ?? l);
   if (typeof next.region === "string" && /^[a-z]{2}$/i.test(next.region)) next.region = next.region.toUpperCase();

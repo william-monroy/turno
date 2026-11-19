@@ -1,6 +1,8 @@
 import type { BrowserContext, Page } from "patchright-core";
 import { batchTool } from "./batch.js";
 import { type VaultAccess, loginTool } from "./login-tool.js";
+import { type FlowRecorder, recordTool } from "./recorder.js";
+import { flowsTool, replayTool } from "./replay.js";
 import {
   type ClientInfo,
   type McpConfig,
@@ -59,6 +61,10 @@ interface TurnoToolContext {
   stock?: StockAccess;
   /** The identity's vault, its redactor and guard; set by the host when it serves an identity. */
   vault?: VaultAccess;
+  /** The session's flow recorder; set by the host when it serves an identity. */
+  recorder?: FlowRecorder;
+  /** The browser's recording (traces, screenshots), when identity.json asks for one. */
+  recording?: { pauseForSecret(page: Page | undefined): Promise<void> };
 }
 
 export interface TurnoTool {
@@ -69,7 +75,7 @@ export interface TurnoTool {
 }
 
 /** The tools turno adds to every session. */
-export const TURNO_TOOLS: readonly TurnoTool[] = [batchTool(), loginTool()];
+export const TURNO_TOOLS: readonly TurnoTool[] = [batchTool(), loginTool(), recordTool(), replayTool(), flowsTool()];
 
 /** The zod of the bundle, to build a turno tool's `inputSchema` with. */
 export function turnoZod(): Zod {

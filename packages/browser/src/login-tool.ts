@@ -31,6 +31,11 @@ export interface VaultAccess {
   guard: VaultGuard;
   /** The secret store (tests inject a fake); default: this machine's. */
   store?: SecretStore;
+  /**
+   * Runs before a value goes into the page: a recording saves its trace and holds the page,
+   * so the fill is never traced or screenshotted (`recordings.ts`).
+   */
+  beforeFill?: (page: Page) => Promise<void>;
 }
 
 type Field = "username" | "password" | "code";
@@ -213,6 +218,7 @@ export function loginTool(): TurnoTool {
           code = totp(credential.totp);
         }
       }
+      await vault.beforeFill?.(page);
       // Redact first: from here on no result or error of this server shows a value.
       vault.redactor.add(credential.username, `${siteKey} username`);
       vault.redactor.add(credential.password, `${siteKey} password`);

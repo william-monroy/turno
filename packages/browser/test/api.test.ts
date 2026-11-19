@@ -39,14 +39,25 @@ const MEMBERS = [
   "exportSession",
   "importSession",
   "readSessionExport",
+  // 1.6: saved flows, replay and recordings.
+  "flowsDir",
+  "listFlows",
+  "listRecordings",
+  "openTraceViewer",
+  "readFlow",
+  "recordingsDir",
+  "removeFlow",
+  "replayFlow",
+  "traceViewerCommand",
 ];
 
 describe("the public API object", () => {
   // 1.3: writeIdentitySettings accepts the humanize key (no new member).
   // 1.4: the sharing key and manifestSnippet(id, { sharing }) (no new member).
   // 1.5: the engine and attach keys and the engine checks of runDoctor (no new member).
-  it("is version 1.5, frozen, with integer parts", () => {
-    expect(API_VERSION).toEqual({ major: 1, minor: 5 });
+  // 1.6: the record key, saved flows, replay and recordings.
+  it("is version 1.6, frozen, with integer parts", () => {
+    expect(API_VERSION).toEqual({ major: 1, minor: 6 });
     expect(Object.isFrozen(API_VERSION)).toBe(true);
     expect(Number.isInteger(API_VERSION.major) && Number.isInteger(API_VERSION.minor)).toBe(true);
   });

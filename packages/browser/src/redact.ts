@@ -64,6 +64,24 @@ export class Redactor {
     return this.entries.size > 0;
   }
 
+  /** True when `text` holds a value this redactor hides, in any of its forms. */
+  covers(text: string, now: number = Date.now()): boolean {
+    return this.labelsIn(text, () => true, now).length > 0;
+  }
+
+  /**
+   * The labels of the values found in `text` whose label passes `which` (a recorder looks for
+   * passwords and one-time codes in a trace before it keeps it).
+   */
+  labelsIn(text: string, which: (label: string) => boolean, now: number = Date.now()): string[] {
+    const found = new Set<string>();
+    for (const e of this.entries.values()) {
+      if ((e.until !== undefined && now > e.until) || !which(e.label)) continue;
+      if (e.variants.some((v) => text.includes(v))) found.add(e.label);
+    }
+    return [...found];
+  }
+
   text(text: string, now: number = Date.now()): string {
     if (!this.entries.size || !text) return text;
     const pairs: [string, string][] = [];

@@ -64,7 +64,7 @@ const lib = () => upstream().tools;
 
 /** The tools a default `turno-browser-mcp` serves, in the order it lists them. */
 /** The turno tools, listed after the stock ones. */
-const TURNO_NAMES = ["browser_batch", "browser_login"];
+const TURNO_NAMES = ["browser_batch", "browser_login", "browser_record", "browser_replay", "browser_flows"];
 
 const TOOL_NAMES = [
   "browser_close",

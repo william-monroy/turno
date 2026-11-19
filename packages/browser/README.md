@@ -33,6 +33,7 @@ with it; turno works without it. The whole story is at [turno.wimo.dev](https://
 | [Session export and import](#move-a-session) | an identity's session as one encrypted file, for another machine |
 | [Tab limits](#a-browser-that-cleans-up) | at most 8 tabs, parked after 5 minutes unused, closed after 15 |
 | [`browser_batch`](#faster-actions) | up to 20 actions in one call, and errors that say what is in the way |
+| [Record and replay](#record-and-replay) | save a flow once, replay it with parameters; recordings and traces, opt-in |
 | [Blocking and cache](#lighter-pages) | opt-in: block trackers, images, media or fonts; cache static resources on disk |
 | [Engines](https://turno.wimo.dev/docs/concepts/browser-identities#engines) | opt-in: read mode on Lightpanda for reading pages with little memory, or attach to the Chrome you have open |
 | [Health and reputation](#know-when-something-is-wrong) | a signed-out identity says so, and each site's challenges are counted |
@@ -151,6 +152,20 @@ the target, hold the button for tens of milliseconds and type short text key by 
 overshoot, reading pauses and wheel scrolling, and `adaptive` uses `full` only on sites that showed
 a challenge page. Schemas and results stay the same; each click costs about 0.5 s (`light`) to
 1 s (`full`). See [Human-like input](https://turno.wimo.dev/docs/concepts/browser-identities#human-like-input).
+
+## Record and replay
+
+- **Flows.** `browser_record` saves the actions of a session as a named flow, each element kept
+  four ways (Playwright's locator, role and name, text, CSS path); `browser_replay` runs it again
+  with parameters and, when a step no longer fits, stops with a report the agent can continue
+  from. `turno browser flows|replay <id>` does the same from a terminal.
+- **No secrets in a flow.** Typed text is a parameter; a password, a one-time code or a value the
+  agent marks sensitive keeps no value, and a vault sign-in is the site name only. A sensitive
+  value at replay can be `keychain:<item>`, read from the secret store.
+- **Recordings, opt-in.** `turno browser record <id> --flows --traces --screenshots` keeps every
+  session as a flow, a Playwright trace and a screenshot per action, under a size cap (200MB);
+  `turno browser traces <id> --open` shows a trace in the bundled viewer. The trace stops before
+  a sign-in and starts again after the page navigates, so no vault value is ever in one.
 
 ## Lighter pages
 

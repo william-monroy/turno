@@ -260,6 +260,29 @@ describe("reading and checking", () => {
     );
     expect(writeIdentitySettings("team", { sharing: null }, sb.env, T1).version).toBe(2);
   });
+
+  it("checks record (format 7), writes format 7 only while it is set, and refuses traces or screenshots with attach or read mode", () => {
+    expect(() =>
+      writeIdentitySettings(
+        "rec",
+        { record: { flows: "yes" as unknown as boolean, maxSize: "1MB", video: true } as never },
+        sb.env,
+      ),
+    ).toThrow(
+      /record\.flows must be true or false; record\.maxSize must be a size from "10MB" to "10GB".*; unknown key "record\.video"/,
+    );
+    const on = writeIdentitySettings("rec", { record: { flows: true, traces: true, maxSize: "50MB" } }, sb.env);
+    expect(on.version).toBe(7);
+    expect(readIdentitySettings("rec", sb.env)?.record).toEqual({ flows: true, traces: true, maxSize: "50MB" });
+    expect(() => writeIdentitySettings("rec", { attach: "auto" }, sb.env)).toThrow(
+      /record\.traces do not go with attach mode: a trace or screenshot could show your own tabs/,
+    );
+    expect(() => writeIdentitySettings("rec", { engine: "lightpanda" }, sb.env)).toThrow(
+      /record\.traces do not go with engine "lightpanda": read mode renders no page/,
+    );
+    expect(writeIdentitySettings("rec", { record: { flows: true }, engine: "lightpanda" }, sb.env).version).toBe(7);
+    expect(writeIdentitySettings("rec", { record: null, engine: null }, sb.env).version).toBe(1);
+  });
 });
 
 describe("addIdentity and removeIdentity", () => {

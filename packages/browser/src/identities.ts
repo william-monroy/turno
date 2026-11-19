@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { browserPaths as paths } from "turno-core/paths";
 import { pidAlive } from "turno-core/process";
 import { IdentityError, assertIdentityId, identityDir, identityStateDir, isValidIdentityId } from "./ids.js";
+import { removeFlows } from "./flows.js";
 import { inUseMessage, readRuntimeLock, runtimeLockAlive } from "./runtime-lock.js";
 import { type SettingsPatch, identitySettingsPath, systemTimezone, writeIdentitySettings } from "./settings.js";
 import { vaultHasSites, vaultPath } from "./vault.js";
@@ -85,6 +86,7 @@ export function removeIdentity(id: string, env: NodeJS.ProcessEnv = process.env)
   rmSync(vaultPath(id, env), { force: true });
   rmSync(identitySettingsPath(id, env), { force: true });
   rmSync(identityStateDir(id, env), { recursive: true, force: true });
+  removeFlows(id, env);
 }
 
 /**

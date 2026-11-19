@@ -5,6 +5,7 @@ import { type Command, type Io, fail, needsAnswer, paint } from "../io.js";
 import type { API_VERSION, BrowserApi } from "turno-browser";
 import { type LoadOptions, OPTIONAL, loadOptional, notInstalled } from "../optional.js";
 import { emit, jsonOutput } from "../output.js";
+import * as flowCmd from "./browser-flows.js";
 import * as ident from "./browser-identity.js";
 import * as session from "./browser-session.js";
 import { vaultCommand } from "./browser-vault.js";
@@ -24,7 +25,7 @@ export type { BrowserApi };
  * The API version this turno was built against. Typed by the package's own constant, so a
  * change of its API_VERSION in the workspace fails the typecheck until this line follows.
  */
-export const BROWSER_API: typeof API_VERSION = { major: 1, minor: 5 };
+export const BROWSER_API: typeof API_VERSION = { major: 1, minor: 6 };
 
 /** What the package exports that the loader looks at. */
 interface BrowserPackage {
@@ -284,12 +285,21 @@ export async function dispatch(
         return await ident.doctor(mod, rest, io);
       case "reputation":
         return ident.reputation(mod, rest, io, (id) => checkId(mod, id, "reputation"));
+      case "flows":
+        return flowCmd.flows(mod, rest, io);
+      case "replay":
+        return await flowCmd.replay(mod, rest, io);
+      case "traces":
+        return await flowCmd.traces(mod, rest, io);
+      case "record":
+        return flowCmd.record(mod, rest, io);
       default:
         return fail(`unknown browser command "${sub}"`);
     }
   } catch (err) {
     const name = (err as Error).name;
-    if (name === "IdentityError" || name === "VaultError" || name === "SealError") return fail((err as Error).message);
+    if (name === "IdentityError" || name === "VaultError" || name === "SealError" || name === "FlowError")
+      return fail((err as Error).message);
     throw err;
   }
 }
@@ -363,6 +373,51 @@ export function browserCommand(deps: BrowserDeps = defaultDeps): Command {
       ownHelp: true,
       run: (args, io) => vaultCommand(deps).run(args, io),
     },
+    record: {
+      summary: "what an identity records (flows, traces, screenshots); turn it on or off",
+      synopsis: "<id> [--flows] [--traces] [--screenshots] [--max-size <size>] [--off] [--dry-run] [--json]",
+      details: `With no flag, shows what the identity records and where. --flows, --traces and --screenshots
+turn those on (the next Chrome start uses them), --off turns everything off; turn one off with
+turno browser set <id> --record-traces false. All are off by default.
+
+  flows        every session's actions saved as a flow (auto-<time>, newest 20 kept)
+  traces       a Playwright trace of each browser session (turno browser traces)
+  screenshots  a screenshot after each action
+
+Vault sign-ins never reach a flow, a trace or a screenshot: the trace stops before a fill and
+starts again after the page navigates, and a password or one-time code is never saved.`,
+      flags: ["--flows", "--traces", "--screenshots", "--max-size", "--off", "--dry-run", "--json"],
+      json: flowCmd.RECORD_JSON,
+      run: withModule("record"),
+    },
+    flows: {
+      summary: "an identity's saved flows; name one to see its steps, --remove to delete it",
+      synopsis: "<id> [<flow>] [--remove] [--dry-run] [--json]",
+      flags: ["--remove", "--dry-run", "--json"],
+      json: flowCmd.FLOWS_JSON,
+      run: withModule("flows"),
+    },
+    replay: {
+      summary: "run a saved flow on the identity's Chrome, without an agent",
+      synopsis: "<id> <flow> [--param <name=value>]... [--from <step>] [--headless] [--json]",
+      details: `Runs the flow through turno-browser-mcp, the same way an agent's browser_replay does. A
+sensitive parameter is never a value on the command line: pass --param <name>=keychain:<item>
+(store it once with turno secret set <item>), or type it at the hidden prompt. When a step fails,
+the report says which locators it tried; --from continues at a later step.`,
+      flags: ["--param", "--from", "--headless", "--json"],
+      json: flowCmd.REPLAY_JSON,
+      run: withModule("replay"),
+    },
+    traces: {
+      summary: "an identity's recordings (traces, screenshots); --open shows a trace in the viewer",
+      synopsis: "<id> [<recording>] [--open] [--segment <n>] [--json]",
+      details: `--open serves the trace on 127.0.0.1 with the trace viewer patchright-core ships and opens it
+in your default browser; Ctrl-C stops it. A recording has one trace per stretch of activity (a
+vault sign-in or the idle limit ends one): --segment picks one, the last by default.`,
+      flags: ["--open", "--segment", "--json"],
+      json: flowCmd.TRACES_JSON,
+      run: withModule("traces"),
+    },
     export: {
       summary: "write an identity's cookies and site storage to a file encrypted with a passphrase",
       synopsis: "<id> --out <file> [--expires 7d] [--force]",
@@ -411,6 +466,10 @@ export function browserCommand(deps: BrowserDeps = defaultDeps): Command {
       "turno browser doctor --fix",
       "turno browser reputation school --json",
       "turno browser vault add school mail --url https://mail.example.com --username alice",
+      "turno browser record school --flows --traces",
+      "turno browser flows school",
+      "turno browser replay school submit-timesheet --param password=keychain:school-password",
+      "turno browser traces school --open",
       "turno browser export school --out school.session --expires 2d",
       "turno browser import school.session --as school-laptop",
       "turno browser remove school --dry-run",
