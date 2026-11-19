@@ -1,5 +1,153 @@
 # turno-cli
 
+## 0.3.0
+
+### Minor Changes
+
+- cc6b5b2: Browser identity module:
+  
+  - `identity.json` next to each identity's profile keeps its time zone, languages, locale and
+    region fixed; Chrome gets them at every start (`--accept-lang`, `--lang`, and the time zone
+    when it differs from the machine's). `turno identity add browser:<id>` pins a new identity to
+    the current time zone and takes `--timezone`, `--locale`, `--languages`, `--region` and a
+    health check; `turno identity show` and `turno identity set` read and change it
+    (`turno browser show/set <id>` too). Without the file nothing changes.
+  - A runtime lock (`{ nodePid, chromePid, pgid, startedAt }`) while an identity's Chrome runs: a
+    second session gets a message naming the process and how to stop it instead of "Browser is
+    already in use".
+  - An optional session health check (a URL and a text or selector) marks a signed-out identity
+    NEEDS_AUTH; tool calls then fail with a message that asks for `turno browser login <id>`.
+  - Each captcha, "verify it's you" or block page an identity meets is logged per site (host name
+    only); `turno browser reputation [<id>] [--json]` shows counts and trend.
+  - `turno browser doctor [--fix] [--no-launch] [--json]`: Chrome and its version, a smoke launch,
+    the desktop session, and per identity its settings, lock, sign-in and recent challenges, with
+    a fix for each problem.
+  - mcpd: `stop_grace` per server in `mcp.toml`, the wait between closing stdin and SIGTERM;
+    5 seconds by default for turno-browser-mcp, the SDK's 2 seconds for every other server.
+- 59309b5: `turno browser export <id> --out <file>` and `turno browser import <file> [--as <id>]` move an
+  identity's cookies, localStorage and IndexedDB as one file encrypted with a passphrase (scrypt
+  and AES-256-GCM), refused after its expiry and never holding vault credentials.
+  `"keychain": "system"` in identity.json makes Chrome encrypt an identity's cookies with the OS
+  keychain instead of Playwright's fixed mock key; the default is unchanged.
+  turno-browser's API is now 1.2, which this turno requires.
+- 50dd77c: Credential vault for browser identities: `turno browser vault add|list|remove|submit`
+  stores a username, a password and an optional TOTP secret per site in the OS secret store, and
+  the new `browser_login` tool fills them into the site's sign-in page without the agent ever
+  seeing them. Results and errors are redacted, values are bound to the site's origins, and the
+  form is submitted only when the identity opts in. turno-browser's API is now 1.1, which this
+  turno requires.
+- aa7e39e: An output contract for scripts, hooks and agents:
+  
+  - Every `--json` object carries `schemaVersion` (each element, for a list); no existing key
+    changed. `--json=fields` lists a command's fields, `--json=a,b` keeps only those, and an
+    unknown field is exit 2 with the list. Under `--json`, errors are one JSON line on stderr:
+    `{"schemaVersion":1,"error":{"code":"usage","exitCode":2,"message":"..."}}`.
+  - `turno limit show --watch --json` and the new `turno mcp top --watch --json` print NDJSON, one
+    record per line, like `turno mcp log --follow --json`.
+  - Exit codes: 0 ok, 1 failure, 2 usage, 3 no profile for the folder, 4 not signed in, 5 mcpd
+    down (`turno help exit-codes`). Changed: `turno auto` exits 3 (was 1) when the folder's
+    profile does not exist or there is no rule with `system = ""`; `turno mcp daemon status`,
+    `turno mcp top` and `turno mcp savings` exit 5 (was 1) when mcpd is down.
+  - `turno profile which --check` answers with that code and prints nothing when the folder has
+    a signed-in profile (`--agent` for other agents).
+  - turno's own state files are checked before use: a cut or hand-edited file reads as absent
+    instead of crashing, and an unreadable `mcp-managed.json` stops `turno mcp sync` and
+    `turno uninstall` with a message naming the file (they used to go on as if it were empty).
+    `turno identity log --verify` reports a line that is not an audit entry.
+  - `turno help environment` lists every variable turno reads and `turno help json` the JSON
+    rules; every command help ends with examples. Colors honor `CLICOLOR=0`, `CLICOLOR_FORCE`
+    and `TERM=dumb`; `TURNO_NO_UPDATE_NOTIFIER=1` turns the update check off.
+- fa324c0: Cross-package contracts:
+  
+  - turno-browser exports its public API as a typed `api` object with `API_VERSION` (1.0).
+    turno-cli checks it when it loads the package: a turno-browser that is too old (0.2 and older
+    have no `API_VERSION`) or too new stops `turno browser` and `turno identity browser:<id>`
+    with one line naming what to update, instead of failing later.
+  - mcpd sends every `tools/call`, from 2025-11-25 sessions and 2026-07-28 requests alike,
+    through one call middleware: the profile's tool filter, then the call log, then the session id.
+    Refusals and call log records are unchanged.
+  - Each relayed `tools/call` carries `_meta["io.turno/session"]`, an opaque id that is stable for
+    one agent session and different for every other. turno-browser-mcp hands it to its own tools
+    (`session` in their context); the Playwright tools are unaffected.
+- cf4e077: Diagnostics and safe mode:
+  
+  - `turno mcp call <server> [tool] [--args JSON] [--arg k=v|k:=json] [--profile p] [--json]`
+    calls a tool through mcpd as a profile's session in this folder would, or lists the tools.
+    Exits 1 on `isError` or a refused call, 5 when mcpd is down.
+  - `turno doctor --report` prints a Markdown block for an issue: turno, Node, OS, each agent's
+    version, mcpd, the findings and every path, with no tokens or secret values.
+    `turno config path --all` lists every path turno uses.
+  - Safe mode: `turno run <p> --no-gateway`, `turno <p> --no-gateway`, `turno auto --no-gateway`,
+    or `TURNO_SAFE=1`, opens the agent with the profile's account but without the gateway entries,
+    the gateway token and (Claude Code) the status line and hooks.
+  - Copilot CLI and Cursor CLI gateway entries send the session folder (`X-Turno-Cwd-B64`), so
+    folder server sets apply to them without the process lookup. Run `turno mcp sync` to rewrite
+    existing entries.
+  - `system = ""` no longer becomes an empty profile name for the hub's gateway token; `turno
+    status` and `turno profile which` say "no profile" for folders without a rule.
+- 5b46749: Browser lifecycle:
+  
+  - `turno-browser-mcp` passes a generated Playwright MCP `--config` that closes Chrome after 15
+    minutes without a tool call, headed too; the next call opens it again with the same profile.
+    `TURNO_BROWSER_IDLE` changes the limit (`"10m"`, `"0"` keeps Chrome open); `--idle-timeout`
+    and a `--config` of your own still win. Flags and tool names are unchanged.
+  - On start it closes a Chrome that an earlier, killed run left open on the same profile (only
+    a Chrome browser process for exactly that profile whose parent is gone), and on stdin close,
+    SIGTERM or SIGHUP it closes Chrome within about 2.5 seconds, forcefully if needed.
+  - mcpd stops a quiet `session` server under critical memory pressure even while its session
+    lives; the next call starts it again. `turno mcp top` counts the process groups a server's
+    children lead, so a browser's helpers always count.
+  - Docs: one recommendation for browsers, a `shared` server with `exclusive = true` per identity
+    (the block `turno identity add` prints), instead of `scope = "session"`.
+- 57641d4: `turno identity set browser:<id>` and `turno browser set <id>` take flags for every identity.json
+  key of the browser host: `--tabs-max`, `--tabs-popups`, `--tabs-park`, `--tabs-close` and
+  `--no-tabs` (tab governor), `--background-throttling`, `--settle`, `--block-trackers`,
+  `--block-types`, `--block-patterns` and `--no-block`, `--cache`, `--cache-max-size` and
+  `--no-cache`. A flag changes only its part of a group, an empty value removes a key, and a bad
+  value is refused with the flag's name. `set` takes `--json` (what changed, or with `--dry-run`
+  what would, and the resulting file), and `--dry-run` now validates like the real write.
+  `turno identity add browser:<id>` takes the same flags, and `show` lists the new settings.
+- 4663312: Move MCP servers between machines, OAuth detection, Codex trust and next-step hints:
+  
+  - `turno mcp export [--profile p] [--json]` prints mcp.toml without secret values: references
+    stay, literal secrets become `keychain:turno/<server>/<key>` names, and the top of the file
+    lists the `turno secret set` commands the other machine needs.
+  - `turno mcp import <file>` merges an export, a JSON file with `mcpServers` or a Codex
+    `config.toml` into mcp.toml, keeping its comments and existing servers (`--force` replaces
+    them). A preview until `--write`.
+  - With `--write`, both import forms mark remote servers that answer with an OAuth challenge as
+    `auth = "oauth"`.
+  - `turno profile assign` and `turno profile repair` write Codex `[projects."<folder>"]
+    trust_level = "trusted"` entries in Codex profiles for their folder rules, never changing an
+    existing entry.
+  - Commands that write end with a `Next:` line (`profile add`, `profile assign`, `mcp import
+    --write`, `mcp export`, `secret set`); `turno config set hints false` turns them off.
+
+### Patch Changes
+
+- 2948759: The package homepage is now https://turno.wimo.dev.
+- 7b77664: pnpm, bun and yarn are first-class install paths. `turno upgrade` and `turno version` recognize
+  them from their lockfile even under a custom `PNPM_HOME`, `BUN_INSTALL` or yarn global folder,
+  and treat `pnpm dlx` and `bunx` like `npx`: a one-off copy has nothing to upgrade, and
+  `turno upgrade` says which command runs the newest release instead of installing turno globally.
+  Launchers and the status line refuse to point into any of those caches. `turno browser` and
+  `turno identity` find a `turno-browser` that pnpm 11 or later installed in its own global group.
+- cf29953: The example time zone in the message for an invalid identity.json and in the help of
+  `turno identity` is now `Europe/Madrid`.
+- 5566437: Every package has a README that tells the same story as the site. turno-cli's follows the
+  order of turno.wimo.dev and lists what the browser gained; turno-browser's is organized around
+  what the package does (identities, the credential vault, session export and import, tab limits,
+  `browser_batch`, blocking and cache, health and doctor); turno-core's says what the shared
+  package is for; turno-fonts' shows the status line and how `turno ui install` uses the font.
+  Each links to its page on turno.wimo.dev and to the releases.
+- a0bfce8: New package `turno-core` with what turno-cli and turno-browser share: turno's paths, the secret
+  store (macOS Keychain, Linux Secret Service) and the process helpers. Both packages
+  now depend on it instead of keeping their own copies; behavior is unchanged.
+- Updated dependencies [2948759]
+- Updated dependencies [5566437]
+- Updated dependencies [a0bfce8]
+  - turno-core@0.1.0
+
 ## 0.2.0
 
 ### Minor Changes
