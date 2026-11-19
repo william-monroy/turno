@@ -5,7 +5,7 @@ description: Several agents in one browser, flows you record once and replay, a 
 
 <ReleaseHeader date="2026-11-19" packages={["turno-cli@0.4.0", "turno-browser@0.4.0"]} />
 
-turno 0.4.0 is about the browser again. One browser identity can now **[serve several agents at once](/docs/concepts/browser-identities#several-agents-one-browser)**, each in its own tabs. What an agent does can be **[saved as a flow and replayed](/docs/concepts/browser-identities#flows-record-and-replay)**, coding agents can **[drive the browser from the shell](/docs/concepts/browser-identities#from-the-shell)**, and you can **[watch the agent's tab and take over](/docs/concepts/browser-identities#live-view-and-take-over)** when a site needs a person. Two **[engines](/docs/concepts/browser-identities#engines)** join Chrome: Lightpanda for reading pages with little memory, and your own Chrome. Every new setting is off until you turn it on.
+turno 0.4.0 is about the browser again. One browser identity can now **[serve several agents at once](/docs/browser/sharing)**, each in its own tabs. What an agent does can be **[saved as a flow and replayed](/docs/browser/flows#flows-record-and-replay)**, coding agents can **[drive the browser from the shell](/docs/browser/actions#from-the-shell)**, and you can **[watch the agent's tab and take over](/docs/browser/live-view)** when a site needs a person. Two **[engines](/docs/browser/engines)** join Chrome: Lightpanda for reading pages with little memory, and your own Chrome. Every new setting is off until you turn it on.
 
 ## Upgrade
 
@@ -21,7 +21,7 @@ turno 0.4.0 is about the browser again. One browser identity can now **[serve se
 
 ## Highlights
 
-<Highlight area="Browser" title="Several agents, one browser" href="/docs/concepts/browser-identities#several-agents-one-browser">
+<Highlight area="Browser" title="Several agents, one browser" href="/docs/browser/sharing">
 
 Until now an identity served one agent session at a time. With `"sharing": "tabs"` several sessions use the same signed-in browser, each with its own current tab and the tabs it holds. Another session's call on a held tab waits up to 10 seconds and then fails with a message that names the holder, `browser_close` closes only the calling session's tabs, and a session lets go of its tabs when it ends or after 5 minutes without a call.
 
@@ -35,7 +35,7 @@ Serve the identity with `exclusive = false` in `mcp.toml`; `turno browser doctor
 
 </Highlight>
 
-<Highlight area="Browser" title="Record a flow once, replay it" href="/docs/concepts/browser-identities#flows-record-and-replay" more="Flows: record and replay">
+<Highlight area="Browser" title="Record a flow once, replay it" href="/docs/browser/flows#flows-record-and-replay" more="Flows: record and replay">
 
 `browser_record` saves what an agent does as a named flow. Each element is kept four ways (Playwright's locator, role and name, text and CSS path), so a small change on the page does not break it, and typed text becomes parameters. Passwords, one-time codes and values marked sensitive are never saved. `browser_replay` runs the flow, and when a step no longer fits it stops with a report the agent can continue from.
 
@@ -50,7 +50,7 @@ turno browser record school --flows --traces
 
 </Highlight>
 
-<Highlight area="Browser" title="Drive the browser from the shell" href="/docs/concepts/browser-identities#from-the-shell" more="From the shell">
+<Highlight area="Browser" title="Drive the browser from the shell" href="/docs/browser/actions#from-the-shell" more="From the shell">
 
 Some coding agents prefer commands to MCP tools. `turno browser do` runs one browser action per command through mcpd, with the same tab locks, vault, recordings and refusals an agent gets over MCP. The commands one agent or one shell runs share a session and keep their tab until `end`. The Claude Code plugin adds a short `browser-identity` skill that teaches the loop.
 
@@ -64,7 +64,7 @@ turno browser do school end
 
 </Highlight>
 
-<Highlight area="Browser" title="Watch the agent and take over" href="/docs/concepts/browser-identities#live-view-and-take-over" more="Live view and take-over">
+<Highlight area="Browser" title="Watch the agent and take over" href="/docs/browser/live-view" more="Live view and take-over">
 
 Off by default. With `--live true` turno-browser serves a view of the agent's tab on 127.0.0.1, behind a link that works once and is never printed. Pause the agent, solve what needs a person (a sign-in, a confirmation), and resume: each held call is told what changed, and a call that would act on a stale page gets a fresh snapshot instead. A page that holds a vault value or a password is never shown.
 
@@ -77,7 +77,7 @@ turno browser resume school
 
 </Highlight>
 
-<Highlight area="Browser" title="Two more engines" href="/docs/concepts/browser-identities#engines" more="Engines">
+<Highlight area="Browser" title="Two more engines" href="/docs/browser/engines" more="Engines">
 
 Read mode runs an identity on [Lightpanda](https://github.com/lightpanda-io/browser) instead of Chrome, to read pages with a fraction of the memory; tools that need a laid-out page are refused with the reason. Attach mode connects to the Chrome you already have open, works in a tab of its own and never closes yours. turno never downloads either engine, and `turno browser doctor` checks both.
 
@@ -94,13 +94,13 @@ turno browser set school --attach auto
 
 These settings exist for the cases where a site needs them. Each one is off until you turn it on per identity, and each has its own section with what it costs.
 
-- **[Human-like input](/docs/concepts/browser-identities#human-like-input)**: `--humanize light|full|adaptive` moves the pointer along a curve, holds the button and types key by key. Tool names and results do not change.
-- **[Natural language actions](/docs/concepts/browser-identities#natural-language-actions)**: `--act` adds `browser_act`, `browser_extract` and `browser_observe`, which run on your client's model through MCP sampling or on a chat completions API you name. The model sees a snapshot with vault values and password fields hidden, and can only use the stock actions on the current tab, every step shown.
-- **[Captcha solving](/docs/concepts/browser-identities#captcha-solving)**: `--captcha-provider` sends a reCAPTCHA, hCaptcha or Turnstile widget to a solver service you name. The service sees the page, and solving a site's captchas by machine may break its terms: it is for your own accounts.
-- **[Network and user agent](/docs/concepts/browser-identities#network-and-user-agent)**: a coherent user agent for headless Chrome, checked against its client hints, headers, languages and time zone at launch, and a proxy per identity with its password only in the secret store.
-- **[Camoufox](/docs/concepts/browser-identities#camoufox)**: runs an identity on an installed Camoufox through stock Playwright, with its own Firefox profile.
+- **[Human-like input](/docs/browser/actions#human-like-input)**: `--humanize light|full|adaptive` moves the pointer along a curve, holds the button and types key by key. Tool names and results do not change.
+- **[Natural language actions](/docs/browser/natural-language-and-captchas#natural-language-actions)**: `--act` adds `browser_act`, `browser_extract` and `browser_observe`, which run on your client's model through MCP sampling or on a chat completions API you name. The model sees a snapshot with vault values and password fields hidden, and can only use the stock actions on the current tab, every step shown.
+- **[Captcha solving](/docs/browser/natural-language-and-captchas#captcha-solving)**: `--captcha-provider` sends a reCAPTCHA, hCaptcha or Turnstile widget to a solver service you name. The service sees the page, and solving a site's captchas by machine may break its terms: it is for your own accounts.
+- **[Network and user agent](/docs/browser/network#network-and-user-agent)**: a coherent user agent for headless Chrome, checked against its client hints, headers, languages and time zone at launch, and a proxy per identity with its password only in the secret store.
+- **[Camoufox](/docs/browser/engines#camoufox)**: runs an identity on an installed Camoufox through stock Playwright, with its own Firefox profile.
 
-Keys for these services are only `keychain:` references, read from the secret store when used and hidden from every result. See [Acceptable use](/docs/concepts/browser-identities#acceptable-use).
+Keys for these services are only `keychain:` references, read from the secret store when used and hidden from every result. See [Acceptable use](/docs/browser/natural-language-and-captchas#acceptable-use).
 
 ## Browser
 
@@ -123,5 +123,5 @@ What can change when you upgrade from 0.3:
 ## Links
 
 - Full changelogs: [turno-cli](https://github.com/wimo-dev/turno/blob/main/packages/turno/CHANGELOG.md) and [turno-browser](https://github.com/wimo-dev/turno/blob/main/packages/browser/CHANGELOG.md).
-- Browser: [Browser identities](/docs/concepts/browser-identities), [Let an agent use my signed-in browser](/docs/guides/signed-in-browser) and [The browser package](/docs/security#the-browser-package).
+- Browser: [Browser identities](/docs/browser/identities), [Let an agent use my signed-in browser](/docs/guides/signed-in-browser) and [The browser package](/docs/security#the-browser-package).
 - [Benchmarks](/docs/benchmarks#turno-browser) and [Troubleshooting](/docs/troubleshooting).

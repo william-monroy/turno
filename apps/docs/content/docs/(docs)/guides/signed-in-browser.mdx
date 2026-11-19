@@ -8,7 +8,7 @@ This guide gives an agent a browser that is already signed in where you need it:
 `turno-browser` is an MCP server that drives your installed Google Chrome, headed, with one persistent profile per identity and no injected scripts. It serves the Playwright MCP tools. It is a separate package: turno works without it.
 
 <Callout title="Acceptable use" type="warn">
-Use it with your own accounts, on sites whose terms allow automated access by you, and at a human pace. Do not use it to get around access controls, paywalls or rate limits, to scrape at scale, or to access accounts that are not yours. Captcha solving is off unless you turn it on, and then it is for your own accounts only ([what it costs](/docs/concepts/browser-identities#captcha-solving)). You are responsible for how you use it.
+Use it with your own accounts, on sites whose terms allow automated access by you, and at a human pace. Do not use it to get around access controls, paywalls or rate limits, to scrape at scale, or to access accounts that are not yours. Captcha solving is off unless you turn it on, and then it is for your own accounts only ([what it costs](/docs/browser/natural-language-and-captchas#captcha-solving)). You are responsible for how you use it.
 </Callout>
 
 ## Set it up
@@ -63,7 +63,7 @@ Chrome opens with that identity's profile. Sign into the sites you need; the coo
 turno mcp sync
 ```
 
-Sessions now see a `browser-school` server. One session uses it at a time (`exclusive = true`), and a holder that sits idle keeps it for `lease`. To let several agents work in it at once, each in its own tabs, see [Several agents, one browser](/docs/concepts/browser-identities#several-agents-one-browser).
+Sessions now see a `browser-school` server. One session uses it at a time (`exclusive = true`), and a holder that sits idle keeps it for `lease`. To let several agents work in it at once, each in its own tabs, see [Several agents, one browser](/docs/browser/sharing).
 
 </Step>
 </Steps>
@@ -100,4 +100,4 @@ Every captcha, "verify it's you" or block page an identity meets is written to i
 - Do not declare an identity as a `session` server: two sessions would share one profile, and the second would find it in use.
 - A browser without an identity (a temporary profile) can be a `session` server. See [Scopes](/docs/concepts/scopes).
 
-More about how identities work: [Browser identities](/docs/concepts/browser-identities).
+More about how identities work: [Browser identities](/docs/browser/identities).

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import type { AreaLink } from "@/lib/areas";
 
 /**
- * The three areas of the docs at the top of the sidebar. Each area is a root folder with its own
+ * The areas of the docs at the top of the sidebar. Each area is a root folder with its own
  * sidebar, so this is how a reader moves between them; the current one is filled with turno's blue,
  * like the section rail of the landing page.
  */

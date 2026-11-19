@@ -1,0 +1,51 @@
+---
+title: "Several agents, one browser"
+description: "Several agent sessions use one identity's Chrome at once, each in its own tabs."
+---
+
+With `"sharing": "tabs"` several agent sessions use one identity's Chrome at once, each in its own tabs. It is off by default; turn it on per identity and let mcpd send every session to the server:
+
+```sh
+turno identity set browser:school --sharing tabs    # or the server's --sharing tabs
+```
+
+```toml title="~/.config/turno/mcp.toml"
+[server.browser-school]
+command = "turno-browser-mcp"
+args = ["--identity", "school"]
+scope = "shared"
+exclusive = false  # every agent session at once, each in its own tabs
+idle = "30m"
+```
+
+Then run `turno mcp sync`. `turno identity add browser:school --sharing tabs` prints that block.
+`turno browser doctor` warns about the opposite mistake: a server with `exclusive = false` for an
+identity that serves one session at a time, whose sessions would share one current tab.
+
+mcpd marks each call with the session it comes from, and turno-browser gives every session its own backend and current tab:
+
+| What | How |
+|---|---|
+| A session's first call | it works in a free tab, or a new one; never in a tab another session holds |
+| Its tabs | it holds every tab it works on, opens or selects, and the popups those tabs open |
+| Another session's tab | a call on it (`browser_tabs` select or close) waits up to 10 seconds, then fails with a message that names the session holding it and says to open a tab of its own |
+| Letting go | when mcpd says the session ended, when the tab closes, or after 5 minutes without a call from that session; a call in flight always keeps its tabs |
+| `browser_close` | closes only the calling session's tabs; the browser stays open for the others |
+| Tab list | `browser_tabs` lists every tab and marks the ones other sessions hold (`(in use by session 3f2a9c1b)`) |
+| Tab governor | the cap (`max`) counts each session's tabs apart, and no session's current tab is parked or closed |
+
+The 10 seconds and the 5 minutes are the defaults. Change them per identity (identity.json
+format 9; `"0"` makes a call fail at once, or frees a session's tabs between its calls):
+
+```sh
+turno identity set browser:school --tab-lock-wait 30s --tab-lock-release 10m
+```
+
+```json
+{ "sharing": "tabs", "tabLocks": { "wait": "30s", "release": "10m" } }
+```
+
+They only matter with `"sharing": "tabs"`. Read mode works with tab sharing, so they apply there
+too; attach mode does not go with tab sharing, so they never apply to it.
+
+Two sessions' calls run at the same time on their own tabs. Every session shares the identity's profile: the same cookies, storage and signed-in accounts. Tab sharing keeps agents from acting in each other's tabs; it does not separate accounts (use one identity per account for that). Tabs a session leaves behind stay open until the tab governor parks and closes them.

@@ -1,4 +1,10 @@
 {
   "title": "turno",
-  "pages": ["(docs)", "reference", "troubleshooting", "releases"]
+  "pages": [
+    "(docs)",
+    "browser",
+    "reference",
+    "troubleshooting",
+    "releases"
+  ]
 }

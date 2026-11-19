@@ -142,7 +142,7 @@ datos a gran escala, ni para entrar a cuentas que no son tuyas. La resolución d
 acciones en lenguaje natural vienen apagadas y se activan por identidad; las dos envían contenido
 de la página a un tercero que tú eliges, y resolver captchas puede incumplir los términos de un
 sitio. Más detalle en
-[Identidades del navegador](https://turno.wimo.dev/es/docs/concepts/browser-identities).
+[Identidades del navegador](https://turno.wimo.dev/es/docs/browser/identities).
 
 ## Preguntas frecuentes
 

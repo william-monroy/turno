@@ -1,0 +1,120 @@
+---
+title: "Network, user agent and proxy"
+description: "Blocking and a resource cache, a coherent user agent, and a proxy per identity."
+---
+
+Everything on this page is off until you turn it on for an identity.
+
+## Blocking and the resource cache
+
+Both are off until `identity.json` asks for them, per identity:
+
+```json
+{
+  "version": 2,
+  "block": { "trackers": true, "types": ["image", "font"], "patterns": ["ads.example", "*/promo/*"] },
+  "cache": { "maxSize": "100MB" }
+}
+```
+
+```sh
+turno identity set browser:school --block-trackers true --block-types image,font \
+  --block-patterns 'ads.example,*/promo/*' --cache-max-size 100MB
+turno identity set browser:school --no-block --no-cache   # both off again
+```
+
+`trackers` blocks a short built-in list of ad and analytics hosts; `types` takes `image`, `media`
+and `font`; a pattern is a host name (with its subdomains) or a URL with `*`. The page itself is
+never blocked. The cache keeps images, fonts, stylesheets and scripts on disk for this identity
+only, as long as their `Cache-Control` allows, and never a response with `Set-Cookie` or a request
+with `Authorization`. Requests still go out through Chrome. Turn the cache on with blocking:
+blocking turns Chrome's own cache off.
+
+## Network and user agent
+
+Two settings change how an identity's browser reaches sites. Both are off by default and set per
+identity in `identity.json` (format 11). The default, your own Chrome on your own connection, is
+already one coherent browser. These settings are for your own accounts and for sites you may
+automate, and the choice is yours. Each one has a cost to weigh:
+
+- a browser whose parts disagree (a user agent from one Chrome, client hints from another, a time
+  zone that does not match the address) stands out more than one that changes nothing;
+- many sites' terms forbid proxies or automated access, and a sign-in from a new network can lock
+  an account until you confirm it is you;
+- a proxy's operator sees which sites the identity visits, and the full content of plain `http://`
+  pages.
+
+```sh
+turno identity set browser:school --user-agent coherent
+turno identity set browser:school --proxy-server http://proxy.example.com:8080 \
+  --proxy-username alice --proxy-password keychain:school-proxy
+turno secret set school-proxy        # the password, typed into the secret store
+turno identity set browser:school --no-proxy --user-agent ""   # both off again
+```
+
+### A coherent user agent
+
+`"userAgent": "coherent"` takes no value of yours: turno builds the user agent from the Chrome you
+have installed and never takes a typed string. A typed user agent says one thing while the client
+hints, `navigator.platform`, WebGL, the fonts and the TLS handshake still say what the browser
+really is, which is the inconsistency the setting is there to avoid. The Chrome version and the
+platform are never configurable for the same reason: measured with Chrome 157, a page's dedicated
+workers keep the real `navigator.platform` whatever the override, and a popup's first request
+carries the real client hints platform.
+
+What it does:
+
+- **Headed** (the default): nothing changes, since a headed Chrome already presents itself as it
+  is. The launch check below still runs.
+- **Headless**: a headless Chrome says `HeadlessChrome` in its user agent while its client hints say
+  `Google Chrome`. turno gives it the user agent a headed Chrome of the same version and OS sends
+  (Chrome's `--user-agent` switch, which every request, popup and worker carries), and, since that
+  switch alone blanks the client hints' full version list, architecture and platform version,
+  gives each page those values back as this same Chrome reports them. They are read once per
+  Chrome version by a short headless launch on a throwaway profile and kept in the state folder.
+  Workers take them from their page, and a tab a tool opens has them before it loads. A popup a
+  page opens gets them as soon as it exists, which can be after its first document loaded.
+- **Languages and time zone** come from the identity (`--languages`, `--timezone`) or from the
+  computer, as without the setting.
+- **The launch check**: before the agent gets the browser, turno loads a page of its own (answered
+  inside Chrome, so nothing goes out) and compares what it reads: no `HeadlessChrome`, brands and
+  full version list that name the Chrome that runs, the high entropy values this Chrome reports
+  (on Linux Chrome reports an empty platform version, so turno does too), one platform in the user
+  agent, the client hints and `navigator.platform`, the request's headers equal to what the page reads, the
+  languages and time zone you asked for, and dates formatted in the first language. Any
+  contradiction stops the launch with what disagreed. On macOS Chrome takes the date and number
+  format from the system language, not from flags, so languages that start with another language
+  are refused there: start them with the system's, or change the macOS language.
+
+`pnpm bench:fingerprint --configs default,user-agent-coherent,user-agent-coherent-tz` shows the
+result: the headless token gone, and the headers, a worker, the client hints and the Intl locale
+agreeing with the page.
+
+### A proxy
+
+`proxy.server` is an `http://`, `https://`, `socks4://` or `socks5://` URL with a host and port
+only. The credentials never go in the URL or in `identity.json`: `proxy.password` is always a
+`keychain:<item>` reference to the secret store (`turno secret set <item>`), and `proxy.username`
+is a name or a reference too. Chrome cannot sign in to a SOCKS proxy, so a SOCKS proxy takes no
+credentials. turno reads them when the browser starts and hides the user name, the password and
+their `Basic` encoding from every tool result; a missing item stops the start, so no request goes
+out without the proxy. `turno browser doctor` checks that the item exists without reading it.
+
+All of the identity's traffic goes through the proxy, `turno browser login` included, so a site
+sees one network for both. WebRTC is limited to the proxy too, so a page cannot learn your own
+address that way. Sites see the proxy's address, and its operator sees where you go.
+
+### With the other settings
+
+| | `userAgent` | `proxy` |
+|---|---|---|
+| Attach mode | refused: it is your own Chrome, and turno does not change it | refused, for the same reason |
+| Read mode | refused: Lightpanda presents its own user agent | refused: not checked with a proxy |
+| Camoufox | refused: Firefox sends no client hints, and Camoufox presents its own values | works (WebRTC limited the same way) |
+| Tab sharing, humanize | work | work |
+| Natural language actions, live view, `turno browser do` | work | work; the act model's prompt and the view's tab list hide the credentials like vault values |
+| Recordings | work | flows and screenshots work; `record.traces` is refused with a proxy password, since a trace keeps the browser's launch options, password included |
+| A server flag of its own (`--user-agent`, `--device`, `--proxy-server`) | refused: keep one | refused: keep one |
+
+Each refusal comes when you set the key, or, for a server flag that clashes with the file, at
+the first tool call, before any browser opens.

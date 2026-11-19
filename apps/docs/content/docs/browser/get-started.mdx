@@ -1,0 +1,101 @@
+---
+title: "Get started"
+description: "Install turno-browser, add an identity, sign in once and give it to your agent."
+---
+
+turno-browser works on its own: you do not need turno to use it. It needs Node 22.11 or newer and Google Chrome installed on the machine. It downloads no browser.
+
+## Install
+
+```sh
+npm install --global turno-browser
+```
+
+This installs two commands: `turno-browser`, which manages identities, and `turno-browser-mcp`, the MCP server an agent runs for one identity.
+
+## Add an identity
+
+An identity is one persistent Chrome profile. Give it a name you will recognize:
+
+```sh
+turno-browser add school
+```
+
+```text
+identity "school" ready at ~/.local/share/turno/browser/identities/school
+settings (time zone, languages, health check) in ~/.local/share/turno/browser/identities/school.json
+
+Connect an agent to it:
+  turno-browser setup claude-code --identity school    # prints the config for Claude Code (codex, cursor, ...)
+  turno-browser-mcp --identity school    # the stdio command any MCP client runs
+Sign in to your sites once with `turno-browser login school`.
+```
+
+## Sign in once
+
+```sh
+turno-browser login school
+```
+
+The identity's Chrome opens. Sign in to your sites by hand, then close the window. The cookies stay in that profile, so the agent starts signed in. The profile now holds live sessions: treat its folder as credentials.
+
+## Give it to your agent
+
+`turno-browser setup` prints how one agent gets the identity. It writes nothing: you run the command or paste the block yourself.
+
+```sh
+turno-browser setup claude-code --identity school
+```
+
+```text
+Run this once to give Claude Code the browser identity "school":
+
+claude mcp add --scope user browser-school -- turno-browser-mcp --identity school
+
+--scope user adds it to every project; leave it out to add it to the current folder only.
+Start a new agent session to load it. Sign in to your sites once with turno-browser login school.
+```
+
+| Agent | `setup` prints |
+|---|---|
+| `claude-code` | a `claude mcp add` command |
+| `codex` | a `[mcp_servers]` block for `~/.codex/config.toml`, and the `codex mcp add` command |
+| `cursor` | an `mcpServers` entry for `~/.cursor/mcp.json` |
+| `copilot` | an `mcpServers` entry for `~/.copilot/mcp-config.json`, and the `copilot mcp add` command |
+| `gemini` | an `mcpServers` entry for `~/.gemini/settings.json`, and the `gemini mcp add` command |
+| `json` | the generic `mcpServers` entry other MCP clients read |
+
+Without `--identity` it uses the only identity there is.
+
+## The first call
+
+Start a new agent session and ask it to open a site you signed in to. The agent calls `browser_navigate`, Chrome opens on the identity's profile, and the page is already signed in.
+
+You can also try it from a terminal, without an agent:
+
+```sh
+turno-browser do school open https://example.com   # starts the background server if needed
+turno-browser do school snapshot                   # the page's tree, with refs like e12
+turno-browser do school end
+```
+
+[Actions and the shell](/docs/browser/actions#from-the-shell) has every action of `do`.
+
+## With turno
+
+If you use turno, its gateway runs the browser server for you: one server for every session of every agent, stopped when nobody uses it.
+
+```sh
+npm install --global turno-cli turno-browser
+turno identity add browser:school     # the identity, and its mcp.toml entry
+turno identity login browser:school
+```
+
+The guide [Let an agent use my signed-in browser](/docs/guides/signed-in-browser) goes through it.
+
+## Next
+
+- Keep the identity signed in and know when it is not: [Session health](/docs/browser/identities#session-health).
+- Let the agent sign in without seeing the password: [Vault, sign-in and secrets](/docs/browser/vault).
+- What closes and when: [Tabs and lifecycle](/docs/browser/tabs).
+- Every command: [turno-browser reference](/docs/reference/turno-browser).

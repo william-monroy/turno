@@ -125,7 +125,7 @@ const en: LandingCopy = {
         { run: "turno identity login browser:school", note: "Sign in by hand once. Cookies persist." },
       ],
       aside: "A separate package, turno-browser. For your own accounts, at a human pace.",
-      more: { text: "Browser identities", href: "/docs/concepts/browser-identities" },
+      more: { text: "Browser identities", href: "/docs/browser/identities" },
       rest: "three identities, three Chrome profiles",
     },
     skills: {
@@ -264,7 +264,7 @@ const es: LandingCopy = {
         { run: "turno identity login browser:school", note: "Inicia sesión a mano una vez. Las cookies se conservan." },
       ],
       aside: "Es un paquete aparte, turno-browser. Para tus propias cuentas, a ritmo humano.",
-      more: { text: "Identidades del navegador", href: "/docs/concepts/browser-identities" },
+      more: { text: "Identidades del navegador", href: "/docs/browser/identities" },
       rest: "tres identidades, tres perfiles de Chrome",
     },
     skills: {

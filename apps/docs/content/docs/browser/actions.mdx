@@ -1,0 +1,170 @@
+---
+title: "Actions and the shell"
+description: "Batch actions, errors that say what is in the way, driving an identity from a shell, and human-like input."
+---
+
+## Actions
+
+turno adds `browser_batch` to the browser tools: it runs several actions (`browser_type`,
+`browser_click`, `browser_select_option`, ...) in order in one call, stops at the first one that
+fails, and returns one line per action plus, when asked, one snapshot at the end. A form filled
+in one call costs the agent one round trip instead of one per field.
+
+When a click or a type fails because of the page, the error says why: the element that covers
+the target (a cookie banner, a dialog) with its buttons, or that the target is hidden or
+disabled, and the next step. A target in view that another element covers before the call, and
+still covers it 300 ms later, is named at once: the call does not run, instead of waiting out
+Playwright's 5 second action timeout. Playwright waits 500 ms after each action for the work it started;
+`"settle": "100ms"` in `identity.json` (`turno identity set browser:school --settle 100ms`)
+shortens that wait (Playwright's own `--timeout-settle` wins over it).
+
+## From the shell
+
+Coding agents that prefer shell commands to MCP tools, and people at a terminal, can drive an
+identity's browser with `turno browser do <id> <action>`. Each command is one tool call through
+mcpd to the identity's `turno-browser-mcp`, the server agents use, so it acts in the same browser
+under the same rules: the profile and its sign-ins, the tab locks or the one-session lease, the
+engine, humanize, recordings and the vault.
+
+```sh
+turno browser do school open https://mail.example.com/
+turno browser do school snapshot           # the page's tree, with refs like e12
+turno browser do school click e12
+turno browser do school type e5 'quarterly report' --submit
+turno browser do school read               # the visible text
+turno browser do school screenshot --out page.png
+turno browser do school end                # end the session; the browser keeps running
+```
+
+`turno browser do --help` lists every action: `open`, `back`, `snapshot`, `read`, `find`,
+`click`, `type`, `press`, `select`, `hover`, `wait`, `screenshot`, `tabs`, `login` (a vault
+sign-in), `call` (any tool of the server, such as `browser_batch`), `close`, `session` and `end`.
+The identity must be served by mcpd (its `[server.browser-<id>]` block in `mcp.toml`, which `turno
+browser add` prints). The command lives under `do` because the other `turno browser`
+subcommands take the identity after their own name (`turno browser show school`), so an identity
+named `show` could not be told from the subcommand. `turno browser school snapshot` works too,
+for an identity whose id is not a subcommand; scripts and agents should write `do`.
+
+Output is short and the same every time: `url:` and `title:` lines, then what the action
+returned (the snapshot for `snapshot`, the text for `read`, `file:` for a screenshot, `note:` for a
+dialog, a new tab or what the tab governor closed). The code Playwright ran and the snapshot file
+an action saves on the server are left out; `--snapshot` after an action prints a fresh snapshot.
+A failed action prints `error:` and upstream's message on stderr and exits 1; mcpd not running
+exits 5. `--json` prints one object (`schemaVersion`, `page`, `result`, `snapshot`, `error`, ...).
+
+### One session per agent or shell
+
+The commands one agent or one terminal shell runs are one session, as an agent's tool calls are,
+so they keep their tab between commands. turno keeps the mcpd session open between them and
+saves its id (under `~/.local/state/turno/browser-do/`, private to your user). The session
+belongs to the process that runs the commands: a coding agent (Claude Code and Codex start a
+short-lived shell for every command; turno looks past it to the agent, or takes the agent a turno
+launcher started from `TURNO_SESSION_PID`) or, in a terminal, your shell. It ends when that process
+exits, with `end` or `close`, or when mcpd restarts (the next command then opens a new tab).
+`--session <name>` or `TURNO_BROWSER_SESSION` keeps several sessions apart under one owner, for
+example two subagents each in its own tab; `session` shows which one a command would use.
+
+| The identity | What a CLI session does |
+|---|---|
+| `"sharing": "session"` (default) | it holds the identity's lease like an agent session: while it is open (until `end`, or 10 minutes without a command), an agent's call is refused with a message that names it, and the other way round |
+| `"sharing": "tabs"` | it gets its own tabs next to the agents' and holds them with the same locks; `tabs` marks the others' tabs in use |
+| attach mode | one session at a time, as above (attach does not go with tab sharing); it works in turno's own tab of your Chrome, and `close` closes only the tabs turno opened, never your browser. The first command may wait for Chrome's consent dialog (`--timeout`, default 120 seconds) |
+| read mode (Lightpanda) | every action works but `screenshot` and `login`: the server refuses those before anything runs, with the reason (Lightpanda lays out no page; read mode keeps no vault sign-ins) |
+| humanize | `click`, `type`, `hover`, `select` and `press` move and type like a person, with the latency of the level |
+| recordings | each CLI session is one session to the recorder: with `record.flows` its commands become one `auto-<time>` flow; traces and screenshots cover them like an agent's calls |
+| vault | `login <site>` fills a vault credential; the value never reaches the shell, its history or the output. Never `type` a password |
+
+### Without turno: the background server
+
+`turno-browser do` runs the same actions without turno. With turno installed, `turno browser do`
+goes through mcpd as above; `turno-browser do`, the command of the turno-browser package, goes
+through the identity's background server instead, with the same actions, output, session rules
+(`session`, `end`, `--session`) and exit codes:
+
+```sh
+turno-browser do school open https://example.com   # starts the background server if needed
+turno-browser do school snapshot
+turno-browser do school end
+turno-browser background                           # which background servers run
+turno-browser background stop school               # stop one and its Chrome
+```
+
+The background server is `turno-browser-mcp --identity <id> --background`. The first `do` starts
+it, detached from the shell (`turno-browser background start <id>` starts it ahead), and it serves
+MCP over a Unix socket in `~/.local/state/turno/browser/identities/<id>/background/`, a folder only
+your user can enter (on a system without Unix sockets, 127.0.0.1 with a random token per server in
+a file only your user can read). Its `server.json` there names its pid, its output goes to
+`server.log`, and the sessions of `do` are saved under `do/` there. Each connection is one session
+with the identity's sharing rules: one session at a time with `"sharing": "session"` (another
+session's call gets an error that names the holder; the hold ends with the session, when its
+process exits, or after 5 minutes without a call), its own tabs with `"sharing": "tabs"`. It exits
+after 15 minutes without a request, or on `turno-browser background stop <id>`, closing Chrome
+first. `turno-browser doctor` lists a running background server under its identity.
+
+While the background server of an identity runs, it alone drives that identity's browser. A
+`turno-browser-mcp` that an agent or mcpd started for the same identity answers each call that
+needs the browser with an error naming the background server and the command that stops it, and
+starts no Chrome; the other way round, the background server does not start while another process
+has the identity's Chrome open, and says which one. Calls are never passed from one server to the
+other.
+
+To give an agent the identity without turno, `turno-browser setup <agent> --identity <id>` prints
+its MCP config (it writes nothing): a `claude mcp add` command for `claude-code`, a
+`[mcp_servers]` block for `codex`, an `mcpServers` entry for `cursor`, `copilot` and `gemini`, and
+the generic entry for `json`. `--json` prints it as one object for scripts. Secrets that
+identity.json names as `keychain:<item>` go in the secret store with `turno-browser secret set
+<item>` (the same items `turno secret set` stores). The [turno-browser reference](/docs/reference/turno-browser)
+has the help of every command.
+
+### The skill
+
+The turno plugin for Claude Code adds a short `browser-identity` skill that teaches an agent this
+loop (open, snapshot, act by ref, read, end). It tells the agent to read `turno browser do
+--help` first, so its instructions always match the installed turno. See
+[Skills](/docs/concepts/skills).
+
+## Human-like input
+
+By default the browser tools use Playwright's own input: the pointer jumps to the exact center of
+the target in one move, the button goes down and up at once, and `browser_type` inserts the whole
+text without key events. A site that watches how the page is used can tell that apart from a
+person. `humanize` in `identity.json` changes how the same tools move and type, per identity; it is
+off until you turn it on:
+
+```sh
+turno identity set browser:school --humanize light   # or full, adaptive; --humanize "" turns it off
+turno-browser-mcp --identity school --humanize full  # the server's flag wins over identity.json
+```
+
+| Level | What changes |
+|---|---|
+| `off` (default) | Nothing: Playwright's input. |
+| `light` | The pointer travels a curve from where it last was on that page to a point inside the target (one arc, some 4 to 8% longer than the straight line), with small timing jitter; the button stays down for 40 to 90 ms; text up to 80 characters is typed key by key with per-key delays. |
+| `full` | `light`, plus a move time that follows the distance and the target's size, a slow-fast-slow speed, overshoot and correction on long moves, a short pause the first time a page is acted on, longer gaps between words, and an element out of view scrolled to in wheel notches. `browser_mouse_wheel` scrolls in notches too. |
+| `adaptive` | `light`, and `full` on a site where the identity met a captcha, "verify it's you" or block page (in the [reputation log](/docs/browser/identities#reputation-log) of the last 30 days, or in this session). |
+
+It works through the stock tools (`browser_click`, `browser_hover`, `browser_type`,
+`browser_fill_form`, `browser_select_option`, `browser_drag`, `browser_press_key` and the
+coordinate tools) and `browser_batch`, without changing their arguments or results. A
+`browser_login` sign-in clicks into each field and types its value key by key too; the keys go to
+Chrome only, never to a result, a recording or a log. Every event
+still goes through Chrome's own input pipeline, and Playwright still checks that the target is
+visible, enabled and not covered. Longer text is pasted as before, and a field that is not text
+(a date, a color) is filled as before. `"seed"` in the group (`"humanize": { "level": "full",
+"seed": 42 }`) makes every path and delay repeat, for debugging; without it each session draws
+its own, while the pace (speed, typing rhythm) stays the same for the identity.
+
+It costs time on every action. Measured with Chrome 157 headless on macOS, the median of 8 runs
+per tool call:
+
+| Tool call | `off` | `light` | `full` |
+|---|---|---|---|
+| `browser_click`, 670 px away | 50 ms | 0.5 s | 1.1 s |
+| `browser_type`, 11 characters | 10 ms | 2.0 s | 3.5 s |
+| `browser_click` on an element 1,500 px below the view | 50 ms | 0.4 s | 2.6 s |
+
+What it does not do: it does not solve captchas (that is a separate opt-in, [Captcha
+solving](/docs/browser/natural-language-and-captchas#captcha-solving)), change what the browser reports about itself or hide that a page is
+automated from a site that asks. No public study measures how much human-like
+input lowers the challenges a site shows, so treat it as a way to act at a human pace on your own
+accounts, not as a guarantee. The [acceptable use](/docs/browser/natural-language-and-captchas#acceptable-use) rules apply the same.
