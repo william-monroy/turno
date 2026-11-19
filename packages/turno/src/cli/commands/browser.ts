@@ -24,7 +24,7 @@ export type { BrowserApi };
  * The API version this turno was built against. Typed by the package's own constant, so a
  * change of its API_VERSION in the workspace fails the typecheck until this line follows.
  */
-export const BROWSER_API: typeof API_VERSION = { major: 1, minor: 2 };
+export const BROWSER_API: typeof API_VERSION = { major: 1, minor: 3 };
 
 /** What the package exports that the loader looks at. */
 interface BrowserPackage {
@@ -405,6 +405,7 @@ export function browserCommand(deps: BrowserDeps = defaultDeps): Command {
       "turno browser set school --health-url https://mail.example.com/ --health-text Inbox",
       "turno browser set school --tabs-max 5 --tabs-popups keep --settle 250ms",
       "turno browser set school --block-trackers true --cache --json",
+      "turno browser set school --humanize light",
       "turno browser login school --url https://example.com",
       "turno browser doctor --fix",
       "turno browser reputation school --json",

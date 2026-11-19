@@ -23,7 +23,7 @@ import { manifestSnippet } from "./snippet.js";
  *
  * `test/api.test.ts` lists the members, so a change here cannot ship without the version.
  */
-export const API_VERSION = Object.freeze({ major: 1, minor: 2 } as const);
+export const API_VERSION = Object.freeze({ major: 1, minor: 3 } as const);
 
 /** What `API_VERSION` looks like to a reader that does not know this package's version. */
 export interface ApiVersion {
@@ -33,7 +33,8 @@ export interface ApiVersion {
 
 /**
  * The functions turno-cli calls: identities, their settings, login, doctor, reputation, bench
- * (1.1) the credential vault and (1.2) session export and import.
+ * (1.1) the credential vault, (1.2) session export and import and (1.3) the `humanize` key of
+ * identity.json (no new member: `writeIdentitySettings` accepts it, an older package refuses it).
  */
 export const api = Object.freeze({
   ENGINES,

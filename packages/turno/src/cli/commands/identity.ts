@@ -274,6 +274,7 @@ export const command = group(
       "turno identity set browser:school --tabs-max 5 --tabs-park 10m --background-throttling true",
       "turno identity set browser:school --block-trackers true --block-types image,font --cache-max-size 200MB",
       "turno identity set browser:school --settle 500ms --dry-run --json",
+      "turno identity set browser:school --humanize adaptive",
       "turno identity set browser:school --no-block --no-cache",
       "turno identity prefer ~/code/acme linear=linear:work",
       "turno identity remove linear:work --dry-run",

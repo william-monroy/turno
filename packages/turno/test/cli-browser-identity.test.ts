@@ -198,6 +198,30 @@ describe("turno identity add/show/set for browser identities", () => {
     expect(file().block).toBeUndefined();
   });
 
+  it("sets and removes human-like input with --humanize, keeping a seed written by hand", async () => {
+    prev = setBrowserDeps(deps(real));
+    await identity.run(["add", "browser:school"], fakeIo(sb.env));
+    const file = () => JSON.parse(readFileSync(settingsFile("school"), "utf8"));
+    const set = fakeIo(sb.env);
+    expect(await identity.run(["set", "browser:school", "--humanize", "light"], set)).toBe(0);
+    expect(file()).toMatchObject({ version: 4, humanize: { level: "light" } });
+    expect(set.lines.join("\n")).toMatch(/input +human-like pointer and typing \(light\)/);
+    const api = await real();
+    api.writeIdentitySettings("school", { humanize: { level: "light", seed: 9 } }, sb.env);
+    const shown = fakeIo(sb.env);
+    expect(await identity.run(["set", "browser:school", "--humanize", "adaptive"], shown)).toBe(0);
+    expect(file().humanize).toEqual({ level: "adaptive", seed: 9 });
+    expect(shown.lines.join("\n")).toMatch(
+      /input +light, full on sites that showed a challenge \(adaptive\) \(seed 9\)/,
+    );
+    await expect(identity.run(["set", "browser:school", "--humanize", "max"], fakeIo(sb.env))).rejects.toThrow(
+      /^--humanize must be "off", "light", "full", "adaptive"$/,
+    );
+    expect(await identity.run(["set", "browser:school", "--humanize", ""], fakeIo(sb.env))).toBe(0);
+    expect(file().humanize).toBeUndefined();
+    expect(file().version).toBe(1);
+  });
+
   it("refuses bad tuning values with the flag's name, and writes nothing", async () => {
     prev = setBrowserDeps(deps(real));
     await identity.run(["add", "browser:school"], fakeIo(sb.env));
@@ -268,14 +292,14 @@ describe("turno identity add/show/set for browser identities", () => {
     const newer = { ...pkg, API_VERSION: { major: pkg.API_VERSION.major + 1, minor: 0 } };
     prev = setBrowserDeps(deps(() => loadBrowser({ importer: async () => old })));
     await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(
-      "turno-browser is too old for this turno (it has no API_VERSION, this turno needs 1.2 or a later 1.x); update it: npm install --global turno-browser@latest",
+      "turno-browser is too old for this turno (it has no API_VERSION, this turno needs 1.3 or a later 1.x); update it: npm install --global turno-browser@latest",
     );
-    // 1.1 has no session export and import.
+    // 1.2 does not accept the humanize key of identity.json.
     setBrowserDeps(
-      deps(() => loadBrowser({ importer: async () => ({ ...pkg, API_VERSION: { major: 1, minor: 1 } }) })),
+      deps(() => loadBrowser({ importer: async () => ({ ...pkg, API_VERSION: { major: 1, minor: 2 } }) })),
     );
     await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(
-      /its API is 1\.1, this turno needs 1\.2 or a later 1\.x/,
+      /its API is 1\.2, this turno needs 1\.3 or a later 1\.x/,
     );
     setBrowserDeps(deps(() => loadBrowser({ importer: async () => newer })));
     await expect(identity.run(["show", "browser:school"], fakeIo(sb.env))).rejects.toThrow(

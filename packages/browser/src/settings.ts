@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { dirname, join } from "node:path";
 import { browserPaths as paths } from "turno-core/paths";
 import { IdentityError, assertIdentityId } from "./ids.js";
+import { HUMANIZE_LEVELS, type HumanizeSettings } from "./humanize.js";
 import { parseDuration, parseSize } from "./units.js";
 
 /**
@@ -28,6 +29,7 @@ import { parseDuration, parseSize } from "./units.js";
  *   `"mock"` (the default, also when the key is missing) keeps Playwright's
  *   `--use-mock-keychain` and `--password-store=basic`, a fixed public key; `"system"` drops
  *   them, so Chrome uses the macOS Keychain or the Linux Secret Service.
+ * - `humanize` (format 4): human-like pointer, typing and scrolling (`humanize.ts`), off by default.
  *
  * A missing file means Chrome's own defaults, as before identity.json existed.
  */
@@ -39,13 +41,16 @@ import { parseDuration, parseSize } from "./units.js";
  * only when it uses one of them, so an older turno-browser keeps reading every other file and
  * refuses one it would misread with "update turno-browser".
  */
-export const IDENTITY_FORMAT_VERSION = 3;
+export const IDENTITY_FORMAT_VERSION = 4;
 
 /** The keys format 2 added. */
 const FORMAT_2_KEYS = ["tabs", "backgroundThrottling", "settle", "block", "cache"] as const;
 
 /** The keys format 3 added. */
 const FORMAT_3_KEYS = ["keychain"] as const;
+
+/** The keys format 4 added. */
+const FORMAT_4_KEYS = ["humanize"] as const;
 
 /** Where Chrome gets its cookie encryption key. */
 type KeychainMode = "mock" | "system";
@@ -114,6 +119,8 @@ export interface IdentitySettings {
   cache?: CacheSettings;
   /** `"system"`: Chrome encrypts cookies with the OS store's key; default `"mock"`. */
   keychain?: KeychainMode;
+  /** Human-like input: `level` (off, light, full, adaptive) and an optional `seed`. */
+  humanize?: HumanizeSettings;
   /** ISO dates. */
   created: string;
   updated: string;
@@ -128,7 +135,8 @@ export type SettingsPatch = {
     | "region"
     | "health"
     | (typeof FORMAT_2_KEYS)[number]
-    | (typeof FORMAT_3_KEYS)[number]]?: IdentitySettings[K] | null;
+    | (typeof FORMAT_3_KEYS)[number]
+    | (typeof FORMAT_4_KEYS)[number]]?: IdentitySettings[K] | null;
 };
 
 const KEYS = new Set([
@@ -140,6 +148,7 @@ const KEYS = new Set([
   "health",
   ...FORMAT_2_KEYS,
   ...FORMAT_3_KEYS,
+  ...FORMAT_4_KEYS,
   "created",
   "updated",
 ]);
@@ -217,6 +226,7 @@ function browserProblems(v: Record<string, unknown>, out: string[]): void {
   }
   if (v.keychain !== undefined && v.keychain !== "mock" && v.keychain !== "system")
     out.push('keychain must be "mock" (the default) or "system"');
+  humanizeProblems(v.humanize, out);
   if (v.cache !== undefined) {
     const c = v.cache;
     if (!isObject(c)) out.push('cache must be an object, like {} or { "maxSize": "100MB" }');
@@ -229,6 +239,22 @@ function browserProblems(v: Record<string, unknown>, out: string[]): void {
       unknownKeys(c, ["maxSize"], "cache", out);
     }
   }
+}
+
+function humanizeProblems(h: unknown, out: string[]): void {
+  if (h === undefined) return;
+  if (!isObject(h)) {
+    out.push('humanize must be an object, like { "level": "light" }');
+    return;
+  }
+  if (!(HUMANIZE_LEVELS as readonly unknown[]).includes(h.level))
+    out.push(`humanize.level must be ${HUMANIZE_LEVELS.map((l) => `"${l}"`).join(", ")}`);
+  if (
+    h.seed !== undefined &&
+    (typeof h.seed !== "number" || !Number.isInteger(h.seed) || h.seed < 0 || h.seed >= 2 ** 32)
+  )
+    out.push("humanize.seed must be a whole number from 0 to 4294967295");
+  unknownKeys(h, ["level", "seed"], "humanize", out);
 }
 
 export function identitySettingsPath(id: string, env: NodeJS.ProcessEnv = process.env): string {
@@ -371,11 +397,13 @@ export function writeIdentitySettings(
     if (value === null) delete next[key];
     else next[key] = value;
   }
-  next.version = FORMAT_3_KEYS.some((k) => next[k] !== undefined)
-    ? 3
-    : FORMAT_2_KEYS.some((k) => next[k] !== undefined)
-      ? 2
-      : 1;
+  next.version = FORMAT_4_KEYS.some((k) => next[k] !== undefined)
+    ? 4
+    : FORMAT_3_KEYS.some((k) => next[k] !== undefined)
+      ? 3
+      : FORMAT_2_KEYS.some((k) => next[k] !== undefined)
+        ? 2
+        : 1;
   if (typeof next.locale === "string") next.locale = canonicalLocale(next.locale) ?? next.locale;
   if (Array.isArray(next.languages)) next.languages = (next.languages as string[]).map((l) => canonicalLocale(l) ?? l);
   if (typeof next.region === "string" && /^[a-z]{2}$/i.test(next.region)) next.region = next.region.toUpperCase();

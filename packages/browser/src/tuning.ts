@@ -1,3 +1,4 @@
+import type { HumanizeLevel, HumanizeSettings } from "./humanize.js";
 import { DEFAULT_CACHE_BYTES, type ResourcePolicy } from "./resources.js";
 import type { IdentitySettings } from "./settings.js";
 import { parseDuration, parseSize } from "./units.js";
@@ -35,6 +36,8 @@ export interface Tuning {
   settleMs?: number;
   /** Opt-in resource blocking and cache, from identity.json `block` and `cache`. */
   resources: ResourcePolicy;
+  /** Human-like input (`humanize.ts`), from `--humanize` or identity.json `humanize`; off by default. */
+  humanize: HumanizeSettings;
 }
 
 /** The defaults, documented on the browser identities page. */
@@ -52,6 +55,7 @@ export interface TuningFlags {
   parkAfterMs?: number;
   closeAfterMs?: number;
   backgroundThrottling?: boolean;
+  humanize?: HumanizeLevel;
 }
 
 /** The tuning of a session: flags, then identity.json, then the defaults. */
@@ -70,6 +74,10 @@ export function resolveTuning(settings: IdentitySettings | undefined, flags: Tun
     backgroundThrottling: flags.backgroundThrottling ?? settings?.backgroundThrottling ?? false,
     ...(settle === undefined ? {} : { settleMs: settle }),
     resources: resourcePolicy(settings),
+    humanize: {
+      ...settings?.humanize,
+      level: flags.humanize ?? settings?.humanize?.level ?? "off",
+    },
   };
 }
 

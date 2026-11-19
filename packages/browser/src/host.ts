@@ -19,9 +19,10 @@ import {
   runHealthCheck,
   writeHealth,
 } from "./health.js";
+import { HumanInput, adaptiveSites, humanizeTools } from "./human-input.js";
 import { identityStateDir } from "./ids.js";
 import { Redactor, SCRIPT_TOOLS, VaultGuard } from "./redact.js";
-import { recordChallenge, watchChallenges } from "./reputation.js";
+import { type ChallengeEvent, recordChallenge, watchChallenges } from "./reputation.js";
 import { installResources } from "./resources.js";
 import { sessionFromMeta } from "./session.js";
 import { readIdentitySettings } from "./settings.js";
@@ -275,9 +276,16 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         tuning,
         ...(identity ? { identity } : {}),
       });
+      // Human-like input (off by default): the input tools of this browser run on humanized tabs.
+      const input =
+        tuning.humanize.level === "off"
+          ? undefined
+          : new HumanInput(tuning.humanize, {
+              ...(identity ? { persona: identity.id, challenged: adaptiveSites(identity.id, identity.env) } : {}),
+            });
       if (identity) {
         try {
-          await afterIdentityLaunch(identity, launched);
+          await afterIdentityLaunch(identity, launched, (event) => input?.noteChallenge(event.site));
         } catch (error) {
           await launched.close().catch(() => {});
           throw error;
@@ -296,7 +304,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       };
       const sessionConfig = configForSession(config, cliOptions, tuning);
       const idle = launched.idleTimer ? new CallIdleTimer(launched.idleTimer, () => launched.isOpen()) : undefined;
-      const backend = new BrowserBackend(sessionConfig, launched.context, stock, {
+      const backend = new BrowserBackend(sessionConfig, launched.context, input ? humanizeTools(stock, input) : stock, {
         ...(idle ? { idleTimer: idle } : {}),
         dispose: async () => {
           gone();
@@ -532,9 +540,14 @@ function refuseWhileNeedsAuth(identity: IdentityRef): void {
  * log) and, when identity.json has a health check that is due, run it; a page without the
  * proof of a signed-in session throws NEEDS_AUTH, and the call fails with that message.
  */
-async function afterIdentityLaunch(identity: IdentityRef, launched: LaunchedBrowser): Promise<void> {
+async function afterIdentityLaunch(
+  identity: IdentityRef,
+  launched: LaunchedBrowser,
+  onChallenge?: (event: Omit<ChallengeEvent, "ts">) => void,
+): Promise<void> {
   const { id, env } = identity;
   watchChallenges(launched.context, (event) => {
+    onChallenge?.(event);
     try {
       recordChallenge(id, env, event);
     } catch {

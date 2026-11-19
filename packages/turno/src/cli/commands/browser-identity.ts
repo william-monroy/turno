@@ -29,6 +29,7 @@ type HealthCheck = NonNullable<IdentitySettings["health"]>;
 type TabSettings = NonNullable<IdentitySettings["tabs"]>;
 type BlockSettings = NonNullable<IdentitySettings["block"]>;
 type CacheSettings = NonNullable<IdentitySettings["cache"]>;
+type HumanizeSettings = NonNullable<IdentitySettings["humanize"]>;
 export type SettingsPatch = Parameters<BrowserApi["writeIdentitySettings"]>[1];
 type DoctorCheck = Awaited<ReturnType<BrowserApi["runDoctor"]>>["checks"][number];
 
@@ -58,6 +59,8 @@ export const SETTINGS_FLAGS: FlagSpec = {
   cache: { type: "boolean" },
   "cache-max-size": { type: "string" },
   "no-cache": { type: "boolean" },
+  // Human-like input (format 4): off, light, full or adaptive.
+  humanize: { type: "string" },
 };
 
 /** The identity.json key behind each tuning flag, so the package's messages name the flag. */
@@ -72,6 +75,7 @@ const KEY_FLAGS: readonly (readonly [string, string])[] = [
   ["block.types", "--block-types"],
   ["block.patterns", "--block-patterns"],
   ["cache.maxSize", "--cache-max-size"],
+  ["humanize.level", "--humanize"],
 ];
 
 const TABS_MAX_PROBLEM = "--tabs-max must be a whole number from 0 (no cap) to 100";
@@ -217,6 +221,11 @@ function tuningPatch(
     // The cache stays on when its size is removed: {} is on with the default size.
     patch.cache = mergeGroup<CacheSettings>(current?.cache, { maxSize }) ?? {};
   }
+
+  // An empty value removes the whole group (the seed with it); a level keeps a seed set by hand.
+  const humanize = value("humanize");
+  if (humanize !== undefined)
+    patch.humanize = humanize === null ? null : ({ ...current?.humanize, level: humanize } as HumanizeSettings);
 }
 
 export function hasSettings(patch: SettingsPatch): boolean {
@@ -242,6 +251,14 @@ function describeBlock(b: BlockSettings): string {
     .filter(Boolean)
     .join(", ");
 }
+
+/** What each humanize level does, for `show`. */
+const HUMANIZE_TEXT: Readonly<Record<string, string>> = {
+  off: "Playwright's own (humanize off)",
+  light: "human-like pointer and typing (light)",
+  full: "human-like pointer, typing and scrolling (full)",
+  adaptive: "light, full on sites that showed a challenge (adaptive)",
+};
 
 export function show(m: BrowserApi, id: string, args: string[], io: Io): number {
   const p = parseFlags(args, JSON_FLAG, 1);
@@ -289,6 +306,11 @@ export function show(m: BrowserApi, id: string, args: string[], io: Io): number 
     if (settings.block) rows.push(["blocking", describeBlock(settings.block) || s.muted("(nothing)")]);
     if (settings.cache) rows.push(["cache", `on, up to ${settings.cache.maxSize ?? "100MB"}`]);
     if (settings.keychain === "system") rows.push(["cookie key", "the system keychain (identity.json keychain)"]);
+    if (settings.humanize)
+      rows.push([
+        "input",
+        `${HUMANIZE_TEXT[settings.humanize.level] ?? settings.humanize.level}${settings.humanize.seed === undefined ? "" : s.muted(` (seed ${settings.humanize.seed})`)}`,
+      ]);
     rows.push(["created", settings.created]);
     rows.push(["updated", settings.updated]);
   }
@@ -319,7 +341,7 @@ const SET_FLAGS: FlagSpec = { ...SETTINGS_FLAGS, "dry-run": { type: "boolean" },
 export const SET_SYNOPSIS =
   "[--timezone <zone>] [--locale <tag>] [--languages <tag,...>] [--region <CC>] [--health-url <url>] [--health-text <text>] [--health-selector <css>] [--no-health] " +
   "[--tabs-max <n>] [--tabs-popups close|keep] [--tabs-park <duration>] [--tabs-close <duration>] [--no-tabs] [--background-throttling true|false] [--settle <duration>] " +
-  "[--block-trackers true|false] [--block-types image,media,font] [--block-patterns <host|glob>,...] [--no-block] [--cache] [--cache-max-size <size>] [--no-cache] [--dry-run] [--json]";
+  "[--block-trackers true|false] [--block-types image,media,font] [--block-patterns <host|glob>,...] [--no-block] [--cache] [--cache-max-size <size>] [--no-cache] [--humanize off|light|full|adaptive] [--dry-run] [--json]";
 
 /** More help for `set`: what each tuning flag writes to identity.json. */
 export const SET_DETAILS = `Each flag writes one key of identity.json; an empty value (--settle "") removes it, and
@@ -339,7 +361,13 @@ How the host runs this identity's Chrome (read at every Chrome start):
   --cache                         keep images, fonts, styles and scripts on disk (100MB)
   --cache-max-size <size>         the cache's size, "1MB" to "10GB"; turns the cache on
 
-Blocking without the cache turns Chrome's own HTTP cache off: use them together.`;
+Blocking without the cache turns Chrome's own HTTP cache off: use them together.
+
+Input:
+  --humanize <level>              off (default), light (the pointer travels a curve to a point
+                                  inside the target, keys typed with human delays), full (plus
+                                  overshoot, reading pauses, wheel scrolling) or adaptive
+                                  (light, full on a site after a challenge page there)`;
 
 /** The flags of `set`, for completion. */
 export const SET_FLAG_NAMES = ["--dry-run", "--json", ...SETTINGS_FLAG_NAMES];
