@@ -1,0 +1,61 @@
+---
+title: turno 0.5.2
+description: An agent cursor that shows where the agent acts, turno-browser init for the first setup, and first steps that say what happened.
+---
+
+<ReleaseHeader date="2026-11-20" packages={["turno-cli@0.5.2", "turno-browser@0.7.0"]} />
+
+You can now see the agent at work in **[turno-browser](/browser)**, and set it up in one guided command. The first commands also say more of what they did and what to do next.
+
+## Upgrade
+
+<Upgrade>
+
+**Update `turno-cli` and `turno-browser` together**, as with every release: this turno-cli needs turno-browser 0.7.0.
+
+**The agent cursor is on when Chrome has a window.** If your identities run with a window (the background server of `turno-browser do` does, by default), you will see the cursor on the next agent session. `turno-browser set <id> --cursor off` keeps that identity's pages exactly as they were.
+
+**Nothing to migrate.** Identities, `identity.json` and `mcp.toml` stay as they are. Setting `cursor` writes `identity.json` format 12, which older turno-browser versions refuse.
+
+</Upgrade>
+
+## Highlights
+
+<Highlight area="Browser" title="An agent cursor you can follow" href="/docs/browser/live-view" more="Live view and take-over">
+
+When someone can see the browser, a Chrome window or the live view, each page shows that an agent is at work and where. An arrow with the agent's name glides to each element it acts on, a ring marks the element, a click leaves a ripple, a field being typed into gets a typing bubble, and a thin frame with a badge, "turno · Claude Code at work", goes around the page while calls run. Several agent sessions on one identity's Chrome each get a cursor and a color of their own.
+
+The model does not see it: it is not in snapshots or the page's text, it is never a click target, and it is hidden while the model's screenshot is taken. It is an extra element a page script can notice, so `off` is there for the sites where that matters.
+
+```sh
+turno-browser set school --cursor on
+turno-browser set school --cursor off
+```
+
+</Highlight>
+
+<Highlight area="Browser" title="turno-browser init" href="/docs/reference/turno-browser#turno-browser-init" more="turno-browser init">
+
+The first setup, step by step: it names and creates an identity, opens Chrome so you sign in by hand on a first site, finds the agents installed on your machine and runs the agent's `mcp add` command only when you say yes. Without a terminal it needs `--identity` and `--agent`, and prints the command instead of running it.
+
+```sh
+npm install --global turno-browser
+turno-browser init
+```
+
+</Highlight>
+
+## Fixes
+
+- **A login that says what it saved**: `turno-browser login` opens a page that says what to do instead of a blank tab, and on close names the sites you opened, or says that nothing new was signed in.
+- **When an identity was never signed in**: `show` has a "last sign-in" line and local times, and `doctor` says when nobody signed in to an identity by hand.
+- **Plain words**: `list`, `show` and `doctor` say "not in use" instead of "free".
+- **`do <id> end`** says that Chrome stays open in the background server, until when, and how to close it now.
+- **`do` errors** no longer start with "Error: Error:", and a stale ref, or text where a ref goes, gets a hint.
+- **`setup claude`** suggests `claude-code`.
+- **Commands that paste into zsh**: `add` prints each explanation on its own line, with no `#` comments after the commands.
+
+## Links
+
+- Full changelogs: [turno-cli](https://github.com/wimo-dev/turno/blob/main/packages/turno/CHANGELOG.md) and [turno-browser](https://github.com/wimo-dev/turno/blob/main/packages/browser/CHANGELOG.md).
+- [The turno-browser command reference](/docs/reference/turno-browser) and [Get started with turno-browser](/docs/browser/get-started).
