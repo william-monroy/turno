@@ -11,13 +11,12 @@ that same signed-in browser afterwards.
 
 ```sh
 npm install --global turno-browser
-# a new identity
-turno-browser add school
-# sign in by hand once; cookies persist
-turno-browser login school
-# prints how Claude Code gets it
-turno-browser setup claude-code --identity school
+turno-browser init
 ```
+
+`init` asks a name for the identity, opens Chrome so you sign in by hand once, and gives the
+identity to your agent. Each step is also a command of its own: `turno-browser add`, `login` and
+`setup`.
 
 The docs are at [turno.wimo.dev/docs/browser](https://turno.wimo.dev/docs/browser), starting with
 [Get started](https://turno.wimo.dev/docs/browser/get-started).
@@ -53,6 +52,7 @@ On from the start:
 | [`browser_batch`](https://turno.wimo.dev/docs/browser/actions) | up to 20 actions in one call, and errors that say what is in the way |
 | [Flows](https://turno.wimo.dev/docs/browser/flows) | save what an agent did on a site once, and replay it with parameters |
 | [From the shell](https://turno.wimo.dev/docs/browser/actions#from-the-shell) | `turno-browser do <id> open`, `snapshot`, `click`, `type`, `read`: the same browser and rules, as shell commands |
+| [The agent cursor](https://turno.wimo.dev/docs/browser/agent-cursor) | when you can see the browser, a named cursor and a badge show where the agent is working; the model never sees it |
 | [Health, reputation and doctor](https://turno.wimo.dev/docs/browser/identities#session-health) | a signed-out identity says so, each site's challenges are counted, and `doctor` checks Chrome and every identity |
 
 Off until you turn it on, per identity:

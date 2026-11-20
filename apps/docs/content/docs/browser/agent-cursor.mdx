@@ -1,0 +1,47 @@
+---
+title: "The agent cursor"
+description: "When you can see the browser, each page shows that an agent is at work and where: a named cursor, a ring on its target and a badge."
+---
+
+When someone can see the browser, turno-browser shows on each page that an agent is at work, and where. It is on by default, and it is for you: the model never sees it.
+
+![A sign-in page with two agent cursors, each with its name and the identity, a ring on the button one of them is about to click, and a badge that says turno, Claude Code at work](/browser-agent-cursor.png)
+
+## What you see
+
+| On the page | What it tells you |
+|---|---|
+| An arrow with a pill, like `Claude Code · school` | which agent this is (the MCP client's name) and which identity; it glides to each element the agent acts on |
+| A ring on an element | the target of the action in progress |
+| A ripple | a click just happened there |
+| A bubble by a field | the agent is typing into it |
+| A thin frame with a badge, `turno · Claude Code at work` | an agent is driving this page; `+N` when other sessions are busy too |
+
+With [several agents in one browser](/docs/browser/sharing), each session gets its own color and its own cursor. With [human-like input](/docs/browser/actions#human-like-input) on, the arrow follows the real curved path of the pointer. When your system asks for reduced motion, the cursor does not glide.
+
+During a [live view](/docs/browser/live-view) pause the frame turns dashed and the badge says `paused · you have the controls`.
+
+## When it is drawn
+
+`cursor` in `identity.json` has three values:
+
+| Value | What it does |
+|---|---|
+| `auto` (default) | drawn when the browser can be seen: Chrome has a window, or the live view is on |
+| `on` | always drawn |
+| `off` | never drawn: pages are left exactly as they are |
+
+```sh
+turno-browser set school --cursor off
+turno-browser show school
+```
+
+`turno-browser-mcp --cursor <mode>` sets it for one server and wins over `identity.json`. It is never drawn in [read mode](/docs/browser/engines#read-mode-lightpanda): Lightpanda lays out no page.
+
+## Out of the model's view
+
+The cursor is drawn in a closed shadow root that is `aria-hidden`, inert and takes no pointer events. So it is not in snapshots, not in the page's text, never the target of a click, and it is hidden while `browser_take_screenshot` runs. Recordings and the live view keep it: those are for the person watching.
+
+## What it costs
+
+It is an extra element on the page, and a script of the page can notice it. `off` leaves pages exactly as they are, for the sites where that matters to you.

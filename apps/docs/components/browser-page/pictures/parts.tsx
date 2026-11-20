@@ -58,6 +58,19 @@ export function Field({ name, value }: { name: string; value?: string }) {
   );
 }
 
+/**
+ * The agent cursor as turno-browser draws it on a page someone can see: an arrow and a pill
+ * with the agent's name and the identity.
+ */
+export function AgentCursor({ at }: { at: "page" | "field" }) {
+  return (
+    <span aria-hidden className={s.agentCursor} data-at={at}>
+      <i />
+      <b>Claude Code · school</b>
+    </span>
+  );
+}
+
 /** `n` small squares: one per page. */
 export function Squares({ n, kind }: { n: number; kind: "run" | "park" }) {
   return (

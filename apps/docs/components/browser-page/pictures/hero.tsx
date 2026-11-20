@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Lang } from "../../landing/copy";
 import { BEAT, useInView, useReducedMotion } from "../../landing/story";
 import { browserCopy, SITE, TOOL } from "../copy";
-import { Field, Lines, Squares, Window } from "./parts";
+import { AgentCursor, Field, Lines, Squares, Window } from "./parts";
 import s from "./pictures.module.css";
 
 /*
@@ -97,12 +97,14 @@ export function HeroPicture({ lang }: { lang: Lang }) {
                   <Field name={t.vault.password} value={filled ? "••••••••" : undefined} />
                   <Field name={t.vault.code} value={filled ? "••••••" : undefined} />
                 </span>
+                <AgentCursor at="field" />
               </div>
             ) : (
               <div className={s.page}>
                 <span className={s.signed}>✓ {t.identities.signedIn}</span>
                 <span className={s.heading}>{t.identities.page}</span>
                 <Lines />
+                <AgentCursor at="page" />
               </div>
             )}
             <div className={s.readouts} data-live={still ? undefined : true}>

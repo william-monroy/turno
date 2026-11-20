@@ -11,6 +11,7 @@ import type { ChapterCommand } from "../landing/chapters/section";
 /** Every command on the page, as typed. */
 export const CMD = {
   install: "npm install --global turno-browser",
+  init: "turno-browser init",
   add: "turno-browser add school",
   login: "turno-browser login school",
   set: "turno-browser set school --tabs-max 12 --tabs-park 10m",
@@ -52,7 +53,8 @@ export const SITE = "campus.example.edu";
 /** What the commands and tools print, word for word. */
 export const PRINTS = {
   added: `identity "school" ready at ${IDENTITY_PATH}`,
-  next: "Sign in to your sites once with `turno-browser login school`.",
+  next: "Next: turno-browser login school (sign in to your sites by hand once; the cookies stay in the profile)",
+  saved: `Saved. Sites you opened: ${SITE}. The agent starts with the same cookies on them.`,
   opening: `Opening Chrome for identity "school". Sign in to your sites, then close the window to save the session.`,
   capped: "closed the least recently used tab (https://docs.example.com/guide): more than 8 were open",
   parked: "parked a tab unused for 5 minutes on about:blank (https://docs.example.com/api); using it again loads that page",
@@ -63,8 +65,8 @@ export const PRINTS = {
 
 /** What the reader pastes into a coding agent so it sets turno-browser up for them. */
 const PROMPT = {
-  en: "Set up turno-browser for me. Run `npm install --global turno-browser`. Ask me what to call the identity, then run `turno-browser add <name>` and tell me to run `turno-browser login <name>` myself, because I sign in by hand. When I am done, run `turno-browser setup <agent> --identity <name>` with your own agent name (for example claude-code) and run the command it prints. The docs are at https://turno.wimo.dev/llms.txt.",
-  es: "Configura turno-browser por mí. Corre `npm install --global turno-browser`. Pregúntame cómo llamar a la identidad, luego corre `turno-browser add <nombre>` y dime que corra yo mismo `turno-browser login <nombre>`, porque inicio sesión a mano. Cuando termine, corre `turno-browser setup <agente> --identity <nombre>` con el nombre de tu agente (por ejemplo claude-code) y corre el comando que imprime. La documentación está en https://turno.wimo.dev/llms.txt.",
+  en: "Set up turno-browser for me. Run `npm install --global turno-browser`. Ask me what to call the identity, then run `turno-browser init --identity <name> --agent <agent>` with your own agent name (for example claude-code) and run the command it prints. In your session it skips the sign-in, so tell me to run `turno-browser login <name>` myself: I sign in by hand. The docs are at https://turno.wimo.dev/llms.txt.",
+  es: "Configura turno-browser por mí. Corre `npm install --global turno-browser`. Pregúntame cómo llamar a la identidad, luego corre `turno-browser init --identity <nombre> --agent <agente>` con el nombre de tu agente (por ejemplo claude-code) y corre el comando que imprime. En tu sesión se salta el inicio de sesión, así que dime que corra yo mismo `turno-browser login <nombre>`: inicio sesión a mano. La documentación está en https://turno.wimo.dev/llms.txt.",
 } as const;
 
 export const CHAPTER_IDS = ["identities", "tabs", "vault"] as const;
@@ -82,12 +84,14 @@ export type OptInId = (typeof OPT_IN_IDS)[number];
 export interface Feature {
   title: string;
   text: string;
-  run: string;
+  /** The command or tool that goes with it, when one does. */
+  run?: string;
   more: { text: string; href: string };
 }
 
 export interface OptIn extends Feature {
   id: OptInId;
+  run: string;
   /** The few words the feature's picture shows, when it shows any. */
   words?: string[];
 }
@@ -127,7 +131,6 @@ export interface BrowserCopy {
       byHand: string;
       signedIn: string;
       kept: string;
-      saved: string;
       arrived: string;
       page: string;
     };
@@ -261,7 +264,6 @@ const en: BrowserCopy = {
       byHand: "you sign in by hand",
       signedIn: "signed in",
       kept: "cookies kept",
-      saved: "window closed, session saved in the profile",
       arrived: "the page opens signed in: the cookies were already in the profile",
       page: "My courses",
     },
@@ -306,15 +308,14 @@ const en: BrowserCopy = {
     headline: ["Already ", "working", " when you install it."],
     items: [
       {
-        title: "Many actions, one call",
-        text: "`browser_batch` runs up to 20 actions in one call, stops at the first one that fails and returns one line per action.",
-        run: "browser_batch",
-        more: { text: "Actions", href: `${DOCS}/actions#actions` },
+        title: "See where the agent is",
+        text: "When you can see the browser, a cursor with the agent's name glides to each element it acts on, with a ring on the target and a badge on the page. The model never sees it.",
+        more: { text: "The agent cursor", href: `${DOCS}/agent-cursor` },
       },
       {
-        title: "Errors that name what is in the way",
-        text: "A click that fails says which element covers the target, or that the target is hidden or disabled, and what to try next.",
-        run: "browser_click",
+        title: "Fewer round trips, clearer errors",
+        text: "`browser_batch` runs up to 20 actions in one call and returns one line per action. A click that fails says which element covers the target, or that it is hidden or disabled, and what to try next.",
+        run: "browser_batch",
         more: { text: "Actions", href: `${DOCS}/actions#actions` },
       },
       {
@@ -453,10 +454,9 @@ const en: BrowserCopy = {
       text: "turno-browser is its own package. Install it, add an identity and point your agent at it.",
       commands: [
         { run: CMD.install, note: "The package and its command." },
-        { run: CMD.add, note: "Your first identity." },
-        { run: CMD.login, note: "Sign in by hand once. The cookies stay in its profile." },
-        { run: CMD.setup, note: "Prints the one command that gives Claude Code the identity. It does the same for Codex, Cursor, Copilot CLI and Gemini CLI." },
+        { run: CMD.init, note: "Asks a name for the identity, opens Chrome so you sign in by hand, and gives the identity to Claude Code, Codex, Cursor, Copilot CLI or Gemini CLI." },
       ],
+      more: { text: "The same steps, one command at a time", href: `${DOCS}/get-started#add-an-identity` },
     },
     withTurno: {
       title: "With turno",
@@ -475,8 +475,8 @@ const en: BrowserCopy = {
   },
   start: {
     label: "start",
-    headline: ["Give your agent ", "a signed-in browser", "."],
-    text: "Install it, add an identity, sign in once and give it to your agent. The docs take it from there.",
+    headline: ["Two commands, and ", "your agent is signed in", "."],
+    text: "Install it. Then turno-browser init asks a name for the identity, opens Chrome so you sign in by hand, and gives it to your agent.",
     docs: "Read the docs",
     home: "See turno",
   },
@@ -561,7 +561,6 @@ const es: BrowserCopy = {
       byHand: "inicias sesión a mano",
       signedIn: "sesión iniciada",
       kept: "cookies guardadas",
-      saved: "ventana cerrada, la sesión quedó guardada en el perfil",
       arrived: "la página abre con la sesión iniciada: las cookies ya estaban en el perfil",
       page: "Mis cursos",
     },
@@ -606,15 +605,14 @@ const es: BrowserCopy = {
     headline: ["Ya ", "funciona", " cuando lo instalas."],
     items: [
       {
-        title: "Muchas acciones, una llamada",
-        text: "`browser_batch` corre hasta 20 acciones en una llamada, se detiene en la primera que falla y devuelve una línea por acción.",
-        run: "browser_batch",
-        more: { text: "Acciones", href: `${DOCS}/actions#actions` },
+        title: "Mira dónde está el agente",
+        text: "Cuando puedes ver el navegador, un cursor con el nombre del agente se desliza a cada elemento sobre el que actúa, con un anillo en el objetivo y una insignia en la página. El modelo nunca lo ve.",
+        more: { text: "El cursor del agente", href: `${DOCS}/agent-cursor` },
       },
       {
-        title: "Errores que dicen qué estorba",
-        text: "Un clic que falla dice qué elemento tapa el objetivo, o que el objetivo está oculto o deshabilitado, y qué intentar después.",
-        run: "browser_click",
+        title: "Menos idas y vueltas, errores más claros",
+        text: "`browser_batch` corre hasta 20 acciones en una llamada y devuelve una línea por acción. Un clic que falla dice qué elemento tapa el objetivo, o que está oculto o deshabilitado, y qué intentar después.",
+        run: "browser_batch",
         more: { text: "Acciones", href: `${DOCS}/actions#actions` },
       },
       {
@@ -753,10 +751,9 @@ const es: BrowserCopy = {
       text: "turno-browser es su propio paquete. Instálalo, agrega una identidad y conecta tu agente.",
       commands: [
         { run: CMD.install, note: "El paquete y su comando." },
-        { run: CMD.add, note: "Tu primera identidad." },
-        { run: CMD.login, note: "Inicia sesión a mano una vez. Las cookies se quedan en su perfil." },
-        { run: CMD.setup, note: "Imprime el comando que le da la identidad a Claude Code. Hace lo mismo para Codex, Cursor, Copilot CLI y Gemini CLI." },
+        { run: CMD.init, note: "Pregunta un nombre para la identidad, abre Chrome para que inicies sesión a mano y le da la identidad a Claude Code, Codex, Cursor, Copilot CLI o Gemini CLI." },
       ],
+      more: { text: "Los mismos pasos, un comando a la vez", href: `${DOCS}/get-started#add-an-identity` },
     },
     withTurno: {
       title: "Con turno",
@@ -775,8 +772,8 @@ const es: BrowserCopy = {
   },
   start: {
     label: "empezar",
-    headline: ["Dale a tu agente ", "un navegador con tu sesión", "."],
-    text: "Instálalo, agrega una identidad, inicia sesión una vez y dásela a tu agente. La documentación sigue desde ahí.",
+    headline: ["Dos comandos, y ", "tu agente ya tiene tu sesión", "."],
+    text: "Instálalo. Después turno-browser init pregunta un nombre para la identidad, abre Chrome para que inicies sesión a mano y se la da a tu agente.",
     docs: "Leer la documentación",
     home: "Ver turno",
   },

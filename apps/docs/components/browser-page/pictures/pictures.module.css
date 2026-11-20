@@ -109,6 +109,7 @@
   color: var(--dim);
 }
 .page {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -496,4 +497,36 @@
   opacity: 1;
   box-shadow: inset 3px 0 0 var(--tone-keep);
   background: var(--tone-keep-soft);
+}
+
+/* The agent cursor: an arrow in turno's blue and a pill with the agent's name and the identity. */
+.agentCursor {
+  position: absolute;
+  display: inline-flex;
+  align-items: flex-start;
+  pointer-events: none;
+}
+.agentCursor[data-at="page"] {
+  left: 46%;
+  top: 44%;
+}
+.agentCursor[data-at="field"] {
+  left: min(240px, 58%);
+  top: 46%;
+}
+.agentCursor > i {
+  width: 12px;
+  height: 16px;
+  background: var(--tone-keep);
+  clip-path: polygon(0 0, 100% 68%, 46% 68%, 22% 100%);
+}
+.agentCursor > b {
+  margin: 12px 0 0 2px;
+  padding: 1px 7px;
+  background: var(--tone-keep);
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--color-fd-primary-foreground, var(--paper));
+  white-space: nowrap;
 }

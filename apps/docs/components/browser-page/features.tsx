@@ -41,7 +41,7 @@ function Body({ feature, lang, labels }: { feature: Feature; lang: string; label
         <Inline text={feature.text} />
       </p>
       <div className={s.cardFoot}>
-        <Run run={feature.run} labels={labels} />
+        {feature.run ? <Run run={feature.run} labels={labels} /> : null}
         <Link href={localePath(lang, feature.more.href)} className={s.link}>
           {feature.more.text} <span aria-hidden>→</span>
         </Link>

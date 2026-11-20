@@ -30,7 +30,23 @@ turno-browser set school --timezone Europe/Madrid
 turno-browser show school
 ```
 
-They are applied at every Chrome start: languages go to Chrome's own `--accept-lang`, the locale to `--lang`, and the time zone is emulated only when it differs from the machine's. An identity without the file uses Chrome's defaults.
+`show` prints the settings and the state of one identity:
+
+```text
+browser:school
+  profile       ~/.local/share/turno/browser/identities/school
+  settings      ~/.local/share/turno/browser/identities/school.json
+  time zone     Europe/Madrid
+  languages     es-ES, es, en
+  health check  off (to turn on: turno-browser set school --health-url <url> --health-text <text>)
+  agent cursor  shown when the browser can be seen: a window, or the live view (auto)
+  created       2026-11-20 08:41
+  updated       2026-11-20 08:43
+  last sign-in  never by hand (turno-browser login school)
+  state         not in use
+```
+
+The [agent cursor](/docs/browser/agent-cursor) row is the `cursor` setting. They are applied at every Chrome start: languages go to Chrome's own `--accept-lang`, the locale to `--lang`, and the time zone is emulated only when it differs from the machine's. An identity without the file uses Chrome's defaults.
 
 ## One Chrome per identity
 

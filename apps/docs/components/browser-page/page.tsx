@@ -33,7 +33,10 @@ export function BrowserPage({ lang: given }: { lang: string }) {
             <p className={s.hook}>{t.hero.hook}</p>
             <p className="t-lead">{t.hero.lead}</p>
             <div className={s.heroActions}>
-              <CopyCommand run={CMD.install} {...labels} />
+              <span className={s.two}>
+                <CopyCommand run={CMD.install} {...labels} />
+                <CopyCommand run={CMD.init} {...labels} />
+              </span>
               <CopyPrompt {...t.hero.prompt} />
               <Link href={localePath(lang, "/docs/browser")} className={s.link}>
                 {t.hero.docs} <span aria-hidden>→</span>
@@ -156,7 +159,10 @@ export function BrowserPage({ lang: given }: { lang: string }) {
           </h2>
           <p className="t-lead">{t.start.text}</p>
           <div className={s.heroActions}>
-            <CopyCommand run={CMD.install} {...labels} />
+            <span className={s.two}>
+              <CopyCommand run={CMD.install} {...labels} />
+              <CopyCommand run={CMD.init} {...labels} />
+            </span>
             <CopyPrompt {...t.hero.prompt} />
             <Link href={localePath(lang, "/docs/browser")} className={s.link}>
               {t.start.docs} <span aria-hidden>→</span>
