@@ -21,11 +21,13 @@ You can now see the agent at work in **[turno-browser](/browser)**, and set it u
 
 ## Highlights
 
-<Highlight area="Browser" title="An agent cursor you can follow" href="/docs/browser/live-view" more="Live view and take-over">
+<Highlight area="Browser" title="An agent cursor you can follow" href="/docs/browser/agent-cursor" more="The agent cursor">
+
+![Two agents on one page: each arrow with its name and color, a ring on the button, a typing bubble by the field, and the "turno · Claude Code at work" badge](/browser-agent-cursor.png)
 
 When someone can see the browser, a Chrome window or the live view, each page shows that an agent is at work and where. An arrow with the agent's name glides to each element it acts on, a ring marks the element, a click leaves a ripple, a field being typed into gets a typing bubble, and a thin frame with a badge, "turno · Claude Code at work", goes around the page while calls run. Several agent sessions on one identity's Chrome each get a cursor and a color of their own.
 
-The model does not see it: it is not in snapshots or the page's text, it is never a click target, and it is hidden while the model's screenshot is taken. It is an extra element a page script can notice, so `off` is there for the sites where that matters.
+The model does not see it: it is not in snapshots or the page's text, it is never a click target, and it is hidden while the model's screenshot is taken. It is an extra element a page script can notice, so `off` is there for [the sites where that matters](/docs/browser/agent-cursor#what-it-costs).
 
 ```sh
 turno-browser set school --cursor on
@@ -34,7 +36,7 @@ turno-browser set school --cursor off
 
 </Highlight>
 
-<Highlight area="Browser" title="turno-browser init" href="/docs/reference/turno-browser#turno-browser-init" more="turno-browser init">
+<Highlight area="Browser" title="turno-browser init" href="/docs/browser/get-started#set-it-up" more="Set it up">
 
 The first setup, step by step: it names and creates an identity, opens Chrome so you sign in by hand on a first site, finds the agents installed on your machine and runs the agent's `mcp add` command only when you say yes. Without a terminal it needs `--identity` and `--agent`, and prints the command instead of running it.
 
@@ -58,4 +60,4 @@ turno-browser init
 ## Links
 
 - Full changelogs: [turno-cli](https://github.com/wimo-dev/turno/blob/main/packages/turno/CHANGELOG.md) and [turno-browser](https://github.com/wimo-dev/turno/blob/main/packages/browser/CHANGELOG.md).
-- [The turno-browser command reference](/docs/reference/turno-browser) and [Get started with turno-browser](/docs/browser/get-started).
+- [The agent cursor](/docs/browser/agent-cursor), [Get started with turno-browser](/docs/browser/get-started#set-it-up) and [the turno-browser command reference](/docs/reference/turno-browser).
