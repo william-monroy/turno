@@ -9,7 +9,7 @@ import type { Ctx } from "./context.js";
  * agent's config is the person's (inside turno, `turno mcp sync` writes it from mcp.toml).
  */
 
-const SETUP_AGENTS = ["claude-code", "codex", "cursor", "copilot", "gemini", "json"] as const;
+export const SETUP_AGENTS = ["claude-code", "codex", "cursor", "copilot", "gemini", "json"] as const;
 type SetupAgent = (typeof SETUP_AGENTS)[number];
 
 /** `setup --json`: one object. */

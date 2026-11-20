@@ -1,5 +1,5 @@
 import { createServer, type Server } from "node:net";
-import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { main } from "../src/cli/main.js";
@@ -88,6 +88,21 @@ afterEach(async () => {
   for (const d of daemons) await d.stop().catch(() => {});
   for (const s of servers) s.close();
   sb.cleanup();
+});
+
+describe("a removed home folder", () => {
+  it("tells the caller to stop once the home it runs in is gone, and not before", async () => {
+    let gone = 0;
+    const d = await startDaemon({ env: sb.env, port: 0, homeCheckMs: 20, onHomeGone: () => gone++ });
+    daemons.push(d);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(gone).toBe(0);
+    rmSync(sb.home, { recursive: true, force: true });
+    for (let i = 0; i < 100 && gone === 0; i++) await new Promise((r) => setTimeout(r, 20));
+    await new Promise((r) => setTimeout(r, 100));
+    // Once: the check stops after it fires.
+    expect(gone).toBe(1);
+  });
 });
 
 describe("single instance and port policy", () => {
