@@ -216,9 +216,11 @@ export async function init(c: Ctx, args: string[], io: Io, run: RunCommand = run
   // What is left.
   io.out(`\n${paint(io, "Next", "1")}`);
   if (agent !== "none") {
-    const who = agent === undefined ? "your agent" : AGENT_NAMES[agent];
+    // "json" names no agent ("any MCP client"), so it reads as "your MCP client".
+    const who = agent === undefined ? "your agent" : agent === "json" ? "your MCP client" : AGENT_NAMES[agent];
+    const session = agent === "json" ? `a new session of ${who}` : `a new ${who} session`;
     io.out(
-      `${connected ? "Start" : "Once it is added, start"} a new ${who} session and ask it to open ${firstSite ?? "a site you signed in to"}.`,
+      `${connected ? "Start" : "Once it is added, start"} ${session} and ask it to open ${firstSite ?? "a site you signed in to"}.`,
     );
   }
   io.out(`${b} doctor checks Chrome and the identity; ${b} show ${id} shows its settings.`);
