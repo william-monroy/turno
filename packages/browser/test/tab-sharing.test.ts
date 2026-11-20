@@ -103,7 +103,14 @@ async function start(
   identity?: string,
 ): Promise<Client> {
   const config = await upstream().tools.resolveCLIConfigForMCP(
-    { browser: "chrome", userDataDir: join(sb.home, "profile"), headless: true, outputDir: join(sb.home, "output") },
+    {
+      browser: "chrome",
+      userDataDir: join(sb.home, "profile"),
+      headless: true,
+      outputDir: join(sb.home, "output"),
+      // Upstream's 5 s default: a loaded CI runner can take longer for a click that opens a popup.
+      timeoutAction: 15_000,
+    },
     {},
   );
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
