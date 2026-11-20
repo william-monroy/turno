@@ -16,6 +16,10 @@ export function sandbox(): Sandbox {
     PATH: process.env.PATH,
     HOME: home,
     TMPDIR: process.env.TMPDIR,
+    // On a CI runner a real Chrome can take more than upstream's 5 s for one action (a fill right
+    // after a navigation, a click that opens a popup). Servers started with this env get 15 s;
+    // a test that sets --timeout-action keeps its own value, since the flag wins over the env.
+    ...(process.env.CI ? { PLAYWRIGHT_MCP_TIMEOUT_ACTION: "15000" } : {}),
   };
   return {
     home,
