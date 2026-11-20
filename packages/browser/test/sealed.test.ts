@@ -8,7 +8,8 @@ describe("the sealed session envelope (scrypt + AES-256-GCM)", () => {
   it("round-trips, with nothing of the payload in the file", async () => {
     const text = await seal(PAYLOAD, PASS);
     expect(text).not.toContain("session-value-1234");
-    expect(text).not.toContain("sid");
+    // Quoted: the ciphertext is base64, which has no quotes but can hold "sid" by chance.
+    expect(text).not.toContain('"sid"');
     const env = JSON.parse(text);
     expect(env).toMatchObject({
       format: SEALED_FORMAT,

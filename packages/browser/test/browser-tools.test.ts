@@ -65,6 +65,27 @@ async function call(client: Client, name: string, args: Record<string, unknown> 
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * `browser_tabs list` after `wait` ms, then every half second until `done` holds or 30 s pass.
+ * `all` keeps every list it read, so a note the server gives only once (a tab parked or closed)
+ * is found even when it came with an earlier list than `last`, the one that met `done`.
+ */
+async function listUntil(
+  client: Client,
+  done: (text: string) => boolean,
+  wait: number,
+): Promise<{ all: string; last: string }> {
+  await sleep(wait);
+  const seen: string[] = [];
+  const end = Date.now() + 30_000;
+  for (;;) {
+    const text = await call(client, "browser_tabs", { action: "list" });
+    seen.push(text);
+    if (done(text) || Date.now() > end) return { all: seen.join("\n"), last: text };
+    await sleep(500);
+  }
+}
+
 /** Static files for the resource tests: body, content type and caching headers. */
 const STATIC: Record<string, { body: string; type: string; headers: Record<string, string> }> = {
   "/static/app.css": {
@@ -221,10 +242,13 @@ describe.skipIf(reason !== undefined)(
       const client = await start("parking");
       await call(client, "browser_navigate", { url: `${web.url}/a` });
       await call(client, "browser_tabs", { action: "new", url: `${web.url}/b` });
-      await sleep(4_000);
-      const list = await call(client, "browser_tabs", { action: "list" });
-      expect(list).toContain(`- 0: [](about:blank) (parked, was ${web.url}/a: selecting it loads that page again)`);
-      expect(list).toContain(`parked a tab unused for`);
+      // The tab governor runs on a timer: on a loaded runner the park can come seconds late, so
+      // list the tabs until it shows (listing never uses the tab that should park).
+      const list = await listUntil(client, (t) => t.includes("(parked, was"), 2_000);
+      expect(list.last).toContain(
+        `- 0: [](about:blank) (parked, was ${web.url}/a: selecting it loads that page again)`,
+      );
+      expect(list.all).toContain(`parked a tab unused for`);
 
       const selected = await call(client, "browser_tabs", { action: "select", index: 0 });
       expect(selected).toContain(`loaded ${web.url}/a again in a tab that was parked`);
@@ -233,10 +257,9 @@ describe.skipIf(reason !== undefined)(
       expect(snap).toContain('heading "Page A"');
 
       // Tab 1 (page B) is not used from here on; tab 0 stays current.
-      await sleep(9_000);
-      const after = await call(client, "browser_tabs", { action: "list" });
-      expect(after).toMatch(/closed a tab unused for \d+ seconds \(/);
-      expect(after.match(/^- \d+:/gm)).toHaveLength(1);
+      const after = await listUntil(client, (t) => t.match(/^- \d+:/gm)?.length === 1, 8_000);
+      expect(after.all).toMatch(/closed a tab unused for \d+ seconds \(/);
+      expect(after.last.match(/^- \d+:/gm)).toHaveLength(1);
     }, 90_000);
 
     it("says which element covers the target of a failed click, and what the page offers to close it", async () => {
