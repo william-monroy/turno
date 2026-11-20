@@ -187,7 +187,7 @@ const en: BrowserCopy = {
     eyebrow: "turno-browser · Open source · Apache-2.0 · macOS and Linux",
     headline: ["A browser your agents use with ", "your accounts", "."],
     hook: "It stays light on your machine, and the model never sees your passwords.",
-    lead: "An MCP server for Claude Code, Codex, Copilot CLI and Cursor CLI. It drives the Google Chrome you already have, with one persistent profile per identity.",
+    lead: "An MCP server for Claude Code, Codex, Cursor, Copilot CLI and Gemini CLI. It drives the Google Chrome you already have, with one persistent profile per identity.",
     docs: "Read the docs",
     figure: "A Chrome window of the identity school: signed in, with two pages running and three parked, and a password field whose value is hidden.",
     prompt: {
@@ -437,7 +437,7 @@ const en: BrowserCopy = {
     lead: "A driver moves the browser. turno-browser decides which browser that is, whose session it carries, how long it stays open and what the model gets to see. It works next to browser-use, Stagehand and Browserbase, with Playwright underneath.",
     figure: "Four layers, top to bottom: your agents, turno-browser, the driver and your Chrome.",
     rows: [
-      { name: "your agents", items: ["Claude Code", "Codex", "Copilot CLI", "Cursor CLI"] },
+      { name: "your agents", items: ["Claude Code", "Codex", "Cursor", "Copilot CLI", "Gemini CLI"] },
       { name: "turno-browser", items: ["identities", "vault", "tabs and lifecycle", "portable sessions", "shared tabs", "record and replay", "live view"] },
       { name: "the driver", items: ["Playwright"] },
       { name: "the browser", items: ["your Google Chrome"] },
@@ -454,7 +454,8 @@ const en: BrowserCopy = {
       commands: [
         { run: CMD.install, note: "The package and its command." },
         { run: CMD.add, note: "Your first identity." },
-        { run: CMD.setup, note: "Prints the one command that gives Claude Code the identity. It does the same for Codex, Cursor, Copilot and Gemini." },
+        { run: CMD.login, note: "Sign in by hand once. The cookies stay in its profile." },
+        { run: CMD.setup, note: "Prints the one command that gives Claude Code the identity. It does the same for Codex, Cursor, Copilot CLI and Gemini CLI." },
       ],
     },
     withTurno: {
@@ -474,8 +475,8 @@ const en: BrowserCopy = {
   },
   start: {
     label: "start",
-    headline: ["Set it up ", "in one command", "."],
-    text: "Install it, add an identity and sign in once. The docs take it from there.",
+    headline: ["Give your agent ", "a signed-in browser", "."],
+    text: "Install it, add an identity, sign in once and give it to your agent. The docs take it from there.",
     docs: "Read the docs",
     home: "See turno",
   },
@@ -486,7 +487,7 @@ const es: BrowserCopy = {
     eyebrow: "turno-browser · Código abierto · Apache-2.0 · macOS y Linux",
     headline: ["Un navegador que tus agentes usan con ", "tus cuentas", "."],
     hook: "No carga tu máquina, y el modelo nunca ve tus contraseñas.",
-    lead: "Un servidor MCP para Claude Code, Codex, Copilot CLI y Cursor CLI. Maneja el Google Chrome que ya tienes, con un perfil persistente por identidad.",
+    lead: "Un servidor MCP para Claude Code, Codex, Cursor, Copilot CLI y Gemini CLI. Maneja el Google Chrome que ya tienes, con un perfil persistente por identidad.",
     docs: "Leer la documentación",
     figure: "Una ventana de Chrome de la identidad school: con sesión iniciada, dos páginas activas y tres en pausa, y un campo de contraseña con el valor oculto.",
     prompt: {
@@ -736,7 +737,7 @@ const es: BrowserCopy = {
     lead: "Un driver mueve el navegador. turno-browser decide qué navegador es, de quién es la sesión que lleva, cuánto tiempo sigue abierto y qué alcanza a ver el modelo. Trabaja junto a browser-use, Stagehand y Browserbase, con Playwright debajo.",
     figure: "Cuatro capas, de arriba abajo: tus agentes, turno-browser, el driver y tu Chrome.",
     rows: [
-      { name: "tus agentes", items: ["Claude Code", "Codex", "Copilot CLI", "Cursor CLI"] },
+      { name: "tus agentes", items: ["Claude Code", "Codex", "Cursor", "Copilot CLI", "Gemini CLI"] },
       { name: "turno-browser", items: ["identidades", "bóveda", "pestañas y ciclo de vida", "sesiones portables", "pestañas compartidas", "grabar y repetir", "vista en vivo"] },
       { name: "el driver", items: ["Playwright"] },
       { name: "el navegador", items: ["tu Google Chrome"] },
@@ -753,7 +754,8 @@ const es: BrowserCopy = {
       commands: [
         { run: CMD.install, note: "El paquete y su comando." },
         { run: CMD.add, note: "Tu primera identidad." },
-        { run: CMD.setup, note: "Imprime el comando que le da la identidad a Claude Code. Hace lo mismo para Codex, Cursor, Copilot y Gemini." },
+        { run: CMD.login, note: "Inicia sesión a mano una vez. Las cookies se quedan en su perfil." },
+        { run: CMD.setup, note: "Imprime el comando que le da la identidad a Claude Code. Hace lo mismo para Codex, Cursor, Copilot CLI y Gemini CLI." },
       ],
     },
     withTurno: {
@@ -773,8 +775,8 @@ const es: BrowserCopy = {
   },
   start: {
     label: "empezar",
-    headline: ["Listo ", "con un comando", "."],
-    text: "Instálalo, agrega una identidad e inicia sesión una vez. La documentación sigue desde ahí.",
+    headline: ["Dale a tu agente ", "un navegador con tu sesión", "."],
+    text: "Instálalo, agrega una identidad, inicia sesión una vez y dásela a tu agente. La documentación sigue desde ahí.",
     docs: "Leer la documentación",
     home: "Ver turno",
   },

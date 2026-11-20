@@ -6,7 +6,8 @@ description: "Several agent sessions use one identity's Chrome at once, each in 
 With `"sharing": "tabs"` several agent sessions use one identity's Chrome at once, each in its own tabs. It is off by default; turn it on per identity:
 
 ```sh
-turno-browser set school --sharing tabs    # or the server's --sharing tabs
+# or the server's --sharing tabs
+turno-browser set school --sharing tabs
 ```
 
 Sessions share a browser when they reach the same server. Without turno, that is the identity's [background server](/docs/browser/actions#the-background-server), where each `turno-browser do` session gets its own tabs. With turno, it is the server mcpd runs for the identity; let mcpd send every session to it:

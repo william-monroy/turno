@@ -161,7 +161,7 @@ export function BrowserPage({ lang: given }: { lang: string }) {
             <Link href={localePath(lang, "/docs/browser")} className={s.link}>
               {t.start.docs} <span aria-hidden>→</span>
             </Link>
-            <Link href={localePath(lang, "/")} className={s.link}>
+            <Link href={localePath(lang, "/")} prefetch={false} className={s.link}>
               {t.start.home} <span aria-hidden>→</span>
             </Link>
           </div>
@@ -211,7 +211,7 @@ function Way({ path, lang, labels }: { path: Path; lang: string; labels: { copyL
         ))}
       </ol>
       {path.more ? (
-        <Link href={localePath(lang, path.more.href)} className={s.link}>
+        <Link href={localePath(lang, path.more.href)} prefetch={false} className={s.link}>
           {path.more.text} <span aria-hidden>→</span>
         </Link>
       ) : null}

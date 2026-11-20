@@ -15,10 +15,14 @@ server with a flag, which wins over the file:
 | Camoufox | `--engine camoufox` | a Firefox build, on its own profile |
 
 ```sh
-turno-browser set school --engine lightpanda     # read mode for this identity
-turno-browser set school --attach auto           # attach to your own Chrome
-turno-browser set school --engine "" --attach "" # back to the default
-turno-browser-mcp --engine lightpanda            # read mode for one server, no identity
+# read mode for this identity
+turno-browser set school --engine lightpanda
+# attach to your own Chrome
+turno-browser set school --attach auto
+# back to the default
+turno-browser set school --engine "" --attach ""
+# read mode for one server, no identity
+turno-browser-mcp --engine lightpanda
 ```
 
 With [several agents in one browser](/docs/browser/sharing) and

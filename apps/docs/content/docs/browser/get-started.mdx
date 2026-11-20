@@ -74,8 +74,10 @@ Start a new agent session and ask it to open a site you signed in to. The agent 
 You can also try it from a terminal, without an agent:
 
 ```sh
-turno-browser do school open https://example.com   # starts the background server if needed
-turno-browser do school snapshot                   # the page's tree, with refs like e12
+# starts the background server if needed
+turno-browser do school open https://example.com
+# the page's tree, with refs like e12
+turno-browser do school snapshot
 turno-browser do school end
 ```
 
@@ -95,7 +97,8 @@ If you use turno, its gateway runs the browser server for you: one server for ev
 
 ```sh
 npm install --global turno-cli turno-browser
-turno identity add browser:school     # the identity, and its mcp.toml entry
+# the identity, and its mcp.toml entry
+turno identity add browser:school
 turno identity login browser:school
 ```
 

@@ -77,7 +77,8 @@ Server sets hide servers from sessions in a folder. A session whose folder the g
 ## Check your rules
 
 ```sh
-turno config check    # parses config.toml, mcp.toml and accounts.toml
+# parses config.toml, mcp.toml and accounts.toml
+turno config check
 ```
 
 It warns about server names that are not in `mcp.toml` and about remote servers that skip the gateway, which a set cannot hide. Every key is in the [config.toml reference](/docs/reference/config-toml).

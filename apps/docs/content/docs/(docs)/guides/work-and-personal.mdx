@@ -19,7 +19,8 @@ A profile is one account: a folder such as `~/.claude-work` and a launcher such 
 ### Create one profile per account
 
 ```sh
-turno profile add work --color violet     # ~/.claude-work and the claude-work command
+# ~/.claude-work and the claude-work command
+turno profile add work --color violet
 turno profile add personal --color green
 ```
 
@@ -31,8 +32,10 @@ If you already keep separate folders by hand, `turno init` finds them and propos
 ### Sign in once per profile
 
 ```sh
-claude-work        # /login with your work account
-claude-personal    # /login with your personal account
+# /login with your work account
+claude-work
+# /login with your personal account
+claude-personal
 ```
 
 Each agent logs in by itself, inside that profile's folder. turno never reads, copies or forwards login tokens.
@@ -43,8 +46,10 @@ Each agent logs in by itself, inside that profile's folder. turno never reads, c
 ### Say which folders are work
 
 ```sh
-turno profile assign ~/code/acme work     # this folder and everything under it
-turno config set default personal         # folders without a rule
+# this folder and everything under it
+turno profile assign ~/code/acme work
+# folders without a rule
+turno config set default personal
 ```
 
 Without a profile argument, `turno profile assign` shows the profiles to choose from on a terminal.
@@ -55,8 +60,10 @@ Without a profile argument, `turno profile assign` shows the profiles to choose 
 ### Open agents through turno
 
 ```sh
-cd ~/code/acme && turno auto     # Claude Code, signed in as work
-cd ~/notes && turno auto         # Claude Code, signed in as personal
+# Claude Code, signed in as work
+cd ~/code/acme && turno auto
+# Claude Code, signed in as personal
+cd ~/notes && turno auto
 ```
 
 Point your terminal or editor at `turno auto` (or the `turno-auto` launcher) and every folder opens with its account. `turno work` opens a profile by name, wherever you are.

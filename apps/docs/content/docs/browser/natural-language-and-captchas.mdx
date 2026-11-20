@@ -13,11 +13,14 @@ model choosing one browser action at a time; `browser_extract` reads data off th
 from an instruction; `browser_observe` proposes the calls that would do it, without running them.
 
 ```sh
-turno-browser set school --act                     # your client's model, through MCP sampling
+# your client's model, through MCP sampling
+turno-browser set school --act
 turno-browser set school --act-provider chat-completions \
   --act-endpoint https://models.example.com/v1 --act-model <model> --act-key keychain:act-model
-turno-browser secret set act-model                                  # the key, asked with a hidden prompt
-turno-browser set school --no-act                  # off again
+# the key, asked with a hidden prompt
+turno-browser secret set act-model
+# off again
+turno-browser set school --no-act
 ```
 
 The model is yours to pick. With MCP sampling (`--act`), the agent's own client answers with a
@@ -72,10 +75,12 @@ returns into the page's response field (and calls the widget's callback when it 
 agent then submits the form itself, before the token expires.
 
 ```sh
-turno-browser secret set captcha-solver                             # the service's account key, hidden prompt
+# the service's account key, hidden prompt
+turno-browser secret set captcha-solver
 turno-browser set shop --captcha-provider task-api \
   --captcha-endpoint https://solver.example.com --captcha-key keychain:captcha-solver
-turno-browser set shop --no-captcha                # off again
+# off again
+turno-browser set shop --no-captcha
 ```
 
 `task-api` is the `createTask` and `getTaskResult` protocol that many solver services share; the

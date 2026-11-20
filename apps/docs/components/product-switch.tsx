@@ -15,10 +15,11 @@ export function ProductSwitch({ lang, home, browser }: { lang: string; home: str
   const onBrowser = pathname === browser || pathname.startsWith(`${browser}/`) || pathname === docs || pathname.startsWith(`${docs}/`);
   return (
     <nav aria-label={LABEL[lang] ?? LABEL.en} className="d-products">
-      <Link href={home} className="d-product" aria-current={onBrowser ? undefined : "true"}>
+      {/* No prefetch: the other tool's page would preload styles this page never uses. */}
+      <Link href={home} prefetch={false} className="d-product" aria-current={onBrowser ? undefined : "true"}>
         turno
       </Link>
-      <Link href={browser} className="d-product" aria-current={onBrowser ? "true" : undefined}>
+      <Link href={browser} prefetch={false} className="d-product" aria-current={onBrowser ? "true" : undefined}>
         turno-browser
       </Link>
     </nav>
