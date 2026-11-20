@@ -28,6 +28,8 @@ import { vaultCommand } from "./vault.js";
 import { BACKGROUND_JSON, backgroundCommand } from "./background.js";
 import { secretCommand } from "./secret.js";
 import { SETUP_DETAILS, SETUP_JSON, setup } from "./setup.js";
+import { INIT_DETAILS, INIT_SYNOPSIS, init } from "./init.js";
+import { loginSummary } from "./login-summary.js";
 
 /**
  * The identity commands of turno-browser: `turno-browser <cmd>` on its own, `turno browser <cmd>`
@@ -129,7 +131,7 @@ function identities(c: Ctx, args: string[], io: Io): number {
   }
   const width = Math.max(...list.map((i) => i.id.length));
   for (const i of list) {
-    const state = i.inUse ? paint(io, "in use", "33") : paint(io, "free  ", "32");
+    const state = i.inUse ? paint(io, "in use    ", "33") : paint(io, "not in use", "32");
     io.out(`${i.id.padEnd(width)}  ${state}  ${tildify(i.dir, io.env)}`);
   }
   return 0;
@@ -185,8 +187,8 @@ async function login(c: Ctx, args: string[], io: Io): Promise<number> {
   io.out(`Opening Chrome for identity "${id}". Sign in to your sites, then close the window to save the session.`);
   const options: { env: NodeJS.ProcessEnv; url?: string } = { env: io.env };
   if (url) options.url = url;
-  await mod.loginIdentity(id, options);
-  io.out(`saved. Sessions using browser-${id} now start signed in.`);
+  const result = await mod.loginIdentity(id, options);
+  io.out(loginSummary(c, id, result?.sites ?? []));
   return 0;
 }
 
@@ -314,6 +316,13 @@ function subcommands(c: Ctx): Record<string, Sub> {
   // configs, `turno secret` stores secrets and `do` goes through mcpd, not a background server.
   const own: Record<string, Sub> = alone
     ? {
+        init: {
+          summary: "set up step by step: an identity, a sign-in by hand, and your agent (asks first)",
+          synopsis: INIT_SYNOPSIS,
+          details: INIT_DETAILS,
+          flags: ["--identity", "--agent", "--url", "--no-login", "--yes", "--dry-run"],
+          run: (args, io) => init(c, args, io, c.deps.run),
+        },
         setup: {
           summary: "print the MCP config that gives an agent an identity (Claude Code, Codex, Cursor...)",
           synopsis: "<claude-code|codex|cursor|copilot|gemini|json> [--identity <id>] [--json]",

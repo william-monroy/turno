@@ -20,7 +20,17 @@ import type { BrowserFunctions } from "../api.js";
 import type { CliNames, Ctx } from "./context.js";
 
 /** `show --json` (`turno identity show browser:<id> --json` in turno). */
-export const SHOW_JSON = jsonOutput(["id", "dir", "settingsFile", "settings", "problems", "inUse", "holder", "health"]);
+export const SHOW_JSON = jsonOutput([
+  "id",
+  "dir",
+  "settingsFile",
+  "settings",
+  "problems",
+  "inUse",
+  "holder",
+  "health",
+  "login",
+]);
 /** `set --json`: what changed, or would. */
 export const SET_JSON = jsonOutput(["id", "settingsFile", "dryRun", "changes", "settings"]);
 /** `doctor --json`: the shape of `turno doctor --json`. */
@@ -508,6 +518,15 @@ const HUMANIZE_TEXT: Readonly<Record<string, string>> = {
   adaptive: "light, full on sites that showed a challenge (adaptive)",
 };
 
+/** An ISO time as this machine's local time, to the minute: 2026-11-19 23:46. Anything else as it is. */
+export function localTime(iso: string | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`;
+}
+
 export function show(c: Ctx, id: string, args: string[], io: Io): number {
   const m = c.api;
   const p = parseFlags(args, JSON_FLAG, 1);
@@ -515,6 +534,7 @@ export function show(c: Ctx, id: string, args: string[], io: Io): number {
   const { path, settings, problems } = m.checkIdentitySettings(id, io.env);
   const holder = m.inUseBy(id, io.env);
   const health = m.readHealth(id, io.env);
+  const login = m.readLoginRecord(id, io.env);
   if (bool(p, "json")) {
     emit(io, p, SHOW_JSON, {
       id: `browser:${id}`,
@@ -525,6 +545,7 @@ export function show(c: Ctx, id: string, args: string[], io: Io): number {
       inUse: holder !== undefined,
       holder: holder ?? null,
       health: health ?? null,
+      login: login ?? null,
     });
     return Exit.ok;
   }
@@ -544,7 +565,12 @@ export function show(c: Ctx, id: string, args: string[], io: Io): number {
       settings.languages?.join(", ") ?? s.muted(settings.locale ? "(from the locale)" : "(Chrome's)"),
     ]);
     if (settings.region) rows.push(["region", settings.region]);
-    rows.push(["health check", settings.health ? describeHealth(settings.health) : s.muted("(none)")]);
+    rows.push([
+      "health check",
+      settings.health
+        ? describeHealth(settings.health)
+        : s.muted(`off (to turn on: ${c.names.browser} set ${id} --health-url <url> --health-text <text>)`),
+    ]);
     if (settings.tabs) rows.push(["tabs", `${describeTabs(settings.tabs)}${s.muted(" (the rest as default)")}`]);
     if (settings.backgroundThrottling !== undefined)
       rows.push([
@@ -587,8 +613,8 @@ export function show(c: Ctx, id: string, args: string[], io: Io): number {
         "live view",
         `on (${c.names.browser} live ${id}); a paused call waits up to ${settings.live.wait ?? "2m"}`,
       ]);
-    rows.push(["created", settings.created]);
-    rows.push(["updated", settings.updated]);
+    rows.push(["created", localTime(settings.created)]);
+    rows.push(["updated", localTime(settings.updated)]);
   }
   if (health) {
     const state =
@@ -597,11 +623,22 @@ export function show(c: Ctx, id: string, args: string[], io: Io): number {
         : health.status === "needs_auth"
           ? s.err("NEEDS_AUTH")
           : s.warn("check failed");
-    rows.push(["last check", `${state} ${s.muted(`${health.checkedAt}${health.detail ? `: ${health.detail}` : ""}`)}`]);
+    rows.push([
+      "last check",
+      `${state} ${s.muted(`${localTime(health.checkedAt)}${health.detail ? `: ${health.detail}` : ""}`)}`,
+    ]);
   }
   rows.push([
+    "last sign-in",
+    login
+      ? `${localTime(login.at)}${login.sites.length ? s.muted(` (${login.sites.join(", ")})`) : s.muted(" (no site opened)")}`
+      : m.profileHasCookies(id, io.env)
+        ? s.muted(`no record yet (the next ${c.names.identity("login", id)} keeps one)`)
+        : s.warn(`never by hand (${c.names.identity("login", id)})`),
+  ]);
+  rows.push([
     "state",
-    holder ? s.warn(holder.replace(/^browser identity "[^"]+" is /, "").replace(/\. .*$/, "")) : s.ok("free"),
+    holder ? s.warn(holder.replace(/^browser identity "[^"]+" is /, "").replace(/\. .*$/, "")) : s.ok("not in use"),
   ]);
   io.out(s.bold(`browser:${id}`));
   const width = Math.max(...rows.map(([k]) => k.length));

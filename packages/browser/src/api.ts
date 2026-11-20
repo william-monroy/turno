@@ -3,7 +3,7 @@ import { runDoctor } from "./doctor.js";
 import { readHealth } from "./health.js";
 import { addIdentity, identityExists, inUseBy, isInUse, listIdentities, removeIdentity } from "./identities.js";
 import { assertIdentityId, identityDir } from "./ids.js";
-import { loginIdentity } from "./login.js";
+import { loginIdentity, profileHasCookies, readLoginRecord } from "./login.js";
 import { reputationReport } from "./reputation.js";
 import { exportSession, importSession, readSessionExport } from "./session-export.js";
 import { flowsDir, listFlows, readFlow, removeFlow } from "./flows.js";
@@ -29,7 +29,7 @@ import { browserCli } from "./cli/commands.js";
  *
  * `test/api.test.ts` lists the members, so a change here cannot ship without the version.
  */
-export const API_VERSION = Object.freeze({ major: 1, minor: 12 } as const);
+export const API_VERSION = Object.freeze({ major: 1, minor: 13 } as const);
 
 /** What `API_VERSION` looks like to a reader that does not know this package's version. */
 export interface ApiVersion {
@@ -52,7 +52,8 @@ export interface ApiVersion {
  * the Camoufox and network checks of `runDoctor` (no new member: an older package refuses them),
  * and (1.11) the background server of an identity: start, status, stop, and its sessions.
  * and (1.12) `cli`, the identity commands themselves (`turno-browser <cmd>`), which turno-cli runs
- * as `turno browser <cmd>` and `turno identity ... browser:<id>` with a host of its own.
+ * as `turno browser <cmd>` and `turno identity ... browser:<id>` with a host of its own,
+ * and (1.13) `readLoginRecord`, the last sign-in by hand, `profileHasCookies`, and the sites `loginIdentity` returns.
  */
 const functions = {
   ENGINES,
@@ -68,6 +69,8 @@ const functions = {
   assertIdentityId,
   manifestSnippet,
   loginIdentity,
+  readLoginRecord,
+  profileHasCookies,
   checkIdentitySettings,
   writeIdentitySettings,
   readHealth,

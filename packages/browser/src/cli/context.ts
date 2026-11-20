@@ -64,6 +64,8 @@ export interface CliDeps {
   input?: VaultInput;
   /** All of stdin, for `do <id> type <ref> -`. */
   stdin?: () => Promise<string>;
+  /** Runs an agent's `mcp add` command for `init` (default: spawn it on this terminal). */
+  run?: (command: string, args: readonly string[], io: Io) => Promise<number>;
 }
 
 /** Everything a command gets: the host and the dependencies. */
@@ -107,10 +109,14 @@ settings in identity.json (turno-browser show <id>), its sign-ins in its own pro
 credentials in the secret store (turno-browser vault).`,
     addSummary: "create an identity (pinned to this time zone) and print how an agent uses it",
     connect(id, _settings, io) {
-      io.out("\nConnect an agent to it:");
-      io.out(`  ${setupLine(id)}    # prints the config for Claude Code (codex, cursor, ...)`);
-      io.out(`  turno-browser-mcp --identity ${id}    # the stdio command any MCP client runs`);
-      io.out(`Sign in to your sites once with \`turno-browser login ${id}\`.`);
+      // No inline "# comment" on a command line: zsh does not take comments typed at its prompt,
+      // so a pasted line would pass the comment's words as arguments.
+      io.out("\nNext:");
+      io.out(`  turno-browser login ${id}`);
+      io.out("      sign in to your sites by hand once; the cookies stay in the profile");
+      io.out(`  ${setupLine(id)}`);
+      io.out("      prints how Claude Code gets this browser (also codex, cursor, copilot, gemini, json)");
+      io.out(`Any other MCP client runs: turno-browser-mcp --identity ${id}`);
     },
     restart: "a new agent session",
     doTransport: backgroundTransport(doDeps),

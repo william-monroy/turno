@@ -83,7 +83,14 @@ export {
   parseRebrowser,
   parseSannysoft,
 } from "./detectors.js";
-export { type LoginOptions, loginIdentity } from "./login.js";
+export {
+  type LoginOptions,
+  type LoginRecord,
+  type LoginResult,
+  loginIdentity,
+  profileHasCookies,
+  readLoginRecord,
+} from "./login.js";
 export { LiveError, liveLink, livePause, liveResume, liveStatus } from "./live-client.js";
 export {
   BackgroundError,

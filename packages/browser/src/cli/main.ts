@@ -34,6 +34,7 @@ const PROGRAM = "turno-browser";
 
 /** The sections of `turno-browser --help`, in order. */
 const SECTIONS: readonly { title: string; commands: readonly string[] }[] = [
+  { title: "Start here", commands: ["init"] },
   { title: "Identities", commands: ["list", "add", "show", "set", "login", "remove"] },
   { title: "Connect an agent", commands: ["setup"] },
   { title: "Sign-ins and sessions", commands: ["vault", "secret", "export", "import"] },
@@ -59,6 +60,11 @@ export function renderHelp(io: Io, cli: BrowserCli): string[] {
   const first = wrap(tagline, width);
   out.push(s.color ? `${s.bold(s.accent(PROGRAM))}${s.bold(first[0]!.slice(PROGRAM.length))}` : first[0]!);
   for (const l of first.slice(1)) out.push(s.bold(l));
+  if (cli.subs.init)
+    out.push(
+      "",
+      `New here? ${s.accent(`${PROGRAM} init`)} sets it up step by step: an identity, a sign-in, your agent.`,
+    );
   out.push("", s.header("Usage"));
   out.push(
     columns([
