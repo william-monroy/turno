@@ -10,6 +10,8 @@ With `"sharing": "tabs"` several agent sessions use one identity's Chrome at onc
 turno-browser set school --sharing tabs
 ```
 
+Each session shows on the page with its own color and its own [agent cursor](/docs/browser/agent-cursor), so you can tell them apart.
+
 Sessions share a browser when they reach the same server. Without turno, that is the identity's [background server](/docs/browser/actions#the-background-server), where each `turno-browser do` session gets its own tabs. With turno, it is the server mcpd runs for the identity; let mcpd send every session to it:
 
 ```toml title="~/.config/turno/mcp.toml"

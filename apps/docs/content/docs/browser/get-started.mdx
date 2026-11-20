@@ -1,6 +1,6 @@
 ---
 title: "Get started"
-description: "Install turno-browser, add an identity, sign in once and give it to your agent."
+description: "Install turno-browser and let turno-browser init set it up: an identity, a sign-in by hand and your agent."
 ---
 
 turno-browser works on its own: you do not need turno to use it. It needs Node 22.11 or newer and Google Chrome installed on the machine. It downloads no browser.
@@ -12,6 +12,47 @@ npm install --global turno-browser
 ```
 
 This installs two commands: `turno-browser`, which manages identities, and `turno-browser-mcp`, the MCP server an agent runs for one identity.
+
+## Set it up
+
+```sh
+turno-browser init
+```
+
+`init` asks at each step and does three things: it creates an identity, opens Chrome so you sign in by hand, and gives the identity to your agent. Ctrl-C stops at any step, and each step that is done stays done.
+
+```text
+Set up turno-browser: a browser identity, signed in once, given to your agent.
+Ctrl-C stops at any step; each step that is done stays done.
+
+Step 1 of 3  the identity
+An identity is one Chrome profile your agent uses, with your sign-ins. Name it after what it is for.
+Name [personal]: school
+Created "school" at ~/.local/share/turno/browser/identities/school
+
+Step 2 of 3  sign in by hand once
+Chrome opens on this identity's profile. Sign in to the sites your agent needs, then close the window.
+First site to open (Enter for none): mail.example.com
+Open Chrome now? [Y/n]
+Saved. Sites you opened: mail.example.com. The agent starts with the same cookies on them.
+
+Step 3 of 3  give it to your agent
+Agents found here: claude-code (Claude Code)
+Agents: claude-code, codex, cursor, copilot, gemini, json, or none.
+Agent [claude-code]:
+This adds the browser to Claude Code:
+  claude mcp add --scope user browser-school -- turno-browser-mcp --identity school
+Run it now? [Y/n]
+Done: Claude Code has the browser "school".
+
+Next
+Start a new Claude Code session and ask it to open https://mail.example.com.
+turno-browser doctor checks Chrome and the identity; turno-browser show school shows its settings.
+```
+
+It runs the agent's own `mcp add` command only if you say yes. Cursor and `json` have no such command, so `init` prints the block to paste. `--identity`, `--agent`, `--url`, `--no-login`, `--yes` and `--dry-run` answer the questions ahead; without a terminal (a pipe, or an agent's session) it needs `--identity` and `--agent`, skips the sign-in and prints the agent's command instead of running it.
+
+The rest of this page does the same three steps one command at a time.
 
 ## Add an identity
 
@@ -25,10 +66,12 @@ turno-browser add school
 identity "school" ready at ~/.local/share/turno/browser/identities/school
 settings (time zone, languages, health check) in ~/.local/share/turno/browser/identities/school.json
 
-Connect an agent to it:
-  turno-browser setup claude-code --identity school    # prints the config for Claude Code (codex, cursor, ...)
-  turno-browser-mcp --identity school    # the stdio command any MCP client runs
-Sign in to your sites once with `turno-browser login school`.
+Next:
+  turno-browser login school
+      sign in to your sites by hand once; the cookies stay in the profile
+  turno-browser setup claude-code --identity school
+      prints how Claude Code gets this browser (also codex, cursor, copilot, gemini, json)
+Any other MCP client runs: turno-browser-mcp --identity school
 ```
 
 ## Sign in once
@@ -37,7 +80,13 @@ Sign in to your sites once with `turno-browser login school`.
 turno-browser login school
 ```
 
-The identity's Chrome opens. Sign in to your sites by hand, then close the window. The cookies stay in that profile, so the agent starts signed in. The profile now holds live sessions: treat its folder as credentials.
+The identity's Chrome opens on a short page that says what to do. Sign in to your sites by hand, then close the window. `--url https://mail.example.com` opens a site directly.
+
+```text
+Saved. Sites you opened: mail.example.com. The agent starts with the same cookies on them.
+```
+
+The cookies stay in that profile, so the agent starts signed in. The profile now holds live sessions: treat its folder as credentials.
 
 ## Give it to your agent
 
@@ -93,7 +142,7 @@ turno-browser completion fish > ~/.config/fish/completions/turno-browser.fish
 
 ## With turno
 
-If you use turno, its gateway runs the browser server for you: one server for every session of every agent, stopped when nobody uses it.
+If you use turno, its gateway runs the browser server for you: one server for every session of every agent, stopped when nobody uses it. turno has its own wizard, `turno init`; `turno-browser init` is for turno-browser on its own.
 
 ```sh
 npm install --global turno-cli turno-browser
@@ -106,6 +155,7 @@ With turno installed, every `turno-browser <command>` on these pages also runs a
 
 ## Next
 
+- See where the agent is on the page: [The agent cursor](/docs/browser/agent-cursor).
 - Keep the identity signed in and know when it is not: [Session health](/docs/browser/identities#session-health).
 - Let the agent sign in without seeing the password: [Vault, sign-in and secrets](/docs/browser/vault).
 - What closes and when: [Tabs and lifecycle](/docs/browser/tabs).

@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import type { PictureProps } from "../../landing/chapters/section";
 import { usePhase } from "../../landing/chapters/stage";
 import { browserCopy, CMD, IDENTITY_PATH, PRINTS, SITE, TOOL } from "../copy";
-import { Field, Lines, Shot, type Win, Window } from "./parts";
+import { AgentCursor, Field, Lines, Shot, type Win, Window } from "./parts";
 import s from "./pictures.module.css";
 
 /*
@@ -37,7 +37,7 @@ export default function IdentitiesPicture({ lang, chosen, run, drawn, armed, red
   } else if (chosen === 1) {
     cmd = CMD.login;
     if (p >= 1) result = PRINTS.opening;
-    if (p >= 3) result = t.saved;
+    if (p >= 3) result = PRINTS.saved;
   } else {
     prompt = "tool";
     cmd = `${TOOL.navigate} https://${SITE}/courses`;
@@ -88,6 +88,7 @@ export default function IdentitiesPicture({ lang, chosen, run, drawn, armed, red
             </span>
             <span className={s.heading}>{t.page}</span>
             <Lines />
+            <AgentCursor at="page" />
           </div>
         ) : (
           <div className={s.page}>

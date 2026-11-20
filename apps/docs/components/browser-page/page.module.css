@@ -48,8 +48,14 @@
   width: auto;
   max-width: 100%;
 }
-.heroActions > button:first-child {
-  min-width: min(100%, 340px);
+/* The two commands that set it up, one under the other, sharing a hairline. */
+.two {
+  display: grid;
+  flex: 0 0 100%;
+  max-width: 440px;
+}
+.two > button + button {
+  margin-top: -1px;
 }
 
 .link {

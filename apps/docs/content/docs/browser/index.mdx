@@ -9,13 +9,10 @@ It is its own package and works without turno. With turno, the gateway runs one 
 
 ```sh
 npm install --global turno-browser
-# a new identity, and how to connect an agent to it
-turno-browser add school
-# sign in by hand once; cookies persist
-turno-browser login school
+turno-browser init
 ```
 
-[Get started](/docs/browser/get-started) goes through those steps and gives the identity to your agent.
+`init` asks a name for the identity, opens Chrome so you sign in by hand, and gives the identity to your agent. [Get started](/docs/browser/get-started) shows a whole run, and the same steps one command at a time.
 
 ## What it does
 
@@ -29,6 +26,7 @@ turno-browser login school
 
 | | |
 |---|---|
+| [The agent cursor](/docs/browser/agent-cursor) | when you can see the browser, a named cursor and a badge show where the agent is working |
 | [Actions and the shell](/docs/browser/actions) | `browser_batch`, errors that say what is in the way, and `turno-browser do` from a terminal |
 | [Flows](/docs/browser/flows) | an agent saves what it did on a site and runs it again |
 | [Moving a session](/docs/browser/moving-a-session) | a signed-in session in one encrypted file, for another machine |
