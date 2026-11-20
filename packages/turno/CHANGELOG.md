@@ -1,5 +1,27 @@
 # turno-cli
 
+## 0.5.0
+
+### Minor Changes
+
+- df52afc: turno-browser has its own `turno-browser` command: add, list, show, set, login, vault, export, import, flows, replay, record, traces, live, pause, resume, doctor and reputation work without turno, with `--version` and a help grouped by section. `turno-browser add` prints how to connect an agent instead of an `mcp.toml` block, and `turno-browser do` says it needs turno for now. `turno browser ...` and the browser part of `turno identity ...` now run turno-browser's commands through its typed api (API_VERSION 1.12, new member `cli`) with the same flags, output and exit codes, so turno-cli needs turno-browser 1.12 or a later 1.x. turno-core gains `turno-core/cli`, the command line toolkit (arguments, output, styles, exit codes, command groups, hints, hidden input) that both programs share.
+
+### Patch Changes
+
+- 44fb809: `turno-browser-mcp --identity <id> --background` serves an identity to the shell without turno: MCP over streamable HTTP on a Unix socket in a private folder of the identity's state (or 127.0.0.1 with a per-server token where a socket cannot be used), one Chrome shared by every connection with the identity's sharing rules, and an exit after 15 minutes without a request (`--background-idle`, `TURNO_BROWSER_BACKGROUND_IDLE`). While it runs it alone drives the identity's browser: a stdio server of the same identity refuses calls that need the browser with a message that names it, and it does not start while another process has the identity's Chrome open. The package exports a client for it (`startBackground`, `backgroundStatus`, `openBackgroundSession`, `stopBackground`), also in the typed api, now version 1.11. turno-cli now asks for turno-browser 1.11 or a later 1.x.
+- e2b1779: `turno-browser do` works without turno: it starts the identity's background server on the first action, keeps one session per agent or shell between commands, and ends it with `end`, `close` or when that process exits. `turno browser do` keeps going through mcpd.
+  
+  New `turno-browser` commands: `setup <claude-code|codex|cursor|copilot|gemini|json> [--identity <id>]` prints the MCP config that gives an agent an identity (it writes nothing; `--json` for scripts), `background status|start|stop` shows and controls the background servers, and `secret set|has|list|remove` stores the `keychain:<item>` secrets identity.json names, in the same store and items as `turno secret`.
+  
+  Hints, errors and doctor fixes name the commands of the program you typed: `turno-browser ...` on its own (the MCP server's messages too), `turno browser ...` and `turno identity ... browser:<id>` inside turno. `turno-browser doctor` lists a running background server, and a stdio server refused by a background server names `turno-browser background stop <id>`.
+  
+  turno-core exports the owner, name and lock of a shell session of browser commands (`turno-core/cli`), shared by `turno browser do` and `turno-browser do`.
+  
+  The npm description, keywords and MCP Registry entry follow the new tagline. Wording: the help no longer labels the off-by-default settings (natural language actions, captcha solving, network and user agent, Camoufox) as "not recommended"; they stay off by default and the help still says what each one sends where.
+- Updated dependencies [df52afc]
+- Updated dependencies [e2b1779]
+  - turno-core@0.2.0
+
 ## 0.4.0
 
 ### Minor Changes
