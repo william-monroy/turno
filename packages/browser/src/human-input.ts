@@ -99,7 +99,7 @@ type TargetResult = { locator: Locator; [key: string]: unknown };
  * A view of `target` where the names in `overrides` are replaced. Every other method is bound
  * to the target itself, so private fields and `this` inside Playwright's classes keep working.
  */
-function overlay<T extends object>(target: T, overrides: Record<string, unknown>): T {
+export function overlay<T extends object>(target: T, overrides: Record<string, unknown>): T {
   return new Proxy(target, {
     get(t, prop) {
       if (typeof prop === "string" && Object.hasOwn(overrides, prop)) return overrides[prop];

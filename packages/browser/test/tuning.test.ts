@@ -14,6 +14,7 @@ describe("resolveTuning", () => {
       humanize: { level: "off" },
       sharing: "session",
       tabLocks: {},
+      cursor: "auto",
     });
     expect(DEFAULT_TABS).toEqual({ max: 8, popups: "close", parkMs: 300_000, closeMs: 900_000 });
   });
@@ -27,6 +28,7 @@ describe("resolveTuning", () => {
       humanize: { level: "off" },
       sharing: "session",
       tabLocks: {},
+      cursor: "auto",
     });
     expect(
       resolveTuning(settings, { maxTabs: 0, popups: "keep", closeAfterMs: 60_000, backgroundThrottling: false }),
@@ -37,6 +39,7 @@ describe("resolveTuning", () => {
       humanize: { level: "off" },
       sharing: "session",
       tabLocks: {},
+      cursor: "auto",
     });
   });
 

@@ -29,6 +29,7 @@ import {
   runHealthCheck,
   writeHealth,
 } from "./health.js";
+import { AgentCursor, CursorInput, cursorTools, resolveCursor } from "./agent-cursor.js";
 import { HumanInput, adaptiveSites, humanizeTools } from "./human-input.js";
 import { identityStateDir } from "./ids.js";
 import { idleMs } from "./idle-timer.js";
@@ -285,6 +286,8 @@ interface Running {
   recording?: Recording;
   /** Human-like input, when humanize is on: also types a `browser_login` fill. */
   input?: HumanInput;
+  /** The agent cursor, when someone can see the browser (`agent-cursor.ts`). */
+  cursor?: AgentCursor;
 }
 
 class SessionBackend extends EventEmitter implements ServerBackend {
@@ -434,8 +437,18 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       };
       const sessionConfig = configForSession(config, cliOptions, tuning);
       const idle = launched.idleTimer ? new CallIdleTimer(launched.idleTimer, () => launched.isOpen()) : undefined;
+      // The agent cursor (on when someone can see this browser): the input tools move it, under
+      // humanize, so humanize's pointer path goes through it too.
+      const cursor = resolveCursor(tuning.cursor, {
+        headless: config.browser?.launchOptions?.headless === true && !launched.userBrowser,
+        live: this.host.live !== undefined,
+        engine: launched.engine,
+      })
+        ? new AgentCursor({ title, ...(identity ? { identity: identity.id } : {}) })
+        : undefined;
+      const marked = cursor ? cursorTools(stock, new CursorInput(cursor, input !== undefined)) : stock;
       // Every backend of this browser (each session's too, with "sharing": "tabs") runs these tools.
-      const tools = input ? humanizeTools(stock, input) : stock;
+      const tools = input ? humanizeTools(marked, input) : marked;
       const backend = new BrowserBackend(sessionConfig, launched.context, tools, {
         ...(idle ? { idleTimer: idle } : {}),
         dispose: async () => {
@@ -528,12 +541,14 @@ class SessionBackend extends EventEmitter implements ServerBackend {
           onPause: async () => {
             tabs.beginCall();
             endIdle = idle?.begin();
+            await cursor?.setPaused(launched.context.pages(), true);
             await recording?.pauseForUser();
           },
           onResume: () => {
             endIdle?.();
             endIdle = undefined;
             tabs.endCall();
+            void cursor?.setPaused(launched.context.pages(), false);
           },
         });
       }
@@ -557,6 +572,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
         ...(sharing ? { sharing } : {}),
         ...(recording ? { recording } : {}),
         ...(input ? { input } : {}),
+        ...(cursor ? { cursor } : {}),
       };
     })();
     promise.catch(() => {
@@ -815,10 +831,13 @@ class SessionBackend extends EventEmitter implements ServerBackend {
           ?.page.bringToFront()
           .catch(() => {});
       const page = backendContext(backend)?.currentTab()?.page;
+      const key = session ?? DIRECT_SESSION;
+      await running.cursor?.begin(page, key);
       result =
         (launched.engine === "lightpanda" ? undefined : await coveredBeforeCall(page, name, args, json)) ??
-        (await backend.callTool(name, args, signal));
-      this.host.live?.follow(session ?? DIRECT_SESSION, backendContext(backend)?.currentTab()?.page);
+        (await this.withCursor(running, name, page, () => backend.callTool(name, args, signal)));
+      void running.cursor?.end(backendContext(backend)?.currentTab()?.page, key);
+      this.host.live?.follow(key, backendContext(backend)?.currentTab()?.page);
       if (result.isError)
         result = await explainFailure(backendContext(backend)?.currentTab()?.page, name, args, result, json);
       await this.afterStock(running, session, name, args, pending, result, backendContext(backend)?.currentTab()?.page);
@@ -881,11 +900,13 @@ class SessionBackend extends EventEmitter implements ServerBackend {
               .current()
               ?.bringToFront()
               .catch(() => {});
+          await running.cursor?.begin(tabs.current(), key);
           result =
             (running.launched.engine === "lightpanda"
               ? undefined
               : await coveredBeforeCall(tabs.current(), name, args, json)) ??
-            (await backend.callTool(name, args, signal));
+            (await this.withCursor(running, name, tabs.current(), () => backend.callTool(name, args, signal)));
+          void running.cursor?.end(tabs.current(), key);
           this.host.live?.follow(key, tabs.current());
           if (result.isError) result = await explainFailure(tabs.current(), name, args, result, json);
           await this.afterStock(running, key, name, args, pending, result, tabs.current());
@@ -909,6 +930,17 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     if (!first || first.type !== "text") return annotated;
     const text = sharing.annotate((first as { text: string }).text, key, view);
     return { ...annotated, content: [{ ...first, text }, ...annotated.content.slice(1)] };
+  }
+
+  /** A stock call, with the agent cursor hidden while it takes the model's screenshot. */
+  private async withCursor(
+    running: Running,
+    name: string,
+    page: Page | undefined,
+    call: () => Promise<ToolResult>,
+  ): Promise<ToolResult> {
+    if (!running.cursor || name !== "browser_take_screenshot") return await call();
+    return await running.cursor.hiddenDuring(page, call);
   }
 
   /**

@@ -6,7 +6,7 @@ import { HUMANIZE_LEVELS, type HumanizeLevel } from "./humanize.js";
 import { assertIdentityId, identityDir } from "./identities.js";
 import type { EngineFlags } from "./engine.js";
 import type { LiveFlags } from "./live.js";
-import { MAX_LIVE_WAIT_MS, MIN_LIVE_WAIT_MS } from "./settings.js";
+import { CURSOR_MODES, type CursorMode, MAX_LIVE_WAIT_MS, MIN_LIVE_WAIT_MS } from "./settings.js";
 import { parseAttachTarget } from "./engine-attach.js";
 import type { TuningFlags } from "./tuning.js";
 import { parseDuration } from "./units.js";
@@ -28,7 +28,7 @@ import { parseDuration } from "./units.js";
  * Headed mode and `viewport: null` are already the program's defaults for headed runs, so
  * nothing is added for them; no init scripts are ever added.
  *
- * The tab governor, background throttling, humanize and sharing flags (`TUNING_FLAGS`) are turno's: they are
+ * The tab governor, background throttling, humanize, sharing and cursor flags (`TUNING_FLAGS`) are turno's: they are
  * taken out here and win over identity.json. So are `--engine <chrome|lightpanda|camoufox>` and `--attach <target>` (`engine.ts`); with either and
  * no identity there is no Chrome profile to create. So are `--live` and `--live-wait <duration>` (`live.ts`), which need an identity.
  *
@@ -138,6 +138,7 @@ export const TUNING_FLAGS = {
   "--background-throttling": "",
   "--humanize": "<off|light|full|adaptive>",
   "--sharing": "<session|tabs>",
+  "--cursor": "<auto|on|off>",
 } as const;
 
 function tuningValue(flag: keyof typeof TUNING_FLAGS, value: string, out: TuningFlags): void {
@@ -156,6 +157,10 @@ function tuningValue(flag: keyof typeof TUNING_FLAGS, value: string, out: Tuning
     if (value !== "session" && value !== "tabs")
       throw new Error(`--sharing must be "session" (one agent session at a time) or "tabs", not "${value}"`);
     out.sharing = value;
+  } else if (flag === "--cursor") {
+    if (!(CURSOR_MODES as readonly string[]).includes(value))
+      throw new Error(`--cursor must be "auto" (when the browser can be seen), "on" or "off", not "${value}"`);
+    out.cursor = value as CursorMode;
   } else {
     const ms = parseDuration(value);
     if (ms === undefined) throw new Error(`${flag} must be a duration like "5m", "90s" or "0" (off), not "${value}"`);
