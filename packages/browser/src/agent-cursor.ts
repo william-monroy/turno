@@ -172,8 +172,7 @@ export class AgentCursor {
       const report = await page.evaluate(cursorOverlay, [...prelude, ...commands]);
       this.reports.set(page, report);
       return report;
-    } catch (e) {
-      if (process.env.TURNO_CURSOR_DEBUG) console.error("cursor:", e);
+    } catch {
       return undefined;
     }
   }
