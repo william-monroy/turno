@@ -271,3 +271,52 @@ describe("turno-browser", () => {
     expect(existsSync(join(sb.home, ".config", "turno"))).toBe(false);
   });
 });
+
+describe("shell completion", () => {
+  const complete = (...words: string[]) =>
+    run(["__complete", "--", ...words])
+      .out.trim()
+      .split("\n")
+      .filter(Boolean);
+
+  it("completes commands, identities, setup agents, do actions and flags", () => {
+    expect(run(["add", "school"]).code).toBe(0);
+    expect(run(["add", "work"]).code).toBe(0);
+    expect(complete("se")).toEqual(["setup", "secret", "set"]);
+    expect(complete("show", "")).toEqual(["school", "work"]);
+    expect(complete("setup", "")).toEqual(["claude-code", "codex", "cursor", "copilot", "gemini", "json"]);
+    expect(complete("setup", "codex", "--identity", "w")).toEqual(["work"]);
+    expect(complete("background", "")).toEqual(["status", "start", "stop"]);
+    expect(complete("background", "stop", "s")).toEqual(["school"]);
+    expect(complete("do", "school", "snap")).toEqual(["snapshot"]);
+    expect(complete("show", "school", "--")).toEqual(["--json", "--help"]);
+    expect(complete("import", "")).toEqual([":file"]);
+    expect(complete("completion", "")).toEqual(["zsh", "bash", "fish"]);
+    // Secret names come from the secret store, which completion never reads.
+    expect(complete("secret", "has", "")).toEqual([]);
+  });
+
+  it("prints a script for each shell and refuses an unknown one", () => {
+    for (const shell of ["zsh", "bash", "fish"]) {
+      const r = run(["completion", shell]);
+      expect(r.code).toBe(0);
+      expect(r.out).toContain("turno-browser __complete --");
+    }
+    const bad = run(["completion", "tcsh"]);
+    expect(bad.code).toBe(2);
+    expect(bad.err).toContain("usage: turno-browser completion <zsh|bash|fish>");
+    expect(run(["--help"]).out).toContain("turno-browser completion <zsh|bash|fish>");
+  });
+});
+
+describe("a closed pipe", () => {
+  it("ends quietly when the reader stops early (turno-browser --help | head)", () => {
+    for (let i = 0; i < 5; i++) {
+      const r = spawnSync("sh", ["-c", `"${process.execPath}" "${BIN}" --help | head -c 1 >/dev/null`], {
+        env: sb.env,
+        encoding: "utf8",
+      });
+      expect(r.stderr).not.toContain("EPIPE");
+    }
+  });
+});

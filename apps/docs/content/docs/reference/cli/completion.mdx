@@ -10,7 +10,7 @@ Usage: turno completion <zsh|bash|fish>
 
 Prints the completion script. To load it in every shell:
   zsh   echo 'source <(turno completion zsh)' >> ~/.zshrc
-  bash  echo 'source <(turno completion bash)' >> ~/.bashrc
+  bash  echo 'eval "$(turno completion bash)"' >> ~/.bashrc
   fish  turno completion fish > ~/.config/fish/completions/turno.fish
 
 Examples:

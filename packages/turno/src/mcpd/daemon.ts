@@ -333,7 +333,20 @@ export interface RunningDaemon {
  * that port. A broken mcp.toml or config.toml never stops it from starting.
  */
 export async function startDaemon(
-  opts: { env?: NodeJS.ProcessEnv; port?: number; logToStdout?: boolean; logMaxBytes?: number } = {},
+  opts: {
+    env?: NodeJS.ProcessEnv;
+    port?: number;
+    logToStdout?: boolean;
+    logMaxBytes?: number;
+    /**
+     * Called once when the home folder mcpd runs in no longer exists (a throwaway HOME someone
+     * removed): such a gateway can never serve again, so `turno mcp daemon run` stops it rather
+     * than leaving it running with no files and no way to reach it.
+     */
+    onHomeGone?: () => void;
+    /** How often the home folder is checked (default 15 s). */
+    homeCheckMs?: number;
+  } = {},
 ): Promise<RunningDaemon> {
   const env = opts.env ?? process.env;
   const p = paths(env);
@@ -537,6 +550,17 @@ export async function startDaemon(
       void sampler.sample(manager.list().map((i) => ({ descKey: i.descKey, pid: i.upstream.pid })));
     }, 15_000);
     timer.unref();
+    let homeTimer: NodeJS.Timeout | undefined;
+    const onHomeGone = opts.onHomeGone;
+    if (onHomeGone) {
+      homeTimer = setInterval(() => {
+        if (existsSync(p.home)) return;
+        clearInterval(homeTimer);
+        log(`the home folder ${p.home} was removed; stopping`);
+        onHomeGone();
+      }, opts.homeCheckMs ?? 15_000);
+      homeTimer.unref();
+    }
     // /status shows the pressure from the start instead of after the first reap.
     void manager.readPressure().catch(() => {});
 
@@ -550,6 +574,7 @@ export async function startDaemon(
         if (stopped) return;
         stopped = true;
         clearInterval(timer);
+        clearInterval(homeTimer);
         clearTimeout(debounce);
         clearTimeout(configDebounce);
         watcher?.close();

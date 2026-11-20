@@ -4,6 +4,7 @@
  * (`turno-core/cli/io`), for hot paths that load only what they use.
  */
 export * from "./args.js";
+export * from "./completion.js";
 export * from "./exit.js";
 export * from "./group.js";
 export * from "./highlight.js";

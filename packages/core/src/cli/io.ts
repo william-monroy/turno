@@ -42,7 +42,25 @@ async function askStdin(question: string): Promise<string> {
   }
 }
 
+let pipeGuard = false;
+
+/**
+ * A reader that stops early (`turno --help | head`) closes the pipe, and the next write fails
+ * with EPIPE. That is how a pipeline ends, not an error: exit quietly instead of printing a
+ * stack trace. Any other stream error is left to Node.
+ */
+export function quietOnClosedPipe(stream: NodeJS.WriteStream = process.stdout): void {
+  stream.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EPIPE") return process.exit(0);
+    throw err;
+  });
+}
+
 export function defaultIo(): Io {
+  if (!pipeGuard) {
+    pipeGuard = true;
+    quietOnClosedPipe(process.stdout);
+  }
   return {
     out: (line = "") => process.stdout.write(`${line}\n`),
     err: (line = "") => process.stderr.write(`${line}\n`),

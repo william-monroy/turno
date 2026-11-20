@@ -192,19 +192,27 @@ async function runDaemon(args: string[], io: Io): Promise<number> {
   let waiting = false;
   for (;;) {
     try {
+      let homeGone: (() => void) | undefined;
       const d = await startDaemon({
         env: io.env,
         logToStdout: Boolean(process.stdout.isTTY) && !service,
         ...(port !== undefined ? { port } : {}),
+        onHomeGone: () => homeGone?.(),
       });
       io.err(`mcpd listening on 127.0.0.1:${d.port}`);
       const unguard = installCrashGuards(d.log, () => d.stop());
       await new Promise<void>((resolve) => {
         const stop = () => {
+          process.off("SIGINT", stop);
+          process.off("SIGTERM", stop);
           void d.stop().then(resolve, resolve);
         };
         process.once("SIGINT", stop);
         process.once("SIGTERM", stop);
+        homeGone = () => {
+          io.err("turno: mcpd stopped: its home folder was removed");
+          stop();
+        };
       });
       unguard();
       return 0;

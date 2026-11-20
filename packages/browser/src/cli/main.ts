@@ -22,6 +22,7 @@ import {
 import { api } from "../api.js";
 import { type BrowserCli, browserCli } from "./commands.js";
 import { standaloneHost } from "./context.js";
+import { COMPLETION_USAGE, complete, completionScript } from "./completion.js";
 
 /**
  * `turno-browser <command>`: the identity commands on their own, without turno-cli. The same
@@ -64,6 +65,7 @@ export function renderHelp(io: Io, cli: BrowserCli): string[] {
       [`${PROGRAM} <command> [flags]`, "manage identities: persistent Chrome profiles your agents sign in with"],
       [`${PROGRAM} <command> --help`, "the flags and examples of one command"],
       ["turno-browser-mcp --identity <id>", "the MCP server an agent runs for one identity (--help)"],
+      [`${PROGRAM} completion <zsh|bash|fish>`, "shell completion for commands, identities and flags (--help)"],
     ]),
   );
   const left = Math.max(...SECTIONS.flatMap((x) => x.commands.map((n) => n.length)));
@@ -172,6 +174,25 @@ export async function main(args: string[], io: Io = defaultIo()): Promise<number
     }
     if (head === "--version" || head === "-v") {
       io.out(`${PROGRAM} ${version()}`);
+      return Exit.ok;
+    }
+    if (head === "__complete") {
+      const words = tail[0] === "--" ? tail.slice(1) : tail;
+      for (const c of complete(words.length ? words : [""], cli.subs, io.env)) io.out(c);
+      return Exit.ok;
+    }
+    if (head === "completion") {
+      if (tail[0] === "--help" || tail[0] === "-h") {
+        io.out(COMPLETION_USAGE(PROGRAM));
+        return Exit.ok;
+      }
+      const script = completionScript(PROGRAM, tail[0]);
+      if (!script || tail.length > 1) throw new UsageError(`usage: ${PROGRAM} completion <zsh|bash|fish>`);
+      io.out(script.trimEnd());
+      return Exit.ok;
+    }
+    if (head === "help" && tail[0] === "completion") {
+      io.out(COMPLETION_USAGE(PROGRAM));
       return Exit.ok;
     }
     if (head === "help") return await cli.command.run([...tail, "--help"], io);
