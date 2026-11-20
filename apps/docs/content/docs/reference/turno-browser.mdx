@@ -158,17 +158,17 @@ Usage:
       [--block-trackers true|false] [--block-types image,media,font]
       [--block-patterns <host|glob>,...] [--no-block] [--cache]
       [--cache-max-size <size>] [--no-cache] [--humanize
-      off|light|full|adaptive] [--sharing session|tabs] [--tab-lock-wait
-      <duration>] [--tab-lock-release <duration>] [--engine chrome|lightpanda]
-      [--attach auto|<dir>|<url>] [--record-flows true|false] [--record-traces
-      true|false] [--record-screenshots true|false] [--record-max-size <size>]
-      [--no-record] [--act] [--act-sampling true|false] [--act-provider
-      chat-completions] [--act-endpoint <url>] [--act-model <name>] [--act-key
-      keychain:<item>] [--act-max-steps <n>] [--act-max-tokens <n>]
-      [--act-timeout <duration>] [--no-act] [--captcha-provider task-api]
-      [--captcha-endpoint <url>] [--captcha-key keychain:<item>]
-      [--captcha-timeout <duration>] [--no-captcha] [--live true|false]
-      [--live-wait <duration>] [--no-live] [--user-agent coherent]
+      off|light|full|adaptive] [--cursor auto|on|off] [--sharing session|tabs]
+      [--tab-lock-wait <duration>] [--tab-lock-release <duration>] [--engine
+      chrome|lightpanda] [--attach auto|<dir>|<url>] [--record-flows true|false]
+      [--record-traces true|false] [--record-screenshots true|false]
+      [--record-max-size <size>] [--no-record] [--act] [--act-sampling
+      true|false] [--act-provider chat-completions] [--act-endpoint <url>]
+      [--act-model <name>] [--act-key keychain:<item>] [--act-max-steps <n>]
+      [--act-max-tokens <n>] [--act-timeout <duration>] [--no-act]
+      [--captcha-provider task-api] [--captcha-endpoint <url>] [--captcha-key
+      keychain:<item>] [--captcha-timeout <duration>] [--no-captcha] [--live
+      true|false] [--live-wait <duration>] [--no-live] [--user-agent coherent]
       [--proxy-server <url>] [--proxy-username <name|keychain:item>]
       [--proxy-password keychain:<item>] [--no-proxy] [--dry-run] [--json]
     change an identity's identity.json (an empty value removes a setting)
@@ -204,6 +204,11 @@ Input:
                                   inside the target, keys typed with human delays), full (plus
                                   overshoot, reading pauses, wheel scrolling) or adaptive
                                   (light, full on a site after a challenge page there)
+  --cursor auto|on|off            the agent cursor: an arrow with the agent's name that glides to
+                                  what it acts on, a ring, click ripples, and a frame with a badge
+                                  while it works. auto (default): when the browser can be seen (a
+                                  window, or the live view). It is an element in each page that a
+                                  page script can see: off leaves pages exactly as they are
 
 Which engine runs this identity (all off by default):
   --engine lightpanda             read mode: Lightpanda instead of Chrome, for reading pages;
@@ -811,6 +816,11 @@ Input (wins over the identity's identity.json):
                            to a point inside the target, keys are typed with human delays;
                            full adds overshoot, reading pauses and wheel scrolling; adaptive is
                            light, and full on a site that showed a challenge page
+  --cursor <auto|on|off>   the agent cursor: a named arrow that glides to what the agent acts
+                           on, a ring, click ripples and a frame with a badge while it works.
+                           auto (default): when the browser can be seen (a window, or the live
+                           view). It is an element in each page, which a page script can see:
+                           off leaves pages as they are
 
 Engines (these flags win over the identity's identity.json; all off by default):
   --engine lightpanda      read mode: Lightpanda instead of Chrome, for reading pages

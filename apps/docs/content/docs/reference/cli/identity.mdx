@@ -26,17 +26,17 @@ Usage:
       <duration>] [--block-trackers true|false] [--block-types image,media,font]
       [--block-patterns <host|glob>,...] [--no-block] [--cache]
       [--cache-max-size <size>] [--no-cache] [--humanize
-      off|light|full|adaptive] [--sharing session|tabs] [--tab-lock-wait
-      <duration>] [--tab-lock-release <duration>] [--engine chrome|lightpanda]
-      [--attach auto|<dir>|<url>] [--record-flows true|false] [--record-traces
-      true|false] [--record-screenshots true|false] [--record-max-size <size>]
-      [--no-record] [--act] [--act-sampling true|false] [--act-provider
-      chat-completions] [--act-endpoint <url>] [--act-model <name>] [--act-key
-      keychain:<item>] [--act-max-steps <n>] [--act-max-tokens <n>]
-      [--act-timeout <duration>] [--no-act] [--captcha-provider task-api]
-      [--captcha-endpoint <url>] [--captcha-key keychain:<item>]
-      [--captcha-timeout <duration>] [--no-captcha] [--live true|false]
-      [--live-wait <duration>] [--no-live] [--user-agent coherent]
+      off|light|full|adaptive] [--cursor auto|on|off] [--sharing session|tabs]
+      [--tab-lock-wait <duration>] [--tab-lock-release <duration>] [--engine
+      chrome|lightpanda] [--attach auto|<dir>|<url>] [--record-flows true|false]
+      [--record-traces true|false] [--record-screenshots true|false]
+      [--record-max-size <size>] [--no-record] [--act] [--act-sampling
+      true|false] [--act-provider chat-completions] [--act-endpoint <url>]
+      [--act-model <name>] [--act-key keychain:<item>] [--act-max-steps <n>]
+      [--act-max-tokens <n>] [--act-timeout <duration>] [--no-act]
+      [--captcha-provider task-api] [--captcha-endpoint <url>] [--captcha-key
+      keychain:<item>] [--captcha-timeout <duration>] [--no-captcha] [--live
+      true|false] [--live-wait <duration>] [--no-live] [--user-agent coherent]
       [--proxy-server <url>] [--proxy-username <name|keychain:item>]
       [--proxy-password keychain:<item>] [--no-proxy] [--dry-run] [--json]
                                 change a browser identity's identity.json:
@@ -124,17 +124,17 @@ Usage:
       <duration>] [--block-trackers true|false] [--block-types image,media,font]
       [--block-patterns <host|glob>,...] [--no-block] [--cache]
       [--cache-max-size <size>] [--no-cache] [--humanize
-      off|light|full|adaptive] [--sharing session|tabs] [--tab-lock-wait
-      <duration>] [--tab-lock-release <duration>] [--engine chrome|lightpanda]
-      [--attach auto|<dir>|<url>] [--record-flows true|false] [--record-traces
-      true|false] [--record-screenshots true|false] [--record-max-size <size>]
-      [--no-record] [--act] [--act-sampling true|false] [--act-provider
-      chat-completions] [--act-endpoint <url>] [--act-model <name>] [--act-key
-      keychain:<item>] [--act-max-steps <n>] [--act-max-tokens <n>]
-      [--act-timeout <duration>] [--no-act] [--captcha-provider task-api]
-      [--captcha-endpoint <url>] [--captcha-key keychain:<item>]
-      [--captcha-timeout <duration>] [--no-captcha] [--live true|false]
-      [--live-wait <duration>] [--no-live] [--user-agent coherent]
+      off|light|full|adaptive] [--cursor auto|on|off] [--sharing session|tabs]
+      [--tab-lock-wait <duration>] [--tab-lock-release <duration>] [--engine
+      chrome|lightpanda] [--attach auto|<dir>|<url>] [--record-flows true|false]
+      [--record-traces true|false] [--record-screenshots true|false]
+      [--record-max-size <size>] [--no-record] [--act] [--act-sampling
+      true|false] [--act-provider chat-completions] [--act-endpoint <url>]
+      [--act-model <name>] [--act-key keychain:<item>] [--act-max-steps <n>]
+      [--act-max-tokens <n>] [--act-timeout <duration>] [--no-act]
+      [--captcha-provider task-api] [--captcha-endpoint <url>] [--captcha-key
+      keychain:<item>] [--captcha-timeout <duration>] [--no-captcha] [--live
+      true|false] [--live-wait <duration>] [--no-live] [--user-agent coherent]
       [--proxy-server <url>] [--proxy-username <name|keychain:item>]
       [--proxy-password keychain:<item>] [--no-proxy] [--dry-run] [--json]
     change a browser identity's identity.json: place, languages, health check,
@@ -171,6 +171,11 @@ Input:
                                   inside the target, keys typed with human delays), full (plus
                                   overshoot, reading pauses, wheel scrolling) or adaptive
                                   (light, full on a site after a challenge page there)
+  --cursor auto|on|off            the agent cursor: an arrow with the agent's name that glides to
+                                  what it acts on, a ring, click ripples, and a frame with a badge
+                                  while it works. auto (default): when the browser can be seen (a
+                                  window, or the live view). It is an element in each page that a
+                                  page script can see: off leaves pages exactly as they are
 
 Which engine runs this identity (all off by default):
   --engine lightpanda             read mode: Lightpanda instead of Chrome, for reading pages;
