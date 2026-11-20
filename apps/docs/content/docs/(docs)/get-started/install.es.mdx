@@ -54,7 +54,7 @@ En Linux también funciona: los secretos MCP van al Secret Service (`secret-tool
 
 ```sh
 echo 'source <(turno completion zsh)' >> ~/.zshrc
-echo 'source <(turno completion bash)' >> ~/.bashrc
+echo 'eval "$(turno completion bash)"' >> ~/.bashrc
 turno completion fish > ~/.config/fish/completions/turno.fish
 ```
 

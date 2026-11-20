@@ -81,6 +81,14 @@ turno-browser do school end
 
 [Actions and the shell](/docs/browser/actions#from-the-shell) has every action of `do`.
 
+## Shell completion (optional)
+
+```sh
+echo 'source <(turno-browser completion zsh)' >> ~/.zshrc
+echo 'eval "$(turno-browser completion bash)"' >> ~/.bashrc
+turno-browser completion fish > ~/.config/fish/completions/turno-browser.fish
+```
+
 ## With turno
 
 If you use turno, its gateway runs the browser server for you: one server for every session of every agent, stopped when nobody uses it.
