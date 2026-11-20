@@ -221,7 +221,11 @@ function describeSettings(s: IdentitySettings): string {
   const langs = acceptLanguages(s);
   if (langs) parts.push(`languages ${langs.join(", ")}`);
   if (s.region) parts.push(`region ${s.region}`);
-  return parts.length ? parts.join(", ") : "no fixed time zone or languages";
+  const base = parts.length ? parts.join(", ") : "no fixed time zone or languages";
+  // The agent cursor is on when the browser can be seen (auto): say so only when set otherwise.
+  if (s.cursor === "on") return `${base}; agent cursor always shown`;
+  if (s.cursor === "off") return `${base}; agent cursor off`;
+  return base;
 }
 
 /** The `turno identity set` flag that replaces the value a problem is about. */
@@ -233,6 +237,7 @@ function settingsFix(id: string, problem: string): string | undefined {
       ["languages", "--languages <tag,...>"],
       ["region", "--region <CC>"],
       ["health", "--health-url <url> --health-text <text>"],
+      ["cursor", "--cursor auto|on|off"],
     ] as const
   ).find(([key]) => problem.startsWith(key))?.[1];
   return flag ? `turno identity set browser:${id} ${flag}` : undefined;

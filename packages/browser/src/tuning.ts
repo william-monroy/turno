@@ -1,6 +1,6 @@
 import type { HumanizeLevel, HumanizeSettings } from "./humanize.js";
 import { DEFAULT_CACHE_BYTES, type ResourcePolicy } from "./resources.js";
-import type { IdentitySettings } from "./settings.js";
+import type { CursorMode, IdentitySettings } from "./settings.js";
 import type { SharingMode } from "./sharing.js";
 import type { TabLockPolicy } from "./tab-locks.js";
 import { parseDuration, parseSize } from "./units.js";
@@ -47,6 +47,8 @@ export interface Tuning {
   sharing: SharingMode;
   /** With `"sharing": "tabs"`: the lock wait and idle release of identity.json `tabLocks`. */
   tabLocks: Partial<TabLockPolicy>;
+  /** The agent cursor (`agent-cursor.ts`), from `--cursor` or identity.json `cursor`; `"auto"` by default. */
+  cursor: CursorMode;
 }
 
 /** The defaults, documented on the browser identities page. */
@@ -66,6 +68,7 @@ export interface TuningFlags {
   backgroundThrottling?: boolean;
   humanize?: HumanizeLevel;
   sharing?: SharingMode;
+  cursor?: CursorMode;
 }
 
 /** The tuning of a session: flags, then identity.json, then the defaults. */
@@ -89,6 +92,7 @@ export function resolveTuning(settings: IdentitySettings | undefined, flags: Tun
       level: flags.humanize ?? settings?.humanize?.level ?? "off",
     },
     sharing: flags.sharing ?? settings?.sharing ?? "session",
+    cursor: flags.cursor ?? settings?.cursor ?? "auto",
     tabLocks: {
       ...(settings?.tabLocks?.wait === undefined ? {} : { waitMs: ms(settings.tabLocks.wait)! }),
       ...(settings?.tabLocks?.release === undefined ? {} : { releaseMs: ms(settings.tabLocks.release)! }),

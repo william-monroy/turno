@@ -125,6 +125,8 @@ export const SETTINGS_FLAGS: FlagSpec = {
   "proxy-username": { type: "string" },
   "proxy-password": { type: "string" },
   "no-proxy": { type: "boolean" },
+  // The agent cursor (format 12): auto, on or off.
+  cursor: { type: "string" },
 };
 
 /** The identity.json key behind each tuning flag, so the package's messages name the flag. */
@@ -141,6 +143,7 @@ const KEY_FLAGS: readonly (readonly [string, string])[] = [
   ["cache.maxSize", "--cache-max-size"],
   ["humanize.level", "--humanize"],
   ["sharing", "--sharing"],
+  ["cursor", "--cursor"],
   ["tabLocks.wait", "--tab-lock-wait"],
   ["tabLocks.release", "--tab-lock-release"],
   ["engine", "--engine"],
@@ -348,6 +351,9 @@ function tuningPatch(
   // Checked by the package: an unknown value comes back as `--sharing must be ...`.
   const sharing = value("sharing");
   if (sharing !== undefined) patch.sharing = sharing as IdentitySettings["sharing"] | null;
+  // Checked by the package too: an unknown value comes back as `--cursor must be ...`.
+  const cursor = value("cursor");
+  if (cursor !== undefined) patch.cursor = cursor as IdentitySettings["cursor"] | null;
   const locks = { wait: value("tab-lock-wait"), release: value("tab-lock-release") };
   if (locks.wait !== undefined || locks.release !== undefined)
     patch.tabLocks = mergeGroup<TabLockSettings>(current?.tabLocks, locks);
@@ -527,6 +533,13 @@ export function localTime(iso: string | undefined): string {
   return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`;
 }
 
+/** What each agent cursor mode does, for `show`. */
+const CURSOR_TEXT: Readonly<Record<string, string>> = {
+  auto: "shown when the browser can be seen: a window, or the live view (auto)",
+  on: "always shown (on)",
+  off: "never shown: pages stay as they are (off)",
+};
+
 export function show(c: Ctx, id: string, args: string[], io: Io): number {
   const m = c.api;
   const p = parseFlags(args, JSON_FLAG, 1);
@@ -587,6 +600,7 @@ export function show(c: Ctx, id: string, args: string[], io: Io): number {
         `${HUMANIZE_TEXT[settings.humanize.level] ?? settings.humanize.level}${settings.humanize.seed === undefined ? "" : s.muted(` (seed ${settings.humanize.seed})`)}`,
       ]);
     if (settings.sharing === "tabs") rows.push(["sharing", "every agent session at once, each in its own tabs"]);
+    rows.push(["agent cursor", CURSOR_TEXT[settings.cursor ?? "auto"] ?? String(settings.cursor)]);
     if (settings.tabLocks)
       rows.push([
         "tab locks",
@@ -654,7 +668,7 @@ const SET_FLAGS: FlagSpec = { ...SETTINGS_FLAGS, "dry-run": { type: "boolean" },
 export const SET_SYNOPSIS =
   "[--timezone <zone>] [--locale <tag>] [--languages <tag,...>] [--region <CC>] [--health-url <url>] [--health-text <text>] [--health-selector <css>] [--no-health] " +
   "[--tabs-max <n>] [--tabs-popups close|keep] [--tabs-park <duration>] [--tabs-close <duration>] [--no-tabs] [--background-throttling true|false] [--settle <duration>] " +
-  "[--block-trackers true|false] [--block-types image,media,font] [--block-patterns <host|glob>,...] [--no-block] [--cache] [--cache-max-size <size>] [--no-cache] [--humanize off|light|full|adaptive] [--sharing session|tabs] [--tab-lock-wait <duration>] [--tab-lock-release <duration>] " +
+  "[--block-trackers true|false] [--block-types image,media,font] [--block-patterns <host|glob>,...] [--no-block] [--cache] [--cache-max-size <size>] [--no-cache] [--humanize off|light|full|adaptive] [--cursor auto|on|off] [--sharing session|tabs] [--tab-lock-wait <duration>] [--tab-lock-release <duration>] " +
   "[--engine chrome|lightpanda] [--attach auto|<dir>|<url>] [--record-flows true|false] [--record-traces true|false] [--record-screenshots true|false] [--record-max-size <size>] [--no-record] " +
   "[--act] [--act-sampling true|false] [--act-provider chat-completions] [--act-endpoint <url>] [--act-model <name>] [--act-key keychain:<item>] [--act-max-steps <n>] [--act-max-tokens <n>] [--act-timeout <duration>] [--no-act] " +
   "[--captcha-provider task-api] [--captcha-endpoint <url>] [--captcha-key keychain:<item>] [--captcha-timeout <duration>] [--no-captcha] [--live true|false] [--live-wait <duration>] [--no-live] " +
@@ -694,6 +708,11 @@ Input:
                                   inside the target, keys typed with human delays), full (plus
                                   overshoot, reading pauses, wheel scrolling) or adaptive
                                   (light, full on a site after a challenge page there)
+  --cursor auto|on|off            the agent cursor: an arrow with the agent's name that glides to
+                                  what it acts on, a ring, click ripples, and a frame with a badge
+                                  while it works. auto (default): when the browser can be seen (a
+                                  window, or the live view). It is an element in each page that a
+                                  page script can see: off leaves pages exactly as they are
 
 Which engine runs this identity (all off by default):
   --engine lightpanda             read mode: Lightpanda instead of Chrome, for reading pages;

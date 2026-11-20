@@ -51,6 +51,11 @@ Input (wins over the identity's identity.json):
                            to a point inside the target, keys are typed with human delays;
                            full adds overshoot, reading pauses and wheel scrolling; adaptive is
                            light, and full on a site that showed a challenge page
+  --cursor <auto|on|off>   the agent cursor: a named arrow that glides to what the agent acts
+                           on, a ring, click ripples and a frame with a badge while it works.
+                           auto (default): when the browser can be seen (a window, or the live
+                           view). It is an element in each page, which a page script can see:
+                           off leaves pages as they are
 
 Engines (these flags win over the identity's identity.json; all off by default):
   --engine lightpanda      read mode: Lightpanda instead of Chrome, for reading pages
