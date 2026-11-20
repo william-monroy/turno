@@ -1,5 +1,32 @@
 # turno-browser
 
+## 0.7.0
+
+### Minor Changes
+
+- 69f67a1: The agent cursor: when someone can see the browser (a Chrome window, or the live view), each page shows that an agent is at work and where. A Figma-like arrow with the agent's name and the identity glides to each element it acts on, a ring marks the element, a click leaves a ripple, a field being typed into gets a typing bubble, and a thin frame with a badge ("turno · Claude Code at work", or "paused · you have the controls" while the live view's pause is on) goes around the page while calls run. Several agent sessions on one identity's Chrome each get a cursor and a color of their own, and with humanize on the arrow follows the real pointer path.
+  
+  It is drawn in a closed shadow root that is out of the accessibility tree, out of the page's text and never a click target, and it is hidden while the model's screenshot is taken, so the model sees the page as before. `turno-browser set <id> --cursor auto|on|off` (identity.json `cursor`, format 12) and `turno-browser-mcp --cursor` choose it: `auto` (the default) draws it when the browser can be seen, and `off` leaves pages exactly as they are.
+- 0c723fc: `turno-browser init` sets turno-browser up step by step: it names and creates an identity (or
+  uses one that is there), opens Chrome to sign in by hand on a first site, finds the agents
+  installed here and runs the agent's `mcp add` command only on a yes. Without a terminal it needs
+  `--identity` and `--agent`, skips the sign-in and prints the command instead. `turno-browser`
+  with no command now points to it.
+  
+  The first steps say more of what happened:
+  
+  - `login` opens a page that says what to do instead of a blank tab, and on close names the sites
+    that were opened, or says that nothing new was signed in.
+  - `show` has a "last sign-in" line, local times and a hint to turn on the health check;
+    `doctor` says when an identity was never signed in by hand.
+  - `list`, `show` and `doctor` say "not in use" instead of "free".
+  - `do <id> end` says that Chrome stays open in the background server and how to close it now.
+  - `do` errors no longer start with "Error: Error:", and a stale ref or text where a ref goes gets
+    a hint (`snapshot`, `find`).
+  - `setup claude` suggests `claude-code`.
+  - `add` prints its next steps with each explanation on its own line, so the commands paste into
+    zsh as they are.
+
 ## 0.6.0
 
 ### Minor Changes
