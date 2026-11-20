@@ -1,5 +1,13 @@
 # turno-browser
 
+## 0.7.1
+
+### Patch Changes
+
+- 298c744: The agent cursor follows the pointer path with humanize on, counts the other busy sessions on the badge with shared tabs, keeps the typing bubble up long enough to see, and keeps its label inside the page. Each session's cursor is named after its own agent ("Claude Code", "Codex", "Cursor", "Copilot", "Gemini CLI") instead of the raw client name or the name of the first one: mcpd sends the client's name with each call (`io.turno/client` in `_meta`), and a shared host uses each connection's own.
+- 3a8e4b3: `turno-browser set --help` describes `--engine camoufox` by what it needs and what it lacks, without a "not recommended" label, like the other opt-in settings.
+- 70e2adc: `turno-browser init --agent json` ends with "start a new session of your MCP client" instead of "start a new any MCP client session".
+
 ## 0.7.0
 
 ### Minor Changes
