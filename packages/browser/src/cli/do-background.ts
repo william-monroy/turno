@@ -105,6 +105,13 @@ function sweepSaved(dir: string): void {
   }
 }
 
+/** An idle limit in words: 15m, 1h, 90s. */
+export function formatIdle(ms: number): string {
+  if (ms % 3_600_000 === 0) return `${ms / 3_600_000}h`;
+  if (ms % 60_000 === 0) return `${ms / 60_000}m`;
+  return `${Math.round(ms / 1000)}s`;
+}
+
 function message(err: unknown): string {
   return ((err as Error)?.message ?? String(err)).replace(/^(Error: )?/, "");
 }
@@ -172,6 +179,13 @@ export function backgroundTransport(deps: BackgroundDoDeps = defaultBackgroundDo
           if (live) await (await reopen(live))?.end();
           dropSaved(file);
           return true;
+        },
+        afterEnd() {
+          const server = api.backgroundStatus(id, { env });
+          if (!server) return undefined;
+          const idle =
+            server.idleMs > 0 ? `until it has been idle for ${formatIdle(server.idleMs)}` : "until you stop it";
+          return `Chrome stays open in the background server ${idle}; turno-browser background stop ${id} closes it now.`;
         },
         session: (fn) =>
           withLock(file, env, async () => {

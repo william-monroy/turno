@@ -147,7 +147,9 @@ describe.skipIf(reason !== undefined)(
       expect(tb("do", ID, "read").stdout.trim()).toBe("shell");
       const json = JSON.parse(tb("do", ID, "snapshot", "--json").stdout);
       expect(json).toMatchObject({ identity: ID, server: "background", session: { resumed: true }, ok: true });
-      expect(tb("do", ID, "end").stdout).toBe(`ended session default of ${ID}\n`);
+      expect(tb("do", ID, "end").stdout).toBe(
+        `ended session default of ${ID}\nChrome stays open in the background server until it has been idle for 15m; turno-browser background stop ${ID} closes it now.\n`,
+      );
       expect(tb("background", "status", "--json").stdout).toContain(`"identity": "${ID}"`);
       expect(tb("background", "stop", ID).stdout).toMatch(/^stopped the background server of "work"/);
     }, 90_000);

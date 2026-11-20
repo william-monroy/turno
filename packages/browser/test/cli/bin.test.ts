@@ -89,7 +89,7 @@ describe("turno-browser", () => {
     run(["add", "school"]);
     const text = run(["list"]);
     expect(text.code).toBe(0);
-    expect(text.out).toMatch(/^school +free/m);
+    expect(text.out).toMatch(/^school +not in use/m);
     expect(JSON.parse(run(["list", "--json"]).out)).toEqual([
       { schemaVersion: 1, id: "school", inUse: false, dir: "~/.local/share/turno/browser/identities/school" },
     ]);

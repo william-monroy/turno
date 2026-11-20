@@ -11,6 +11,8 @@ description: "Every turno-browser command, with the help text it prints."
 turno-browser: a browser your agents use with your accounts. It stays light on your machine, and the
 model never sees your passwords.
 
+New here? turno-browser init sets it up step by step: an identity, a sign-in, your agent.
+
 Usage
   turno-browser <command> [flags]  manage identities: persistent Chrome profiles
                                    your agents sign in with
@@ -21,6 +23,10 @@ Usage
   turno-browser completion <zsh|bash|fish>
                                    shell completion for commands, identities and
                                    flags (--help)
+
+Start here
+  init        set up step by step: an identity, a sign-in by hand, and your
+              agent (asks first)
 
 Identities
   list        list browser identities and whether they are in use
@@ -85,6 +91,27 @@ Flags of every command
   --version                  the turno-browser version
 
 turno-browser help <command> prints the same as turno-browser <command> --help.
+```
+
+## turno-browser init
+
+```text
+Usage:
+  turno-browser init [--identity <id>] [--agent
+      <claude-code|codex|cursor|copilot|gemini|json|none>] [--url <url>]
+      [--no-login] [--yes] [--dry-run]
+    set up step by step: an identity, a sign-in by hand, and your agent (asks
+    first)
+
+Sets up a browser identity and gives it to your agent, asking at each step:
+  1. the identity's name (a new one is created; an existing one is used as it is)
+  2. signing in by hand: Chrome opens on the identity's profile (--url opens a first site)
+  3. the agent: the agents found on this machine; its mcp add command runs only if you say yes,
+     and an agent without one (cursor, json) gets the block to paste
+
+--yes answers yes to every step, --no-login skips the sign-in, --agent none skips the agent.
+Without a terminal (--no-input, a pipe or an agent session) it needs --identity and --agent,
+skips the sign-in and prints the agent's command instead of running it.
 ```
 
 ## turno-browser list

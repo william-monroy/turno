@@ -6,6 +6,7 @@ import { browserPaths as paths } from "turno-core/paths";
 import { type ProcTable, readProcTable, signalProcess } from "turno-core/process";
 import { type SecretStore, secretStore } from "turno-core/secrets";
 import { backgroundAlive, readBackgroundState } from "./background-state.js";
+import { profileHasCookies, readLoginRecord } from "./login.js";
 import { readHealth } from "./health.js";
 import { identityDir, isValidIdentityId } from "./ids.js";
 import { defaultChromeUserDataDir, parseAttachTarget, resolveAttachEndpoint } from "./engine-attach.js";
@@ -320,7 +321,7 @@ function identityChecks(
       auto: true,
     });
   } else {
-    add({ level: "ok", text: "free: no process holds it" });
+    add({ level: "ok", text: "not in use: no process holds it" });
   }
 
   // The background server `turno-browser do` starts: while it runs, an agent's server of this
@@ -333,6 +334,15 @@ function identityChecks(
       level: "info",
       text: `background server (pid ${background.pid}) since ${background.startedAt} serves it to turno-browser do; an agent's server of this identity cannot open the browser until it stops${idle}`,
       fix: `turno-browser background stop ${id}`,
+    });
+  }
+
+  // A profile nobody signed in to by hand starts signed out everywhere: say so before an agent finds out.
+  if (!readLoginRecord(id, env) && !profileHasCookies(id, env)) {
+    add({
+      level: "info",
+      text: "never signed in by hand here: the agent starts signed out on every site",
+      fix: `turno browser login ${id}`,
     });
   }
 

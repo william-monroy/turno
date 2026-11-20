@@ -97,6 +97,8 @@ export interface DoTarget {
   describe(io: Io): { open: boolean; lines: string[] };
   /** `do <id> end`: end the saved session at once; false when there was none. */
   end(): Promise<boolean>;
+  /** After `end`: what still runs (the server and its Chrome) and how to close it now, when anything does. */
+  afterEnd?(): string | undefined;
   /** Open a session, or continue the saved one, run `fn` in it, and keep it for the next command. */
   session<T>(fn: (s: DoSession) => Promise<T>): Promise<T>;
 }
@@ -395,7 +397,17 @@ function errorText(parts: Map<string, string>, whole: string): string {
   return raw
     .replace(ANSI, "")
     .replace(/^(Error: )?browserBackend\.callTool: (Error: )?/, "")
+    .replace(/^Error: /, "")
     .trim();
+}
+
+/** A next step for the errors a first `do` meets most: a ref from an old snapshot, or text where a ref goes. */
+export function errorHint(error: string, browser: string, id: string): string | undefined {
+  if (/^Ref \S+ not found/.test(error))
+    return `refs change with the page: \`${browser} do ${id} snapshot\` prints the current ones`;
+  if (/does not match any elements/.test(error))
+    return `pass a ref from \`${browser} do ${id} snapshot\` (like e12), or find one by its text with \`${browser} do ${id} find "<text>"\``;
+  return undefined;
 }
 
 /**
@@ -652,7 +664,11 @@ export async function browserDo(c: Ctx, args: string[], io: Io): Promise<number>
     const { name } = t.info(null);
     if (json)
       emit(io, p, DO_JSON, { ...head, session: t.info(null), action, ...blank, result: ended ? "ended" : "none" });
-    else io.out(ended ? `ended session ${name} of ${head.identity}` : `no session ${name} of ${head.identity} to end`);
+    else {
+      io.out(ended ? `ended session ${name} of ${head.identity}` : `no session ${name} of ${head.identity} to end`);
+      const note = t.afterEnd?.();
+      if (note) io.out(note);
+    }
     return Exit.ok;
   }
 
@@ -690,6 +706,8 @@ export async function browserDo(c: Ctx, args: string[], io: Io): Promise<number>
         error: r.error,
       });
     printText(io, r, json, c.names.program);
+    const hint = !json && r.error ? errorHint(r.error, b, id) : undefined;
+    if (hint) io.err(`hint: ${hint}`);
     return r.ok ? Exit.ok : Exit.failure;
   });
 }

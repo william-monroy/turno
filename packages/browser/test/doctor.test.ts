@@ -140,7 +140,13 @@ describe("browser doctor: identities", () => {
         level: "ok",
         text: "identity.json: time zone Europe/Madrid, languages es-ES, es, region ES",
       },
-      { area: "identity school", level: "ok", text: "free: no process holds it" },
+      { area: "identity school", level: "ok", text: "not in use: no process holds it" },
+      {
+        area: "identity school",
+        level: "info",
+        text: "never signed in by hand here: the agent starts signed out on every site",
+        fix: "turno-browser login school",
+      },
       {
         area: "identity school",
         level: "ok",
@@ -226,7 +232,7 @@ describe("browser doctor: identities", () => {
     const fixed = await doctor({ fix: true });
     expect(fixed.fixed).toEqual([`school: removed the stale runtime lock of pid ${gone.pid}`]);
     expect(existsSync(runtimeLockPath("school", sb.env))).toBe(false);
-    expect(find(fixed.checks, "identity school", /free/)).toMatchObject({ level: "ok" });
+    expect(find(fixed.checks, "identity school", /not in use/)).toMatchObject({ level: "ok" });
   });
 
   it("names a running background server and the command that stops it", async () => {
@@ -258,7 +264,7 @@ describe("browser doctor: identities", () => {
     addIdentity("school", sb.env);
     // A lock left by a Chrome that is gone: Chrome clears it on the next start, nothing to do.
     symlinkSync(`${hostname()}-999999`, join(identityDir("school", sb.env), "SingletonLock"));
-    expect(find((await doctor()).checks, "identity school", /free/)).toMatchObject({ level: "ok" });
+    expect(find((await doctor()).checks, "identity school", /not in use/)).toMatchObject({ level: "ok" });
   });
 
   it("summarizes recent challenges and points at the reputation report", async () => {

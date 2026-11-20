@@ -39,6 +39,7 @@ const FLAG_VALUES: Record<string, readonly string[] | "identity" | "file"> = {
   "--engine": ["chrome", "lightpanda", "camoufox"],
   "--out": "file",
   "--color": ["auto", "always", "never"],
+  "--agent": [...SETUP_AGENTS, "none"],
 };
 
 const GLOBAL_FLAGS = ["--help", "--version", "--no-input", "--color"];

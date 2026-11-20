@@ -61,6 +61,9 @@ const MEMBERS = [
   "stopBackground",
   // 1.12: the identity commands themselves.
   "cli",
+  // 1.13: the last sign-in by hand.
+  "profileHasCookies",
+  "readLoginRecord",
 ];
 
 describe("the public API object", () => {
@@ -74,8 +77,9 @@ describe("the public API object", () => {
   // 1.10: the userAgent and proxy keys and the camoufox engine (no new member).
   // 1.11: the background server of an identity.
   // 1.12: cli, the identity commands that turno-cli runs with its own host.
-  it("is version 1.12, frozen, with integer parts", () => {
-    expect(API_VERSION).toEqual({ major: 1, minor: 12 });
+  // 1.13: readLoginRecord, and the sites loginIdentity returns.
+  it("is version 1.13, frozen, with integer parts", () => {
+    expect(API_VERSION).toEqual({ major: 1, minor: 13 });
     expect(Object.isFrozen(API_VERSION)).toBe(true);
     expect(Number.isInteger(API_VERSION.major) && Number.isInteger(API_VERSION.minor)).toBe(true);
   });

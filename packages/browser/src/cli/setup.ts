@@ -1,5 +1,16 @@
 import { fileURLToPath } from "node:url";
-import { type FlagSpec, type Io, JSON_FLAG, bool, emit, fail, jsonOutput, parseFlags, str } from "turno-core/cli";
+import {
+  type FlagSpec,
+  type Io,
+  JSON_FLAG,
+  bool,
+  closest,
+  emit,
+  fail,
+  jsonOutput,
+  parseFlags,
+  str,
+} from "turno-core/cli";
 import { findOnPath } from "turno-core/paths";
 import type { Ctx } from "./context.js";
 
@@ -10,7 +21,7 @@ import type { Ctx } from "./context.js";
  */
 
 export const SETUP_AGENTS = ["claude-code", "codex", "cursor", "copilot", "gemini", "json"] as const;
-type SetupAgent = (typeof SETUP_AGENTS)[number];
+export type SetupAgent = (typeof SETUP_AGENTS)[number];
 
 /** `setup --json`: one object. */
 export const SETUP_JSON = jsonOutput([
@@ -28,7 +39,7 @@ export const SETUP_JSON = jsonOutput([
 const SETUP_FLAGS: FlagSpec = { identity: { type: "string" }, ...JSON_FLAG };
 
 /** What `setup` prints for one agent. */
-interface SetupConfig {
+export interface SetupConfig {
   agent: SetupAgent;
   identity: string;
   /** The server's name in the agent's config: `browser-<id>`. */
@@ -61,13 +72,13 @@ function json(v: unknown): string {
  * The command an agent runs: `turno-browser-mcp` when it is on the PATH, else this install's
  * full path (a `pnpm add` or a local checkout puts it nowhere on the PATH).
  */
-function mcpCommand(env: NodeJS.ProcessEnv): { command: string; onPath: boolean } {
+export function mcpCommand(env: NodeJS.ProcessEnv): { command: string; onPath: boolean } {
   if (findOnPath("turno-browser-mcp", env)) return { command: "turno-browser-mcp", onPath: true };
   return { command: fileURLToPath(new URL("../bin/mcp.js", import.meta.url)), onPath: false };
 }
 
 /** The config of `agent` for identity `id`, run as `command`. */
-function setupConfig(agent: SetupAgent, id: string, command: string): SetupConfig {
+export function setupConfig(agent: SetupAgent, id: string, command: string): SetupConfig {
   const server = `browser-${id}`;
   const args = ["--identity", id];
   const base = { agent, identity: id, server, command, args };
@@ -124,7 +135,7 @@ function setupConfig(agent: SetupAgent, id: string, command: string): SetupConfi
   }
 }
 
-const AGENT_NAMES: Record<SetupAgent, string> = {
+export const AGENT_NAMES: Record<SetupAgent, string> = {
   "claude-code": "Claude Code",
   codex: "Codex",
   cursor: "Cursor",
@@ -147,6 +158,13 @@ Agents:
 Without --identity it uses the only identity there is. The agent then starts turno-browser-mcp
 for the identity when it needs the browser.`;
 
+/** "unknown agent", with the agent the person most likely meant: claude for claude-code, cursr for cursor. */
+export function unknownAgent(agent: string): string {
+  const prefix = SETUP_AGENTS.find((a) => a.startsWith(agent.toLowerCase()) && agent.length >= 3);
+  const guess = prefix ?? closest(agent.toLowerCase(), SETUP_AGENTS);
+  return `unknown agent "${agent}"${guess ? `; did you mean ${guess}?` : ""} (agents: ${SETUP_AGENTS.join(", ")})`;
+}
+
 /** The identity `setup` is for: --identity, or the only one there is. */
 function pickIdentity(c: Ctx, flag: string | undefined, io: Io): string {
   const b = c.names.browser;
@@ -166,14 +184,30 @@ function pickIdentity(c: Ctx, flag: string | undefined, io: Io): string {
   return fail(`pick an identity with --identity: ${ids.join(", ")}`);
 }
 
+/** What `setup` prints for one config, before the closing line. */
+export function setupLines(cfg: SetupConfig): string[] {
+  const name = AGENT_NAMES[cfg.agent];
+  const id = cfg.identity;
+  const out: string[] = [];
+  if (cfg.agent === "claude-code") {
+    out.push(`Run this once to give ${name} the browser identity "${id}":`, "", cfg.shell!);
+  } else if (cfg.file) {
+    out.push(`Add this to ${cfg.file} to give ${name} the browser identity "${id}":`, "", cfg.config!);
+    if (cfg.shell) out.push("", `Or run: ${cfg.shell}`);
+  } else {
+    out.push(`The browser identity "${id}" for ${name}:`, "", cfg.config!);
+  }
+  out.push("", ...cfg.notes);
+  return out;
+}
+
 /** `<browser> setup <agent> [--identity <id>] [--json]`. */
 export function setup(c: Ctx, args: string[], io: Io): number {
   const p = parseFlags(args, SETUP_FLAGS, 1);
   const agent = p.positionals[0];
   const b = c.names.browser;
   if (!agent) return fail(`setup needs an agent: ${b} setup <${SETUP_AGENTS.join("|")}> [--identity <id>]`);
-  if (!(SETUP_AGENTS as readonly string[]).includes(agent))
-    return fail(`unknown agent "${agent}" (agents: ${SETUP_AGENTS.join(", ")})`);
+  if (!(SETUP_AGENTS as readonly string[]).includes(agent)) return fail(unknownAgent(agent));
   const id = pickIdentity(c, str(p, "identity"), io);
   const { command, onPath } = mcpCommand(io.env);
   const cfg = setupConfig(agent as SetupAgent, id, command);
@@ -182,20 +216,7 @@ export function setup(c: Ctx, args: string[], io: Io): number {
     emit(io, p, SETUP_JSON, cfg);
     return 0;
   }
-  const name = AGENT_NAMES[cfg.agent];
-  if (cfg.agent === "claude-code") {
-    io.out(`Run this once to give ${name} the browser identity "${id}":\n`);
-    io.out(cfg.shell!);
-  } else if (cfg.file) {
-    io.out(`Add this to ${cfg.file} to give ${name} the browser identity "${id}":\n`);
-    io.out(cfg.config!);
-    if (cfg.shell) io.out(`\nOr run: ${cfg.shell}`);
-  } else {
-    io.out(`The browser identity "${id}" for ${name}:\n`);
-    io.out(cfg.config!);
-  }
-  io.out("");
-  for (const n of cfg.notes) io.out(n);
+  for (const l of setupLines(cfg)) io.out(l);
   io.out(`Start a new agent session to load it. Sign in to your sites once with ${b} login ${id}.`);
   return 0;
 }
