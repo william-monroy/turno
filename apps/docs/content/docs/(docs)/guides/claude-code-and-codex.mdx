@@ -19,11 +19,16 @@ This guide adds a second agent to a turno setup, so both share one gateway and e
 ## Add a Codex profile
 
 ```sh
-turno profile add cx --agent codex   # ~/.codex-cx, codex-cx, config.toml with file credentials
-codex-cx login                       # sign in once, with the ChatGPT account of this profile
-turno mcp sync cx                    # point it at the gateway (the token stays in the environment)
-turno profile assign ~/code/acme cx  # this folder uses cx for Codex
-turno auto --agent codex             # the Codex profile of this folder
+# ~/.codex-cx, codex-cx, config.toml with file credentials
+turno profile add cx --agent codex
+# sign in once, with the ChatGPT account of this profile
+codex-cx login
+# point it at the gateway (the token stays in the environment)
+turno mcp sync cx
+# this folder uses cx for Codex
+turno profile assign ~/code/acme cx
+# the Codex profile of this folder
+turno auto --agent codex
 ```
 
 `config.toml` is copied from `~/.codex/config.toml` the first time, and turno always keeps `cli_auth_credentials_store = "file"` in it, so the login stays inside the profile instead of the shared Keychain.

@@ -43,7 +43,8 @@ parte que puedes probar.
 ## Instalación
 
 ```sh
-npx turno-cli demo              # pruébalo primero, en un HOME desechable; no toca tu configuración
+# pruébalo primero, en un HOME desechable; no toca tu configuración
+npx turno-cli demo
 ```
 
 Luego instálalo con el gestor de paquetes que ya usas (macOS o Linux, Node 22.11 o más nuevo):
@@ -52,7 +53,8 @@ Luego instálalo con el gestor de paquetes que ya usas (macOS o Linux, Node 22.1
 npm install --global turno-cli
 pnpm add --global turno-cli
 bun add --global turno-cli
-yarn global add turno-cli        # yarn 1 (classic); yarn 2 y posteriores no instalan global
+# yarn 1 (classic); yarn 2 y posteriores no instalan global
+yarn global add turno-cli
 brew tap wimo-dev/turno && brew trust wimo-dev/turno && brew install turno
 ```
 
@@ -67,11 +69,15 @@ hay cuenta, ni telemetría, ni proxy del tráfico con el modelo.
 ## Inicio rápido
 
 ```sh
-turno init                    # encuentra tus agentes, perfiles, carpetas y servidores MCP, muestra el diff,
-                              # arranca el gateway y apunta cada perfil a él
-claude-trabajo                # inicia sesión una vez por perfil (/login)
-cd ~/code/acme && turno auto  # Claude Code, con la cuenta de esta carpeta
-turno                         # dónde estás: esta carpeta, cuentas, gateway y qué sigue
+# encuentra tus agentes, perfiles, carpetas y servidores MCP, muestra el diff,
+# arranca el gateway y apunta cada perfil a él
+turno init
+# inicia sesión una vez por perfil (/login)
+claude-trabajo
+# Claude Code, con la cuenta de esta carpeta
+cd ~/code/acme && turno auto
+# dónde estás: esta carpeta, cuentas, gateway y qué sigue
+turno
 ```
 
 `turno init` pregunta antes de adoptar cualquier cosa y escribe todo como un solo cambio, así
@@ -80,14 +86,21 @@ en macOS, systemd --user en Linux); `turno init --no-start` lo deja para despué
 (`turno mcp daemon start` y luego `turno mcp sync`). Paso a paso:
 
 ```sh
-turno profile add trabajo --color violet  # ~/.claude-trabajo y el comando claude-trabajo
+# ~/.claude-trabajo y el comando claude-trabajo
+turno profile add trabajo --color violet
 turno profile add personal
-claude-trabajo                            # inicia sesión una vez por perfil (/login)
-turno profile assign ~/code/acme trabajo  # esta carpeta y todo lo que tiene adentro
-turno config set default personal         # carpetas sin regla
-turno mcp import --move-secrets --write   # mcp.toml a partir de los servidores que ya tienes
-turno mcp daemon start && turno mcp sync  # el gateway, y cada perfil apuntando a él
-cd ~/code/acme && turno auto              # Claude Code con la cuenta del trabajo
+# inicia sesión una vez por perfil (/login)
+claude-trabajo
+# esta carpeta y todo lo que tiene adentro
+turno profile assign ~/code/acme trabajo
+# carpetas sin regla
+turno config set default personal
+# mcp.toml a partir de los servidores que ya tienes
+turno mcp import --move-secrets --write
+# el gateway, y cada perfil apuntando a él
+turno mcp daemon start && turno mcp sync
+# Claude Code con la cuenta del trabajo
+cd ~/code/acme && turno auto
 ```
 
 Los perfiles de Codex, Copilot y Cursor son iguales, con `--agent codex|copilot|cursor`. Los
@@ -111,9 +124,12 @@ Los detalles de cada agente están en [docs/agents.md](docs/agents.md), los del 
 ## Un navegador por identidad
 
 ```sh
-npm install --global turno-browser   # paquete aparte, no se instala con turno
-turno identity add browser:escuela   # una identidad y su entrada en mcp.toml
-turno identity login browser:escuela # inicia sesión a mano una vez; las cookies se conservan
+# paquete aparte, no se instala con turno
+npm install --global turno-browser
+# una identidad y su entrada en mcp.toml
+turno identity add browser:escuela
+# inicia sesión a mano una vez; las cookies se conservan
+turno identity login browser:escuela
 ```
 
 `turno-browser` es su propio servidor MCP. Maneja el Chrome que ya tienes instalado, con

@@ -11,9 +11,12 @@ that same signed-in browser afterwards.
 
 ```sh
 npm install --global turno-browser
-turno-browser add school                             # a new identity
-turno-browser login school                           # sign in by hand once; cookies persist
-turno-browser setup claude-code --identity school    # prints how Claude Code gets it
+# a new identity
+turno-browser add school
+# sign in by hand once; cookies persist
+turno-browser login school
+# prints how Claude Code gets it
+turno-browser setup claude-code --identity school
 ```
 
 The docs are at [turno.wimo.dev/docs/browser](https://turno.wimo.dev/docs/browser), starting with
@@ -146,7 +149,8 @@ started it exits, Chrome closes too.
 ## Move a session
 
 ```sh
-turno-browser export school --out school.session --expires 2d   # asks for a passphrase twice
+# asks for a passphrase twice
+turno-browser export school --out school.session --expires 2d
 turno-browser import school.session --as school-laptop
 ```
 

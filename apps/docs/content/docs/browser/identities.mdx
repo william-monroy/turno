@@ -10,8 +10,10 @@ This page explains what a browser identity is, what stays the same about it from
 `turno-browser` drives the Google Chrome you have installed, headed, with a persistent user data folder per identity. You sign into a site once by hand; the cookies stay in that identity's profile, and the agent works there afterwards.
 
 ```sh
-turno-browser add school     # a new identity, and how to connect an agent to it
-turno-browser login school   # sign in by hand once; cookies persist
+# a new identity, and how to connect an agent to it
+turno-browser add school
+# sign in by hand once; cookies persist
+turno-browser login school
 turno-browser list
 ```
 
@@ -22,7 +24,8 @@ Identities live under `~/.local/share/turno/browser/`. They hold live cookies of
 Each identity keeps an `identity.json` next to its profile with what should stay the same between sessions: time zone, languages, locale and region.
 
 ```sh
-turno-browser add school --languages es-ES,es,en          # pinned to this time zone
+# pinned to this time zone
+turno-browser add school --languages es-ES,es,en
 turno-browser set school --timezone Europe/Madrid
 turno-browser show school
 ```
@@ -48,14 +51,17 @@ When Chrome starts (at most every 30 minutes while it passes) turno checks it. I
 Each captcha, "verify it's you" or block page the identity meets is one line in its state folder, with the site's host name only: no path, no page content. With [captcha solving](/docs/browser/natural-language-and-captchas#captcha-solving) on, each solve attempt is a line too.
 
 ```sh
-turno-browser reputation school    # counts per site, and whether they go up or down
+# counts per site, and whether they go up or down
+turno-browser reputation school
 ```
 
 ## Doctor
 
 ```sh
-turno-browser doctor          # Chrome and its version, a test launch, Lightpanda, Camoufox, and each identity's settings, engine, lock, sign-in and proxy credentials
-turno-browser doctor --fix    # clears stale locks, a Chrome left running with no server, and a stray Lightpanda
+# Chrome and its version, a test launch, Lightpanda, Camoufox, and each identity's settings, engine, lock, sign-in and proxy credentials
+turno-browser doctor
+# clears stale locks, a Chrome left running with no server, and a stray Lightpanda
+turno-browser doctor --fix
 ```
 
 Each finding has its own page under [Troubleshooting](/docs/troubleshooting#turno-browser-doctor).

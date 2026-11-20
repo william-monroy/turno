@@ -88,8 +88,10 @@ When Chrome starts (at most every 30 minutes while the check passes), turno open
 ## Check it
 
 ```sh
-turno browser doctor              # Chrome, a test launch, and every identity: settings, lock, sign-in
-turno browser reputation school   # captchas and block pages this identity met, per site
+# Chrome, a test launch, and every identity: settings, lock, sign-in
+turno browser doctor
+# captchas and block pages this identity met, per site
+turno browser reputation school
 ```
 
 Every captcha, "verify it's you" or block page an identity meets is written to its reputation log, with the site's host name only. A site that starts to challenge you is a signal to slow down, and to check that its terms allow what you are doing.

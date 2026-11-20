@@ -57,7 +57,8 @@ Some coding agents prefer commands to MCP tools. `turno browser do` runs one bro
 ```sh
 turno browser do school open \
   https://mail.example.com/
-turno browser do school snapshot   # refs like e12
+# refs like e12
+turno browser do school snapshot
 turno browser do school click e12
 turno browser do school end
 ```
@@ -70,8 +71,10 @@ Off by default. With `--live true` turno-browser serves a view of the agent's ta
 
 ```sh
 turno browser set school --live true
-turno browser live school    # opens the view
-turno browser pause school   # holds the next call
+# opens the view
+turno browser live school
+# holds the next call
+turno browser pause school
 turno browser resume school
 ```
 

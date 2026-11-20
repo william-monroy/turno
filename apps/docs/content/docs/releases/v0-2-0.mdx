@@ -24,9 +24,12 @@ turno 0.2.0 gives the CLI **[a look you can read at a glance](/docs/reference/cl
 `turno` and `turno status` show sections (here, profiles, machine), each profile as a pill in its status line color, usage bars colored by level with the time to reset, and the one thing to do next. `turno limit show`, `turno mcp list`, `turno mcp top` and `turno mcp log` share the look.
 
 ```sh
-turno              # the status screen, once set up
-turno limit show   # usage bars and time to reset
-turno mcp list     # the gateway's servers, as a table
+# the status screen, once set up
+turno
+# usage bars and time to reset
+turno limit show
+# the gateway's servers, as a table
+turno mcp list
 ```
 
 </Highlight>
@@ -36,9 +39,12 @@ turno mcp list     # the gateway's servers, as a table
 `turno init` finds your agents, their profile folders and the MCP servers inside them, previews every change and starts the gateway in the same run. One `turno undo` reverts it all. `turno demo` runs everything in a throwaway HOME, with nothing to install.
 
 ```sh
-turno init --dry-run   # the plan, changing nothing
-turno init             # preview, confirm, write
-npx turno-cli demo     # all of it in a throwaway HOME
+# the plan, changing nothing
+turno init --dry-run
+# preview, confirm, write
+turno init
+# all of it in a throwaway HOME
+npx turno-cli demo
 ```
 
 </Highlight>
@@ -65,8 +71,10 @@ mcp_deny = ["mail"]        # every server but these
 Declare a remote server with `auth = "oauth"` and the gateway signs in once per account, for every agent and profile on it. Tokens stay in the Keychain or Secret Service, never in files or logs, and are refreshed when they expire.
 
 ```sh
-turno mcp login linear                     # default login
-turno mcp login linear --profile personal  # its variant
+# default login
+turno mcp login linear
+# its variant
+turno mcp login linear --profile personal
 ```
 
 </Highlight>
@@ -76,9 +84,12 @@ turno mcp login linear --profile personal  # its variant
 `turno mcp top` shows each running server's memory, sessions and calls in flight, `turno mcp log` the tool calls the gateway relayed, and `turno mcp savings` its memory against the same sessions without it. The log never holds a call's arguments or result.
 
 ```sh
-turno mcp top                      # memory and calls per server
-turno mcp log -f --server github   # follow tool calls
-turno mcp savings                  # memory saved by sharing
+# memory and calls per server
+turno mcp top
+# follow tool calls
+turno mcp log -f --server github
+# memory saved by sharing
+turno mcp savings
 ```
 
 </Highlight>

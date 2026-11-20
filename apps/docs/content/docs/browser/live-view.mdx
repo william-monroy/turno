@@ -7,10 +7,14 @@ Off by default. Watch what the agent does in an identity's browser, and take the
 needs you (a captcha, a confirmation, a page it does not understand):
 
 ```sh
-turno-browser set school --live true     # from the next turno-browser-mcp for the identity
-turno-browser live school                # status, and opens the view in your default browser
-turno-browser pause school               # the agent's next call waits for you
-turno-browser resume school              # it goes on, and is told what changed
+# from the next turno-browser-mcp for the identity
+turno-browser set school --live true
+# status, and opens the view in your default browser
+turno-browser live school
+# the agent's next call waits for you
+turno-browser pause school
+# it goes on, and is told what changed
+turno-browser resume school
 ```
 
 `turno-browser-mcp --identity school --live` turns it on for one server, and `--live-wait 5m`

@@ -6,11 +6,15 @@ description: Configura turno con turno init, inicia sesión una vez por perfil y
 Esta página te lleva de una instalación nueva a un agente que abre con la cuenta correcta, en cuatro comandos.
 
 ```sh
-turno init                    # encuentra tus agentes, perfiles, carpetas y servidores MCP, muestra el diff,
-                              # arranca el gateway y apunta cada perfil a él
-claude-trabajo                # inicia sesión una vez por perfil (/login)
-cd ~/code/acme && turno auto  # Claude Code, con la cuenta de esta carpeta
-turno                         # dónde estás: esta carpeta, cuentas, gateway y qué sigue
+# encuentra tus agentes, perfiles, carpetas y servidores MCP, muestra el diff,
+# arranca el gateway y apunta cada perfil a él
+turno init
+# inicia sesión una vez por perfil (/login)
+claude-trabajo
+# Claude Code, con la cuenta de esta carpeta
+cd ~/code/acme && turno auto
+# dónde estás: esta carpeta, cuentas, gateway y qué sigue
+turno
 ```
 
 <Steps>
@@ -36,7 +40,8 @@ Cuando hay servidores MCP, `turno init` también ofrece arrancar el gateway como
 Cada perfil tiene un lanzador con su nombre. Córrelo e inicia sesión con esa cuenta, con el login del propio proveedor:
 
 ```sh
-claude-trabajo     # y luego /login dentro de Claude Code
+# y luego /login dentro de Claude Code
+claude-trabajo
 ```
 
 Los lanzadores van en `~/.local/bin`. Si esa carpeta no está en tu `PATH`, `turno profile add` te da la línea que hay que agregar, y mientras tanto funciona `turno trabajo`.
@@ -69,14 +74,21 @@ cd ~/code/acme && turno auto
 Si prefieres hacer cada parte a mano:
 
 ```sh
-turno profile add trabajo --color violet  # ~/.claude-trabajo y el comando claude-trabajo
+# ~/.claude-trabajo y el comando claude-trabajo
+turno profile add trabajo --color violet
 turno profile add personal
-claude-trabajo                            # inicia sesión una vez por perfil (/login)
-turno profile assign ~/code/acme trabajo  # esta carpeta y todo lo que tiene adentro
-turno config set default personal         # carpetas sin regla
-turno mcp import --move-secrets --write   # mcp.toml a partir de los servidores que ya tienes
-turno mcp daemon start && turno mcp sync  # el gateway, y cada perfil apuntando a él
-cd ~/code/acme && turno auto              # Claude Code con la cuenta del trabajo
+# inicia sesión una vez por perfil (/login)
+claude-trabajo
+# esta carpeta y todo lo que tiene adentro
+turno profile assign ~/code/acme trabajo
+# carpetas sin regla
+turno config set default personal
+# mcp.toml a partir de los servidores que ya tienes
+turno mcp import --move-secrets --write
+# el gateway, y cada perfil apuntando a él
+turno mcp daemon start && turno mcp sync
+# Claude Code con la cuenta del trabajo
+cd ~/code/acme && turno auto
 ```
 
 Los perfiles de Codex, Copilot y Cursor son iguales, con `--agent codex|copilot|cursor`.
@@ -90,8 +102,10 @@ Apunta tu terminal o tu editor a `turno auto` (o al lanzador `turno-auto`), y ca
 Cada comando que escribe guarda una copia de lo que cambia:
 
 ```sh
-turno undo --list     # los cambios que hizo turno
-turno undo <stamp>    # restaura uno
+# los cambios que hizo turno
+turno undo --list
+# restaura uno
+turno undo <stamp>
 ```
 
 Las copias de más de 30 días se borran, conservando las 10 más recientes.

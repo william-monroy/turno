@@ -1,6 +1,6 @@
 import { uiTranslations } from "fumadocs-ui/i18n";
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
-import { LogoMark } from "@/components/logo";
+import { NavTitle } from "@/components/nav-title";
 import { ProductSwitch } from "@/components/product-switch";
 import { i18n } from "@/lib/i18n";
 
@@ -45,7 +45,7 @@ export function baseOptions(lang: string): BaseLayoutProps {
   const t = NAV[lang] ?? NAV.en!;
   return {
     nav: {
-      title: <LogoMark className="h-5 w-auto" />,
+      title: NavTitle,
       url: localePath(lang, "/"),
       children: <ProductSwitch lang={lang} home={localePath(lang, "/")} browser={localePath(lang, "/browser")} />,
     },

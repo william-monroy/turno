@@ -63,8 +63,10 @@ It checks who can read or write turno's folders (`--fix` narrows them to owner o
 A delegated task runs headless in the profile that owns the account. A read gets only the account's `read_tools`, and every other tool is refused. An account without `read_tools`, and by default every call to a mail or messaging account, asks for your confirmation in the client, as writes do. The run loads no settings files, starts in turno's own empty folder with a minimal environment, and gets only the account's MCP servers when they go through the gateway. Every call, with the decision, is written to the audit log:
 
 ```sh
-turno identity log            # recent calls to the accounts bridge
-turno identity log --verify   # checks the hash chain; exits 1 when it is broken
+# recent calls to the accounts bridge
+turno identity log
+# checks the hash chain; exits 1 when it is broken
+turno identity log --verify
 ```
 
 ## The browser package

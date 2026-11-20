@@ -63,8 +63,10 @@ Completa comandos, perfiles, identidades y claves de configuración.
 ## Actualizar
 
 ```sh
-turno upgrade --check   # ¿hay una versión más nueva?
-turno upgrade           # actualiza turno de la misma forma en que lo instalaste
+# ¿hay una versión más nueva?
+turno upgrade --check
+# actualiza turno de la misma forma en que lo instalaste
+turno upgrade
 ```
 
 Los comandos interactivos le preguntan al registro de npm si hay una versión más nueva, como máximo una vez al día, y solo envían el nombre del paquete. Lo apagas con `update_check = false` en config.toml o con `TURNO_NO_UPDATE_CHECK=1`.
@@ -72,9 +74,12 @@ Los comandos interactivos le preguntan al registro de npm si hay una versión m�
 ## Desinstalar
 
 ```sh
-turno uninstall --dry-run   # muestra lo que turno configuró: servicio, lanzadores, entradas MCP, status line, configuración
-turno uninstall             # lo quita
-npm uninstall --global turno-cli   # o: pnpm remove --global, bun remove --global, yarn global remove, brew uninstall turno
+# muestra lo que turno configuró: servicio, lanzadores, entradas MCP, status line, configuración
+turno uninstall --dry-run
+# lo quita
+turno uninstall
+# o: pnpm remove --global, bun remove --global, yarn global remove, brew uninstall turno
+npm uninstall --global turno-cli
 ```
 
 Las carpetas de los perfiles, que guardan tus credenciales, se quedan hasta que tú las borres. `turno uninstall --purge` también borra el estado y las cachés de turno (copias, registros, uso, servidores MCP instalados), y después `turno undo` ya no tiene qué restaurar.

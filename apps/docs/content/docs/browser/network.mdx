@@ -20,7 +20,8 @@ Both are off until `identity.json` asks for them, per identity:
 ```sh
 turno-browser set school --block-trackers true --block-types image,font \
   --block-patterns 'ads.example,*/promo/*' --cache-max-size 100MB
-turno-browser set school --no-block --no-cache   # both off again
+# both off again
+turno-browser set school --no-block --no-cache
 ```
 
 `trackers` blocks a short built-in list of ad and analytics hosts; `types` takes `image`, `media`
@@ -48,8 +49,10 @@ automate, and the choice is yours. Each one has a cost to weigh:
 turno-browser set school --user-agent coherent
 turno-browser set school --proxy-server http://proxy.example.com:8080 \
   --proxy-username alice --proxy-password keychain:school-proxy
-turno-browser secret set school-proxy        # the password, typed into the secret store
-turno-browser set school --no-proxy --user-agent ""   # both off again
+# the password, typed into the secret store
+turno-browser secret set school-proxy
+# both off again
+turno-browser set school --no-proxy --user-agent ""
 ```
 
 ### A coherent user agent

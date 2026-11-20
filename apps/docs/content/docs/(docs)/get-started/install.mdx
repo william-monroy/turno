@@ -63,8 +63,10 @@ It completes commands, profiles, identities and config keys.
 ## Update
 
 ```sh
-turno upgrade --check   # is there a newer release?
-turno upgrade           # update turno the way it was installed
+# is there a newer release?
+turno upgrade --check
+# update turno the way it was installed
+turno upgrade
 ```
 
 Interactive commands ask the npm registry for a newer version at most once a day, sending only the package name. Turn that off with `update_check = false` in config.toml or `TURNO_NO_UPDATE_CHECK=1` ([more ways](/docs/security#when-turno-goes-online)).
@@ -72,9 +74,12 @@ Interactive commands ask the npm registry for a newer version at most once a day
 ## Uninstall
 
 ```sh
-turno uninstall --dry-run   # lists what turno set up: service, launchers, MCP entries, status line, config
-turno uninstall             # removes it
-npm uninstall --global turno-cli   # or: pnpm remove --global, bun remove --global, yarn global remove, brew uninstall turno
+# lists what turno set up: service, launchers, MCP entries, status line, config
+turno uninstall --dry-run
+# removes it
+turno uninstall
+# or: pnpm remove --global, bun remove --global, yarn global remove, brew uninstall turno
+npm uninstall --global turno-cli
 ```
 
 Profile folders, which hold your logins, stay until you delete them. `turno uninstall --purge` also removes turno's state and caches (backups, logs, usage, installed MCP servers), after which `turno undo` has nothing to restore.

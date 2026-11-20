@@ -50,8 +50,10 @@ It speaks MCP 2025-11-25 and 2026-07-28 on the same endpoint.
 ## What you see
 
 ```sh
-turno mcp list             # servers in mcp.toml and where they run
-turno mcp daemon status    # running servers, clients, memory; or why mcpd is down
+# servers in mcp.toml and where they run
+turno mcp list
+# running servers, clients, memory; or why mcpd is down
+turno mcp daemon status
 ```
 
 ```text
@@ -109,8 +111,10 @@ url = "https://docs.example.com/mcp" # remote, no secrets: written straight into
 A remote server with `auth = "oauth"` or secret headers goes through mcpd, so no agent logs in to it on its own. You log in once per account:
 
 ```sh
-turno mcp login linear                     # the login every profile without a variant uses
-turno mcp login linear --profile personal  # the personal variant
+# the login every profile without a variant uses
+turno mcp login linear
+# the personal variant
+turno mcp login linear --profile personal
 ```
 
 The tokens go to the secret store, never to a file or a log. A remote server without secrets is written straight into each profile and never touches mcpd.
@@ -124,9 +128,12 @@ mcpd listens only on `mcpd.port` (47821 by default). If something else holds tha
 ## Watching it
 
 ```sh
-turno mcp log -f --server github --profile work   # follow new tool calls, filtered
-turno mcp top                                     # memory, sessions and calls per running server
-turno mcp savings                                 # memory now against the same sessions without the gateway
+# follow new tool calls, filtered
+turno mcp log -f --server github --profile work
+# memory, sessions and calls per running server
+turno mcp top
+# memory now against the same sessions without the gateway
+turno mcp savings
 ```
 
 The call log holds tool names, profiles, agents, durations, sizes and redacted errors, never a call's arguments or its result. Turn it off with `call_log = false` under `[mcpd]` in config.toml.

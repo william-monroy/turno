@@ -89,8 +89,10 @@ The [accounts bridge](/docs/concepts/profiles#service-accounts-and-the-accounts-
 | Record | The session's transcript, as for any command | Every call and its decision, in a hash-chained audit log |
 
 ```sh
-turno identity log            # recent calls to the accounts bridge
-turno identity log --verify   # checks the hash chain; exits 1 when it is broken
+# recent calls to the accounts bridge
+turno identity log
+# checks the hash chain; exits 1 when it is broken
+turno identity log --verify
 ```
 
 How the bridge is isolated, and what it does not protect against: [Security and privacy](/docs/security#the-accounts-bridge).

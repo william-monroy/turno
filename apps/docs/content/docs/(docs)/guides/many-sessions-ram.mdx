@@ -69,9 +69,12 @@ It installs each `package` at an exact version, without install scripts, with a 
 Once sessions are open, three commands watch it:
 
 ```sh
-turno mcp top        # memory, sessions, calls in flight, idle time and restarts per running server
-turno mcp savings    # mcpd's memory now against the same sessions without the gateway
-turno mcp log        # the last 20 tool calls: time, outcome, duration, server, tool, profile, agent
+# memory, sessions, calls in flight, idle time and restarts per running server
+turno mcp top
+# mcpd's memory now against the same sessions without the gateway
+turno mcp savings
+# the last 20 tool calls: time, outcome, duration, server, tool, profile, agent
+turno mcp log
 ```
 
 `turno mcp savings` compares the gateway plus every server it runs with an estimate of the same live sessions without it: each session would start its own copy of every stdio server its profile uses. The tool call log never holds a call's arguments or its result, only their sizes.

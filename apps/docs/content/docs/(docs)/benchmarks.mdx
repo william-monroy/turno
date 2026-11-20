@@ -82,10 +82,14 @@ Two scripts in `bench/browser` measure the browser server itself. Both start the
 ```sh
 git clone https://github.com/wimo-dev/turno && cd turno
 pnpm install && pnpm build
-pnpm bench:browser --list                        # tasks and configurations
-pnpm bench:browser                               # every task, the default configuration
-pnpm bench:browser --b settle-100 --rounds 5     # A/B: default against settle-100
-pnpm bench:fingerprint                           # what a page can observe, against plain Chrome
+# tasks and configurations
+pnpm bench:browser --list
+# every task, the default configuration
+pnpm bench:browser
+# A/B: default against settle-100
+pnpm bench:browser --b settle-100 --rounds 5
+# what a page can observe, against plain Chrome
+pnpm bench:fingerprint
 ```
 
 ### Evaluation suite

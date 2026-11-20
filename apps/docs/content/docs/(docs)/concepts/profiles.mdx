@@ -12,7 +12,8 @@ A turno profile is a folder (`~/.claude-work`) plus an environment variable that
 The agent is the vendor's own, unmodified command-line tool. It logs in by itself, inside that folder; turno never reads, copies or forwards login tokens.
 
 ```sh
-turno profile add work --color violet     # ~/.claude-work and the claude-work command
+# ~/.claude-work and the claude-work command
+turno profile add work --color violet
 turno profile list
 ```
 
@@ -74,8 +75,10 @@ For Claude Code, turno draws a status line under the prompt with the profile and
 <StatusLine />
 
 ```sh
-turno ui install                     # font + statusLine in the shared settings.json
-turno ui install --terminal current  # also set the font in this terminal
+# font + statusLine in the shared settings.json
+turno ui install
+# also set the font in this terminal
+turno ui install --terminal current
 ```
 
 It uses Nerd Font icons where the terminal has them and Unicode icons everywhere else. This is the real thing, in both looks:

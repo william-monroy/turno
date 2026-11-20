@@ -29,12 +29,15 @@ engine, humanize, recordings and the vault.
 
 ```sh
 turno-browser do school open https://mail.example.com/
-turno-browser do school snapshot           # the page's tree, with refs like e12
+# the page's tree, with refs like e12
+turno-browser do school snapshot
 turno-browser do school click e12
 turno-browser do school type e5 'quarterly report' --submit
-turno-browser do school read               # the visible text
+# the visible text
+turno-browser do school read
 turno-browser do school screenshot --out page.png
-turno-browser do school end                # end the session; the browser keeps running
+# end the session; the browser keeps running
+turno-browser do school end
 ```
 
 `turno-browser do --help` lists every action: `open`, `back`, `snapshot`, `read`, `find`,
@@ -78,11 +81,14 @@ example two subagents each in its own tab; `session` shows which one a command w
 Without turno, `turno-browser do` reaches the identity through its background server:
 
 ```sh
-turno-browser do school open https://example.com   # starts the background server if needed
+# starts the background server if needed
+turno-browser do school open https://example.com
 turno-browser do school snapshot
 turno-browser do school end
-turno-browser background                           # which background servers run
-turno-browser background stop school               # stop one and its Chrome
+# which background servers run
+turno-browser background
+# stop one and its Chrome
+turno-browser background stop school
 ```
 
 The background server is `turno-browser-mcp --identity <id> --background`. The first `do` starts
@@ -136,8 +142,10 @@ person. `humanize` in `identity.json` changes how the same tools move and type, 
 off until you turn it on:
 
 ```sh
-turno-browser set school --humanize light   # or full, adaptive; --humanize "" turns it off
-turno-browser-mcp --identity school --humanize full  # the server's flag wins over identity.json
+# or full, adaptive; --humanize "" turns it off
+turno-browser set school --humanize light
+# the server's flag wins over identity.json
+turno-browser-mcp --identity school --humanize full
 ```
 
 | Level | What changes |
