@@ -4,6 +4,7 @@ import type { OverlayCommand, OverlayReport } from "../src/agent-cursor-overlay.
 import {
   AgentCursor,
   CURSOR_COLORS,
+  agentName,
   MAX_GLIDE_MS,
   centerOf,
   cursorLabel,
@@ -12,6 +13,7 @@ import {
   resolveCursor,
 } from "../src/agent-cursor.js";
 import { extractTuning } from "../src/argv.js";
+import { CLIENT_META_KEY, clientFromMeta } from "../src/session.js";
 import { readIdentitySettings, writeIdentitySettings } from "../src/settings.js";
 import { resolveTuning } from "../src/tuning.js";
 import { type Sandbox, sandbox } from "./helpers/sandbox.js";
@@ -64,6 +66,25 @@ describe("the glide and the geometry", () => {
     expect(cursorLabel("Claude Code", "school")).toBe("Claude Code · school");
     expect(cursorLabel("  ", undefined)).toBe("Agent");
   });
+
+  it("names the agents people know by the client name they send, and keeps any other as sent", () => {
+    expect(agentName("claude-code")).toBe("Claude Code");
+    expect(agentName("claude-code (2)")).toBe("Claude Code (2)");
+    expect(agentName("codex-mcp-client")).toBe("Codex");
+    expect(agentName("cursor-vscode")).toBe("Cursor");
+    expect(agentName("gemini-cli-mcp-client")).toBe("Gemini CLI");
+    expect(agentName("Cursor Test Agent")).toBe("Cursor Test Agent");
+    expect(agentName("my-agent")).toBe("my-agent");
+  });
+
+  it("reads the client name mcpd sends, and nothing that is not a short printable string", () => {
+    expect(clientFromMeta({ [CLIENT_META_KEY]: " codex-mcp-client " })).toBe("codex-mcp-client");
+    expect(clientFromMeta({ [CLIENT_META_KEY]: "" })).toBeUndefined();
+    expect(clientFromMeta({ [CLIENT_META_KEY]: "x".repeat(65) })).toBeUndefined();
+    expect(clientFromMeta({ [CLIENT_META_KEY]: "bad\nname" })).toBeUndefined();
+    expect(clientFromMeta({ [CLIENT_META_KEY]: 7 })).toBeUndefined();
+    expect(clientFromMeta(null)).toBeUndefined();
+  });
 });
 
 /** A page that records what the cursor sends it, and answers like the overlay. */
@@ -101,6 +122,28 @@ describe("AgentCursor", () => {
     expect(a).toMatchObject({ name: "Claude Code", label: "Claude Code · school", color: CURSOR_COLORS[0] });
     expect(b).toMatchObject({ name: "Claude Code (2)", label: "Claude Code (2) · school", color: CURSOR_COLORS[1] });
     expect(cursor.actor("s1")).toBe(a);
+  });
+
+  it("names a session after its own agent when the call says it, numbering two of the same", () => {
+    const cursor = new AgentCursor({ title: "turno-mcpd", identity: "school" });
+    expect(cursor.actor("s1", "claude-code").label).toBe("Claude Code · school");
+    expect(cursor.actor("s2", "codex-mcp-client")).toMatchObject({ name: "Codex", color: CURSOR_COLORS[1] });
+    expect(cursor.actor("s3", "claude-code").label).toBe("Claude Code (2) · school");
+  });
+
+  it("tells every page it drew on how many other sessions are at work, wherever they work", async () => {
+    const cursor = new AgentCursor({ title: "Claude Code" });
+    const a = fakePage();
+    const b = fakePage();
+    await cursor.begin(a.page, "s1");
+    await cursor.begin(b.page, "s2");
+    // s2 begins on its own tab: s1's page hears there is one other session at work.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(a.batches.at(-1)).toContainEqual({ op: "others", n: 1 });
+    expect(b.batches.at(-1)).toContainEqual({ op: "others", n: 1 });
+    await cursor.end(b.page, "s2");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(a.batches.at(-1)).toContainEqual({ op: "others", n: 0 });
   });
 
   it("turns the frame on when a call begins and off when it ends, naming the session each time", async () => {

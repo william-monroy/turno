@@ -40,7 +40,13 @@ import { Recording, tracesTmpDir } from "./recordings.js";
 import { Redactor, SCRIPT_TOOLS, VaultGuard } from "./redact.js";
 import { type ChallengeEvent, recordChallenge, watchChallenges } from "./reputation.js";
 import { installResources } from "./resources.js";
-import { SESSION_CAPABILITY, SESSION_ENDED_METHOD, SESSION_META_KEY, sessionFromMeta } from "./session.js";
+import {
+  SESSION_CAPABILITY,
+  SESSION_ENDED_METHOD,
+  SESSION_META_KEY,
+  clientFromMeta,
+  sessionFromMeta,
+} from "./session.js";
 import { type SessionView, TabSharing, viewConfig } from "./sharing.js";
 import { DEFAULT_TAB_LOCKS, DIRECT_SESSION, type TabLockPolicy } from "./tab-locks.js";
 import { type IdentitySettings, type RecordSettings, readIdentitySettings } from "./settings.js";
@@ -301,6 +307,8 @@ class SessionBackend extends EventEmitter implements ServerBackend {
   private recordSettings: RecordSettings | undefined;
   /** Each client session's flow recorder: a recording belongs to the session that started it. */
   private readonly recorders = new Map<string, FlowRecorder>();
+  /** The agent name each client session's calls came with (mcpd, a shared host), for the cursor. */
+  private readonly clients = new Map<string, string>();
 
   constructor(
     private readonly host: {
@@ -437,8 +445,9 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       };
       const sessionConfig = configForSession(config, cliOptions, tuning);
       const idle = launched.idleTimer ? new CallIdleTimer(launched.idleTimer, () => launched.isOpen()) : undefined;
-      // The agent cursor (on when someone can see this browser): the input tools move it, under
-      // humanize, so humanize's pointer path goes through it too.
+      // The agent cursor (on when someone can see this browser): the input tools move it. It wraps
+      // the humanized tools, so it is the layer next to the page: humanize's pointer path runs
+      // through the cursor's mouse and the arrow follows it step by step.
       const cursor = resolveCursor(tuning.cursor, {
         headless: config.browser?.launchOptions?.headless === true && !launched.userBrowser,
         live: this.host.live !== undefined,
@@ -446,9 +455,9 @@ class SessionBackend extends EventEmitter implements ServerBackend {
       })
         ? new AgentCursor({ title, ...(identity ? { identity: identity.id } : {}) })
         : undefined;
-      const marked = cursor ? cursorTools(stock, new CursorInput(cursor, input !== undefined)) : stock;
+      const humanized = input ? humanizeTools(stock, input) : stock;
       // Every backend of this browser (each session's too, with "sharing": "tabs") runs these tools.
-      const tools = input ? humanizeTools(marked, input) : marked;
+      const tools = cursor ? cursorTools(humanized, new CursorInput(cursor, input !== undefined)) : humanized;
       const backend = new BrowserBackend(sessionConfig, launched.context, tools, {
         ...(idle ? { idleTimer: idle } : {}),
         dispose: async () => {
@@ -592,7 +601,9 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     signal?: AbortSignal,
     session?: string,
     sample?: Sampler,
+    client?: string,
   ): Promise<ToolResult> {
+    if (client && session) this.clients.set(session, client);
     // Every result and error of this server leaves through the redactor.
     return this.host.redactor.result(await this.callLive(name, args, signal, session, sample));
   }
@@ -832,7 +843,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
           .catch(() => {});
       const page = backendContext(backend)?.currentTab()?.page;
       const key = session ?? DIRECT_SESSION;
-      await running.cursor?.begin(page, key);
+      await running.cursor?.begin(page, key, this.clients.get(key));
       result =
         (launched.engine === "lightpanda" ? undefined : await coveredBeforeCall(page, name, args, json)) ??
         (await this.withCursor(running, name, page, () => backend.callTool(name, args, signal)));
@@ -900,7 +911,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
               .current()
               ?.bringToFront()
               .catch(() => {});
-          await running.cursor?.begin(tabs.current(), key);
+          await running.cursor?.begin(tabs.current(), key, this.clients.get(key));
           result =
             (running.launched.engine === "lightpanda"
               ? undefined
@@ -1057,6 +1068,7 @@ class SessionBackend extends EventEmitter implements ServerBackend {
     // A flow the session was recording and never stopped is dropped with it.
     this.recorders.get(session)?.cancel();
     this.recorders.delete(session);
+    this.clients.delete(session);
     const current = this.current;
     if (!current) return;
     const running = await current.catch(() => undefined);
@@ -1339,12 +1351,17 @@ function createServer(host: Host, shared?: SharedBackend): Server {
     try {
       const b = await session();
       const args = (request.params.arguments ?? {}) as Record<string, unknown>;
+      const meta = request.params._meta;
+      const sessionId = sessionFromMeta(meta);
+      // The agent behind the call: mcpd says it; on a shared host each connection is one agent.
+      const client = clientFromMeta(meta) ?? (shared && sessionId ? server.getClientVersion()?.name : undefined);
       const result = await b.callTool(
         request.params.name,
         args,
         extra.signal,
-        sessionFromMeta(request.params._meta),
+        sessionId,
         samplerFor(server, extra.requestId),
+        client,
       );
       return mergeTextParts(result) as CallToolResult;
     } catch (error) {

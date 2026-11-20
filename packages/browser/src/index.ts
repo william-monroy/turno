@@ -4,7 +4,7 @@ export { API_VERSION, type ApiVersion, type BrowserApi, type BrowserFunctions, a
 export { type BrowserCli, browserCli as cli } from "./cli/commands.js";
 export type { BrowserCliHost, CliDeps, CliNames, OpenUrl, VaultInput } from "./cli/context.js";
 export type { DoSession, DoSessionInfo, DoTarget, DoTransport, ToolResult } from "./cli/do.js";
-export { SESSION_CAPABILITY, SESSION_ENDED_METHOD, SESSION_META_KEY } from "./session.js";
+export { CLIENT_META_KEY, SESSION_CAPABILITY, SESSION_ENDED_METHOD, SESSION_META_KEY } from "./session.js";
 export { manifestSnippet } from "./snippet.js";
 export {
   IdentityError,

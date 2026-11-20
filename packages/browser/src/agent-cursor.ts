@@ -76,6 +76,30 @@ export function inView(box: OverlayBox, view: { width: number; height: number })
   return box.x + box.width > 0 && box.y + box.height > 0 && box.x < view.width && box.y < view.height;
 }
 
+/**
+ * The agent's name as people know it, from the client name it sends in `initialize`
+ * (`clientInfo.name`): "claude-code" reads "Claude Code", "codex-mcp-client" reads "Codex". A
+ * name turno does not know is shown as sent; a "(2)" turno added to tell sessions apart stays.
+ */
+export function agentName(client: string): string {
+  const raw = client.trim();
+  const m = /^(.*?)(\s\(\d+\))?$/.exec(raw);
+  const base = (m?.[1] ?? raw).trim();
+  const suffix = m?.[2] ?? "";
+  const known: [RegExp, string][] = [
+    [/^claude[-_ ]?code$/i, "Claude Code"],
+    [/^claude[-_ ]?ai$/i, "Claude"],
+    [/^codex([-_ ]mcp[-_ ]client)?$/i, "Codex"],
+    [/^cursor([-_ ]vscode)?$/i, "Cursor"],
+    [/^(github[-_ ])?copilot([-_ ]cli)?$/i, "Copilot"],
+    [/^gemini([-_ ]cli)?([-_ ]mcp[-_ ]client)?$/i, "Gemini CLI"],
+    [/^windsurf([-_ ]client)?$/i, "Windsurf"],
+    [/^(visual studio code|vscode)$/i, "VS Code"],
+  ];
+  const pretty = known.find(([re]) => re.test(base))?.[1];
+  return `${pretty ?? base}${suffix}`;
+}
+
 /** The pill of a session's cursor: the client's name, and the identity when there is one. */
 export function cursorLabel(client: string, identity?: string): string {
   const name = client.trim() || "Agent";
@@ -84,6 +108,8 @@ export function cursorLabel(client: string, identity?: string): string {
 
 interface Actor {
   key: string;
+  /** The agent's name without the "(2)" that tells sessions apart. */
+  base: string;
   /** The client's name: the badge says it is at work. */
   name: string;
   /** The cursor's pill: the name and the identity. */
@@ -114,22 +140,37 @@ export class AgentCursor {
   private readonly maxGlideMs: number;
   private lastKey = "";
   private paused = false;
+  /** The sessions with a call in flight on this browser, whatever their page. */
+  private readonly busy = new Set<string>();
+  /** The pages the overlay has been on, so a call starting elsewhere updates their badge. */
+  private readonly pages = new Set<Page>();
 
   constructor(private readonly options: AgentCursorOptions) {
     this.sleep = options.sleep ?? defaultSleep;
     this.maxGlideMs = options.maxGlideMs ?? MAX_GLIDE_MS;
   }
 
-  /** The actor of a session, with its label and color, made on first use. */
-  actor(key: string): Actor {
+  /**
+   * The actor of a session, with its label and color, made on first use. `client` is the name
+   * of the session's own agent when the call said it (mcpd, or a shared host's connection);
+   * without it the session takes the launching client's name, with "(2)" and up after the first.
+   */
+  actor(key: string, client?: string): Actor {
     let a = this.actors.get(key);
     if (a) return a;
     const n = this.actors.size;
-    const client = n === 0 ? this.options.title : `${this.options.title} (${n + 1})`;
+    let name: string;
+    if (client) {
+      const base = agentName(client);
+      const same = [...this.actors.values()].filter((o) => o.base === base).length;
+      name = same === 0 ? base : `${base} (${same + 1})`;
+    } else name = agentName(n === 0 ? this.options.title : `${this.options.title} (${n + 1})`);
+    name = name.trim() || "Agent";
     a = {
       key,
-      name: client.trim() || "Agent",
-      label: cursorLabel(client, this.options.identity),
+      base: name.replace(/\s\(\d+\)$/, ""),
+      name,
+      label: cursorLabel(name, this.options.identity),
       color: CURSOR_COLORS[n % CURSOR_COLORS.length]!,
     };
     this.actors.set(key, a);
@@ -167,10 +208,11 @@ export class AgentCursor {
     const prelude: OverlayCommand[] = [{ op: "actor", key, label: a.label, name: a.name, color: a.color }];
     const at = this.pointOf(page, key);
     if (at) prelude.push({ op: "move", key, x: at.x, y: at.y, ms: 0 });
-    prelude.push({ op: "paused", on: this.paused });
+    prelude.push({ op: "paused", on: this.paused }, { op: "others", n: this.othersThan(key) });
     try {
       const report = await page.evaluate(cursorOverlay, [...prelude, ...commands]);
       this.reports.set(page, report);
+      this.pages.add(page);
       return report;
     } catch {
       return undefined;
@@ -186,8 +228,32 @@ export class AgentCursor {
     m.set(key, point);
   }
 
-  /** A call of session `key` begins on this page: the frame and badge come on. */
-  async begin(page: Page | undefined, key: string): Promise<void> {
+  /** How many sessions other than `key` have a call in flight on this browser: the badge's "+N". */
+  private othersThan(key: string): number {
+    return this.busy.size - (this.busy.has(key) ? 1 : 0);
+  }
+
+  /** Tells the other pages the overlay is on how many sessions are at work now. */
+  private recount(except: Page | undefined): void {
+    for (const page of this.pages) {
+      if (page.isClosed()) {
+        this.pages.delete(page);
+        continue;
+      }
+      if (page === except) continue;
+      const owner = this.ownerOf(page);
+      void this.send(page, [], owner);
+    }
+  }
+
+  /**
+   * A call of session `key` begins on this page: the frame and badge come on. `client` names the
+   * session's own agent when the call said it.
+   */
+  async begin(page: Page | undefined, key: string, client?: string): Promise<void> {
+    this.actor(key, client);
+    this.busy.add(key);
+    this.recount(page);
     if (!page) return;
     this.owners.set(page, key);
     this.lastKey = key;
@@ -196,6 +262,8 @@ export class AgentCursor {
 
   /** The call ended (on this page, which may be a new one): the frame fades after a moment. */
   async end(page: Page | undefined, key: string): Promise<void> {
+    this.busy.delete(key);
+    this.recount(page);
     if (!page) return;
     this.owners.set(page, key);
     await this.send(page, [{ op: "busy", key, on: false }], key);
@@ -215,8 +283,10 @@ export class AgentCursor {
   /** Moves the arrow along with a pointer path someone else plays (humanize): a short ease per step. */
   async track(page: Page, to: Point): Promise<void> {
     const key = this.ownerOf(page);
-    await this.send(page, [{ op: "move", key, x: to.x, y: to.y, ms: 40 }], key);
+    // Remembered first: the steps are sent without waiting, so the next step's batch must not
+    // put the arrow back where this one started.
     this.remember(page, key, to);
+    await this.send(page, [{ op: "move", key, x: to.x, y: to.y, ms: 40 }], key);
   }
 
   /** Puts the arrow at `to` without a glide. */
@@ -300,6 +370,8 @@ export class CursorInput {
   /** The last element marked on each page: where keys typed through the keyboard go. */
   private readonly marked = new WeakMap<Page, OverlayBox>();
   private readonly typingTimers = new WeakMap<Page, NodeJS.Timeout>();
+  /** Pages where humanize moved the pointer since the last action: the arrow is already there. */
+  private readonly moved = new WeakSet<Page>();
 
   constructor(
     readonly cursor: AgentCursor,
@@ -315,18 +387,30 @@ export class CursorInput {
     }
   }
 
+  /**
+   * Whether humanize just played a pointer path on this page (and forgets it): then the arrow
+   * followed it there, and the action gets no glide of its own. When humanize went straight to
+   * the action (no box to aim at), the arrow glides as without humanize.
+   */
+  private followed(page: Page): boolean {
+    if (!this.humanized || !this.moved.has(page)) return false;
+    this.moved.delete(page);
+    return true;
+  }
+
   /** Marks the target of an action, runs it, and leaves the mark of its kind. */
   private async act<T>(page: Page, locator: Locator, kind: Kind, run: () => Promise<T>, to?: Locator): Promise<T> {
     const c = this.cursor;
+    const followed = this.followed(page);
     let box = await this.boxOf(locator);
     const view = c.reportOf(page) ?? (await c.send(page, []));
     if (box && view && !inView(box, view)) box = null; // Playwright scrolls it in: mark it after
     if (box) {
       this.marked.set(page, box);
       void c.ring(page, box);
-      if (!this.humanized) await c.glideTo(page, centerOf(box));
+      if (!followed) await c.glideTo(page, centerOf(box));
       if (kind === "type") void c.typing(page, box);
-      if (kind === "click" && !this.humanized) void c.ripple(page, centerOf(box));
+      if (kind === "click" && !followed) void c.ripple(page, centerOf(box));
     }
     try {
       const result = await run();
@@ -336,17 +420,17 @@ export class CursorInput {
           void c.ring(page, end);
           await c.place(page, centerOf(end));
         }
-      } else if (!box || (kind === "click" && this.humanized)) {
+      } else if (!box || (kind === "click" && followed)) {
         // Marked after: the element came into view during the action, or humanize moved there.
         const after = box ?? (await this.boxOf(locator, 200));
         const center = after ? centerOf(after) : undefined;
-        const at = this.humanized ? (c.pointOf(page) ?? center) : center;
+        const at = followed ? (c.pointOf(page) ?? center) : center;
         if (after && !box) {
           this.marked.set(page, after);
           void c.ring(page, after);
         }
         if (at) {
-          if (!this.humanized) await c.place(page, at);
+          if (!followed) await c.place(page, at);
           if (kind === "click") void c.ripple(page, at);
         }
       }
@@ -375,17 +459,20 @@ export class CursorInput {
     const c = this.cursor;
     return override(mouse, {
       move: async (x: number, y: number, options?: { steps?: number }) => {
-        if (this.humanized) void c.track(page, { x, y });
-        else await c.glideTo(page, { x, y });
+        if (this.humanized) {
+          // A step of humanize's pointer path: the arrow follows it.
+          this.moved.add(page);
+          void c.track(page, { x, y });
+        } else await c.glideTo(page, { x, y });
         await mouse.move(x, y, options);
       },
       click: async (x: number, y: number, options?: Options) => {
-        if (!this.humanized) await c.glideTo(page, { x, y });
+        if (!this.followed(page)) await c.glideTo(page, { x, y });
         void c.ripple(page, { x, y });
         await mouse.click(x, y, options);
       },
       dblclick: async (x: number, y: number, options?: Options) => {
-        if (!this.humanized) await c.glideTo(page, { x, y });
+        if (!this.followed(page)) await c.glideTo(page, { x, y });
         void c.ripple(page, { x, y });
         await mouse.dblclick(x, y, options);
       },
@@ -469,9 +556,10 @@ export class CursorInput {
 }
 
 /**
- * The stock tools of one browser, with the input tools running on cursor tabs. It goes under
- * `humanizeTools` (applied to its result), so humanize's pointer path runs through the cursor's
- * mouse. Schemas and every other tool are upstream's own objects.
+ * The stock tools of one browser, with the input tools running on cursor tabs. It goes over
+ * `humanizeTools` (applied to its result): the outer wrapper's view is the one next to the page,
+ * so humanize's pointer path runs through the cursor's mouse. Schemas and every other tool are
+ * upstream's own objects.
  */
 export function cursorTools<T extends UpstreamTool>(tools: readonly T[], input: CursorInput): T[] {
   return tools.map((tool) => {

@@ -14,7 +14,7 @@ import type { CallEvent } from "../src/mcpd/calllog.js";
 import { Gateway, type GatewayOptions } from "../src/mcpd/gateway.js";
 import { InstanceManager } from "../src/mcpd/instances.js";
 import { ErrorCode } from "../src/mcpd/jsonrpc.js";
-import { type CallStage, SESSION_META } from "../src/mcpd/middleware.js";
+import { CLIENT_META, type CallStage, SESSION_META } from "../src/mcpd/middleware.js";
 import {
   MODERN_PROTOCOL_VERSION,
   StatelessClient,
@@ -647,8 +647,9 @@ describe("the call middleware on both protocol paths", () => {
     expect(m2?.[SESSION_META]).toBe(m1?.[SESSION_META]);
     expect(m3?.[SESSION_META]).not.toBe(m1?.[SESSION_META]);
     expect([id, b1?.[SESSION_META]]).not.toContain(m1?.[SESSION_META]);
-    // The protocol fields of 2026-07-28 stay in mcpd; only turno's key reaches the server.
-    expect(Object.keys(m1 ?? {})).toEqual([SESSION_META]);
+    // The protocol fields of 2026-07-28 stay in mcpd; only turno's keys reach the server (the
+    // client's name too, when this process gave one in an initialize).
+    expect(Object.keys(m1 ?? {}).filter((k) => k !== CLIENT_META)).toEqual([SESSION_META]);
   });
 
   it("tells a server that declared the session capability when a session it served ends, and no other server", async () => {

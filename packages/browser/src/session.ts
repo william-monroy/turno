@@ -7,6 +7,14 @@
 export const SESSION_META_KEY = "io.turno/session";
 
 /**
+ * The name of the agent a relayed call comes from (the client's `clientInfo.name`, like
+ * "claude-code" or "codex-mcp-client"). mcpd puts it next to the session id when it knows it, so
+ * the agent cursor names each session's agent, not mcpd. A server talking to a client directly
+ * uses that client's own name instead.
+ */
+export const CLIENT_META_KEY = "io.turno/client";
+
+/**
  * The experimental capability a server declares in `initialize` to hear when a client session
  * ends: mcpd then sends it `SESSION_ENDED_METHOD` with `{ session: <the id above> }` for each
  * session that made a call and went away. A server without it never gets the notification.
@@ -28,4 +36,20 @@ export function sessionFromMeta(meta: unknown): string | undefined {
   const value = (meta as Record<string, unknown>)[SESSION_META_KEY];
   if (typeof value !== "string" || value.length === 0 || value.length > MAX_SESSION) return undefined;
   return /^[\x21-\x7e]+$/.test(value) ? value : undefined;
+}
+
+/** Longest client name accepted. */
+const MAX_CLIENT = 64;
+
+/**
+ * The client name in a request's `_meta` (`CLIENT_META_KEY`), or undefined when there is none
+ * or it is not a short printable string.
+ */
+export function clientFromMeta(meta: unknown): string | undefined {
+  if (typeof meta !== "object" || meta === null) return undefined;
+  const value = (meta as Record<string, unknown>)[CLIENT_META_KEY];
+  if (typeof value !== "string") return undefined;
+  const name = value.trim();
+  if (name.length === 0 || name.length > MAX_CLIENT) return undefined;
+  return /^[\x20-\x7e]+$/.test(name) ? name : undefined;
 }
