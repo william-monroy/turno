@@ -122,6 +122,15 @@ describe("turno-browser init", () => {
     expect(out).toContain("Once it is added, start a new Cursor session");
   });
 
+  it("names any MCP client as your MCP client in the next steps", async () => {
+    const io = asking(sb.env, []);
+    const c = ctx(api, { interactive: () => true });
+    expect(await init(c, ["--identity", "school", "--agent", "json", "--no-login", "--yes"], io, run)).toBe(0);
+    const out = io.lines.join("\n");
+    expect(out).toContain("Once it is added, start a new session of your MCP client and ask it to open");
+    expect(out).not.toContain("a new any MCP client session");
+  });
+
   it("without a terminal needs --identity and --agent, skips the sign-in and runs nothing", async () => {
     sb.agent("claude");
     const io = fakeIo(sb.env);
