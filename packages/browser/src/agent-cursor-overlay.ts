@@ -29,6 +29,8 @@ export type OverlayCommand =
   | { op: "ripple"; key: string; x: number; y: number }
   | { op: "typing"; key: string; box: OverlayBox | null }
   | { op: "busy"; key: string; on: boolean }
+  /** How many other sessions have a call in flight on this browser, on any page: the badge's "+N". */
+  | { op: "others"; n: number }
   | { op: "paused"; on: boolean }
   | { op: "visible"; on: boolean }
   | { op: "remove" };
@@ -45,7 +47,10 @@ export interface OverlayReport {
     busy: boolean;
     paused: boolean;
     badge: string;
-    cursors: { key: string; label: string; x: number; y: number }[];
+    /** `moves`: how many times the arrow was sent somewhere; `pill`: the side its label is on. */
+    cursors: { key: string; label: string; x: number; y: number; moves: number; pill: "right" | "left" }[];
+    /** The sessions whose typing bubble shows. */
+    typing: string[];
   };
 }
 
@@ -64,6 +69,7 @@ export function cursorOverlay(commands: OverlayCommand[]): OverlayReport {
     color: string;
     x: number;
     y: number;
+    moves: number;
   };
   type Parts = {
     doc: Document;
@@ -79,6 +85,8 @@ export function cursorOverlay(commands: OverlayCommand[]): OverlayReport {
     typing: Map<string, HTMLElement>;
     timers: Map<string, number>;
     busy: Set<string>;
+    /** The other sessions at work on this browser's other pages (`others`). */
+    others: number;
     lastBusy: string;
     paused: boolean;
     visible: boolean;
@@ -101,6 +109,9 @@ export function cursorOverlay(commands: OverlayCommand[]): OverlayReport {
     .cursor{position:fixed;left:0;top:0;transform:translate(var(--x),var(--y));transition:transform var(--ms) cubic-bezier(.22,.61,.36,1),opacity .4s ease;will-change:transform}
     .cursor svg{display:block;overflow:visible;filter:drop-shadow(0 2px 3px rgba(0,0,0,.3))}
     .pill{position:absolute;left:15px;top:19px;padding:3px 8px;border-radius:3px 10px 10px 10px;background:var(--c);color:#fff;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+    .fx .pill{left:auto;right:calc(100% - 4px);border-radius:10px 3px 10px 10px}
+    .fy .pill{top:auto;bottom:calc(100% - 6px);border-radius:10px 10px 10px 3px}
+    .fx.fy .pill{border-radius:10px 10px 3px 10px}
     .idle .cursor{opacity:.6}
     .ring{position:fixed;border:2px solid var(--c);border-radius:7px;box-shadow:0 0 0 4px color-mix(in srgb,var(--c) 20%,transparent);opacity:0;transition:opacity .25s ease,left .2s ease,top .2s ease,width .2s ease,height .2s ease}
     .ring.show{opacity:1}
@@ -178,6 +189,7 @@ export function cursorOverlay(commands: OverlayCommand[]): OverlayReport {
       typing: new Map(),
       timers: new Map(),
       busy: new Set(),
+      others: 0,
       lastBusy: "",
       paused: false,
       visible: true,
@@ -232,7 +244,7 @@ export function cursorOverlay(commands: OverlayCommand[]): OverlayReport {
     pill.className = "pill";
     el.append(svg, pill);
     parts.layer.append(el);
-    c = { el, pill, label: "", name: "", color: "#2b59ff", x: -40, y: -40 };
+    c = { el, pill, label: "", name: "", color: "#2b59ff", x: -40, y: -40, moves: 0 };
     parts.cursors.set(key, c);
     return c;
   };
@@ -249,7 +261,10 @@ export function cursorOverlay(commands: OverlayCommand[]): OverlayReport {
     parts.frame.style.setProperty("--c", color);
     parts.badge.style.setProperty("--c", color);
     const name = parts.cursors.get(key)?.name;
-    const others = parts.busy.size > 1 ? ` +${parts.busy.size - 1}` : "";
+    // The other sessions at work: those on this page, or on the browser's other pages (shared
+    // tabs), whichever says more.
+    const n = Math.max(parts.busy.size - 1, parts.others);
+    const others = n > 0 ? ` +${n}` : "";
     parts.badgeText.textContent = parts.paused
       ? "paused · you have the controls"
       : `turno · ${name ? `${name} at work` : "agent at work"}${others}`;
@@ -274,6 +289,13 @@ export function cursorOverlay(commands: OverlayCommand[]): OverlayReport {
         // The arrow's tip is 2px into its box.
         c.el.style.setProperty("--x", `${Math.round(cmd.x - 2)}px`);
         c.el.style.setProperty("--y", `${Math.round(cmd.y - 2)}px`);
+        c.moves++;
+        // The label goes left of the arrow near the right edge, and above it near the bottom, so
+        // it stays inside the page.
+        const pw = c.pill.offsetWidth || 8 * c.label.length + 16;
+        const ph = c.pill.offsetHeight || 22;
+        c.el.classList.toggle("fx", cmd.x + 13 + pw + 4 > window.innerWidth);
+        c.el.classList.toggle("fy", cmd.y + 17 + ph + 4 > window.innerHeight);
         break;
       }
       case "ring": {
@@ -312,12 +334,25 @@ export function cursorOverlay(commands: OverlayCommand[]): OverlayReport {
       case "typing": {
         const old = parts.typing.get(cmd.key);
         if (!cmd.box) {
-          old?.remove();
-          parts.typing.delete(cmd.key);
+          if (!old) break;
+          // A fill ends within a frame: the bubble stays up a moment so a person sees it at all.
+          const drop = () => {
+            old.remove();
+            if (parts.typing.get(cmd.key) === old) parts.typing.delete(cmd.key);
+          };
+          const wait = 900 - (Date.now() - Number(old.dataset.since ?? 0));
+          if (wait > 0) later(`typing:${cmd.key}`, wait, drop);
+          else drop();
           break;
+        }
+        const pending = parts.timers.get(`typing:${cmd.key}`);
+        if (pending !== undefined) {
+          clearTimeout(pending);
+          parts.timers.delete(`typing:${cmd.key}`);
         }
         const bubble = old ?? document.createElement("div");
         if (!old) {
+          bubble.dataset.since = String(Date.now());
           bubble.className = "typing";
           bubble.append(document.createElement("i"), document.createElement("i"), document.createElement("i"));
           parts.layer.append(bubble);
@@ -352,6 +387,12 @@ export function cursorOverlay(commands: OverlayCommand[]): OverlayReport {
         parts.paused = cmd.on;
         paintBadge();
         break;
+      case "others":
+        if (parts.others !== cmd.n) {
+          parts.others = cmd.n;
+          paintBadge();
+        }
+        break;
       case "visible":
         parts.visible = cmd.on;
         parts.host.style.setProperty("visibility", cmd.on ? "visible" : "hidden", "important");
@@ -375,7 +416,15 @@ export function cursorOverlay(commands: OverlayCommand[]): OverlayReport {
       busy: parts.busy.size > 0,
       paused: parts.paused,
       badge: parts.badgeText.textContent ?? "",
-      cursors: [...parts.cursors.entries()].map(([key, c]) => ({ key, label: c.label, x: c.x, y: c.y })),
+      cursors: [...parts.cursors.entries()].map(([key, c]) => ({
+        key,
+        label: c.label,
+        x: c.x,
+        y: c.y,
+        moves: c.moves,
+        pill: c.el.classList.contains("fx") ? ("left" as const) : ("right" as const),
+      })),
+      typing: [...parts.typing.keys()],
     },
   };
 }

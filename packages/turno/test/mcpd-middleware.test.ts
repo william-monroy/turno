@@ -6,6 +6,7 @@ import { ErrorCode, type Outcome } from "../src/mcpd/jsonrpc.js";
 import {
   type CallStage,
   CallPipeline,
+  CLIENT_META,
   SESSION_META,
   type ToolCall,
   createCallPipeline,
@@ -104,7 +105,7 @@ describe("the call pipeline", () => {
     expect(seen[0]).toEqual({ name: "echo", arguments: { text: "hi" } });
     expect(relayed).toHaveLength(1);
     expect(relayed[0]!.method).toBe("tools/call");
-    expect(Object.keys((relayed[0]!.params as { _meta: object })._meta)).toEqual([SESSION_META]);
+    expect(Object.keys((relayed[0]!.params as { _meta: object })._meta)).toEqual([SESSION_META, CLIENT_META]);
     expect(events).toHaveLength(1);
   });
 
@@ -149,7 +150,10 @@ describe("the call pipeline", () => {
     const { p, relayed } = pipeline();
     const a = client();
     const b = client({ sessionId: "s2" });
-    await call(p, a, { name: "echo", _meta: { progressToken: 7, [SESSION_META]: "forged", "example.com/k": "v" } });
+    await call(p, a, {
+      name: "echo",
+      _meta: { progressToken: 7, [SESSION_META]: "forged", [CLIENT_META]: "forged", "example.com/k": "v" },
+    });
     await call(p, a, { name: "echo" });
     await call(p, b, { name: "echo" });
     const ids = relayed.map((r) => (r.params?._meta as Record<string, unknown> | undefined)?.[SESSION_META]);
@@ -158,7 +162,23 @@ describe("the call pipeline", () => {
     expect(ids[2]).not.toBe(ids[0]);
     expect(ids).not.toContain("forged");
     expect(ids).not.toContain("s1");
-    expect(relayed[0]!.params?._meta).toEqual({ progressToken: 7, [SESSION_META]: ids[0], "example.com/k": "v" });
+    expect(relayed[0]!.params?._meta).toEqual({
+      progressToken: 7,
+      [SESSION_META]: ids[0],
+      [CLIENT_META]: "claude-code",
+      "example.com/k": "v",
+    });
+  });
+
+  it("sends the client's name only when initialize gave one", async () => {
+    const { p, relayed } = pipeline();
+    const anonymous = client();
+    delete anonymous.ctx.clientName;
+    await call(p, anonymous, { name: "echo", _meta: { [CLIENT_META]: "forged" } });
+    await call(p, client({ sessionId: "s3", clientName: "codex-mcp-client" }), { name: "echo" });
+    const metas = relayed.map((r) => r.params?._meta as Record<string, unknown>);
+    expect(metas[0]).not.toHaveProperty(CLIENT_META);
+    expect(metas[1]?.[CLIENT_META]).toBe("codex-mcp-client");
   });
 
   it("logs each call with the variant the relay used and the arguments as the client sent them", async () => {

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type {
+  CLIENT_META_KEY,
   SESSION_CAPABILITY as BROWSER_SESSION_CAPABILITY,
   SESSION_ENDED_METHOD,
   SESSION_META_KEY,
@@ -22,7 +23,8 @@ import { ErrorCode, type Id, type Outcome, rpcError } from "./jsonrpc.js";
  *   meter) are off by default: each is a `CallStage` that something turns on explicitly. They
  *   see the call as the client sent it, and the outcome the client gets.
  * - `calllog` times the call and hands one event to the call log when it is on.
- * - `session` puts the client session id in the forwarded `_meta` (`io.turno/session`).
+ * - `session` puts the client session id in the forwarded `_meta` (`io.turno/session`), and the
+ *   client's name (`io.turno/client`) when it gave one in initialize.
  *
  * Stage names are unique, lowercase, and never a built-in name.
  */
@@ -32,6 +34,12 @@ import { ErrorCode, type Id, type Outcome, rpcError } from "./jsonrpc.js";
  * import, erased at build): if the two ever differ, the typecheck fails.
  */
 export const SESSION_META: typeof SESSION_META_KEY = "io.turno/session";
+
+/**
+ * The `_meta` key of the client's own name (`clientInfo.name` from its initialize), sent next to
+ * the session id when mcpd knows it, so turno-browser's agent cursor names the agent, not mcpd.
+ */
+export const CLIENT_META: typeof CLIENT_META_KEY = "io.turno/client";
 
 /**
  * A server that declares this experimental capability in `initialize` hears, with
@@ -136,7 +144,8 @@ function callLogStage(sink: () => ((event: CallEvent) => void) | undefined): Cal
  * `session`: the client session id in `_meta[SESSION_META]`. A random UUID per client handle
  * (one 2025-11-25 session, or one stateless client: profile, server, PID and folder), kept for
  * the life of the handle. It is not the Mcp-Session-Id, so a server learns nothing it could use
- * against mcpd. A value the client sent under the same key is replaced.
+ * against mcpd. With it goes the client's name (`_meta[CLIENT_META]`) when initialize gave one. Values
+ * the client sent under either key are replaced.
  */
 function sessionStage(): CallStage {
   return {
@@ -151,7 +160,12 @@ function sessionStage(): CallStage {
         typeof call.params._meta === "object" && call.params._meta !== null
           ? (call.params._meta as Record<string, unknown>)
           : {};
-      call.params = { ...call.params, _meta: { ...meta, [SESSION_META]: id } };
+      const { [CLIENT_META]: _sent, ...rest } = meta;
+      const name = call.client.ctx.clientName;
+      call.params = {
+        ...call.params,
+        _meta: { ...rest, [SESSION_META]: id, ...(name ? { [CLIENT_META]: name } : {}) },
+      };
       return next(call);
     },
   };
